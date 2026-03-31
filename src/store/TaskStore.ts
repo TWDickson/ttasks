@@ -23,15 +23,22 @@ export class TaskStore {
 
 	async load(): Promise<void> {
 		const folder = this.app.vault.getFolderByPath(this.folderPath);
-		if (!folder) { this.tasks.set([]); return; }
+		if (!folder) {
+			this.plugin.debug(`folder not found — "${this.folderPath}"`);
+			this.tasks.set([]);
+			return;
+		}
 
 		const files = folder.children.filter(
 			(f): f is TFile => f instanceof TFile && f.extension === 'md'
 		);
 
+		this.plugin.debug(`found ${files.length} file(s) in ${this.folderPath}`);
+
 		const loaded = (await Promise.all(files.map(f => this.fileToTask(f))))
 			.filter((t): t is Task => t !== null);
 
+		this.plugin.debug(`loaded ${loaded.length} task(s)`);
 		this.tasks.set(loaded);
 	}
 

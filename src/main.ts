@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf } from 'obsidian';
+import { Notice, Plugin, WorkspaceLeaf } from 'obsidian';
 import { writable, type Writable } from 'svelte/store';
 import { type TTasksSettings, DEFAULT_SETTINGS, TTasksSettingTab } from './settings';
 import { TaskStore } from './store/TaskStore';
@@ -51,6 +51,11 @@ export default class TTasksPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+	}
+
+	debug(msg: string) {
+		if (this.settings.debug) new Notice(`TTasks: ${msg}`);
+		console.debug(`[TTasks] ${msg}`);
 	}
 
 	private async openTaskList(): Promise<void> {
