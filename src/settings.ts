@@ -56,6 +56,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.tasksFolder = value.trim();
 						await this.plugin.saveSettings();
+						await this.plugin.taskStore.load();
 					});
 			});
 	}
