@@ -1,0 +1,17 @@
+{
+  "extends": "@tsconfig/svelte",
+  "compilerOptions": {
+    "target": "ES2018",
+    "module": "ESNext",
+    "lib": ["ES6", "DOM", "DOM.Iterable"],
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noImplicitAny": true,
+    "sourceMap": true,
+    "allowJs": true,
+    "importHelpers": true,
+    "isolatedModules": true,
+    "strictNullChecks": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.svelte"]
+}

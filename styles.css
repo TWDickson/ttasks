@@ -1,0 +1,6 @@
+/* TTasks — task note styling */
+
+/* Hide native properties panel on task notes — TTasks renders its own UI */
+.markdown-source-view.ttask .metadata-container {
+	display: none !important;
+}
