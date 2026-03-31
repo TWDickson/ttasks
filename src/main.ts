@@ -54,8 +54,8 @@ export default class TTasksPlugin extends Plugin {
 	}
 
 	debug(msg: string) {
-		if (this.settings.debug) new Notice(`TTasks: ${msg}`);
-		console.debug(`[TTasks] ${msg}`);
+		if (this.settings.debug) new Notice(`TTasks: ${msg}`, 8000);
+		console.log(`[TTasks] ${msg}`);
 	}
 
 	private async openTaskList(): Promise<void> {
