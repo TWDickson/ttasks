@@ -173,7 +173,10 @@ export class TaskStore {
 	private async fileToTask(file: TFile): Promise<Task | null> {
 		const cache = this.app.metadataCache.getFileCache(file);
 		const fm = cache?.frontmatter;
-		if (!fm?.name) return null;
+		if (!fm?.name) {
+			this.plugin.debug(`skipping ${file.name} — no frontmatter name (fm=${JSON.stringify(fm)})`);
+			return null;
+		}
 
 		const dashIdx = file.basename.indexOf('-');
 		const id = dashIdx >= 0 ? file.basename.substring(0, dashIdx) : file.basename;

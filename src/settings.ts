@@ -12,8 +12,11 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 };
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
+	private inputEl: HTMLInputElement;
+
 	constructor(app: App, inputEl: HTMLInputElement) {
 		super(app, inputEl);
+		this.inputEl = inputEl;
 	}
 
 	getSuggestions(query: string): TFolder[] {
@@ -30,6 +33,7 @@ class FolderSuggest extends AbstractInputSuggest<TFolder> {
 
 	selectSuggestion(folder: TFolder): void {
 		this.setValue(folder.path);
+		this.inputEl.dispatchEvent(new Event('input'));
 		this.close();
 	}
 }
