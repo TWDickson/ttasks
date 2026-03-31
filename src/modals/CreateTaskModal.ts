@@ -39,6 +39,7 @@ export class CreateTaskModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.addClass('tt-modal');
+		this.modalEl.addClass('tt-create-modal');
 
 		// ── Name ────────────────────────────────────────────────────────────────
 		const nameInput = contentEl.createEl('input', {

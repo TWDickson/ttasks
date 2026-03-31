@@ -1,9 +1,8 @@
-import { Notice, Plugin, WorkspaceLeaf } from 'obsidian';
+import { Plugin } from 'obsidian';
 import { writable, type Writable } from 'svelte/store';
 import { type TTasksSettings, DEFAULT_SETTINGS, TTasksSettingTab } from './settings';
 import { TaskStore } from './store/TaskStore';
-import { TaskListView, TASK_LIST_VIEW_TYPE } from './views/TaskListView';
-import { TaskDetailView, TASK_DETAIL_VIEW_TYPE } from './views/TaskDetailView';
+import { TaskBoardView, TASK_BOARD_VIEW_TYPE } from './views/TaskBoardView';
 import { CreateTaskModal } from './modals/CreateTaskModal';
 
 export default class TTasksPlugin extends Plugin {
@@ -18,21 +17,16 @@ export default class TTasksPlugin extends Plugin {
 		this.taskStore.register();
 
 		this.registerView(
-			TASK_LIST_VIEW_TYPE,
-			leaf => new TaskListView(leaf, this)
+			TASK_BOARD_VIEW_TYPE,
+			leaf => new TaskBoardView(leaf, this)
 		);
 
-		this.registerView(
-			TASK_DETAIL_VIEW_TYPE,
-			leaf => new TaskDetailView(leaf, this)
-		);
-
-		this.addRibbonIcon('check-square', 'TTasks', () => this.openTaskList());
+		this.addRibbonIcon('check-square', 'TTasks', () => this.openBoard());
 
 		this.addCommand({
-			id: 'open-task-list',
-			name: 'Open task list',
-			callback: () => this.openTaskList(),
+			id: 'open-board',
+			name: 'Open board',
+			callback: () => this.openBoard(),
 		});
 
 		this.addCommand({
@@ -49,13 +43,22 @@ export default class TTasksPlugin extends Plugin {
 
 		this.addSettingTab(new TTasksSettingTab(this.app, this));
 
-		// Load tasks once the layout is ready
 		this.app.workspace.onLayoutReady(() => this.taskStore.load());
 	}
 
 	onunload() {
-		this.app.workspace.detachLeavesOfType(TASK_LIST_VIEW_TYPE);
-		this.app.workspace.detachLeavesOfType(TASK_DETAIL_VIEW_TYPE);
+		this.app.workspace.detachLeavesOfType(TASK_BOARD_VIEW_TYPE);
+	}
+
+	async openBoard(): Promise<void> {
+		const existing = this.app.workspace.getLeavesOfType(TASK_BOARD_VIEW_TYPE);
+		if (existing.length > 0) {
+			this.app.workspace.revealLeaf(existing[0]);
+			return;
+		}
+		const leaf = this.app.workspace.getLeaf('tab');
+		await leaf.setViewState({ type: TASK_BOARD_VIEW_TYPE, active: true });
+		this.app.workspace.revealLeaf(leaf);
 	}
 
 	async loadSettings() {
@@ -68,16 +71,5 @@ export default class TTasksPlugin extends Plugin {
 
 	log(msg: string) {
 		console.log(`[TTasks] ${msg}`);
-	}
-
-	private async openTaskList(): Promise<void> {
-		const existing = this.app.workspace.getLeavesOfType(TASK_LIST_VIEW_TYPE);
-		if (existing.length > 0) {
-			this.app.workspace.revealLeaf(existing[0]);
-			return;
-		}
-		const leaf = this.app.workspace.getLeftLeaf(false) as WorkspaceLeaf;
-		await leaf.setViewState({ type: TASK_LIST_VIEW_TYPE, active: true });
-		this.app.workspace.revealLeaf(leaf);
 	}
 }

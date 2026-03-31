@@ -1,6 +1,5 @@
 import { TFile, normalizePath } from 'obsidian';
 import { writable, type Writable } from 'svelte/store';
-import { TASK_DETAIL_VIEW_TYPE } from '../views/TaskDetailView';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskStatus, TaskPriority, TaskType, TaskRecordType } from '../types';
 
@@ -149,16 +148,7 @@ export class TaskStore {
 
 	async openDetail(path: string): Promise<void> {
 		this.plugin.activeTaskPath.set(path);
-
-		const existing = this.app.workspace.getLeavesOfType(TASK_DETAIL_VIEW_TYPE);
-		if (existing.length > 0) {
-			this.app.workspace.revealLeaf(existing[0]);
-			return;
-		}
-		const leaf = this.app.workspace.getRightLeaf(false);
-		if (!leaf) return;
-		await leaf.setViewState({ type: TASK_DETAIL_VIEW_TYPE, active: true });
-		this.app.workspace.revealLeaf(leaf);
+		await this.plugin.openBoard();
 	}
 
 	async openFile(path: string): Promise<void> {

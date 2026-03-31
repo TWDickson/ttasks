@@ -1,12 +1,16 @@
 import { AbstractInputSuggest, App, PluginSettingTab, Setting, TFolder } from 'obsidian';
 import type TTasksPlugin from './main';
 
+export type FabPosition = 'right' | 'left' | 'hidden';
+
 export interface TTasksSettings {
 	tasksFolder: string;
+	fabPosition: FabPosition;
 }
 
 export const DEFAULT_SETTINGS: TTasksSettings = {
 	tasksFolder: 'Tasks',
+	fabPosition: 'right',
 };
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
@@ -48,6 +52,19 @@ export class TTasksSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 		containerEl.createEl('h2', { text: 'TTasks Settings' });
+
+		new Setting(containerEl)
+			.setName('FAB position')
+			.setDesc('Position of the floating action button for creating new tasks.')
+			.addDropdown(dd => dd
+				.addOption('right',  'Bottom right')
+				.addOption('left',   'Bottom left')
+				.addOption('hidden', 'Hidden')
+				.setValue(this.plugin.settings.fabPosition)
+				.onChange(async (value) => {
+					this.plugin.settings.fabPosition = value as FabPosition;
+					await this.plugin.saveSettings();
+				}));
 
 		new Setting(containerEl)
 			.setName('Tasks folder')
