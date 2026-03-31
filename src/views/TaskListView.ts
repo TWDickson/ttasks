@@ -30,5 +30,6 @@ export class TaskListView extends ItemView {
 	async onClose(): Promise<void> {
 		this.component?.$destroy();
 		this.component = null;
+		this.contentEl.empty();
 	}
 }

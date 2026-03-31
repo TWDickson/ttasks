@@ -127,10 +127,11 @@ export class TaskStore {
 	async updateNotes(path: string, notes: string): Promise<void> {
 		const file = this.app.vault.getAbstractFileByPath(path);
 		if (!(file instanceof TFile)) return;
-		const content = await this.app.vault.read(file);
-		const fmEnd = content.indexOf('\n---', 3);
-		const frontmatter = fmEnd >= 0 ? content.substring(0, fmEnd + 4) : content;
-		await this.app.vault.modify(file, frontmatter + (notes ? '\n\n' + notes : '') + '\n');
+		await this.app.vault.process(file, (content) => {
+			const fmEnd = content.indexOf('\n---', 3);
+			const frontmatter = fmEnd >= 0 ? content.substring(0, fmEnd + 4) : content;
+			return frontmatter + (notes ? '\n\n' + notes : '') + '\n';
+		});
 	}
 
 	async delete(path: string): Promise<void> {
