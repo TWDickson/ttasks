@@ -1,136 +1,263 @@
-import { App, Modal, Notice, Setting } from 'obsidian';
+import { App, Modal, Notice } from 'obsidian';
+import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { TaskPriority, TaskRecordType, TaskStatus, TaskType } from '../types';
 
-const STATUSES: TaskStatus[]           = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Done'];
-const PRIORITIES: TaskPriority[]       = ['None', 'Low', 'Medium', 'High'];
-const CATEGORIES                       = ['', 'database', 'general'];
-const TASK_TYPES: (TaskType | '')[]    = ['', 'feature', 'bug', 'research', 'docs', 'action'];
+const STATUSES: TaskStatus[]        = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Done'];
+const PRIORITIES: TaskPriority[]    = ['None', 'Low', 'Medium', 'High'];
+const CATEGORIES                    = ['', 'database', 'general'];
+const TASK_TYPES: (TaskType | '')[] = ['', 'feature', 'bug', 'research', 'docs', 'action'];
+
+const PRIORITY_COLORS: Record<TaskPriority, string> = {
+	High:   'var(--color-red)',
+	Medium: 'var(--color-orange)',
+	Low:    'var(--color-blue)',
+	None:   'var(--text-faint)',
+};
 
 export class CreateTaskModal extends Modal {
 	private plugin: TTasksPlugin;
 
-	private name           = '';
-	private type: TaskRecordType   = 'task';
-	private status: TaskStatus     = 'Active';
-	private priority: TaskPriority = 'None';
-	private category               = '';
+	private name                       = '';
+	private type: TaskRecordType;
+	private status: TaskStatus         = 'Active';
+	private priority: TaskPriority     = 'None';
+	private category                   = '';
 	private task_type: TaskType | null = null;
-	private due_date               = '';
-	private start_date             = '';
+	private depends_on: string[]       = [];
+	private due_date                   = '';
+	private start_date                 = '';
 	private estimated_days: number | null = null;
-	private notes                  = '';
+	private notes                      = '';
 
-	constructor(app: App, plugin: TTasksPlugin) {
+	constructor(app: App, plugin: TTasksPlugin, defaultType: TaskRecordType = 'task') {
 		super(app);
 		this.plugin = plugin;
+		this.type = defaultType;
 	}
 
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.addClass('tt-modal');
-		contentEl.createEl('h2', { text: 'New Task' });
 
 		// ── Name ────────────────────────────────────────────────────────────────
-		new Setting(contentEl)
-			.setName('Name')
-			.addText(text => {
-				text.setPlaceholder('Task name').onChange(v => { this.name = v; });
-				text.inputEl.focus();
-				text.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
-					if (e.key === 'Enter') { e.preventDefault(); void this.submit(); }
-				});
-			});
+		const nameInput = contentEl.createEl('input', {
+			cls: 'tt-modal-name',
+			attr: {
+				type: 'text',
+				placeholder: this.type === 'project' ? 'Project name…' : 'Task name…',
+			},
+		});
+		nameInput.focus();
+		nameInput.addEventListener('input', () => { this.name = nameInput.value; });
+		nameInput.addEventListener('keydown', (e: KeyboardEvent) => {
+			if (e.key === 'Enter') { e.preventDefault(); void this.submit(); }
+		});
 
-		// ── Type ────────────────────────────────────────────────────────────────
-		new Setting(contentEl)
-			.setName('Type')
-			.addDropdown(dd => {
-				dd.addOption('task', 'Task')
-				  .addOption('project', 'Project')
-				  .setValue('task')
-				  .onChange(v => {
-					  this.type = v as TaskRecordType;
-					  taskTypeRow.settingEl.style.display = v === 'project' ? 'none' : '';
-				  });
-			});
+		// ── Type — full-width segmented ──────────────────────────────────────────
+		const typeGroup = contentEl.createDiv('tt-modal-type-group');
+		let taskTypeField: HTMLElement;
 
-		// ── Status ──────────────────────────────────────────────────────────────
-		new Setting(contentEl)
-			.setName('Status')
-			.addDropdown(dd => {
-				for (const s of STATUSES) dd.addOption(s, s);
-				dd.setValue('Active').onChange(v => { this.status = v as TaskStatus; });
+		for (const [val, label] of [['task', 'Task'], ['project', 'Project']] as [TaskRecordType, string][]) {
+			const btn = typeGroup.createEl('button', {
+				text: label,
+				cls: `tt-modal-type-btn${val === this.type ? ' tt-chip-active' : ''}`,
 			});
+			btn.addEventListener('click', () => {
+				this.type = val;
+				typeGroup.querySelectorAll('.tt-modal-type-btn').forEach(b => b.removeClass('tt-chip-active'));
+				btn.addClass('tt-chip-active');
+				// Gray out task type — keeps layout stable, communicates inapplicability
+				taskTypeField.style.opacity       = val === 'project' ? '0.35' : '';
+				taskTypeField.style.pointerEvents = val === 'project' ? 'none'  : '';
+				nameInput.placeholder = val === 'project' ? 'Project name…' : 'Task name…';
+				// Update create button label
+				const createBtn = contentEl.querySelector<HTMLButtonElement>('.tt-modal-btn-primary');
+				if (createBtn) createBtn.setText(val === 'project' ? 'Create project' : 'Create task');
+			});
+		}
 
 		// ── Priority ────────────────────────────────────────────────────────────
-		new Setting(contentEl)
-			.setName('Priority')
-			.addDropdown(dd => {
-				for (const p of PRIORITIES) dd.addOption(p, p);
-				dd.setValue('None').onChange(v => { this.priority = v as TaskPriority; });
+		const priorityField = this.field(contentEl, 'Priority');
+		const priorityChips = priorityField.createDiv('tt-modal-chips');
+
+		for (const p of PRIORITIES) {
+			const btn = priorityChips.createEl('button', {
+				text: p,
+				cls: `tt-modal-chip${p === 'None' ? ' tt-chip-active' : ''}`,
 			});
-
-		// ── Category ────────────────────────────────────────────────────────────
-		new Setting(contentEl)
-			.setName('Category')
-			.addDropdown(dd => {
-				for (const c of CATEGORIES) dd.addOption(c, c || '— none —');
-				dd.onChange(v => { this.category = v; });
+			if (p === 'None') this.applyPriorityStyle(btn, p);
+			btn.addEventListener('click', () => {
+				this.priority = p;
+				priorityChips.querySelectorAll<HTMLButtonElement>('.tt-modal-chip').forEach(b => {
+					b.removeClass('tt-chip-active');
+					b.style.removeProperty('background');
+					b.style.removeProperty('border-color');
+					b.style.removeProperty('color');
+				});
+				btn.addClass('tt-chip-active');
+				this.applyPriorityStyle(btn, p);
 			});
+		}
 
-		// ── Task Type (hidden when type = project) ───────────────────────────────
-		const taskTypeRow = new Setting(contentEl)
-			.setName('Task Type')
-			.addDropdown(dd => {
-				for (const t of TASK_TYPES) dd.addOption(t, t || '— none —');
-				dd.onChange(v => { this.task_type = (v as TaskType) || null; });
+		// ── Task Type chips (grayed out for project) ────────────────────────────
+		taskTypeField = this.field(contentEl, 'Task Type');
+		if (this.type === 'project') {
+			taskTypeField.style.opacity       = '0.35';
+			taskTypeField.style.pointerEvents = 'none';
+		}
+		const taskTypeChips = taskTypeField.createDiv('tt-modal-chips');
+
+		for (const t of TASK_TYPES) {
+			const btn = taskTypeChips.createEl('button', {
+				text: t || '— none —',
+				cls: `tt-modal-chip${!t ? ' tt-chip-active' : ''}`,
 			});
-
-		// ── More options (collapsible) ───────────────────────────────────────────
-		const details = contentEl.createEl('details', { cls: 'tt-modal-details' });
-		details.createEl('summary', { text: 'More options', cls: 'tt-modal-summary' });
-
-		new Setting(details)
-			.setName('Due Date')
-			.addText(text => {
-				text.inputEl.type = 'date';
-				text.onChange(v => { this.due_date = v; });
+			btn.addEventListener('click', () => {
+				this.task_type = (t as TaskType) || null;
+				taskTypeChips.querySelectorAll('.tt-modal-chip').forEach(b => b.removeClass('tt-chip-active'));
+				btn.addClass('tt-chip-active');
 			});
+		}
 
-		new Setting(details)
-			.setName('Start Date')
-			.addText(text => {
-				text.inputEl.type = 'date';
-				text.onChange(v => { this.start_date = v; });
-			});
+		// ── Start Date | After Task (mutually exclusive) ─────────────────────────
+		const startRow = contentEl.createDiv('tt-modal-pair-row');
 
-		new Setting(details)
-			.setName('Est. Days')
-			.addText(text => {
-				text.inputEl.type = 'number';
-				text.inputEl.min = '0';
-				text.inputEl.step = '0.5';
-				text.onChange(v => { this.estimated_days = v ? parseFloat(v) : null; });
-			});
+		const startDateField = this.field(startRow, 'Start Date');
+		const startDateInput = startDateField.createEl('input', {
+			cls: 'tt-modal-input',
+			attr: { type: 'date' },
+		});
 
-		const notesSetting = new Setting(details).setName('Notes');
-		const notesEl = notesSetting.controlEl.createEl('textarea', {
-			cls: 'tt-modal-notes',
-			attr: { rows: '4', placeholder: 'Add notes…' },
+		const afterTaskField = this.field(startRow, 'After Task');
+		const allTasks = get(this.plugin.taskStore.tasks);
+		const afterTaskSelect = afterTaskField.createEl('select', { cls: 'tt-modal-select' });
+		afterTaskSelect.createEl('option', { text: '— none —', value: '' });
+		for (const t of allTasks) {
+			afterTaskSelect.createEl('option', { text: t.name, value: t.path.replace(/\.md$/, '') });
+		}
+
+		startDateInput.addEventListener('change', () => {
+			this.start_date = startDateInput.value;
+			if (startDateInput.value) {
+				this.depends_on = [];
+				afterTaskSelect.value    = '';
+				afterTaskSelect.disabled = true;
+			} else {
+				afterTaskSelect.disabled = false;
+			}
+		});
+
+		afterTaskSelect.addEventListener('change', () => {
+			const val = afterTaskSelect.value;
+			this.depends_on = val ? [val] : [];
+			if (val) {
+				this.start_date          = '';
+				startDateInput.value     = '';
+				startDateInput.disabled  = true;
+			} else {
+				startDateInput.disabled  = false;
+			}
+		});
+
+		// ── Due Date | Est. Days (mutually exclusive) ────────────────────────────
+		const dueRow = contentEl.createDiv('tt-modal-pair-row');
+
+		const dueDateField = this.field(dueRow, 'Due Date');
+		const dueDateInput = dueDateField.createEl('input', {
+			cls: 'tt-modal-input',
+			attr: { type: 'date' },
+		});
+
+		const estField = this.field(dueRow, 'Est. Days');
+		const estInput = estField.createEl('input', {
+			cls: 'tt-modal-input',
+			attr: { type: 'number', min: '0', step: '0.5', placeholder: '—' },
+		});
+
+		dueDateInput.addEventListener('change', () => {
+			this.due_date = dueDateInput.value;
+			if (dueDateInput.value) {
+				this.estimated_days  = null;
+				estInput.value       = '';
+				estInput.disabled    = true;
+			} else {
+				estInput.disabled    = false;
+			}
+		});
+
+		estInput.addEventListener('change', () => {
+			this.estimated_days = estInput.value ? parseFloat(estInput.value) : null;
+			if (estInput.value) {
+				this.due_date           = '';
+				dueDateInput.value      = '';
+				dueDateInput.disabled   = true;
+			} else {
+				dueDateInput.disabled   = false;
+			}
+		});
+
+		// ── Notes ────────────────────────────────────────────────────────────────
+		const notesField = this.field(contentEl, 'Notes');
+		const notesEl = notesField.createEl('textarea', {
+			cls: 'tt-modal-textarea',
+			attr: { rows: '3', placeholder: 'Add notes…' },
 		});
 		notesEl.addEventListener('input', () => { this.notes = notesEl.value; });
 
-		// ── Buttons ─────────────────────────────────────────────────────────────
-		new Setting(contentEl)
-			.addButton(btn => btn.setButtonText('Create').setCta().onClick(() => void this.submit()))
-			.addButton(btn => btn.setButtonText('Cancel').onClick(() => this.close()));
+		// ── More options (Status + Category) ────────────────────────────────────
+		const details = contentEl.createEl('details', { cls: 'tt-modal-details' });
+		details.createEl('summary', { text: 'More options', cls: 'tt-modal-summary' });
+
+		const statusField = this.field(details, 'Status');
+		const statusChips = statusField.createDiv('tt-modal-chips');
+		for (const s of STATUSES) {
+			const btn = statusChips.createEl('button', {
+				text: s,
+				cls: `tt-modal-chip${s === 'Active' ? ' tt-chip-active' : ''}`,
+			});
+			btn.addEventListener('click', () => {
+				this.status = s;
+				statusChips.querySelectorAll('.tt-modal-chip').forEach(b => b.removeClass('tt-chip-active'));
+				btn.addClass('tt-chip-active');
+			});
+		}
+
+		const categoryField = this.field(details, 'Category');
+		const categorySelect = categoryField.createEl('select', { cls: 'tt-modal-select' });
+		for (const c of CATEGORIES) {
+			categorySelect.createEl('option', { text: c || '— none —', value: c });
+		}
+		categorySelect.addEventListener('change', () => { this.category = categorySelect.value; });
+
+		// ── Buttons ──────────────────────────────────────────────────────────────
+		const btnRow = contentEl.createDiv('tt-modal-btn-row');
+		btnRow.createEl('button', { text: 'Cancel', cls: 'tt-modal-btn' })
+			.addEventListener('click', () => this.close());
+		btnRow.createEl('button', { text: 'Create task', cls: 'tt-modal-btn tt-modal-btn-primary' })
+			.addEventListener('click', () => void this.submit());
 	}
+
+	// ── Helpers ──────────────────────────────────────────────────────────────────
+
+	private field(parent: HTMLElement, label: string): HTMLElement {
+		const wrap = parent.createDiv('tt-modal-field');
+		wrap.createEl('label', { text: label, cls: 'tt-modal-label' });
+		return wrap;
+	}
+
+	private applyPriorityStyle(btn: HTMLButtonElement, p: TaskPriority) {
+		btn.style.background  = PRIORITY_COLORS[p];
+		btn.style.borderColor = PRIORITY_COLORS[p];
+		btn.style.color       = '#fff';
+	}
+
+	// ── Submit ───────────────────────────────────────────────────────────────────
 
 	private async submit() {
 		const name = this.name.trim();
 		if (!name) {
-			new Notice('Task name is required.');
+			new Notice(`${this.type === 'project' ? 'Project' : 'Task'} name is required.`);
 			return;
 		}
 		try {
@@ -142,7 +269,7 @@ export class CreateTaskModal extends Modal {
 				priority:       this.priority,
 				task_type:      this.task_type,
 				parent_task:    null,
-				depends_on:     [],
+				depends_on:     this.depends_on,
 				blocked_reason: '',
 				assigned_to:    '',
 				source:         '',
@@ -156,7 +283,8 @@ export class CreateTaskModal extends Modal {
 			this.close();
 			await this.plugin.taskStore.openDetail(task.path);
 		} catch (e) {
-			new Notice(`Failed to create task: ${e}`);
+			console.error('[TTasks] Failed to create task:', e);
+			new Notice('TTasks: Failed to create task — check console for details.');
 		}
 	}
 

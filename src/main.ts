@@ -41,6 +41,12 @@ export default class TTasksPlugin extends Plugin {
 			callback: () => new CreateTaskModal(this.app, this).open(),
 		});
 
+		this.addCommand({
+			id: 'new-project',
+			name: 'New project',
+			callback: () => new CreateTaskModal(this.app, this, 'project').open(),
+		});
+
 		this.addSettingTab(new TTasksSettingTab(this.app, this));
 
 		// Load tasks once the layout is ready
@@ -60,8 +66,7 @@ export default class TTasksPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	debug(msg: string) {
-		if (this.settings.debug) new Notice(`TTasks: ${msg}`, 8000);
+	log(msg: string) {
 		console.log(`[TTasks] ${msg}`);
 	}
 

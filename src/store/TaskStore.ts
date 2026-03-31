@@ -24,7 +24,7 @@ export class TaskStore {
 	async load(): Promise<void> {
 		const folder = this.app.vault.getFolderByPath(this.folderPath);
 		if (!folder) {
-			this.plugin.debug(`folder not found — "${this.folderPath}"`);
+			this.plugin.log(`folder not found — "${this.folderPath}"`);
 			this.tasks.set([]);
 			return;
 		}
@@ -33,12 +33,12 @@ export class TaskStore {
 			(f): f is TFile => f instanceof TFile && f.extension === 'md'
 		);
 
-		this.plugin.debug(`found ${files.length} file(s) in ${this.folderPath}`);
+		this.plugin.log(`found ${files.length} file(s) in ${this.folderPath}`);
 
 		const loaded = (await Promise.all(files.map(f => this.fileToTask(f))))
 			.filter((t): t is Task => t !== null);
 
-		this.plugin.debug(`loaded ${loaded.length} task(s)`);
+		this.plugin.log(`loaded ${loaded.length} task(s)`);
 		this.tasks.set(loaded);
 	}
 
@@ -112,9 +112,7 @@ export class TaskStore {
 			await this.addToBlocks(depPath, filePath, input.name);
 		}
 
-		const file = this.app.vault.getAbstractFileByPath(filePath) as TFile;
-		const task = await this.fileToTask(file);
-		return task!;
+		return full;
 	}
 
 	async update(path: string, updates: Partial<Task>): Promise<void> {
@@ -175,7 +173,7 @@ export class TaskStore {
 		const cache = this.app.metadataCache.getFileCache(file);
 		const fm = cache?.frontmatter;
 		if (!fm?.name) {
-			this.plugin.debug(`skipping ${file.name} — no frontmatter name (fm=${JSON.stringify(fm)})`);
+			console.log(`[TTasks] skipping ${file.name} — cache not ready yet`);
 			return null;
 		}
 

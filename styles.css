@@ -7,42 +7,207 @@
 
 /* ── Create Task Modal ──────────────────────────────────────────────────────── */
 
-.tt-modal h2 {
-	margin-top: 0;
-	margin-bottom: 16px;
-	font-size: 1.2rem;
+.tt-modal {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding-bottom: 4px;
 }
 
+/* Large name input at top */
+.tt-modal-name {
+	width: 100%;
+	box-sizing: border-box;
+	font-size: 1.3rem;
+	font-weight: 600;
+	padding: 8px 4px;
+	border: none;
+	border-bottom: 2px solid var(--background-modifier-border);
+	background: transparent;
+	color: var(--text-normal);
+	transition: border-color 0.15s;
+}
+.tt-modal-name:focus {
+	outline: none;
+	border-bottom-color: var(--interactive-accent);
+}
+
+/* Field: label stacked above control */
+.tt-modal-field {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.tt-modal-label {
+	font-size: 0.72rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--text-muted);
+}
+
+/* Chips */
+.tt-modal-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.tt-modal-chip {
+	padding: 6px 14px;
+	min-height: 34px;
+	border-radius: 999px;
+	border: 1.5px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: 0.82rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.12s;
+	white-space: nowrap;
+}
+.tt-modal-chip:hover {
+	border-color: var(--text-muted);
+	color: var(--text-normal);
+}
+.tt-modal-chip.tt-chip-active {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+/* Selects and text inputs */
+.tt-modal-select,
+.tt-modal-input {
+	width: 100%;
+	box-sizing: border-box;
+	font-size: 0.9rem;
+	padding: 8px 10px;
+	min-height: 38px;
+	border-radius: var(--radius-m, 6px);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+.tt-modal-select:focus,
+.tt-modal-input:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
+}
+.tt-modal-select:disabled,
+.tt-modal-input:disabled {
+	opacity: 0.38;
+	cursor: not-allowed;
+}
+
+/* Full-width type segmented control — iOS-style */
+.tt-modal-type-group {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 3px;
+	background: var(--background-modifier-border);
+	border-radius: calc(var(--radius-m, 8px) + 3px);
+	padding: 3px;
+}
+
+.tt-modal-type-btn {
+	padding: 9px 10px;
+	border: none;
+	border-radius: var(--radius-m, 8px);
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 0.9rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.12s, color 0.12s;
+}
+.tt-modal-type-btn:hover:not(.tt-chip-active) {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.tt-modal-type-btn.tt-chip-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+/* Pair rows (Start/After, Due/Est) */
+.tt-modal-pair-row {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 12px;
+}
+
+/* More options */
 .tt-modal-details {
-	margin: 8px 0;
+	border-top: 1px solid var(--background-modifier-border);
+	padding-top: 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
 }
-
 .tt-modal-summary {
 	font-size: 0.82rem;
 	color: var(--text-muted);
 	cursor: pointer;
-	padding: 4px 0;
 	user-select: none;
+	margin-bottom: 4px;
+	list-style: none;
 }
+.tt-modal-summary:hover { color: var(--text-normal); }
 
-.tt-modal-summary:hover {
-	color: var(--text-normal);
-}
-
-.tt-modal-notes {
+/* Notes textarea */
+.tt-modal-textarea {
 	width: 100%;
 	box-sizing: border-box;
 	font-size: 0.88rem;
-	padding: 8px;
+	padding: 8px 10px;
 	border-radius: var(--radius-m, 6px);
 	border: 1px solid var(--background-modifier-border);
 	background: var(--background-primary);
 	color: var(--text-normal);
 	resize: vertical;
 	font-family: var(--font-text);
+	min-height: 80px;
 }
-
-.tt-modal-notes:focus {
+.tt-modal-textarea:focus {
 	outline: none;
 	border-color: var(--interactive-accent);
+}
+
+/* Button row */
+.tt-modal-btn-row {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	padding-top: 4px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.tt-modal-btn {
+	padding: 8px 18px;
+	min-height: 38px;
+	border-radius: var(--radius-m, 6px);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	font-size: 0.9rem;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all 0.12s;
+}
+.tt-modal-btn:hover { background: var(--background-modifier-hover); }
+
+.tt-modal-btn-primary {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+.tt-modal-btn-primary:hover { filter: brightness(1.08); }
+
+/* Mobile: stack pair rows */
+@media (max-width: 480px) {
+	.tt-modal-pair-row {
+		grid-template-columns: 1fr;
+	}
 }

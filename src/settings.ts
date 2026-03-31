@@ -3,12 +3,10 @@ import type TTasksPlugin from './main';
 
 export interface TTasksSettings {
 	tasksFolder: string;
-	debug: boolean;
 }
 
 export const DEFAULT_SETTINGS: TTasksSettings = {
 	tasksFolder: 'Tasks',
-	debug: true,
 };
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
@@ -66,14 +64,5 @@ export class TTasksSettingTab extends PluginSettingTab {
 					});
 			});
 
-		new Setting(containerEl)
-			.setName('Debug mode')
-			.setDesc('Show notices for internal plugin events. Useful for troubleshooting.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.debug)
-				.onChange(async (value) => {
-					this.plugin.settings.debug = value;
-					await this.plugin.saveSettings();
-				}));
 	}
 }
