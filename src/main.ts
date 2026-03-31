@@ -1,11 +1,14 @@
 import { Plugin, WorkspaceLeaf } from 'obsidian';
+import { writable, type Writable } from 'svelte/store';
 import { type TTasksSettings, DEFAULT_SETTINGS, TTasksSettingTab } from './settings';
 import { TaskStore } from './store/TaskStore';
 import { TaskListView, TASK_LIST_VIEW_TYPE } from './views/TaskListView';
+import { TaskDetailView, TASK_DETAIL_VIEW_TYPE } from './views/TaskDetailView';
 
 export default class TTasksPlugin extends Plugin {
 	settings!: TTasksSettings;
 	taskStore!: TaskStore;
+	activeTaskPath: Writable<string | null> = writable(null);
 
 	async onload() {
 		await this.loadSettings();
@@ -16,6 +19,11 @@ export default class TTasksPlugin extends Plugin {
 		this.registerView(
 			TASK_LIST_VIEW_TYPE,
 			leaf => new TaskListView(leaf, this)
+		);
+
+		this.registerView(
+			TASK_DETAIL_VIEW_TYPE,
+			leaf => new TaskDetailView(leaf, this)
 		);
 
 		this.addRibbonIcon('check-square', 'TTasks', () => this.openTaskList());
@@ -34,6 +42,7 @@ export default class TTasksPlugin extends Plugin {
 
 	onunload() {
 		this.app.workspace.detachLeavesOfType(TASK_LIST_VIEW_TYPE);
+		this.app.workspace.detachLeavesOfType(TASK_DETAIL_VIEW_TYPE);
 	}
 
 	async loadSettings() {

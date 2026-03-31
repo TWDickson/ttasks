@@ -1,28 +1,29 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import type TTasksPlugin from '../main';
-import TaskList from '../components/TaskList.svelte';
+import TaskDetail from '../components/TaskDetail.svelte';
 
-export const TASK_LIST_VIEW_TYPE = 'ttasks-list';
+export const TASK_DETAIL_VIEW_TYPE = 'ttasks-detail';
 
-export class TaskListView extends ItemView {
+export class TaskDetailView extends ItemView {
 	private plugin: TTasksPlugin;
-	private component: TaskList | null = null;
+	private component: TaskDetail | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: TTasksPlugin) {
 		super(leaf);
 		this.plugin = plugin;
 	}
 
-	getViewType(): string { return TASK_LIST_VIEW_TYPE; }
-	getDisplayText(): string { return 'TTasks'; }
-	getIcon(): string { return 'check-square'; }
+	getViewType(): string { return TASK_DETAIL_VIEW_TYPE; }
+	getDisplayText(): string { return 'Task Detail'; }
+	getIcon(): string { return 'file-text'; }
 
 	async onOpen(): Promise<void> {
-		this.component = new TaskList({
+		this.component = new TaskDetail({
 			target: this.contentEl,
 			props: {
 				tasks: this.plugin.taskStore.tasks,
-				onOpen: (path: string) => this.plugin.taskStore.openDetail(path),
+				activeTaskPath: this.plugin.activeTaskPath,
+				store: this.plugin.taskStore,
 			},
 		});
 	}
