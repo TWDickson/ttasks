@@ -90,12 +90,20 @@
 			{/if}
 		</div>
 
-		<!-- Detail panel: side panel on desktop, slide-in on mobile -->
+		<!-- Backdrop: mobile gets dark overlay, desktop is transparent click-target -->
+		{#if showDetail}
+			<div class="tt-detail-backdrop" on:click={closeDetail}></div>
+		{/if}
+
+		<!-- Detail panel: absolute overlay on both desktop and mobile -->
 		<div class="tt-board-detail" class:is-visible={showDetail}>
 			<div class="tt-detail-topbar">
 				<button class="tt-back-btn" on:click={closeDetail}>
 					<span use:icon={'arrow-left'}></span>
 					<span>Back</span>
+				</button>
+				<button class="tt-close-btn" on:click={closeDetail} aria-label="Close">
+					<span use:icon={'x'}></span>
 				</button>
 			</div>
 			<div class="tt-detail-scroll">
@@ -192,9 +200,9 @@
 	.tt-board-body {
 		flex: 1;
 		display: flex;
-		flex-direction: row;
+		flex-direction: column;
 		overflow: hidden;
-		position: relative;
+		position: relative; /* anchor for absolute detail panel */
 	}
 
 	/* Mobile tab bar — hidden on desktop */
@@ -205,30 +213,51 @@
 	.tt-board-content {
 		flex: 1;
 		overflow-y: auto;
+		overflow-x: hidden;
 	}
 
-	/* ── Detail panel ──────────────────────────────────────────────────────────── */
+	/* ── Detail panel — absolute overlay on both viewports ──────────────────────── */
 	.tt-board-detail {
-		display: none;
-		width: 360px;
-		flex-shrink: 0;
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		width: 380px;
+		display: flex;
 		flex-direction: column;
-		border-left: 1px solid var(--background-modifier-border);
 		background: var(--background-primary);
-		overflow: hidden;
+		border-left: 1px solid var(--background-modifier-border);
+		box-shadow: -4px 0 16px rgba(0, 0, 0, 0.12);
+		transform: translateX(100%);
+		transition: transform 0.22s ease;
+		z-index: 5;
 	}
 	.tt-board-detail.is-visible {
-		display: flex;
+		transform: translateX(0);
 	}
 
+	/* ── Backdrop ───────────────────────────────────────────────────────────────── */
+	.tt-detail-backdrop {
+		position: absolute;
+		inset: 0;
+		z-index: 4;
+		/* Desktop: transparent click-target only */
+		background: transparent;
+		pointer-events: auto;
+	}
+
+	/* ── Detail topbar ──────────────────────────────────────────────────────────── */
 	.tt-detail-topbar {
-		display: none; /* back button hidden on desktop */
-		padding: 8px 12px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 6px 8px;
 		border-bottom: 1px solid var(--background-modifier-border);
 		flex-shrink: 0;
 	}
 
-	.tt-back-btn {
+	.tt-back-btn,
+	.tt-close-btn {
 		display: flex;
 		align-items: center;
 		gap: 6px;
@@ -239,11 +268,17 @@
 		color: var(--text-muted);
 		font-size: 0.88rem;
 		cursor: pointer;
+		transition: background 0.1s, color 0.1s;
 	}
-	.tt-back-btn:hover {
+	.tt-back-btn:hover,
+	.tt-close-btn:hover {
 		background: var(--background-modifier-hover);
 		color: var(--text-normal);
 	}
+
+	/* Desktop: hide back button, show close button */
+	.tt-back-btn  { display: none; }
+	.tt-close-btn { display: flex; margin-left: auto; }
 
 	.tt-detail-scroll {
 		flex: 1;
@@ -287,10 +322,6 @@
 	@media (max-width: 768px) {
 		.tt-board-rail { display: none; }
 
-		.tt-board-body {
-			flex-direction: column;
-		}
-
 		/* Tab bar */
 		.tt-board-tabs {
 			display: flex;
@@ -317,24 +348,24 @@
 			font-weight: 600;
 		}
 
-		/* Detail: full-screen slide-in */
+		/* Detail: full-screen on mobile */
 		.tt-board-detail {
-			display: flex; /* always in DOM on mobile */
-			position: absolute;
 			inset: 0;
 			width: 100%;
-			transform: translateX(100%);
-			transition: transform 0.25s ease;
 			border-left: none;
-			z-index: 5;
-		}
-		.tt-board-detail.is-visible {
-			transform: translateX(0);
+			box-shadow: none;
 		}
 
-		.tt-detail-topbar { display: flex; }
+		/* Mobile backdrop: dark overlay */
+		.tt-detail-backdrop {
+			background: rgba(0, 0, 0, 0.35);
+		}
 
-		/* FAB sits above safe area */
+		/* Mobile: show back button, hide X close button */
+		.tt-back-btn  { display: flex; }
+		.tt-close-btn { display: none; }
+
+		/* FAB above safe area */
 		.tt-fab {
 			bottom: calc(20px + env(safe-area-inset-bottom, 0px));
 		}

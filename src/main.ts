@@ -41,6 +41,18 @@ export default class TTasksPlugin extends Plugin {
 			callback: () => new CreateTaskModal(this.app, this, 'project').open(),
 		});
 
+		this.addCommand({
+			id: 'sync-blocks',
+			name: 'Sync blocks (rebuild reverse index)',
+			callback: () => this.taskStore.syncBlocks(),
+		});
+
+		this.addCommand({
+			id: 'migrate-css-classes',
+			name: 'Migrate CSS classes (add ttask to existing notes)',
+			callback: () => this.taskStore.migrateCssClasses(),
+		});
+
 		this.addSettingTab(new TTasksSettingTab(this.app, this));
 
 		this.app.workspace.onLayoutReady(() => this.taskStore.load());

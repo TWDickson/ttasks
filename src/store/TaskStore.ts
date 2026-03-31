@@ -1,4 +1,4 @@
-import { TFile, normalizePath } from 'obsidian';
+import { Notice, TFile, normalizePath } from 'obsidian';
 import { writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskStatus, TaskPriority, TaskType, TaskRecordType } from '../types';
@@ -155,6 +155,65 @@ export class TaskStore {
 		const file = this.app.vault.getAbstractFileByPath(path);
 		if (!(file instanceof TFile)) return;
 		await this.app.workspace.getLeaf('tab').openFile(file);
+	}
+
+	// ── Bulk operations ──────────────────────────────────────────────────────────
+
+	async syncBlocks(): Promise<void> {
+		const folder = this.app.vault.getFolderByPath(this.folderPath);
+		if (!folder) { new Notice('TTasks: tasks folder not found'); return; }
+
+		const files = folder.children.filter(
+			(f): f is TFile => f instanceof TFile && f.extension === 'md'
+		);
+
+		// Build reverse index: cleanPath → tasks that depend on it
+		const reverseMap = new Map<string, { path: string; name: string }[]>();
+
+		for (const file of files) {
+			const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+			if (!fm) continue;
+			const name: string = fm.name ?? file.basename;
+			const deps = this.parseWikiLinks(fm.depends_on);
+			for (const dep of deps) {
+				if (!reverseMap.has(dep)) reverseMap.set(dep, []);
+				reverseMap.get(dep)!.push({ path: file.path.replace(/\.md$/, ''), name });
+			}
+		}
+
+		for (const file of files) {
+			const cleanPath = file.path.replace(/\.md$/, '');
+			const blockers = reverseMap.get(cleanPath) ?? [];
+			await this.app.fileManager.processFrontMatter(file, (fm) => {
+				fm.blocks = blockers.map(b => `[[${b.path}|${b.name}]]`);
+			});
+		}
+
+		this.plugin.log(`SyncBlocks complete — ${files.length} files processed`);
+	}
+
+	async migrateCssClasses(): Promise<void> {
+		const folder = this.app.vault.getFolderByPath(this.folderPath);
+		if (!folder) { this.plugin.log('migrateCssClasses: tasks folder not found'); return; }
+
+		const files = folder.children.filter(
+			(f): f is TFile => f instanceof TFile && f.extension === 'md'
+		);
+
+		let patched = 0;
+		for (const file of files) {
+			await this.app.fileManager.processFrontMatter(file, (fm) => {
+				const existing: string[] = Array.isArray(fm.cssclasses)
+					? fm.cssclasses
+					: typeof fm.cssclasses === 'string' ? [fm.cssclasses] : [];
+				if (!existing.includes('ttask')) {
+					fm.cssclasses = [...existing, 'ttask'];
+					patched++;
+				}
+			});
+		}
+
+		this.plugin.log(`MigrateCssClasses: patched ${patched} of ${files.length} files`);
 	}
 
 	// ── Parsing ─────────────────────────────────────────────────────────────────
