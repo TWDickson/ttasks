@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { AbstractInputSuggest, App, PluginSettingTab, Setting, TFolder } from 'obsidian';
 import type TTasksPlugin from './main';
 
 export interface TTasksSettings {
@@ -8,6 +8,29 @@ export interface TTasksSettings {
 export const DEFAULT_SETTINGS: TTasksSettings = {
 	tasksFolder: 'Tasks',
 };
+
+class FolderSuggest extends AbstractInputSuggest<TFolder> {
+	constructor(app: App, inputEl: HTMLInputElement) {
+		super(app, inputEl);
+	}
+
+	getSuggestions(query: string): TFolder[] {
+		const q = query.toLowerCase();
+		return this.app.vault.getAllLoadedFiles()
+			.filter((f): f is TFolder => f instanceof TFolder)
+			.filter(f => f.path.toLowerCase().includes(q))
+			.slice(0, 20);
+	}
+
+	renderSuggestion(folder: TFolder, el: HTMLElement): void {
+		el.setText(folder.path);
+	}
+
+	selectSuggestion(folder: TFolder): void {
+		this.setValue(folder.path);
+		this.close();
+	}
+}
 
 export class TTasksSettingTab extends PluginSettingTab {
 	plugin: TTasksPlugin;
@@ -25,12 +48,15 @@ export class TTasksSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('Tasks folder')
 			.setDesc('The folder TTasks owns. All task and project files will be stored here.')
-			.addText(text => text
-				.setPlaceholder('Tasks')
-				.setValue(this.plugin.settings.tasksFolder)
-				.onChange(async (value) => {
-					this.plugin.settings.tasksFolder = value.trim();
-					await this.plugin.saveSettings();
-				}));
+			.addText(text => {
+				new FolderSuggest(this.app, text.inputEl);
+				text
+					.setPlaceholder('Tasks')
+					.setValue(this.plugin.settings.tasksFolder)
+					.onChange(async (value) => {
+						this.plugin.settings.tasksFolder = value.trim();
+						await this.plugin.saveSettings();
+					});
+			});
 	}
 }
