@@ -104,7 +104,8 @@ export class TaskStore {
 			created: today,
 		};
 
-		await this.app.vault.create(filePath, this.buildFrontmatter(full) + '\n');
+		const body = full.notes?.trim() ? '\n\n' + full.notes.trim() : '';
+		await this.app.vault.create(filePath, this.buildFrontmatter(full) + body + '\n');
 
 		// Sync blocks on depends_on targets
 		for (const depPath of input.depends_on) {

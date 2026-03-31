@@ -1,6 +1,7 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import type TTasksPlugin from '../main';
 import TaskList from '../components/TaskList.svelte';
+import { CreateTaskModal } from '../modals/CreateTaskModal';
 
 export const TASK_LIST_VIEW_TYPE = 'ttasks-list';
 
@@ -18,6 +19,10 @@ export class TaskListView extends ItemView {
 	getIcon(): string { return 'check-square'; }
 
 	async onOpen(): Promise<void> {
+		this.addAction('plus', 'New task', () => {
+			new CreateTaskModal(this.app, this.plugin).open();
+		});
+
 		this.component = new TaskList({
 			target: this.contentEl,
 			props: {

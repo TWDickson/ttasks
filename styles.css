@@ -4,3 +4,45 @@
 .markdown-source-view.ttask .metadata-container {
 	display: none !important;
 }
+
+/* ── Create Task Modal ──────────────────────────────────────────────────────── */
+
+.tt-modal h2 {
+	margin-top: 0;
+	margin-bottom: 16px;
+	font-size: 1.2rem;
+}
+
+.tt-modal-details {
+	margin: 8px 0;
+}
+
+.tt-modal-summary {
+	font-size: 0.82rem;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 4px 0;
+	user-select: none;
+}
+
+.tt-modal-summary:hover {
+	color: var(--text-normal);
+}
+
+.tt-modal-notes {
+	width: 100%;
+	box-sizing: border-box;
+	font-size: 0.88rem;
+	padding: 8px;
+	border-radius: var(--radius-m, 6px);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	resize: vertical;
+	font-family: var(--font-text);
+}
+
+.tt-modal-notes:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
+}

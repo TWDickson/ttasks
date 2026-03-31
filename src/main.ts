@@ -4,6 +4,7 @@ import { type TTasksSettings, DEFAULT_SETTINGS, TTasksSettingTab } from './setti
 import { TaskStore } from './store/TaskStore';
 import { TaskListView, TASK_LIST_VIEW_TYPE } from './views/TaskListView';
 import { TaskDetailView, TASK_DETAIL_VIEW_TYPE } from './views/TaskDetailView';
+import { CreateTaskModal } from './modals/CreateTaskModal';
 
 export default class TTasksPlugin extends Plugin {
 	settings!: TTasksSettings;
@@ -32,6 +33,12 @@ export default class TTasksPlugin extends Plugin {
 			id: 'open-task-list',
 			name: 'Open task list',
 			callback: () => this.openTaskList(),
+		});
+
+		this.addCommand({
+			id: 'new-task',
+			name: 'New task',
+			callback: () => new CreateTaskModal(this.app, this).open(),
 		});
 
 		this.addSettingTab(new TTasksSettingTab(this.app, this));
