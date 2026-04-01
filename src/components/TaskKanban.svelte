@@ -4,24 +4,30 @@
 	import type TaskStore from '../store/TaskStore';
 
 	export let tasks: Writable<Task[]>;
+	export let statuses: string[];
+	export let statusColors: Record<string, string>;
+	export let categoryColors: Record<string, string>;
+	export let taskTypeColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
 	export let store: TaskStore;
 	export let onOpen: (path: string) => void;
 
 	type Column = { id: TaskStatus; label: string; accent?: string };
 
-	let activeColumn: TaskStatus = 'In Progress';
+	let activeColumn: TaskStatus = statuses?.[0] ?? 'Active';
 	let draggingPath: string | null = null;
 	let dragOverCol: TaskStatus | null = null;
 
-	const COLUMNS: Column[] = [
-		{ id: 'In Progress', label: 'In Progress', accent: 'var(--color-blue)' },
-		{ id: 'Active',      label: 'Active' },
-		{ id: 'Future',      label: 'Future' },
-		{ id: 'Blocked',     label: 'Blocked',     accent: 'var(--color-red)' },
-		{ id: 'Hold',        label: 'On Hold' },
-		{ id: 'Done',        label: 'Done',         accent: 'var(--color-green)' },
-	];
+	$: statusAccents = statusColors ?? {};
+	$: COLUMNS = (statuses ?? []).map((status) => ({
+		id: status,
+		label: status === 'Hold' ? 'On Hold' : status,
+		accent: statusAccents[status],
+	}));
+
+	$: if (!COLUMNS.some(col => col.id === activeColumn)) {
+		activeColumn = COLUMNS[0]?.id ?? 'Active';
+	}
 
 	const PRIORITY_COLORS: Record<string, string> = {
 		High:   'var(--color-red)',
@@ -81,6 +87,10 @@
 	function onDragEnd() {
 		draggingPath = null;
 		dragOverCol = null;
+	}
+
+	function getBadgeStyle(color: string | undefined): string {
+		return color ? `--tt-badge-color:${color};` : '';
 	}
 </script>
 
@@ -157,7 +167,7 @@
 
 								<div class="tt-card-meta">
 									{#if task.category}
-										<span class="tt-badge tt-badge-cat">{task.category}</span>
+										<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!categoryColors?.[task.category]} style={getBadgeStyle(categoryColors?.[task.category])}>{task.category}</span>
 									{/if}
 									{#if task.due_date}
 										<span class="tt-badge" class:tt-badge-overdue={isOverdue(task.due_date)}>
@@ -165,7 +175,7 @@
 										</span>
 									{/if}
 									{#if task.task_type}
-										<span class="tt-badge tt-badge-type">{task.task_type}</span>
+										<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!taskTypeColors?.[task.task_type]} style={getBadgeStyle(taskTypeColors?.[task.task_type])}>{task.task_type}</span>
 									{/if}
 								</div>
 							</div>
@@ -355,8 +365,15 @@
 		padding: 2px 6px;
 		border-radius: 999px;
 		background: var(--background-modifier-border);
+		border: 1px solid transparent;
 		color: var(--text-muted);
 		white-space: nowrap;
+	}
+
+	.tt-badge-tinted {
+		background: color-mix(in srgb, var(--tt-badge-color) 18%, var(--background-primary));
+		border-color: color-mix(in srgb, var(--tt-badge-color) 42%, var(--background-modifier-border));
+		color: var(--tt-badge-color);
 	}
 
 	.tt-badge-overdue {

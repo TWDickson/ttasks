@@ -2,8 +2,8 @@ import { App, Modal, Notice } from 'obsidian';
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { TaskPriority, TaskRecordType, TaskStatus, TaskType } from '../types';
+import { resolveEmergencyStatus } from '../settings';
 
-const STATUSES: TaskStatus[]        = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Done'];
 const PRIORITIES: TaskPriority[]    = ['None', 'Low', 'Medium', 'High'];
 
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
@@ -18,7 +18,7 @@ export class CreateTaskModal extends Modal {
 
 	private name                       = '';
 	private type: TaskRecordType;
-	private status: TaskStatus         = 'Active';
+	private status: TaskStatus;
 	private priority: TaskPriority     = 'None';
 	private category                   = '';
 	private task_type: TaskType | null = null;
@@ -32,6 +32,7 @@ export class CreateTaskModal extends Modal {
 		super(app);
 		this.plugin = plugin;
 		this.type = defaultType;
+		this.status = resolveEmergencyStatus(this.plugin.settings.statuses);
 	}
 
 	private get categories(): string[] {
@@ -40,6 +41,22 @@ export class CreateTaskModal extends Modal {
 
 	private get taskTypes(): string[] {
 		return ['', ...(this.plugin.settings.taskTypes ?? [])];
+	}
+
+	private get statuses(): TaskStatus[] {
+		return this.plugin.settings.statuses ?? ['Active'];
+	}
+
+	private get statusColors(): Record<string, string> {
+		return this.plugin.settings.statusColors ?? {};
+	}
+
+	private get categoryColors(): Record<string, string> {
+		return this.plugin.settings.categoryColors ?? {};
+	}
+
+	private get taskTypeColors(): Record<string, string> {
+		return this.plugin.settings.taskTypeColors ?? {};
 	}
 
 	onOpen() {
@@ -119,10 +136,29 @@ export class CreateTaskModal extends Modal {
 				text: t || '— none —',
 				cls: `tt-modal-chip${!t ? ' tt-chip-active' : ''}`,
 			});
+			if (t && this.taskTypeColors[t]) {
+				btn.style.borderColor = this.taskTypeColors[t];
+				btn.style.color = this.taskTypeColors[t];
+			}
 			btn.addEventListener('click', () => {
 				this.task_type = (t as TaskType) || null;
-				taskTypeChips.querySelectorAll('.tt-modal-chip').forEach(b => b.removeClass('tt-chip-active'));
+				taskTypeChips.querySelectorAll<HTMLButtonElement>('.tt-modal-chip').forEach(b => {
+					b.removeClass('tt-chip-active');
+					b.style.removeProperty('background');
+					if (b.textContent && this.taskTypeColors[b.textContent]) {
+						b.style.borderColor = this.taskTypeColors[b.textContent];
+						b.style.color = this.taskTypeColors[b.textContent];
+					} else {
+						b.style.removeProperty('border-color');
+						b.style.removeProperty('color');
+					}
+				});
 				btn.addClass('tt-chip-active');
+				if (t && this.taskTypeColors[t]) {
+					btn.style.background = `color-mix(in srgb, ${this.taskTypeColors[t]} 18%, var(--background-primary))`;
+					btn.style.borderColor = this.taskTypeColors[t];
+					btn.style.color = this.taskTypeColors[t];
+				}
 			});
 		}
 
@@ -217,15 +253,27 @@ export class CreateTaskModal extends Modal {
 
 		const statusField = this.field(details, 'Status');
 		const statusChips = statusField.createDiv('tt-modal-chips');
-		for (const s of STATUSES) {
+		for (const s of this.statuses) {
 			const btn = statusChips.createEl('button', {
 				text: s,
-				cls: `tt-modal-chip${s === 'Active' ? ' tt-chip-active' : ''}`,
+				cls: `tt-modal-chip${s === this.status ? ' tt-chip-active' : ''}`,
 			});
+			if (s === this.status && this.statusColors[s]) {
+				btn.style.background = this.statusColors[s];
+				btn.style.borderColor = this.statusColors[s];
+			}
 			btn.addEventListener('click', () => {
 				this.status = s;
-				statusChips.querySelectorAll('.tt-modal-chip').forEach(b => b.removeClass('tt-chip-active'));
+				statusChips.querySelectorAll<HTMLButtonElement>('.tt-modal-chip').forEach(b => {
+					b.removeClass('tt-chip-active');
+					b.style.removeProperty('background');
+					b.style.removeProperty('border-color');
+				});
 				btn.addClass('tt-chip-active');
+				if (this.statusColors[s]) {
+					btn.style.background = this.statusColors[s];
+					btn.style.borderColor = this.statusColors[s];
+				}
 			});
 		}
 
@@ -234,7 +282,23 @@ export class CreateTaskModal extends Modal {
 		for (const c of this.categories) {
 			categorySelect.createEl('option', { text: c || '— none —', value: c });
 		}
-		categorySelect.addEventListener('change', () => { this.category = categorySelect.value; });
+		const applyCategoryTint = () => {
+			const color = this.category ? this.categoryColors[this.category] : undefined;
+			if (!color) {
+				categorySelect.style.removeProperty('background');
+				categorySelect.style.removeProperty('border-color');
+				categorySelect.style.removeProperty('color');
+				return;
+			}
+			categorySelect.style.background = `color-mix(in srgb, ${color} 10%, var(--background-primary))`;
+			categorySelect.style.borderColor = `color-mix(in srgb, ${color} 42%, var(--background-modifier-border))`;
+			categorySelect.style.color = color;
+		};
+		applyCategoryTint();
+		categorySelect.addEventListener('change', () => {
+			this.category = categorySelect.value;
+			applyCategoryTint();
+		});
 
 		// ── Buttons ──────────────────────────────────────────────────────────────
 		const btnRow = contentEl.createDiv('tt-modal-btn-row');

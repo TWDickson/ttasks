@@ -60,9 +60,23 @@ Goal: speed up common state transitions.
 
 - Desktop commands: start, block, complete, defer one day.
 - Mobile swipes (list first): complete, defer.
+- Status: in progress.
+- Implemented in current slice:
+  - Configurable quick-action settings (start status, block status, defer days).
+  - Shared quick-action execution path used by command palette actions.
+  - Mobile swipe reveal actions for list and agenda rows, mapped to configurable left/right actions.
+- Known issues to fix next:
+  - Mobile swipe gesture thresholds and action reveal feel need tuning on-device.
+  - Optional notice/haptic behavior for swipe actions needs product decision.
+  - Additional swipe UX polish (icons/affordances) pending.
 
 ## Phase 4 (Parity Plus)
 
 - Recurrence.
 - Natural language quick capture.
 - Capacity-aware Today planner (suggested top tasks, overload guardrails).
+- Explicit status metadata (`is_complete`, later possibly `is_inbox`) so completion/default behavior no longer depends on literal status names.
+- Dedicated per-item icon/emoji field for statuses, categories, and task types.
+  - Separate from the label so compact views (kanban column header, tight badges) can show icon-only while full views show `{icon} {label}`.
+  - Interim: emoji embedded in the name (e.g. `📥 Inbox`) works everywhere and is easy to migrate — just split on the first emoji character.
+  - Consider protecting Done/Inbox as system statuses at the same time.

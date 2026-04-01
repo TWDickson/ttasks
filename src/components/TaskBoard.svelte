@@ -55,6 +55,11 @@
 		{ id: 'agenda', label: 'Agenda', icon: 'calendar' },
 	];
 
+	$: configuredStatuses = plugin.settings.statuses ?? ['Active'];
+	$: configuredStatusColors = plugin.settings.statusColors ?? {};
+	$: configuredCategoryColors = plugin.settings.categoryColors ?? {};
+	$: configuredTaskTypeColors = plugin.settings.taskTypeColors ?? {};
+
 	function openNewTask()    { new CreateTaskModal(plugin.app, plugin).open(); }
 	function openNewProject() { new CreateTaskModal(plugin.app, plugin, 'project').open(); }
 	function closeDetail()    { activeTaskPath.set(null); }
@@ -164,20 +169,31 @@
 			<div class="tt-board-content">
 				{#if currentView === 'list'}
 					<TaskList
+						{plugin}
 						tasks={displayTasks}
+						statuses={configuredStatuses}
+						categoryColors={configuredCategoryColors}
+						taskTypeColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
 					/>
 				{:else if currentView === 'kanban'}
 					<TaskKanban
 						tasks={displayTasks}
+						statuses={configuredStatuses}
+						statusColors={configuredStatusColors}
+						categoryColors={configuredCategoryColors}
+						taskTypeColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						store={plugin.taskStore}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
 					/>
 				{:else}
 					<TaskAgenda
+						{plugin}
 						tasks={displayTasks}
+						categoryColors={configuredCategoryColors}
+						taskTypeColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
 					/>

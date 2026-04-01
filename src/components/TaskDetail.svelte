@@ -3,6 +3,7 @@
 	import type TTasksPlugin from '../main';
 	import type { Task, TaskStatus, TaskPriority, TaskType } from '../types';
 	import type { TaskStore } from '../store/TaskStore';
+	import { resolveCompletionStatus } from '../settings';
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Writable<Task[]>;
@@ -20,6 +21,7 @@
 	let priority: TaskPriority = 'None';
 	let category = '';
 	let task_type: TaskType | null = null;
+	let parent_task_path = '';
 	let due_date = '';
 	let start_date = '';
 	let assigned_to = '';
@@ -35,6 +37,7 @@
 		priority      = task.priority;
 		category      = task.category ?? '';
 		task_type     = task.task_type;
+		parent_task_path = task.parent_task ?? '';
 		due_date      = task.due_date ?? '';
 		start_date    = task.start_date ?? '';
 		assigned_to   = task.assigned_to ?? '';
@@ -77,11 +80,21 @@
 		saveImmediate({ priority: p });
 	}
 
+	function getCompletionStatus(): TaskStatus {
+		return resolveCompletionStatus(plugin.settings.statuses, plugin.settings.completionStatus);
+	}
+
 	async function markComplete() {
 		if (!task) return;
 		const today = new Date().toISOString().slice(0, 10);
-		status = 'Done';
-		await saveImmediate({ status: 'Done', completed: today });
+		const completeStatus = getCompletionStatus();
+		status = completeStatus;
+		await saveImmediate({ status: completeStatus, completed: today });
+	}
+
+	function onParentTaskChange() {
+		if (!task) return;
+		store.updateParentTask(task.path, parent_task_path || null);
 	}
 
 	function withCurrentOption(base: string[], current: string | null): string[] {
@@ -91,17 +104,22 @@
 	}
 
 	// ── Constants ───────────────────────────────────────────────────────────────
-	const STATUSES: TaskStatus[] = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Done'];
 	const PRIORITIES: TaskPriority[] = ['High', 'Medium', 'Low', 'None'];
 
+	$: statusOptions = withCurrentOption(plugin.settings.statuses ?? [], status || null);
+	$: completionStatus = getCompletionStatus();
 	$: categoryOptions = ['', ...withCurrentOption(plugin.settings.categories ?? [], category || null)];
 	$: taskTypeOptions = ['', ...withCurrentOption(plugin.settings.taskTypes ?? [], task_type)];
-
-	const STATUS_COLORS: Partial<Record<TaskStatus, string>> = {
-		'In Progress': 'var(--color-blue)',
-		'Blocked':     'var(--color-red)',
-		'Done':        'var(--color-green)',
-	};
+	$: categoryColors = plugin.settings.categoryColors ?? {};
+	$: taskTypeColors = plugin.settings.taskTypeColors ?? {};
+	$: statusColors = plugin.settings.statusColors ?? {};
+	$: parentProjectOptions = [
+		{ value: '', label: '— none —' },
+		...$tasks
+			.filter(t => t.type === 'project' && t.path !== task?.path)
+			.map(t => ({ value: t.path.replace(/\.md$/, ''), label: t.name }))
+			.sort((a, b) => a.label.localeCompare(b.label)),
+	];
 
 	const PRIORITY_COLORS: Record<TaskPriority, string> = {
 		High:   'var(--color-red)',
@@ -109,6 +127,12 @@
 		Low:    'var(--color-blue)',
 		None:   'var(--text-faint)',
 	};
+
+	function getSelectTintStyle(color: string | undefined): string {
+		return color
+			? `--tt-select-color:${color};background:color-mix(in srgb, ${color} 10%, var(--background-primary));border-color:color-mix(in srgb, ${color} 42%, var(--background-modifier-border));color:${color};`
+			: '';
+	}
 </script>
 
 {#if !task}
@@ -136,11 +160,11 @@
 		<div class="tt-field-group">
 			<span class="tt-label">Status</span>
 			<div class="tt-chips">
-				{#each STATUSES as s}
+				{#each statusOptions as s}
 					<button
 						class="tt-chip"
 						class:tt-chip-active={status === s}
-						style={status === s && STATUS_COLORS[s] ? `background:${STATUS_COLORS[s]};border-color:${STATUS_COLORS[s]}` : ''}
+						style={status === s && statusColors[s] ? `background:${statusColors[s]};border-color:${statusColors[s]}` : ''}
 						on:click={() => setStatus(s)}
 					>{s}</button>
 				{/each}
@@ -170,6 +194,7 @@
 			<select
 				id="tt-category"
 				bind:value={category}
+				style={getSelectTintStyle(category ? categoryColors[category] : undefined)}
 				on:change={() => saveImmediate({ category: category || null })}
 			>
 				{#each categoryOptions as c}
@@ -178,10 +203,22 @@
 			</select>
 
 			{#if task.type === 'task'}
+				<label class="tt-label" for="tt-parent-task">Project</label>
+				<select
+					id="tt-parent-task"
+					bind:value={parent_task_path}
+					on:change={onParentTaskChange}
+				>
+					{#each parentProjectOptions as opt}
+						<option value={opt.value}>{opt.label}</option>
+					{/each}
+				</select>
+
 				<label class="tt-label" for="tt-task-type">Task Type</label>
 				<select
 					id="tt-task-type"
 					bind:value={task_type}
+					style={getSelectTintStyle(task_type ? taskTypeColors[task_type] : undefined)}
 					on:change={() => saveImmediate({ task_type: task_type || null })}
 				>
 					{#each taskTypeOptions as t}
@@ -239,15 +276,9 @@
 		</div>
 
 		<!-- Relationships -->
-		{#if task.parent_task || task.depends_on.length > 0 || task.blocks.length > 0}
+		{#if task.depends_on.length > 0 || task.blocks.length > 0}
 			<hr class="tt-divider" />
 			<div class="tt-relationships">
-				{#if task.parent_task}
-					<div class="tt-rel-row">
-						<span class="tt-label">Project</span>
-						<span class="tt-rel-chip">{task.parent_task.split('/').pop()?.replace(/^[a-f0-9]+-/, '') ?? task.parent_task}</span>
-					</div>
-				{/if}
 				{#if task.depends_on.length > 0}
 					<div class="tt-rel-row">
 						<span class="tt-label">Depends on</span>
@@ -294,7 +325,7 @@
 
 		<!-- Actions -->
 		<div class="tt-actions">
-			{#if status !== 'Done'}
+			{#if status !== completionStatus}
 				<button class="tt-btn tt-btn-primary" on:click={markComplete}>
 					✓ Mark Complete
 				</button>
@@ -442,15 +473,6 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
-	}
-
-	.tt-rel-chip {
-		padding: 3px 10px;
-		border-radius: 999px;
-		border: 1px solid var(--background-modifier-border);
-		background: var(--background-secondary);
-		color: var(--text-muted);
-		font-size: 0.78rem;
 	}
 
 	.tt-divider {

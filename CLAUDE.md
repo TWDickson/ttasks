@@ -98,6 +98,7 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 - TickTick parity where expected: reminders, recurrence, quick capture
 - TTasks differentiation where it matters: dependency intelligence, blocker visibility, realistic daily planning
 - Prefer narrow vertical slices with clear acceptance criteria over large speculative features
+- Status behavior is currently name-based with an internal completion-status tracking fallback; explicit status metadata such as `is_complete` is planned but not implemented yet.
 
 ## Key Conventions
 

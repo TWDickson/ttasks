@@ -1,8 +1,10 @@
 import { Notice, TFile, normalizePath } from 'obsidian';
-import { writable, type Writable } from 'svelte/store';
+import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskStatus, TaskPriority, TaskType, TaskRecordType } from '../types';
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
+
+type MigratableField = 'status' | 'category' | 'task_type';
 
 export class TaskStore {
 	readonly tasks: Writable<Task[]> = writable([]);
@@ -155,6 +157,22 @@ export class TaskStore {
 		});
 	}
 
+	async updateParentTask(taskPath: string, parentPath: string | null): Promise<void> {
+		const file = this.app.vault.getAbstractFileByPath(taskPath);
+		if (!(file instanceof TFile)) return;
+
+		await this.app.fileManager.processFrontMatter(file, (fm) => {
+			if (!parentPath) {
+				fm.parent_task = null;
+				return;
+			}
+			const all = get(this.tasks);
+			const parent = all.find(t => t.path.replace(/\.md$/, '') === parentPath);
+			const name = parent?.name ?? parentPath.split('/').pop() ?? parentPath;
+			fm.parent_task = `[[${parentPath}|${name}]]`;
+		});
+	}
+
 	async delete(path: string): Promise<void> {
 		const file = this.app.vault.getAbstractFileByPath(path);
 		if (!(file instanceof TFile)) return;
@@ -231,6 +249,54 @@ export class TaskStore {
 		this.plugin.log(`MigrateCssClasses: patched ${patched} of ${files.length} files`);
 	}
 
+	async migrateFieldValues(field: MigratableField, mappings: Record<string, string | null>): Promise<number> {
+		const folder = this.app.vault.getFolderByPath(this.folderPath);
+		if (!folder) return 0;
+
+		const files = folder.children.filter(
+			(f): f is TFile => f instanceof TFile && f.extension === 'md'
+		);
+
+		let patched = 0;
+		for (const file of files) {
+			await this.app.fileManager.processFrontMatter(file, (fm) => {
+				const current = typeof fm[field] === 'string' ? fm[field] : null;
+				if (!current) return;
+				if (!Object.prototype.hasOwnProperty.call(mappings, current)) return;
+				fm[field] = mappings[current] ?? null;
+				patched++;
+			});
+		}
+
+		this.plugin.log(`MigrateFieldValues(${field}): patched ${patched} of ${files.length} files`);
+		return patched;
+	}
+
+	async migrateStatuses(validStatuses: string[]): Promise<number> {
+		const folder = this.app.vault.getFolderByPath(this.folderPath);
+		if (!folder) return 0;
+
+		const allowed = new Set(validStatuses);
+		const fallback = validStatuses[0] ?? 'Active';
+
+		const files = folder.children.filter(
+			(f): f is TFile => f instanceof TFile && f.extension === 'md'
+		);
+
+		let patched = 0;
+		for (const file of files) {
+			await this.app.fileManager.processFrontMatter(file, (fm) => {
+				const current = typeof fm.status === 'string' ? fm.status : '';
+				if (current && allowed.has(current)) return;
+				fm.status = fallback;
+				patched++;
+			});
+		}
+
+		this.plugin.log(`MigrateStatuses: patched ${patched} of ${files.length} files`);
+		return patched;
+	}
+
 	// ── Parsing ─────────────────────────────────────────────────────────────────
 
 	private async fileToTask(file: TFile): Promise<Task | null> {
@@ -248,13 +314,20 @@ export class TaskStore {
 		const content = await this.app.vault.cachedRead(file);
 		const notes = this.extractNotes(content);
 
+		const allowedStatuses = this.plugin.settings.statuses ?? ['Active'];
+		const fallbackStatus = allowedStatuses[0] ?? 'Active';
+		const rawStatus = typeof fm.status === 'string' ? fm.status : '';
+		const normalizedStatus = rawStatus && allowedStatuses.includes(rawStatus)
+			? rawStatus
+			: fallbackStatus;
+
 		return {
 			id, slug,
 			path: file.path,
 			type:           (fm.type as TaskRecordType)  ?? 'task',
 			name:           fm.name                       ?? '',
 			category:       fm.category                   ?? null,
-			status:         (fm.status as TaskStatus)     ?? 'Active',
+			status:         normalizedStatus,
 			priority:       (fm.priority as TaskPriority) ?? 'None',
 			task_type:      (fm.task_type as TaskType)    ?? null,
 			parent_task:    this.parseWikiLink(fm.parent_task),

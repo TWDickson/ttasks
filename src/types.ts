@@ -1,4 +1,4 @@
-export type TaskStatus = 'Active' | 'Future' | 'In Progress' | 'Hold' | 'Blocked' | 'Cancelled' | 'Done';
+export type TaskStatus = string;
 export type TaskPriority = 'High' | 'Medium' | 'Low' | 'None';
 export type TaskType = string;
 export type TaskRecordType = 'task' | 'project';

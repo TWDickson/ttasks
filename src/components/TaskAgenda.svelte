@@ -1,8 +1,13 @@
 <script lang="ts">
+	import type TTasksPlugin from '../main';
+	import SwipeableTaskRow from './SwipeableTaskRow.svelte';
 	import type { Writable } from 'svelte/store';
 	import type { Task } from '../types';
 
+	export let plugin: TTasksPlugin;
 	export let tasks: Writable<Task[]>;
+	export let categoryColors: Record<string, string>;
+	export let taskTypeColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
 
@@ -40,13 +45,6 @@
 		High: 0, Medium: 1, Low: 2, None: 3,
 	};
 
-	const PRIORITY_COLORS: Record<string, string> = {
-		High:   'var(--color-red)',
-		Medium: 'var(--color-orange)',
-		Low:    'var(--color-blue)',
-		None:   'var(--text-faint)',
-	};
-
 	// ── Helpers ───────────────────────────────────────────────────────────────
 
 	function today(): string {
@@ -68,11 +66,6 @@
 		if (due <= offsetDate(7)) return 'this-week';
 		if (due <= offsetDate(14)) return 'next-week';
 		return 'later';
-	}
-
-	function isOverdue(due: string | null): boolean {
-		if (!due) return false;
-		return due < today();
 	}
 
 	function sortTasks(list: Task[]): Task[] {
@@ -115,6 +108,7 @@
 
 		return map;
 	}
+
 </script>
 
 <div class="tt-agenda">
@@ -134,40 +128,14 @@
 					</h3>
 					<ul class="tt-task-list">
 						{#each groupTasks as task (task.path)}
-							<li
-								class="tt-task"
-								class:is-overdue={isOverdue(task.due_date)}
-								class:is-active={$activeTaskPath === task.path}
-							>
-								<button
-									class="tt-task-btn"
-									class:is-active={$activeTaskPath === task.path}
-									on:click={() => onOpen(task.path)}
-								>
-									<div class="tt-task-main">
-										<span
-											class="tt-priority-dot"
-											style="background: {PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.None}"
-											title="Priority: {task.priority}"
-										></span>
-										<span class="tt-task-name">{task.name}</span>
-									</div>
-									<div class="tt-task-meta">
-										{#if task.category}
-											<span class="tt-badge tt-badge-cat">{task.category}</span>
-										{/if}
-										{#if task.due_date}
-											<span
-												class="tt-badge"
-												class:tt-badge-overdue={isOverdue(task.due_date)}
-											>{task.due_date}</span>
-										{/if}
-										{#if task.task_type}
-											<span class="tt-badge tt-badge-type">{task.task_type}</span>
-										{/if}
-									</div>
-								</button>
-							</li>
+							<SwipeableTaskRow
+								{plugin}
+								{task}
+								active={$activeTaskPath === task.path}
+								{categoryColors}
+								{taskTypeColors}
+								{onOpen}
+							/>
 						{/each}
 					</ul>
 				</section>
@@ -187,7 +155,6 @@
 		max-width: 660px;
 	}
 
-	/* ── Empty state ─────────────────────────────────────────────────────────── */
 	.tt-empty {
 		padding: 32px 16px;
 		text-align: center;
@@ -195,7 +162,6 @@
 		font-size: 0.9rem;
 	}
 
-	/* ── Group header ────────────────────────────────────────────────────────── */
 	.tt-group-heading {
 		display: flex;
 		align-items: center;
@@ -208,11 +174,6 @@
 		margin: 0;
 	}
 
-	/* Label color is applied inline via style prop */
-	.tt-group-label {
-		/* inherits color from inline style */
-	}
-
 	.tt-count {
 		background: var(--background-modifier-border);
 		border-radius: 999px;
@@ -222,7 +183,6 @@
 		color: var(--text-muted);
 	}
 
-	/* ── Task list ───────────────────────────────────────────────────────────── */
 	.tt-task-list {
 		list-style: none;
 		margin: 0;
@@ -232,109 +192,4 @@
 		gap: 1px;
 	}
 
-	.tt-task {
-		display: flex;
-	}
-
-	/* ── Task row button ─────────────────────────────────────────────────────── */
-	.tt-task-btn {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 8px;
-		padding: 8px 12px;
-		width: 100%;
-		border: none;
-		border-radius: var(--radius-m, 6px);
-		background: transparent;
-		color: var(--text-normal);
-		cursor: pointer;
-		text-align: left;
-		transition: background 0.1s;
-		/* Suppress Obsidian default button effects */
-		box-shadow: none;
-		transform: none;
-	}
-
-	.tt-task-btn:hover {
-		background: var(--background-modifier-hover);
-		box-shadow: none;
-		transform: none;
-	}
-
-	.tt-task-btn:focus-visible {
-		outline: 2px solid var(--interactive-accent);
-		outline-offset: -2px;
-	}
-
-	/* Active state: left border accent + name color */
-	.tt-task-btn.is-active {
-		background: var(--background-modifier-hover);
-		border-left: 2px solid var(--interactive-accent);
-		padding-left: 10px; /* compensate for the 2px border */
-	}
-
-	.tt-task-btn.is-active .tt-task-name {
-		color: var(--interactive-accent);
-		font-weight: 500;
-	}
-
-	.tt-task-btn.is-active .tt-priority-dot {
-		outline: 2px solid var(--interactive-accent);
-		outline-offset: 1px;
-	}
-
-	/* ── Overdue row: name turns red ─────────────────────────────────────────── */
-	.tt-task.is-overdue .tt-task-name {
-		color: var(--color-red);
-	}
-
-	/* ── Task row internals ──────────────────────────────────────────────────── */
-	.tt-task-main {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		min-width: 0;
-	}
-
-	.tt-priority-dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		flex-shrink: 0;
-	}
-
-	.tt-task-name {
-		font-size: 0.9rem;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		flex: 1;
-	}
-
-	.tt-task-meta {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		flex-shrink: 0;
-	}
-
-	/* ── Badges ──────────────────────────────────────────────────────────────── */
-	.tt-badge {
-		font-size: 0.7rem;
-		padding: 2px 6px;
-		border-radius: 999px;
-		background: var(--background-modifier-border);
-		color: var(--text-muted);
-		white-space: nowrap;
-	}
-
-	.tt-badge-overdue {
-		background: var(--color-red);
-		color: var(--text-on-accent);
-	}
-
-	.tt-badge-type {
-		background: var(--background-secondary);
-	}
 </style>
