@@ -200,7 +200,7 @@
 		height: 100%;
 		overflow-x: auto;
 		overflow-y: hidden;
-		align-items: flex-start;
+		align-items: stretch;
 		box-sizing: border-box;
 	}
 
@@ -210,6 +210,8 @@
 		flex-shrink: 0;
 		display: flex;
 		flex-direction: column;
+		height: 100%;
+		min-height: 0;
 		max-height: 100%;
 		background: var(--background-secondary);
 		border-radius: var(--radius-m, 6px);
