@@ -2,6 +2,7 @@ import { Notice, TFile, normalizePath } from 'obsidian';
 import { writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskStatus, TaskPriority, TaskType, TaskRecordType } from '../types';
+import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 
 export class TaskStore {
 	readonly tasks: Writable<Task[]> = writable([]);
@@ -83,19 +84,33 @@ export class TaskStore {
 	// ── CRUD ────────────────────────────────────────────────────────────────────
 
 	async create(input: TaskCreateInput): Promise<Task> {
-		const shortId = Math.floor(Math.random() * 0xffffff)
-			.toString(16).padStart(6, '0');
-		const slug = input.name
-			.toLowerCase()
-			.replace(/[^a-z0-9\s-]/g, '').trim()
-			.replace(/\s+/g, '-').replace(/-{2,}/g, '-')
-			.substring(0, 30).replace(/-+$/, '');
+		const unique = getUniqueTaskPath(
+			this.folderPath,
+			input.name,
+			(path) => !!this.app.vault.getAbstractFileByPath(normalizePath(path))
+		);
 
-		const filePath = normalizePath(`${this.folderPath}/${shortId}-${slug}.md`);
+		if (!unique) {
+			throw new Error('Unable to allocate a unique task filename after multiple attempts');
+		}
+
+		const shortId = unique.shortId;
+		const slug = unique.slug;
+		const filePath = normalizePath(unique.filePath);
+
 		const today = new Date().toISOString().slice(0, 10);
+		const sanitizedDependsOn = sanitizeDependsOnPaths(
+			input.depends_on,
+			filePath,
+			(pathWithoutExt) => {
+				const depFile = this.app.vault.getAbstractFileByPath(normalizePath(pathWithoutExt + '.md'));
+				return depFile instanceof TFile;
+			}
+		);
 
 		const full: Task = {
 			...input,
+			depends_on: sanitizedDependsOn,
 			id: shortId,
 			slug,
 			path: filePath,
@@ -107,7 +122,7 @@ export class TaskStore {
 		await this.app.vault.create(filePath, this.buildFrontmatter(full) + body + '\n');
 
 		// Sync blocks on depends_on targets
-		for (const depPath of input.depends_on) {
+		for (const depPath of sanitizedDependsOn) {
 			await this.addToBlocks(depPath, filePath, input.name);
 		}
 

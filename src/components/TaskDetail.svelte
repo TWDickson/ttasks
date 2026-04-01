@@ -1,8 +1,10 @@
 <script lang="ts">
 	import type { Writable } from 'svelte/store';
+	import type TTasksPlugin from '../main';
 	import type { Task, TaskStatus, TaskPriority, TaskType } from '../types';
 	import type { TaskStore } from '../store/TaskStore';
 
+	export let plugin: TTasksPlugin;
 	export let tasks: Writable<Task[]>;
 	export let activeTaskPath: Writable<string | null>;
 	export let store: TaskStore;
@@ -54,6 +56,16 @@
 		saveTimer = setTimeout(() => saveImmediate(updates), 600);
 	}
 
+	function saveNotesDebounced(nextNotes: string) {
+		clearTimeout(saveTimer);
+		saveTimer = setTimeout(async () => {
+			if (!task) return;
+			saving = true;
+			await store.updateNotes(task.path, nextNotes);
+			saving = false;
+		}, 600);
+	}
+
 	// ── Field handlers ──────────────────────────────────────────────────────────
 	function setStatus(s: TaskStatus) {
 		status = s;
@@ -72,11 +84,18 @@
 		await saveImmediate({ status: 'Done', completed: today });
 	}
 
+	function withCurrentOption(base: string[], current: string | null): string[] {
+		if (!current) return base;
+		if (base.includes(current)) return base;
+		return [...base, current];
+	}
+
 	// ── Constants ───────────────────────────────────────────────────────────────
 	const STATUSES: TaskStatus[] = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Done'];
 	const PRIORITIES: TaskPriority[] = ['High', 'Medium', 'Low', 'None'];
-	const CATEGORIES = ['', 'database', 'general'];
-	const TASK_TYPES: (TaskType | '')[] = ['', 'feature', 'bug', 'research', 'docs', 'action'];
+
+	$: categoryOptions = ['', ...withCurrentOption(plugin.settings.categories ?? [], category || null)];
+	$: taskTypeOptions = ['', ...withCurrentOption(plugin.settings.taskTypes ?? [], task_type)];
 
 	const STATUS_COLORS: Partial<Record<TaskStatus, string>> = {
 		'In Progress': 'var(--color-blue)',
@@ -136,7 +155,7 @@
 					<button
 						class="tt-chip"
 						class:tt-chip-active={priority === p}
-						style={priority === p ? `background:${PRIORITY_COLORS[p]};border-color:${PRIORITY_COLORS[p]};color:#fff` : ''}
+						style={priority === p ? `background:${PRIORITY_COLORS[p]};border-color:${PRIORITY_COLORS[p]};color:var(--text-on-accent)` : ''}
 						on:click={() => setPriority(p)}
 					>{p}</button>
 				{/each}
@@ -153,7 +172,7 @@
 				bind:value={category}
 				on:change={() => saveImmediate({ category: category || null })}
 			>
-				{#each CATEGORIES as c}
+				{#each categoryOptions as c}
 					<option value={c}>{c || '— none —'}</option>
 				{/each}
 			</select>
@@ -165,8 +184,8 @@
 					bind:value={task_type}
 					on:change={() => saveImmediate({ task_type: task_type || null })}
 				>
-					{#each TASK_TYPES as t}
-						<option value={t || null}>{t || '— none —'}</option>
+					{#each taskTypeOptions as t}
+						<option value={t}>{t || '— none —'}</option>
 					{/each}
 				</select>
 			{/if}
@@ -265,7 +284,7 @@
 				id="tt-notes"
 				class="tt-notes"
 				bind:value={notes}
-				on:input={() => saveDebounced({ notes })}
+				on:input={() => saveNotesDebounced(notes)}
 				placeholder="Add notes…"
 				rows="6"
 			></textarea>
@@ -487,7 +506,8 @@
 	}
 
 	.tt-btn-primary:hover {
-		filter: brightness(1.1);
+		background: var(--interactive-accent-hover);
+		border-color: var(--interactive-accent-hover);
 	}
 
 	.tt-meta-footer {

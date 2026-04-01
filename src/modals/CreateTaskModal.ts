@@ -5,8 +5,6 @@ import type { TaskPriority, TaskRecordType, TaskStatus, TaskType } from '../type
 
 const STATUSES: TaskStatus[]        = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Done'];
 const PRIORITIES: TaskPriority[]    = ['None', 'Low', 'Medium', 'High'];
-const CATEGORIES                    = ['', 'database', 'general'];
-const TASK_TYPES: (TaskType | '')[] = ['', 'feature', 'bug', 'research', 'docs', 'action'];
 
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
 	High:   'var(--color-red)',
@@ -36,6 +34,14 @@ export class CreateTaskModal extends Modal {
 		this.type = defaultType;
 	}
 
+	private get categories(): string[] {
+		return ['', ...(this.plugin.settings.categories ?? [])];
+	}
+
+	private get taskTypes(): string[] {
+		return ['', ...(this.plugin.settings.taskTypes ?? [])];
+	}
+
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.addClass('tt-modal');
@@ -57,7 +63,7 @@ export class CreateTaskModal extends Modal {
 
 		// ── Type — full-width segmented ──────────────────────────────────────────
 		const typeGroup = contentEl.createDiv('tt-modal-type-group');
-		let taskTypeField: HTMLElement;
+		const taskTypeField = this.field(contentEl, 'Task Type');
 
 		for (const [val, label] of [['task', 'Task'], ['project', 'Project']] as [TaskRecordType, string][]) {
 			const btn = typeGroup.createEl('button', {
@@ -102,14 +108,13 @@ export class CreateTaskModal extends Modal {
 		}
 
 		// ── Task Type chips (grayed out for project) ────────────────────────────
-		taskTypeField = this.field(contentEl, 'Task Type');
 		if (this.type === 'project') {
 			taskTypeField.style.opacity       = '0.35';
 			taskTypeField.style.pointerEvents = 'none';
 		}
 		const taskTypeChips = taskTypeField.createDiv('tt-modal-chips');
 
-		for (const t of TASK_TYPES) {
+		for (const t of this.taskTypes) {
 			const btn = taskTypeChips.createEl('button', {
 				text: t || '— none —',
 				cls: `tt-modal-chip${!t ? ' tt-chip-active' : ''}`,
@@ -226,7 +231,7 @@ export class CreateTaskModal extends Modal {
 
 		const categoryField = this.field(details, 'Category');
 		const categorySelect = categoryField.createEl('select', { cls: 'tt-modal-select' });
-		for (const c of CATEGORIES) {
+		for (const c of this.categories) {
 			categorySelect.createEl('option', { text: c || '— none —', value: c });
 		}
 		categorySelect.addEventListener('change', () => { this.category = categorySelect.value; });

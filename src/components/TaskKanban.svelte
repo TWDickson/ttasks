@@ -282,14 +282,14 @@
 		cursor: grab;
 		text-align: left;
 		width: 100%;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+		box-shadow: 0 1px 3px rgba(var(--mono-rgb-100), 0.08);
 		border-left: 3px solid transparent;
 		transition: background 0.1s, box-shadow 0.1s, border-left-color 0.1s;
 	}
 
 	.tt-kanban-card:hover {
 		background: var(--background-modifier-hover);
-		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+		box-shadow: 0 2px 6px rgba(var(--mono-rgb-100), 0.12);
 	}
 
 	.tt-kanban-card.is-active {
@@ -359,7 +359,7 @@
 
 	.tt-badge-overdue {
 		background: var(--color-red);
-		color: #fff;
+		color: var(--text-on-accent);
 	}
 
 	.tt-badge-type {

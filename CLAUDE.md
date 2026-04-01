@@ -62,22 +62,42 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 ### Phase 1 — Core
 
-- [ ] Task store: read/write frontmatter via Obsidian vault API
-- [ ] Task list view (registered Obsidian leaf)
-- [ ] Create/edit modal
-- [ ] Task detail panel
+- [x] Task store: read/write frontmatter via Obsidian vault API
+- [x] Task list view (registered Obsidian leaf)
+- [x] Create/edit modal
+- [x] Task detail panel
 
 ### Phase 2 — Views
 
-- [ ] Kanban board by status
-- [ ] Mobile-optimised layouts
-- [ ] Search and filter
+- [x] Kanban board by status
+- [x] Mobile-optimised layouts
+- [x] Search and filter
+
+### Phase 2.5 — Hardening (complete)
+
+- [x] ID collision-safe task creation (retry until unique `{6hex}-{slug}.md` path)
+- [x] Relationship safeguards on create (`depends_on` dedupe + self/invalid reference guard)
+- [x] Configurable categories and task types in plugin settings
+- [x] Baseline quality guardrails (lint + store-level tests)
 
 ### Phase 3 — Advanced
 
 - [ ] Dependency graph (visual, interactive)
 - [ ] Due date reminders/notifications
 - [ ] Quick actions (swipe mobile, hotkeys desktop)
+
+## Current Priorities
+
+1. Phase 2.5 hardening slice to protect data integrity and reduce regressions
+2. Phase 3A dependency graph MVP (core differentiator vs TickTick)
+3. Phase 3B reminders MVP (due/overdue/stale-in-progress)
+4. Phase 3C quick actions (desktop commands first, then mobile swipe)
+
+## Product Direction Notes
+
+- TickTick parity where expected: reminders, recurrence, quick capture
+- TTasks differentiation where it matters: dependency intelligence, blocker visibility, realistic daily planning
+- Prefer narrow vertical slices with clear acceptance criteria over large speculative features
 
 ## Key Conventions
 
@@ -92,3 +112,4 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 - Plugin ships `styles.css` — loaded automatically when plugin is enabled
 - Selector pattern: `.markdown-source-view.ttask .metadata-container { display: none !important; }`
 - `!important` required — Obsidian's built-in styles have higher specificity
+- Mobile modal and token usage conventions are documented in `Scripts/STYLING_NOTES.md` (synced notes)

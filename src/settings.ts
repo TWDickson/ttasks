@@ -6,12 +6,25 @@ export type FabPosition = 'right' | 'left' | 'hidden';
 export interface TTasksSettings {
 	tasksFolder: string;
 	fabPosition: FabPosition;
+	categories: string[];
+	taskTypes: string[];
 }
 
 export const DEFAULT_SETTINGS: TTasksSettings = {
 	tasksFolder: 'Tasks',
 	fabPosition: 'right',
+	categories: ['database', 'general'],
+	taskTypes: ['feature', 'bug', 'research', 'docs', 'action'],
 };
+
+function parseCsvList(value: string): string[] {
+	return [...new Set(
+		value
+			.split(',')
+			.map(v => v.trim())
+			.filter(Boolean)
+	)];
+}
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
 	private inputEl: HTMLInputElement;
@@ -78,6 +91,32 @@ export class TTasksSettingTab extends PluginSettingTab {
 						this.plugin.settings.tasksFolder = value.trim();
 						await this.plugin.saveSettings();
 						await this.plugin.taskStore.load();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName('Categories')
+			.setDesc('Comma-separated category options used in create/detail views.')
+			.addText(text => {
+				text
+					.setPlaceholder('database, general')
+					.setValue((this.plugin.settings.categories ?? []).join(', '))
+					.onChange(async (value) => {
+						this.plugin.settings.categories = parseCsvList(value);
+						await this.plugin.saveSettings();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName('Task types')
+			.setDesc('Comma-separated task type options used in create/detail views.')
+			.addText(text => {
+				text
+					.setPlaceholder('feature, bug, research, docs, action')
+					.setValue((this.plugin.settings.taskTypes ?? []).join(', '))
+					.onChange(async (value) => {
+						this.plugin.settings.taskTypes = parseCsvList(value);
+						await this.plugin.saveSettings();
 					});
 			});
 

@@ -331,7 +331,7 @@
 
 	.tt-badge-overdue {
 		background: var(--color-red);
-		color: #fff;
+		color: var(--text-on-accent);
 	}
 
 	.tt-badge-type {

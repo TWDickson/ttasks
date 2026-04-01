@@ -188,7 +188,7 @@
 
 		<!-- Backdrop: mobile gets dark overlay, desktop is transparent click-target -->
 		{#if showDetail}
-			<div class="tt-detail-backdrop" on:click={closeDetail}></div>
+			<button class="tt-detail-backdrop" type="button" aria-label="Close detail panel" on:click={closeDetail}></button>
 		{/if}
 
 		<!-- Detail panel -->
@@ -204,6 +204,7 @@
 			</div>
 			<div class="tt-detail-scroll">
 				<TaskDetail
+					{plugin}
 					{tasks}
 					{activeTaskPath}
 					store={plugin.taskStore}
@@ -425,7 +426,7 @@
 		flex-direction: column;
 		background: var(--background-primary);
 		border-left: 1px solid var(--background-modifier-border);
-		box-shadow: -4px 0 16px rgba(0, 0, 0, 0.12);
+		box-shadow: -4px 0 16px rgba(var(--mono-rgb-100), 0.12);
 		transform: translateX(100%);
 		transition: transform 0.22s ease;
 		z-index: 5;
@@ -439,6 +440,7 @@
 		position: absolute;
 		inset: 0;
 		z-index: 4;
+		border: 0;
 		/* Desktop: transparent click-target only */
 		background: transparent;
 		pointer-events: auto;
@@ -496,14 +498,14 @@
 		color: var(--text-on-accent);
 		font-size: 1.4rem;
 		cursor: pointer;
-		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+		box-shadow: 0 2px 10px rgba(var(--mono-rgb-100), 0.25);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		transition: filter 0.12s;
 		z-index: 10;
 	}
-	.tt-fab:hover { filter: brightness(1.1); }
+	.tt-fab:hover { background: var(--interactive-accent-hover); }
 	.tt-fab-left  { right: unset; left: 16px; }
 
 
@@ -583,7 +585,7 @@
 
 		/* Mobile backdrop: dark overlay */
 		.tt-detail-backdrop {
-			background: rgba(0, 0, 0, 0.35);
+			background: rgba(var(--mono-rgb-100), 0.35);
 		}
 
 		/* Mobile: show back button, hide X close button */

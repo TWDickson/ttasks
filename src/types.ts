@@ -1,6 +1,6 @@
 export type TaskStatus = 'Active' | 'Future' | 'In Progress' | 'Hold' | 'Blocked' | 'Cancelled' | 'Done';
 export type TaskPriority = 'High' | 'Medium' | 'Low' | 'None';
-export type TaskType = 'feature' | 'bug' | 'research' | 'docs' | 'action';
+export type TaskType = string;
 export type TaskRecordType = 'task' | 'project';
 
 export interface Task {
