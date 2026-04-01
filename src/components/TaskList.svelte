@@ -3,6 +3,7 @@
 	import type { Task, TaskStatus } from '../types';
 
 	export let tasks: Writable<Task[]>;
+	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
 
 	type GroupKey = TaskStatus | 'project';
@@ -61,7 +62,7 @@
 					<ul class="tt-task-list">
 						{#each (grouped.get(group) ?? []) as task (task.path)}
 							<li class="tt-task" class:tt-overdue={isOverdue(task.due_date)}>
-								<button class="tt-task-btn" on:click={() => onOpen(task.path)}>
+								<button class="tt-task-btn" class:is-active={$activeTaskPath === task.path} on:click={() => onOpen(task.path)}>
 									<div class="tt-task-main">
 										<span
 											class="tt-priority-dot"
@@ -95,10 +96,13 @@
 
 <style>
 	.tt-list {
-		padding: 8px 0;
+		padding: 8px 4px;
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
+		max-width: 660px;
+		overflow-y: auto;
+		flex: 1;
 	}
 
 	.tt-empty {
@@ -156,13 +160,30 @@
 		cursor: pointer;
 		text-align: left;
 		transition: background 0.1s;
+		/* Suppress Obsidian default button effects */
+		box-shadow: none;
+		transform: none;
 	}
 
 	.tt-task-btn:hover {
 		background: var(--background-modifier-hover);
+		box-shadow: none;
+		transform: none;
 	}
 
-	.tt-task-btn:focus {
+	.tt-task-btn.is-active {
+		background: var(--background-modifier-hover);
+	}
+	.tt-task-btn.is-active .tt-task-name {
+		color: var(--interactive-accent);
+		font-weight: 500;
+	}
+	.tt-task-btn.is-active .tt-priority-dot {
+		outline: 2px solid var(--interactive-accent);
+		outline-offset: 1px;
+	}
+
+	.tt-task-btn:focus-visible {
 		outline: 2px solid var(--interactive-accent);
 		outline-offset: -2px;
 	}

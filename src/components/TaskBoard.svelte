@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { setIcon } from 'obsidian';
+	import { writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
 	import TaskList from './TaskList.svelte';
+	import TaskKanban from './TaskKanban.svelte';
+	import TaskAgenda from './TaskAgenda.svelte';
 	import TaskDetail from './TaskDetail.svelte';
 
 	export let plugin: TTasksPlugin;
@@ -16,6 +19,36 @@
 
 	$: showDetail = $activeTaskPath !== null;
 
+	// ── Filter state ───────────────────────────────────────────────────────────
+	let searchQuery    = '';
+	let filterPriority = '';
+	let filterCategory = '';
+
+	$: categories = [...new Set(
+		$tasks.map(t => t.category).filter((c): c is string => !!c)
+	)].sort();
+
+	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterCategory;
+
+	const displayTasks = writable($tasks);
+	$: {
+		const q = searchQuery.trim().toLowerCase();
+		displayTasks.set($tasks.filter(task => {
+			if (q && !task.name.toLowerCase().includes(q)) return false;
+			if (filterPriority && task.priority !== filterPriority) return false;
+			if (filterCategory && task.category !== filterCategory) return false;
+			return true;
+		}));
+	}
+
+	function clearFilters() {
+		searchQuery    = '';
+		filterPriority = '';
+		filterCategory = '';
+	}
+
+	// ──────────────────────────────────────────────────────────────────────────
+
 	const VIEWS: { id: ViewMode; label: string; icon: string }[] = [
 		{ id: 'list',   label: 'List',   icon: 'list' },
 		{ id: 'kanban', label: 'Kanban', icon: 'columns-2' },
@@ -25,6 +58,10 @@
 	function openNewTask()    { new CreateTaskModal(plugin.app, plugin).open(); }
 	function openNewProject() { new CreateTaskModal(plugin.app, plugin, 'project').open(); }
 	function closeDetail()    { activeTaskPath.set(null); }
+	function openSettings()   {
+		(plugin.app as any).setting.open();
+		(plugin.app as any).setting.openTabById('ttasks');
+	}
 
 	function icon(el: HTMLElement, name: string) {
 		setIcon(el, name);
@@ -59,35 +96,94 @@
 				<span class="tt-rail-icon" use:icon={'folder-plus'}></span>
 				<span class="tt-rail-label">New project</span>
 			</button>
+			<div class="tt-rail-divider"></div>
+			<button class="tt-rail-item" on:click={openSettings} aria-label="Settings">
+				<span class="tt-rail-icon" use:icon={'settings'}></span>
+				<span class="tt-rail-label">Settings</span>
+			</button>
 		</div>
 	</nav>
 
 	<!-- ── Main body ─────────────────────────────────────────────────────────── -->
 	<div class="tt-board-body">
 
-		<!-- Mobile tab bar (hidden on desktop) -->
-		<div class="tt-board-tabs">
-			{#each VIEWS as view}
-				<button
-					class="tt-tab-btn"
-					class:is-active={currentView === view.id}
-					on:click={() => currentView = view.id}
-				>{view.label}</button>
-			{/each}
-		</div>
+		<!-- Inner column: tabs + filter + content always stack vertically -->
+		<div class="tt-board-main">
 
-		<!-- View content -->
-		<div class="tt-board-content">
-			{#if currentView === 'list'}
-				<TaskList
-					{tasks}
-					onOpen={(path) => plugin.taskStore.openDetail(path)}
-				/>
-			{:else if currentView === 'kanban'}
-				<div class="tt-placeholder">Kanban — coming soon</div>
-			{:else}
-				<div class="tt-placeholder">Agenda — coming soon</div>
-			{/if}
+			<!-- Mobile tab bar (hidden on desktop) -->
+			<div class="tt-board-tabs">
+				{#each VIEWS as view}
+					<button
+						class="tt-tab-btn"
+						class:is-active={currentView === view.id}
+						on:click={() => currentView = view.id}
+					>{view.label}</button>
+				{/each}
+			</div>
+
+			<!-- Filter bar -->
+			<div class="tt-filter-bar">
+				<div class="tt-search-wrap">
+					<span class="tt-search-icon" use:icon={'search'}></span>
+					<input
+						class="tt-search-input"
+						type="text"
+						placeholder="Search tasks…"
+						bind:value={searchQuery}
+					/>
+					{#if searchQuery}
+						<button class="tt-search-clear" on:click={() => searchQuery = ''} aria-label="Clear search">
+							<span use:icon={'x'}></span>
+						</button>
+					{/if}
+				</div>
+
+				<select class="tt-filter-select" bind:value={filterPriority} aria-label="Filter by priority">
+					<option value="">Priority</option>
+					<option value="High">High</option>
+					<option value="Medium">Medium</option>
+					<option value="Low">Low</option>
+					<option value="None">None</option>
+				</select>
+
+				{#if categories.length > 0}
+					<select class="tt-filter-select" bind:value={filterCategory} aria-label="Filter by category">
+						<option value="">Category</option>
+						{#each categories as cat}
+							<option value={cat}>{cat}</option>
+						{/each}
+					</select>
+				{/if}
+
+				{#if hasActiveFilters}
+					<button class="tt-filter-clear" on:click={clearFilters}>Clear</button>
+				{/if}
+			</div>
+
+			<!-- View content -->
+			<div class="tt-board-content">
+				{#if currentView === 'list'}
+					<TaskList
+						tasks={displayTasks}
+						{activeTaskPath}
+						onOpen={(path) => plugin.taskStore.openDetail(path)}
+					/>
+				{:else if currentView === 'kanban'}
+					<TaskKanban
+						tasks={displayTasks}
+						{activeTaskPath}
+						store={plugin.taskStore}
+						onOpen={(path) => plugin.taskStore.openDetail(path)}
+					/>
+				{:else}
+					<TaskAgenda
+						tasks={displayTasks}
+						{activeTaskPath}
+						onOpen={(path) => plugin.taskStore.openDetail(path)}
+					/>
+				{/if}
+			</div>
+
 		</div>
 
 		<!-- Backdrop: mobile gets dark overlay, desktop is transparent click-target -->
@@ -95,7 +191,7 @@
 			<div class="tt-detail-backdrop" on:click={closeDetail}></div>
 		{/if}
 
-		<!-- Detail panel: absolute overlay on both desktop and mobile -->
+		<!-- Detail panel -->
 		<div class="tt-board-detail" class:is-visible={showDetail}>
 			<div class="tt-detail-topbar">
 				<button class="tt-back-btn" on:click={closeDetail}>
@@ -151,6 +247,8 @@
 		border-right: 1px solid var(--background-modifier-border);
 		padding: 8px 0;
 		background: var(--background-secondary);
+		position: relative;
+		z-index: 1; /* paint above content hover backgrounds */
 	}
 
 	.tt-rail-views,
@@ -187,6 +285,12 @@
 		font-weight: 600;
 	}
 
+	.tt-rail-divider {
+		height: 1px;
+		background: var(--background-modifier-border);
+		margin: 4px 0;
+	}
+
 	.tt-rail-icon {
 		width: 18px;
 		height: 18px;
@@ -194,6 +298,90 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+	}
+
+	/* ── Filter bar ────────────────────────────────────────────────────────────── */
+	.tt-filter-bar {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 6px 10px;
+		border-bottom: 1px solid var(--background-modifier-border);
+		flex-shrink: 0;
+		background: var(--background-primary);
+	}
+
+	.tt-search-wrap {
+		display: flex;
+		align-items: center;
+		flex: 1;
+		background: var(--background-modifier-form-field);
+		border: 1px solid var(--background-modifier-border);
+		border-radius: var(--radius-m, 6px);
+		padding: 0 8px;
+		gap: 6px;
+		min-width: 0;
+	}
+
+	.tt-search-icon {
+		width: 14px;
+		height: 14px;
+		flex-shrink: 0;
+		color: var(--text-muted);
+		display: flex;
+		align-items: center;
+	}
+
+	.tt-search-input {
+		flex: 1;
+		border: none;
+		background: transparent;
+		color: var(--text-normal);
+		font-size: 0.88rem;
+		padding: 5px 0;
+		outline: none;
+		min-width: 0;
+	}
+	.tt-search-input::placeholder { color: var(--text-faint); }
+
+	.tt-search-clear {
+		display: flex;
+		align-items: center;
+		padding: 2px;
+		border: none;
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+		border-radius: var(--radius-s, 4px);
+		flex-shrink: 0;
+	}
+	.tt-search-clear:hover { color: var(--text-normal); }
+
+	.tt-filter-select {
+		font-size: 0.82rem;
+		padding: 4px 6px;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: var(--radius-m, 6px);
+		background: var(--background-modifier-form-field);
+		color: var(--text-normal);
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.tt-filter-clear {
+		font-size: 0.8rem;
+		padding: 4px 10px;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: var(--radius-m, 6px);
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+	.tt-filter-clear:hover {
+		color: var(--text-normal);
+		background: var(--background-modifier-hover);
 	}
 
 	/* ── Body ──────────────────────────────────────────────────────────────────── */
@@ -205,6 +393,15 @@
 		position: relative; /* anchor for absolute detail panel */
 	}
 
+	/* Inner column that always stacks tabs → filter → content vertically */
+	.tt-board-main {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+		min-width: 0;
+	}
+
 	/* Mobile tab bar — hidden on desktop */
 	.tt-board-tabs {
 		display: none;
@@ -212,8 +409,9 @@
 
 	.tt-board-content {
 		flex: 1;
-		overflow-y: auto;
-		overflow-x: hidden;
+		overflow: hidden; /* each view manages its own scroll */
+		display: flex;
+		flex-direction: column;
 	}
 
 	/* ── Detail panel — absolute overlay on both viewports ──────────────────────── */
@@ -308,14 +506,41 @@
 	.tt-fab:hover { filter: brightness(1.1); }
 	.tt-fab-left  { right: unset; left: 16px; }
 
-	/* ── Placeholder ───────────────────────────────────────────────────────────── */
-	.tt-placeholder {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		color: var(--text-muted);
-		font-size: 0.9rem;
+
+	/* ── Wide: persistent side-by-side detail panel ───────────────────────────── */
+	@media (min-width: 900px) {
+		.tt-board-body {
+			flex-direction: row;
+		}
+
+		/* tt-board-main already flex: 1 — no change needed */
+
+		.tt-board-content {
+			flex: 1;
+			min-width: 0;
+		}
+
+		/* Switch from transform slide to width expansion so list reflows smoothly */
+		.tt-board-detail {
+			position: relative;
+			width: 0;
+			flex-shrink: 0;
+			overflow: hidden;
+			transform: none;
+			box-shadow: none;
+			border-left: none;
+			transition: width 0.22s ease;
+		}
+
+		.tt-board-detail.is-visible {
+			width: 380px;
+			border-left: 1px solid var(--background-modifier-border);
+		}
+
+		/* No backdrop needed — panel is a sibling, not an overlay */
+		.tt-detail-backdrop {
+			display: none;
+		}
 	}
 
 	/* ── Mobile ────────────────────────────────────────────────────────────────── */
