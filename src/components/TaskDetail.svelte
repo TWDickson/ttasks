@@ -28,10 +28,18 @@
 	let estimated_days: number | null = null;
 	let blocked_reason = '';
 	let notes = '';
+	let formTaskPath: string | null = null;
+	let pendingSaves = 0;
 	let saving = false;
-	let saveTimer: ReturnType<typeof setTimeout>;
 
-	$: if (task) {
+	type DebounceKey = 'name' | 'assigned_to' | 'blocked_reason' | 'notes';
+	const saveTimers: Partial<Record<DebounceKey, ReturnType<typeof setTimeout>>> = {};
+
+	$: saving = pendingSaves > 0;
+
+	$: if (!task) {
+		formTaskPath = null;
+	} else if (task.path !== formTaskPath) {
 		name          = task.name;
 		status        = task.status;
 		priority      = task.priority;
@@ -44,28 +52,62 @@
 		estimated_days = task.estimated_days;
 		blocked_reason = task.blocked_reason ?? '';
 		notes         = task.notes ?? '';
+		formTaskPath  = task.path;
 	}
 
 	// ── Save helpers ────────────────────────────────────────────────────────────
-	async function saveImmediate(updates: Partial<Task>) {
-		if (!task) return;
-		saving = true;
-		await store.update(task.path, updates);
-		saving = false;
+	function beginSave(): void {
+		pendingSaves += 1;
 	}
 
-	function saveDebounced(updates: Partial<Task>) {
-		clearTimeout(saveTimer);
-		saveTimer = setTimeout(() => saveImmediate(updates), 600);
+	function endSave(): void {
+		pendingSaves = Math.max(0, pendingSaves - 1);
+	}
+
+	function clearSaveTimer(key: DebounceKey): void {
+		const timer = saveTimers[key];
+		if (timer) {
+			clearTimeout(timer);
+			delete saveTimers[key];
+		}
+	}
+
+	async function saveImmediateForPath(taskPath: string, updates: Partial<Task>) {
+		beginSave();
+		try {
+			await store.update(taskPath, updates);
+		} finally {
+			endSave();
+		}
+	}
+
+	async function saveImmediate(updates: Partial<Task>) {
+		if (!task) return;
+		await saveImmediateForPath(task.path, updates);
+	}
+
+	function saveDebounced(key: DebounceKey, updates: Partial<Task>) {
+		if (!task) return;
+		const taskPath = task.path;
+		clearSaveTimer(key);
+		saveTimers[key] = setTimeout(() => {
+			void saveImmediateForPath(taskPath, updates);
+			delete saveTimers[key];
+		}, 600);
 	}
 
 	function saveNotesDebounced(nextNotes: string) {
-		clearTimeout(saveTimer);
-		saveTimer = setTimeout(async () => {
-			if (!task) return;
-			saving = true;
-			await store.updateNotes(task.path, nextNotes);
-			saving = false;
+		if (!task) return;
+		const taskPath = task.path;
+		clearSaveTimer('notes');
+		saveTimers.notes = setTimeout(async () => {
+			beginSave();
+			try {
+				await store.updateNotes(taskPath, nextNotes);
+			} finally {
+				endSave();
+				delete saveTimers.notes;
+			}
 		}, 600);
 	}
 
@@ -92,9 +134,49 @@
 		await saveImmediate({ status: completeStatus, completed: today });
 	}
 
-	function onParentTaskChange() {
+	async function onParentTaskChange() {
 		if (!task) return;
-		store.updateParentTask(task.path, parent_task_path || null);
+		beginSave();
+		try {
+			await store.updateParentTask(task.path, parent_task_path || null);
+		} finally {
+			endSave();
+		}
+	}
+
+	function normalizeDateValue(value: string): string | null {
+		if (!value) return null;
+		return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+	}
+
+	function todayDateString(): string {
+		return new Date().toISOString().slice(0, 10);
+	}
+
+	function saveDueDate(nextValue: string): void {
+		due_date = nextValue;
+		void saveImmediate({ due_date: normalizeDateValue(nextValue) });
+	}
+
+	function saveStartDate(nextValue: string): void {
+		start_date = nextValue;
+		void saveImmediate({ start_date: normalizeDateValue(nextValue) });
+	}
+
+	function onDueDateInput(event: Event): void {
+		saveDueDate((event.currentTarget as HTMLInputElement).value);
+	}
+
+	function onStartDateInput(event: Event): void {
+		saveStartDate((event.currentTarget as HTMLInputElement).value);
+	}
+
+	function setDueDateToday(): void {
+		saveDueDate(todayDateString());
+	}
+
+	function setStartDateToday(): void {
+		saveStartDate(todayDateString());
 	}
 
 	function withCurrentOption(base: string[], current: string | null): string[] {
@@ -133,6 +215,7 @@
 			? `--tt-select-color:${color};background:color-mix(in srgb, ${color} 10%, var(--background-primary));border-color:color-mix(in srgb, ${color} 42%, var(--background-modifier-border));color:${color};`
 			: '';
 	}
+
 </script>
 
 {#if !task}
@@ -148,7 +231,7 @@
 				class="tt-detail-name"
 				type="text"
 				bind:value={name}
-				on:input={() => saveDebounced({ name })}
+				on:input={() => saveDebounced('name', { name })}
 				placeholder="Task name"
 			/>
 			{#if saving}
@@ -228,27 +311,35 @@
 			{/if}
 
 			<label class="tt-label" for="tt-due-date">Due Date</label>
-			<input
-				id="tt-due-date"
-				type="date"
-				bind:value={due_date}
-				on:change={() => saveImmediate({ due_date: due_date || null })}
-			/>
+			<div class="tt-date-field">
+				<input
+					id="tt-due-date"
+					type="date"
+					bind:value={due_date}
+					on:input={onDueDateInput}
+					on:change={onDueDateInput}
+				/>
+				<button class="tt-date-today" type="button" on:click={setDueDateToday}>Today</button>
+			</div>
 
 			<label class="tt-label" for="tt-start-date">Start Date</label>
-			<input
-				id="tt-start-date"
-				type="date"
-				bind:value={start_date}
-				on:change={() => saveImmediate({ start_date: start_date || null })}
-			/>
+			<div class="tt-date-field">
+				<input
+					id="tt-start-date"
+					type="date"
+					bind:value={start_date}
+					on:input={onStartDateInput}
+					on:change={onStartDateInput}
+				/>
+				<button class="tt-date-today" type="button" on:click={setStartDateToday}>Today</button>
+			</div>
 
 			<label class="tt-label" for="tt-assigned-to">Assigned To</label>
 			<input
 				id="tt-assigned-to"
 				type="text"
 				bind:value={assigned_to}
-				on:input={() => saveDebounced({ assigned_to })}
+				on:input={() => saveDebounced('assigned_to', { assigned_to })}
 				placeholder="—"
 			/>
 
@@ -269,7 +360,7 @@
 					id="tt-blocked-reason"
 					type="text"
 					bind:value={blocked_reason}
-					on:input={() => saveDebounced({ blocked_reason })}
+					on:input={() => saveDebounced('blocked_reason', { blocked_reason })}
 					placeholder="Why is this blocked?"
 				/>
 			{/if}
@@ -356,6 +447,7 @@
 
 	.tt-detail {
 		padding: 16px;
+		padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
 		display: flex;
 		flex-direction: column;
 		gap: 14px;
@@ -420,6 +512,33 @@
 		border-radius: var(--radius-m, 6px);
 		border: 1px solid var(--background-modifier-border);
 		background: var(--background-primary);
+		color: var(--text-normal);
+	}
+
+	.tt-date-field {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.tt-date-field input {
+		flex: 1;
+	}
+
+	.tt-date-today {
+		border: 1px solid var(--background-modifier-border);
+		background: var(--background-secondary);
+		color: var(--text-muted);
+		border-radius: var(--radius-s, 5px);
+		padding: 6px 10px;
+		font-size: 0.78rem;
+		font-weight: 600;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.tt-date-today:hover {
+		background: var(--background-modifier-hover);
 		color: var(--text-normal);
 	}
 
