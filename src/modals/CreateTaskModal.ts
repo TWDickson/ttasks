@@ -65,6 +65,7 @@ export class CreateTaskModal extends Modal {
 
 	onOpen() {
 		const { contentEl } = this;
+		const isMobile = window.matchMedia('(max-width: 768px)').matches;
 		contentEl.addClass('tt-modal');
 		this.modalEl.addClass('tt-create-modal');
 		this.notesRenderComponent = new Component();
@@ -87,8 +88,8 @@ export class CreateTaskModal extends Modal {
 		});
 
 		const basicsSection = this.createModalSection(sectionsRoot, 'Basics', true);
-		const schedulingSection = this.createModalSection(sectionsRoot, 'Scheduling', true);
-		const notesSection = this.createModalSection(sectionsRoot, 'Notes', true);
+		const schedulingSection = this.createModalSection(sectionsRoot, 'Scheduling', !isMobile);
+		const notesSection = this.createModalSection(sectionsRoot, 'Notes', !isMobile);
 		const advancedSection = this.createModalSection(sectionsRoot, 'Advanced', false);
 
 		// ── Type — full-width segmented ──────────────────────────────────────────

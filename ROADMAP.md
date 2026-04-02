@@ -79,6 +79,9 @@ Goal: speed up common state transitions.
   - Floating action row that follows keyboard while editing notes on mobile.
   - Shared actions for create modal and detail view (checklist, heading, link, code, quote).
   - Keep hybrid notes workflow (rendered mode + source edit mode), no separate split preview pane.
+- Optional CodeMirror embed for true inline Live Preview parity (deferred):
+  - Explore embedding a dedicated editor surface in create/detail notes for closer core Obsidian editing feel.
+  - Defer until after current mobile stability/UX hardening due lifecycle complexity and mobile keyboard risk.
 - Explicit status metadata (`is_complete`, later possibly `is_inbox`) so completion/default behavior no longer depends on literal status names.
 - Dedicated per-item icon/emoji field for statuses, categories, and task types.
   - Separate from the label so compact views (kanban column header, tight badges) can show icon-only while full views show `{icon} {label}`.
