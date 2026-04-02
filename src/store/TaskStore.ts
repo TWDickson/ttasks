@@ -1,7 +1,7 @@
 import { Notice, TFile, normalizePath } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
-import type { Task, TaskCreateInput, TaskStatus, TaskPriority, TaskType, TaskRecordType } from '../types';
+import type { Task, TaskCreateInput, TaskPriority, TaskType, TaskRecordType } from '../types';
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 import { resolveCompletionStatus } from '../settings';
 
@@ -11,6 +11,10 @@ export class TaskStore {
 	readonly tasks: Writable<Task[]> = writable([]);
 
 	private plugin: TTasksPlugin;
+	private changedTaskPaths = new Set<string>();
+	private changedFlushTimer: ReturnType<typeof setTimeout> | null = null;
+	private changedFlushInFlight = false;
+	private readonly changedFlushDelayMs = 80;
 
 	constructor(plugin: TTasksPlugin) {
 		this.plugin = plugin;
@@ -25,6 +29,7 @@ export class TaskStore {
 	// ── Load ────────────────────────────────────────────────────────────────────
 
 	async load(): Promise<void> {
+		const startedAt = Date.now();
 		const folder = this.app.vault.getFolderByPath(this.folderPath);
 		if (!folder) {
 			this.plugin.log(`folder not found — "${this.folderPath}"`);
@@ -41,25 +46,81 @@ export class TaskStore {
 		const loaded = (await Promise.all(files.map(f => this.fileToTask(f))))
 			.filter((t): t is Task => t !== null);
 
-		this.plugin.log(`loaded ${loaded.length} task(s)`);
+		this.plugin.log(`loaded ${loaded.length} task(s) in ${Date.now() - startedAt}ms`);
 		this.tasks.set(loaded);
 	}
 
 	// ── Watchers ─────────────────────────────────────────────────────────────
 
+	private queueChangedTask(file: TFile): void {
+		if (!file.path.startsWith(this.folderPath + '/')) return;
+		if (file.extension !== 'md') return;
+		this.changedTaskPaths.add(file.path);
+		this.scheduleChangedFlush();
+	}
+
+	private scheduleChangedFlush(): void {
+		if (this.changedFlushTimer) return;
+		this.changedFlushTimer = setTimeout(() => {
+			this.changedFlushTimer = null;
+			void this.flushChangedTasks();
+		}, this.changedFlushDelayMs);
+	}
+
+	private async flushChangedTasks(): Promise<void> {
+		if (this.changedFlushInFlight) return;
+		if (this.changedTaskPaths.size === 0) return;
+
+		this.changedFlushInFlight = true;
+		const startedAt = Date.now();
+
+		try {
+			const paths = [...this.changedTaskPaths];
+			this.changedTaskPaths.clear();
+
+			const files = paths
+				.map((path) => this.app.vault.getAbstractFileByPath(path))
+				.filter((f): f is TFile => f instanceof TFile && f.extension === 'md');
+
+			if (files.length === 0) return;
+
+			const parsed = (await Promise.all(files.map((f) => this.fileToTask(f))))
+				.filter((t): t is Task => t !== null);
+
+			if (parsed.length === 0) return;
+
+			this.tasks.update((all) => {
+				const next = [...all];
+				const indexByPath = new Map(next.map((task, idx) => [task.path, idx]));
+
+				for (const task of parsed) {
+					const existingIdx = indexByPath.get(task.path);
+					if (existingIdx === undefined) {
+						next.push(task);
+						indexByPath.set(task.path, next.length - 1);
+					} else {
+						next[existingIdx] = task;
+					}
+				}
+
+				return next;
+			});
+
+			await Promise.all(parsed.map((task) => this.syncParentChecklistFromChild(task)));
+			this.plugin.log(`flushed ${parsed.length} changed task(s) in ${Date.now() - startedAt}ms`);
+		} finally {
+			this.changedFlushInFlight = false;
+		}
+
+		if (this.changedTaskPaths.size > 0) {
+			this.scheduleChangedFlush();
+		}
+	}
+
 	register(): void {
 		this.plugin.registerEvent(
 			this.app.metadataCache.on('changed', (file) => {
-				if (!file.path.startsWith(this.folderPath + '/')) return;
-				this.fileToTask(file).then(task => {
-					if (!task) return;
-					this.tasks.update(all => {
-						const idx = all.findIndex(t => t.path === file.path);
-						if (idx >= 0) { all[idx] = task; return [...all]; }
-						return [...all, task];
-					});
-					void this.syncParentChecklistFromChild(task);
-				});
+				this.queueChangedTask(file);
 			})
 		);
 
@@ -67,6 +128,7 @@ export class TaskStore {
 			this.app.vault.on('delete', (file) => {
 				if (!(file instanceof TFile)) return;
 				if (!file.path.startsWith(this.folderPath + '/')) return;
+				this.changedTaskPaths.delete(file.path);
 				this.tasks.update(all => all.filter(t => t.path !== file.path));
 			})
 		);
@@ -74,12 +136,10 @@ export class TaskStore {
 		this.plugin.registerEvent(
 			this.app.vault.on('rename', (file, oldPath) => {
 				if (!(file instanceof TFile)) return;
+				this.changedTaskPaths.delete(oldPath);
 				this.tasks.update(all => all.filter(t => t.path !== oldPath));
 				if (file.path.startsWith(this.folderPath + '/')) {
-					this.fileToTask(file).then(task => {
-						if (!task) return;
-						this.tasks.update(all => [...all, task]);
-					});
+					this.queueChangedTask(file);
 				}
 			})
 		);
@@ -152,12 +212,14 @@ export class TaskStore {
 	async updateNotes(path: string, notes: string): Promise<string> {
 		const file = this.app.vault.getAbstractFileByPath(path);
 		if (!(file instanceof TFile)) return notes;
+
+		const rewritten = await this.materializeChecklistChildrenFromBody(path, notes);
 		await this.app.vault.process(file, (content) => {
 			const fmEnd = content.indexOf('\n---', 3);
 			const frontmatter = fmEnd >= 0 ? content.substring(0, fmEnd + 4) : content;
-			return frontmatter + (notes ? '\n\n' + notes : '') + '\n';
+			return frontmatter + (rewritten ? '\n\n' + rewritten : '') + '\n';
 		});
-		const rewritten = await this.materializeChecklistChildren(path);
+
 		await this.syncChildrenFromParentChecklist(path, rewritten);
 		return rewritten;
 	}
@@ -200,22 +262,29 @@ export class TaskStore {
 
 		const complete = this.completionStatus();
 		const fallback = this.plugin.settings.statuses?.[0] ?? 'Active';
+		const tasksByPath = new Map(get(this.tasks).map((t) => [t.path, t]));
+		const today = new Date().toISOString().slice(0, 10);
+		const updates: Promise<void>[] = [];
 
 		for (const [childPath, checked] of wanted.entries()) {
 			if (childPath === parentPath) continue;
-			const child = get(this.tasks).find(t => t.path === childPath);
+			const child = tasksByPath.get(childPath);
 			if (!child) continue;
 
 			const targetStatus = checked ? complete : (child.status === complete ? fallback : child.status);
-			const targetCompleted = checked ? new Date().toISOString().slice(0, 10) : null;
+			const targetCompleted = checked ? today : null;
 			const statusChanged = child.status !== targetStatus;
 			const completedChanged = (child.completed ?? null) !== targetCompleted;
 			if (!statusChanged && !completedChanged) continue;
 
-			await this.update(child.path, {
+			updates.push(this.update(child.path, {
 				status: targetStatus,
 				completed: targetCompleted,
-			});
+			}));
+		}
+
+		if (updates.length > 0) {
+			await Promise.all(updates);
 		}
 	}
 
@@ -286,22 +355,10 @@ export class TaskStore {
 		};
 	}
 
-	private async materializeChecklistChildren(parentPath: string): Promise<string> {
-		const file = this.app.vault.getAbstractFileByPath(parentPath);
-		if (!(file instanceof TFile)) return '';
-
+	private async materializeChecklistChildrenFromBody(parentPath: string, body: string): Promise<string> {
+		if (!body) return body;
 		const parent = get(this.tasks).find(t => t.path === parentPath);
-		if (!parent) {
-			const existing = await this.app.vault.cachedRead(file);
-			return this.extractNotes(existing);
-		}
-
-		const content = await this.app.vault.cachedRead(file);
-		const fmEnd = content.indexOf('\n---', 3);
-		if (fmEnd < 0) return '';
-
-		const body = content.substring(fmEnd + 4).trim();
-		if (!body) return '';
+		if (!parent) return body;
 
 		const lines = body.split('\n');
 		let inFence = false;
@@ -330,16 +387,7 @@ export class TaskStore {
 		}
 
 		if (!changed) return body;
-
-		const rewrittenBody = lines.join('\n').trim();
-		await this.app.vault.process(file, (currentContent) => {
-			const currentFmEnd = currentContent.indexOf('\n---', 3);
-			if (currentFmEnd < 0) return currentContent;
-			const frontmatter = currentContent.substring(0, currentFmEnd + 4);
-			return frontmatter + (rewrittenBody ? '\n\n' + rewrittenBody : '') + '\n';
-		});
-
-		return rewrittenBody;
+		return lines.join('\n').trim();
 	}
 
 	async updateParentTask(taskPath: string, parentPath: string | null): Promise<void> {
