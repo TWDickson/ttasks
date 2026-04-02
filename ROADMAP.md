@@ -75,6 +75,10 @@ Goal: speed up common state transitions.
 - Recurrence.
 - Natural language quick capture.
 - Capacity-aware Today planner (suggested top tasks, overload guardrails).
+- Mobile notes authoring toolbar above keyboard (deferred):
+  - Floating action row that follows keyboard while editing notes on mobile.
+  - Shared actions for create modal and detail view (checklist, heading, link, code, quote).
+  - Keep hybrid notes workflow (rendered mode + source edit mode), no separate split preview pane.
 - Explicit status metadata (`is_complete`, later possibly `is_inbox`) so completion/default behavior no longer depends on literal status names.
 - Dedicated per-item icon/emoji field for statuses, categories, and task types.
   - Separate from the label so compact views (kanban column header, tight badges) can show icon-only while full views show `{icon} {label}`.

@@ -35,7 +35,7 @@
 	let saving = false;
 	let notesPreviewEl: HTMLDivElement | null = null;
 	let markdownComponent: Component | null = null;
-	let previewTimer: ReturnType<typeof setTimeout> | null = null;
+	let previewFrame: number | null = null;
 	let previewRenderSeq = 0;
 	let lastPreviewText = '';
 
@@ -131,16 +131,16 @@
 	}
 
 	function scheduleNotesPreview(markdown: string): void {
-		if (previewTimer) {
-			clearTimeout(previewTimer);
-			previewTimer = null;
+		if (previewFrame !== null) {
+			cancelAnimationFrame(previewFrame);
+			previewFrame = null;
 		}
-		previewTimer = setTimeout(() => {
-			previewTimer = null;
+		previewFrame = requestAnimationFrame(() => {
+			previewFrame = null;
 			if (markdown === lastPreviewText) return;
 			lastPreviewText = markdown;
 			void renderNotesPreview(markdown);
-		}, 120);
+		});
 	}
 
 	// ── Field handlers ──────────────────────────────────────────────────────────
@@ -261,9 +261,9 @@
 		for (const key of Object.keys(saveTimers) as DebounceKey[]) {
 			clearSaveTimer(key);
 		}
-		if (previewTimer) {
-			clearTimeout(previewTimer);
-			previewTimer = null;
+		if (previewFrame !== null) {
+			cancelAnimationFrame(previewFrame);
+			previewFrame = null;
 		}
 	});
 
@@ -463,7 +463,7 @@
 				bind:value={notes}
 				on:input={() => saveNotesDebounced(notes)}
 				placeholder="Add notes…"
-				rows="6"
+				rows="8"
 			></textarea>
 			<div class="tt-notes-preview" bind:this={notesPreviewEl}></div>
 		</div>
@@ -667,6 +667,7 @@
 		color: var(--text-normal);
 		resize: vertical;
 		font-family: var(--font-text);
+		min-height: 160px;
 	}
 
 	.tt-notes:focus {
@@ -675,8 +676,8 @@
 	}
 
 	.tt-notes-preview {
-		margin-top: 8px;
 		padding: 10px;
+		min-height: 160px;
 		border: 1px solid var(--background-modifier-border);
 		border-radius: var(--radius-m, 6px);
 		background: var(--background-secondary);

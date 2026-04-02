@@ -1,4 +1,4 @@
-import { App, Modal, Notice } from 'obsidian';
+import { App, Component, MarkdownRenderer, Modal, Notice } from 'obsidian';
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { TaskPriority, TaskRecordType, TaskStatus, TaskType } from '../types';
@@ -27,6 +27,10 @@ export class CreateTaskModal extends Modal {
 	private start_date                 = '';
 	private estimated_days: number | null = null;
 	private notes                      = '';
+	private submitting                 = false;
+	private notesRenderComponent: Component | null = null;
+	private notesRenderFrame: number | null = null;
+	private createBtnEl: HTMLButtonElement | null = null;
 
 	constructor(app: App, plugin: TTasksPlugin, defaultType: TaskRecordType = 'task') {
 		super(app);
@@ -63,9 +67,13 @@ export class CreateTaskModal extends Modal {
 		const { contentEl } = this;
 		contentEl.addClass('tt-modal');
 		this.modalEl.addClass('tt-create-modal');
+		this.notesRenderComponent = new Component();
+		this.notesRenderComponent.load();
+
+		const sectionsRoot = contentEl.createDiv('tt-modal-sections');
 
 		// ── Name ────────────────────────────────────────────────────────────────
-		const nameInput = contentEl.createEl('input', {
+		const nameInput = sectionsRoot.createEl('input', {
 			cls: 'tt-modal-name',
 			attr: {
 				type: 'text',
@@ -78,9 +86,14 @@ export class CreateTaskModal extends Modal {
 			if (e.key === 'Enter') { e.preventDefault(); void this.submit(); }
 		});
 
+		const basicsSection = this.createModalSection(sectionsRoot, 'Basics', true);
+		const schedulingSection = this.createModalSection(sectionsRoot, 'Scheduling', true);
+		const notesSection = this.createModalSection(sectionsRoot, 'Notes', true);
+		const advancedSection = this.createModalSection(sectionsRoot, 'Advanced', false);
+
 		// ── Type — full-width segmented ──────────────────────────────────────────
-		const typeGroup = contentEl.createDiv('tt-modal-type-group');
-		const taskTypeField = this.field(contentEl, 'Task Type');
+		const typeGroup = basicsSection.createDiv('tt-modal-type-group');
+		const taskTypeField = this.field(basicsSection, 'Task Type');
 
 		for (const [val, label] of [['task', 'Task'], ['project', 'Project']] as [TaskRecordType, string][]) {
 			const btn = typeGroup.createEl('button', {
@@ -102,7 +115,7 @@ export class CreateTaskModal extends Modal {
 		}
 
 		// ── Priority ────────────────────────────────────────────────────────────
-		const priorityField = this.field(contentEl, 'Priority');
+		const priorityField = this.field(basicsSection, 'Priority');
 		const priorityChips = priorityField.createDiv('tt-modal-chips');
 
 		for (const p of PRIORITIES) {
@@ -163,12 +176,21 @@ export class CreateTaskModal extends Modal {
 		}
 
 		// ── Start Date | After Task (mutually exclusive) ─────────────────────────
-		const startRow = contentEl.createDiv('tt-modal-pair-row');
+		const startRow = schedulingSection.createDiv('tt-modal-pair-row');
 
 		const startDateField = this.field(startRow, 'Start Date');
-		const startDateInput = startDateField.createEl('input', {
+		const startDateControl = startDateField.createDiv('tt-modal-date-control');
+		const startDateInput = startDateControl.createEl('input', {
 			cls: 'tt-modal-input',
 			attr: { type: 'date' },
+		});
+		const startTodayBtn = startDateControl.createEl('button', {
+			cls: 'tt-modal-mini-btn',
+			text: 'Today',
+		});
+		const startClearBtn = startDateControl.createEl('button', {
+			cls: 'tt-modal-mini-btn',
+			text: 'Clear',
 		});
 
 		const afterTaskField = this.field(startRow, 'After Task');
@@ -190,6 +212,21 @@ export class CreateTaskModal extends Modal {
 			}
 		});
 
+		startTodayBtn.addEventListener('click', () => {
+			const today = new Date().toISOString().slice(0, 10);
+			startDateInput.value = today;
+			this.start_date = today;
+			this.depends_on = [];
+			afterTaskSelect.value = '';
+			afterTaskSelect.disabled = true;
+		});
+
+		startClearBtn.addEventListener('click', () => {
+			startDateInput.value = '';
+			this.start_date = '';
+			afterTaskSelect.disabled = false;
+		});
+
 		afterTaskSelect.addEventListener('change', () => {
 			const val = afterTaskSelect.value;
 			this.depends_on = val ? [val] : [];
@@ -197,18 +234,29 @@ export class CreateTaskModal extends Modal {
 				this.start_date          = '';
 				startDateInput.value     = '';
 				startDateInput.disabled  = true;
+				startTodayBtn.disabled   = true;
 			} else {
 				startDateInput.disabled  = false;
+				startTodayBtn.disabled   = false;
 			}
 		});
 
 		// ── Due Date | Est. Days (mutually exclusive) ────────────────────────────
-		const dueRow = contentEl.createDiv('tt-modal-pair-row');
+		const dueRow = schedulingSection.createDiv('tt-modal-pair-row');
 
 		const dueDateField = this.field(dueRow, 'Due Date');
-		const dueDateInput = dueDateField.createEl('input', {
+		const dueDateControl = dueDateField.createDiv('tt-modal-date-control');
+		const dueDateInput = dueDateControl.createEl('input', {
 			cls: 'tt-modal-input',
 			attr: { type: 'date' },
+		});
+		const dueTodayBtn = dueDateControl.createEl('button', {
+			cls: 'tt-modal-mini-btn',
+			text: 'Today',
+		});
+		const dueClearBtn = dueDateControl.createEl('button', {
+			cls: 'tt-modal-mini-btn',
+			text: 'Clear',
 		});
 
 		const estField = this.field(dueRow, 'Est. Days');
@@ -229,27 +277,69 @@ export class CreateTaskModal extends Modal {
 		});
 
 		estInput.addEventListener('change', () => {
-			this.estimated_days = estInput.value ? parseFloat(estInput.value) : null;
+			const parsed = estInput.value ? parseFloat(estInput.value) : null;
+			this.estimated_days = parsed !== null && Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+			if (parsed !== null && (!Number.isFinite(parsed) || parsed < 0)) {
+				estInput.value = '';
+			}
 			if (estInput.value) {
 				this.due_date           = '';
 				dueDateInput.value      = '';
 				dueDateInput.disabled   = true;
+				dueTodayBtn.disabled    = true;
 			} else {
 				dueDateInput.disabled   = false;
+				dueTodayBtn.disabled    = false;
 			}
 		});
 
-		// ── Notes ────────────────────────────────────────────────────────────────
-		const notesField = this.field(contentEl, 'Notes');
-		const notesEl = notesField.createEl('textarea', {
-			cls: 'tt-modal-textarea',
-			attr: { rows: '3', placeholder: 'Add notes…' },
+		dueTodayBtn.addEventListener('click', () => {
+			const today = new Date().toISOString().slice(0, 10);
+			dueDateInput.value = today;
+			this.due_date = today;
+			this.estimated_days = null;
+			estInput.value = '';
+			estInput.disabled = true;
 		});
-		notesEl.addEventListener('input', () => { this.notes = notesEl.value; });
+
+		dueClearBtn.addEventListener('click', () => {
+			dueDateInput.value = '';
+			this.due_date = '';
+			estInput.disabled = false;
+			dueTodayBtn.disabled = false;
+		});
+
+		// ── Notes ────────────────────────────────────────────────────────────────
+		const notesField = this.field(notesSection, 'Notes');
+		const notesShell = notesField.createDiv('tt-hybrid-notes');
+		const notesPreview = notesShell.createDiv('tt-hybrid-notes-preview');
+		const notesEl = notesShell.createEl('textarea', {
+			cls: 'tt-modal-textarea tt-hybrid-notes-editor',
+			attr: { rows: '5', placeholder: 'Add notes…' },
+		});
+
+		const renderNotes = async () => {
+			if (!this.notesRenderComponent) return;
+			notesPreview.innerHTML = '';
+			await MarkdownRenderer.renderMarkdown(this.notes || '_No notes yet._', notesPreview, this.plugin.manifest.id, this.notesRenderComponent);
+		};
+
+		const scheduleRenderNotes = () => {
+			if (this.notesRenderFrame !== null) cancelAnimationFrame(this.notesRenderFrame);
+			this.notesRenderFrame = requestAnimationFrame(() => {
+				this.notesRenderFrame = null;
+				void renderNotes();
+			});
+		};
+
+		notesEl.addEventListener('input', () => {
+			this.notes = notesEl.value;
+			scheduleRenderNotes();
+		});
+		void renderNotes();
 
 		// ── More options (Status + Category) ────────────────────────────────────
-		const details = contentEl.createEl('details', { cls: 'tt-modal-details' });
-		details.createEl('summary', { text: 'More options', cls: 'tt-modal-summary' });
+		const details = advancedSection.createDiv('tt-modal-details');
 
 		const statusField = this.field(details, 'Status');
 		const statusChips = statusField.createDiv('tt-modal-chips');
@@ -304,8 +394,14 @@ export class CreateTaskModal extends Modal {
 		const btnRow = contentEl.createDiv('tt-modal-btn-row');
 		btnRow.createEl('button', { text: 'Cancel', cls: 'tt-modal-btn' })
 			.addEventListener('click', () => this.close());
-		btnRow.createEl('button', { text: 'Create task', cls: 'tt-modal-btn tt-modal-btn-primary' })
-			.addEventListener('click', () => void this.submit());
+		const primaryBtn = btnRow.createEl('button', { text: 'Create task', cls: 'tt-modal-btn tt-modal-btn-primary' });
+		this.createBtnEl = primaryBtn;
+		primaryBtn.disabled = !this.name.trim();
+		nameInput.addEventListener('input', () => {
+			this.name = nameInput.value;
+			primaryBtn.disabled = this.submitting || !this.name.trim();
+		});
+		primaryBtn.addEventListener('click', () => void this.submit(primaryBtn));
 	}
 
 	// ── Helpers ──────────────────────────────────────────────────────────────────
@@ -316,6 +412,30 @@ export class CreateTaskModal extends Modal {
 		return wrap;
 	}
 
+	private createModalSection(parent: HTMLElement, title: string, isOpenByDefault: boolean): HTMLElement {
+		const section = parent.createDiv(`tt-modal-section${isOpenByDefault ? ' is-open' : ''}`);
+		const toggle = section.createEl('button', {
+			cls: 'tt-modal-section-toggle',
+			attr: { type: 'button' },
+		});
+		toggle.createSpan({ cls: 'tt-modal-section-title', text: title });
+		toggle.createSpan({ cls: 'tt-modal-section-chevron', text: '▾' });
+
+		const body = section.createDiv('tt-modal-section-body');
+
+		const applyState = (open: boolean) => {
+			section.toggleClass('is-open', open);
+			body.style.display = open ? '' : 'none';
+		};
+
+		applyState(isOpenByDefault);
+		toggle.addEventListener('click', () => {
+			applyState(!section.hasClass('is-open'));
+		});
+
+		return body;
+	}
+
 	private applyPriorityStyle(btn: HTMLButtonElement, p: TaskPriority) {
 		btn.style.background  = PRIORITY_COLORS[p];
 		btn.style.borderColor = PRIORITY_COLORS[p];
@@ -324,11 +444,20 @@ export class CreateTaskModal extends Modal {
 
 	// ── Submit ───────────────────────────────────────────────────────────────────
 
-	private async submit() {
+	private async submit(primaryBtn?: HTMLButtonElement) {
+		if (this.submitting) return;
 		const name = this.name.trim();
 		if (!name) {
 			new Notice(`${this.type === 'project' ? 'Project' : 'Task'} name is required.`);
 			return;
+		}
+		const startDate = this.depends_on.length > 0 ? null : (this.start_date || null);
+		const dueDate = this.estimated_days !== null ? null : (this.due_date || null);
+
+		this.submitting = true;
+		if (primaryBtn) {
+			primaryBtn.disabled = true;
+			primaryBtn.setText('Creating…');
 		}
 		try {
 			const task = await this.plugin.taskStore.create({
@@ -343,8 +472,8 @@ export class CreateTaskModal extends Modal {
 				blocked_reason: '',
 				assigned_to:    '',
 				source:         '',
-				start_date:     this.start_date || null,
-				due_date:       this.due_date   || null,
+				start_date:     startDate,
+				due_date:       dueDate,
 				estimated_days: this.estimated_days,
 				created:        new Date().toISOString().slice(0, 10),
 				completed:      null,
@@ -355,10 +484,23 @@ export class CreateTaskModal extends Modal {
 		} catch (e) {
 			console.error('[TTasks] Failed to create task:', e);
 			new Notice('TTasks: Failed to create task — check console for details.');
+		} finally {
+			this.submitting = false;
+			if (primaryBtn) {
+				primaryBtn.disabled = !this.name.trim();
+				primaryBtn.setText(this.type === 'project' ? 'Create project' : 'Create task');
+			}
 		}
 	}
 
 	onClose() {
+		if (this.notesRenderFrame !== null) {
+			cancelAnimationFrame(this.notesRenderFrame);
+			this.notesRenderFrame = null;
+		}
+		this.notesRenderComponent?.unload();
+		this.notesRenderComponent = null;
+		this.createBtnEl = null;
 		this.contentEl.empty();
 	}
 }

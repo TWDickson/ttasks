@@ -16,6 +16,55 @@
 	overflow-x: clip;
 }
 
+.tt-modal-sections {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+.tt-modal-section {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	padding: 10px;
+	background: color-mix(in srgb, var(--background-secondary) 70%, transparent);
+}
+
+.tt-modal-section-toggle {
+	display: none;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	cursor: pointer;
+	font-size: 0.88rem;
+	font-weight: 600;
+}
+
+.tt-modal-section-title {
+	font-size: 0.84rem;
+	letter-spacing: 0.02em;
+}
+
+.tt-modal-section-chevron {
+	color: var(--text-muted);
+	transition: transform 0.12s ease;
+}
+
+.tt-modal-section.is-open .tt-modal-section-chevron {
+	transform: rotate(0deg);
+}
+
+.tt-modal-section:not(.is-open) .tt-modal-section-chevron {
+	transform: rotate(-90deg);
+}
+
 /* Large name input at top */
 .tt-modal-name {
 	width: 100%;
@@ -91,6 +140,36 @@
 	border: 1px solid var(--background-modifier-border);
 	background: var(--background-primary);
 	color: var(--text-normal);
+}
+
+.tt-modal-date-control {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	gap: 6px;
+	align-items: center;
+}
+
+.tt-modal-mini-btn {
+	padding: 6px 10px;
+	min-height: 34px;
+	border-radius: var(--radius-s, 5px);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: 0.76rem;
+	font-weight: 600;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.tt-modal-mini-btn:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.tt-modal-mini-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
 }
 .tt-modal-select:focus,
 .tt-modal-input:focus {
@@ -177,6 +256,43 @@
 	border-color: var(--interactive-accent);
 }
 
+/* Hybrid notes (single-surface preview/edit) */
+.tt-hybrid-notes {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.tt-hybrid-notes-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.tt-hybrid-notes-hint {
+	font-size: 0.72rem;
+	color: var(--text-faint);
+}
+
+.tt-hybrid-notes-preview {
+	min-height: 100px;
+	padding: 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 6px);
+	background: var(--background-secondary);
+	font-size: 0.88rem;
+	cursor: text;
+}
+
+.tt-hybrid-notes.is-editing .tt-hybrid-notes-preview {
+	display: none;
+}
+
+.tt-hybrid-notes-editor {
+	min-height: 120px;
+}
+
 /* Button row */
 .tt-modal-btn-row {
 	display: flex;
@@ -212,9 +328,14 @@
 
 /* Mobile */
 @media (max-width: 768px) {
+	.tt-modal-sections {
+		gap: 16px;
+	}
+
 	/* Stack pair rows */
 	.tt-modal-pair-row {
 		grid-template-columns: 1fr;
+		gap: 14px;
 	}
 
 	/* Full-screen modal — removes the "floating in a frame" feeling */
@@ -242,8 +363,17 @@
 		overflow-y: auto;
 		overscroll-behavior: contain;
 		-webkit-overflow-scrolling: touch;
+		padding-top: calc(env(safe-area-inset-top) + 16px);
+		padding-left: 16px;
+		padding-right: 16px;
 		/* Push content above home indicator and virtual keyboard */
-		padding-bottom: calc(env(safe-area-inset-bottom) + 24px);
+		padding-bottom: calc(env(safe-area-inset-bottom) + 20px);
+	}
+
+	.tt-create-modal .modal-close-button {
+		top: calc(env(safe-area-inset-top) + 8px) !important;
+		right: 10px !important;
+		z-index: 20;
 	}
 
 	.tt-modal,
@@ -251,9 +381,49 @@
 		min-width: 0;
 	}
 
+	.tt-modal-section {
+		padding: 0;
+		gap: 0;
+		overflow: hidden;
+		border-radius: 12px;
+	}
+
+	.tt-modal-section-toggle {
+		display: flex;
+		border: none;
+		border-radius: 0;
+		background: transparent;
+		padding: 14px;
+	}
+
+	.tt-modal-section-body {
+		padding: 0 14px 14px;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.tt-modal-field {
+		gap: 8px;
+	}
+
+	.tt-modal-label {
+		font-size: 0.8rem;
+		letter-spacing: 0.07em;
+	}
+
 	.tt-modal-chip {
+		min-height: 38px;
+		padding: 8px 14px;
+		font-size: 0.9rem;
 		max-width: 100%;
 		overflow-wrap: anywhere;
+	}
+
+	.tt-modal-select,
+	.tt-modal-input,
+	.tt-modal-textarea {
+		font-size: 0.95rem;
 	}
 
 	/* Keep button row visible while content scrolls */
@@ -262,8 +432,39 @@
 		bottom: 0;
 		z-index: 1;
 		background: var(--background-primary);
-		padding-top: 8px;
+		padding-top: 12px;
 		padding-bottom: calc(env(safe-area-inset-bottom) + 8px);
 		flex-wrap: wrap;
+		gap: 10px;
+	}
+
+	.tt-modal-date-control {
+		grid-template-columns: 1fr;
+	}
+
+	.tt-modal-mini-btn {
+		min-height: 38px;
+	}
+
+	.tt-hybrid-notes-editor {
+		min-height: 140px;
+	}
+}
+
+@media (min-width: 769px) {
+	.tt-modal-section {
+		padding: 0;
+		border: none;
+		background: transparent;
+	}
+
+	.tt-modal-section-toggle {
+		display: none !important;
+	}
+
+	.tt-modal-section-body {
+		display: flex !important;
+		flex-direction: column;
+		gap: 14px;
 	}
 }
