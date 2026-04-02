@@ -366,8 +366,7 @@
 		padding-top: calc(env(safe-area-inset-top) + 16px);
 		padding-left: 16px;
 		padding-right: 16px;
-		/* Push content above home indicator and virtual keyboard */
-		padding-bottom: calc(env(safe-area-inset-bottom) + 20px);
+		padding-bottom: 0;
 	}
 
 	.tt-create-modal .modal-close-button {
@@ -430,12 +429,18 @@
 	.tt-modal-btn-row {
 		position: sticky;
 		bottom: 0;
-		z-index: 1;
+		z-index: 30;
 		background: var(--background-primary);
+		margin-left: -16px;
+		margin-right: -16px;
+		padding-left: 16px;
+		padding-right: 16px;
 		padding-top: 12px;
 		padding-bottom: calc(env(safe-area-inset-bottom) + 8px);
 		flex-wrap: wrap;
 		gap: 10px;
+		border-top: 1px solid var(--background-modifier-border);
+		box-shadow: 0 -8px 20px color-mix(in srgb, var(--background-primary) 82%, transparent);
 	}
 
 	.tt-modal-date-control {
