@@ -355,6 +355,14 @@ export class TaskStore {
 		};
 	}
 
+	private indentationWidth(indent: string): number {
+		let width = 0;
+		for (const ch of indent) {
+			width += ch === '\t' ? 4 : 1;
+		}
+		return width;
+	}
+
 	private async materializeChecklistChildrenFromBody(parentPath: string, body: string): Promise<string> {
 		if (!body) return body;
 		const parent = get(this.tasks).find(t => t.path === parentPath);
@@ -363,6 +371,7 @@ export class TaskStore {
 		const lines = body.split('\n');
 		let inFence = false;
 		let changed = false;
+		const checklistStack: Array<{ indent: number; path: string }> = [];
 
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
@@ -373,16 +382,33 @@ export class TaskStore {
 			}
 			if (inFence) continue;
 
-			const match = line.match(/^(\s*)- \[ \]\s+(.+)$/);
+			const match = line.match(/^(\s*)- \[( |x|X)\]\s+(.+)$/);
 			if (!match) continue;
 
 			const indent = match[1] ?? '';
-			const title = (match[2] ?? '').trim();
-			if (!title || title.includes('[[')) continue;
+			const checkedMarker = (match[2] ?? ' ').toLowerCase();
+			const content = (match[3] ?? '').trim();
+			const indentWidth = this.indentationWidth(indent);
 
-			const child = await this.create(this.buildChildTaskInput(parent, title, parentPath));
+			while (checklistStack.length > 0 && checklistStack[checklistStack.length - 1]!.indent >= indentWidth) {
+				checklistStack.pop();
+			}
+
+			const linked = this.extractChecklistLink(line);
+			if (linked?.path) {
+				checklistStack.push({ indent: indentWidth, path: linked.path });
+				continue;
+			}
+
+			if (!content || checkedMarker !== ' ') continue;
+
+			const effectiveParentPath = checklistStack.length > 0
+				? checklistStack[checklistStack.length - 1]!.path
+				: parentPath;
+			const child = await this.create(this.buildChildTaskInput(parent, content, effectiveParentPath));
 			const childPath = child.path.replace(/\.md$/, '');
 			lines[i] = `${indent}- [ ] [[${childPath}|${child.name}]]`;
+			checklistStack.push({ indent: indentWidth, path: child.path });
 			changed = true;
 		}
 
