@@ -14,6 +14,7 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
 };
 
 const MOBILE_QUICK_CREATE_PREF_KEY = 'ttasks.mobileQuickCreate';
+const MOBILE_QUICK_CREATE_HINT_DISMISSED_KEY = 'ttasks.mobileQuickCreateHintDismissed';
 
 export class CreateTaskModal extends Modal {
 	private plugin: TTasksPlugin;
@@ -150,6 +151,23 @@ export class CreateTaskModal extends Modal {
 				cls: 'tt-modal-quick-toggle',
 				attr: { type: 'button' },
 			});
+			let quickHintEl: HTMLElement | null = null;
+			if (this.shouldShowQuickCreateHint()) {
+				quickHintEl = sectionsRoot.createDiv('tt-modal-quick-hint');
+				quickHintEl.createSpan({
+					text: 'Quick Create keeps only essentials visible. Toggle off anytime for full details.',
+				});
+				const dismissHintBtn = quickHintEl.createEl('button', {
+					cls: 'tt-modal-quick-hint-dismiss',
+					text: 'Got it',
+					attr: { type: 'button' },
+				});
+				dismissHintBtn.addEventListener('click', () => {
+					this.dismissQuickCreateHint();
+					quickHintEl?.remove();
+					quickHintEl = null;
+				});
+			}
 
 			const applyQuickMode = (enabled: boolean) => {
 				quickCreateMode = enabled;
@@ -455,6 +473,22 @@ export class CreateTaskModal extends Modal {
 	private persistQuickCreateMode(enabled: boolean): void {
 		try {
 			localStorage.setItem(MOBILE_QUICK_CREATE_PREF_KEY, enabled ? '1' : '0');
+		} catch {
+			// Ignore storage access issues to avoid blocking task creation UX.
+		}
+	}
+
+	private shouldShowQuickCreateHint(): boolean {
+		try {
+			return localStorage.getItem(MOBILE_QUICK_CREATE_HINT_DISMISSED_KEY) !== '1';
+		} catch {
+			return true;
+		}
+	}
+
+	private dismissQuickCreateHint(): void {
+		try {
+			localStorage.setItem(MOBILE_QUICK_CREATE_HINT_DISMISSED_KEY, '1');
 		} catch {
 			// Ignore storage access issues to avoid blocking task creation UX.
 		}

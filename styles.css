@@ -122,6 +122,21 @@
 	color: var(--interactive-accent);
 }
 
+.tt-modal-quick-hint {
+	display: none;
+}
+
+.tt-modal-quick-hint-dismiss {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s, 6px);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-size: 0.72rem;
+	font-weight: 600;
+	padding: 4px 8px;
+	cursor: pointer;
+}
+
 /* Field: label stacked above control */
 .tt-modal-field {
 	display: flex;
@@ -435,6 +450,20 @@
 		display: flex;
 		justify-content: flex-start;
 		margin-top: -4px;
+	}
+
+	.tt-modal-quick-hint {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		padding: 8px 10px;
+		border: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+		border-radius: 10px;
+		background: color-mix(in srgb, var(--background-secondary) 80%, transparent);
+		color: var(--text-muted);
+		font-size: 0.74rem;
+		line-height: 1.35;
 	}
 
 	.tt-modal-section-toggle {
