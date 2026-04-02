@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Notice } from 'obsidian';
 	import { onMount } from 'svelte';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
@@ -12,6 +13,9 @@
 	export let taskTypeColors: Record<string, string>;
 	export let onOpen: (path: string) => void;
 
+	type MenuPrimaryAction = QuickActionId | 'edit';
+	type DeferPreset = 1 | 3 | 7 | 'custom';
+
 	const PRIORITY_COLORS: Record<string, string> = {
 		High: 'var(--color-red)',
 		Medium: 'var(--color-orange)',
@@ -19,45 +23,51 @@
 		None: 'var(--text-faint)',
 	};
 
-	const ACTION_COLORS: Record<QuickActionId, string> = {
+	const ACTION_COLORS: Record<MenuPrimaryAction, string> = {
 		none: 'var(--background-modifier-border)',
 		start: 'var(--color-blue)',
 		complete: 'var(--color-green)',
 		block: 'var(--color-red)',
 		defer: 'var(--color-orange)',
+		edit: 'var(--color-cyan)',
 	};
 
-	type OpenSide = 'left' | 'right' | null;
+	const HOLD_DELAY_MS = 400;
+	const MOVE_CANCEL_PX = 8;
+	const MENU_HALF_WIDTH = 172;
+	const MENU_MARGIN = 12;
+	const MENU_HEIGHT_ESTIMATE = 196;
+	const CLOSE_TILE_HALF_WIDTH = 54;
 
-	const OPEN_OFFSET = 84;
-	const MAX_OFFSET = 104;
-	const INTENT_THRESHOLD = 10;
-	const OPEN_THRESHOLD = 44;
+	let touchCapable = false;
+	let menuTimeout: number | null = null;
+	let holdTimer: number | null = null;
+	let holdFired = false;
+	let suppressNextClick = false;
+	let holdStartX = 0;
+	let holdStartY = 0;
+	let holdMenuOpen = false;
+	let menuAbove = true;
+	let menuX = 0;
+	let menuY = 0;
+	let rowButtonEl: HTMLButtonElement | null = null;
+	let rowEl: HTMLLIElement | null = null;
+	let activePrimary: MenuPrimaryAction | null = null;
+	let activeDeferPreset: DeferPreset | null = null;
 
-	let swipeCapable = false;
-	let pointerId: number | null = null;
-	let startX = 0;
-	let startY = 0;
-	let baseOffset = 0;
-	let dragOffset = 0;
-	let dragging = false;
-	let suppressClick = false;
-	let openSide: OpenSide = null;
+	const DEFER_PRESETS_BASE: DeferPreset[] = [1, 3, 7, 'custom'];
 
-	$: leftGestureAction = plugin.settings.quickActions.mobileSwipeLeftAction;
-	$: rightGestureAction = plugin.settings.quickActions.mobileSwipeRightAction;
-	$: revealLeftAction = rightGestureAction;
-	$: revealRightAction = leftGestureAction;
-	$: swipeEnabled = swipeCapable && plugin.settings.quickActions.mobileSwipeEnabled && task.type === 'task' && (leftGestureAction !== 'none' || rightGestureAction !== 'none');
-	$: canRevealLeft = swipeEnabled && revealLeftAction !== 'none';
-	$: canRevealRight = swipeEnabled && revealRightAction !== 'none';
-	$: offsetX = dragging
-		? dragOffset
-		: openSide === 'left'
-			? OPEN_OFFSET
-			: openSide === 'right'
-				? -OPEN_OFFSET
-				: 0;
+	$: holdEnabled = touchCapable && plugin.settings.quickActions.mobileHoldEnabled && task.type === 'task';
+	$: handedness = plugin.settings.quickActions.mobileHandedness ?? 'right';
+	$: menuTimeoutMs = plugin.settings.quickActions.mobileHoldTimeoutMs ?? 2400;
+	$: topActions = handedness === 'left'
+		? (['complete', 'edit'] as MenuPrimaryAction[])
+		: (['edit', 'complete'] as MenuPrimaryAction[]);
+	$: bottomActions = handedness === 'left'
+		? (['defer', 'start'] as MenuPrimaryAction[])
+		: (['start', 'defer'] as MenuPrimaryAction[]);
+	$: deferPresets = handedness === 'left' ? [...DEFER_PRESETS_BASE].reverse() : DEFER_PRESETS_BASE;
+	$: showDeferOptions = activePrimary === 'defer';
 
 	function today(): string {
 		return new Date().toISOString().slice(0, 10);
@@ -72,131 +82,263 @@
 		return color ? `--tt-badge-color:${color};` : '';
 	}
 
-	function getActionColor(action: QuickActionId): string {
+	function getActionColor(action: MenuPrimaryAction): string {
 		return ACTION_COLORS[action] ?? ACTION_COLORS.none;
 	}
 
-	function clampOffset(value: number): number {
-		const min = canRevealRight ? -MAX_OFFSET : 0;
-		const max = canRevealLeft ? MAX_OFFSET : 0;
-		return Math.max(min, Math.min(max, value));
+	function getActionLabel(action: MenuPrimaryAction): string {
+		if (action === 'edit') return 'Edit';
+		return QUICK_ACTION_LABELS[action];
 	}
 
-	function resetPointerState(): void {
-		pointerId = null;
-		startX = 0;
-		startY = 0;
-		baseOffset = 0;
-		dragOffset = 0;
-		dragging = false;
+	function getDeferPresetLabel(preset: DeferPreset): string {
+		if (preset === 'custom') return 'Custom';
+		return `+${preset}d`;
 	}
 
-	function onPointerDown(event: PointerEvent): void {
-		if (!swipeEnabled || event.pointerType !== 'touch') return;
-		pointerId = event.pointerId;
-		startX = event.clientX;
-		startY = event.clientY;
-		baseOffset = openSide === 'left' ? OPEN_OFFSET : openSide === 'right' ? -OPEN_OFFSET : 0;
-		dragOffset = baseOffset;
-		dragging = false;
-		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+	function clearTimers(): void {
+		if (menuTimeout !== null) {
+			window.clearTimeout(menuTimeout);
+			menuTimeout = null;
+		}
+		if (holdTimer !== null) {
+			window.clearTimeout(holdTimer);
+			holdTimer = null;
+		}
 	}
 
-	function onPointerMove(event: PointerEvent): void {
-		if (!swipeEnabled || pointerId !== event.pointerId) return;
-		const dx = event.clientX - startX;
-		const dy = event.clientY - startY;
+	function scheduleMenuTimeout(): void {
+		if (menuTimeout !== null) window.clearTimeout(menuTimeout);
+		menuTimeout = window.setTimeout(() => {
+			closeHoldMenu();
+		}, menuTimeoutMs);
+	}
 
-		if (!dragging) {
-			if (Math.abs(dx) < INTENT_THRESHOLD) return;
-			if (Math.abs(dx) <= Math.abs(dy)) {
-				resetPointerState();
+	function closeHoldMenu(): void {
+		holdMenuOpen = false;
+		activePrimary = null;
+		activeDeferPreset = null;
+		clearTimers();
+	}
+
+	function getMenuBoundaryRect(): DOMRect {
+		return new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+	}
+
+	function openHoldMenuAt(clientX: number, clientY: number): void {
+		const boundary = getMenuBoundaryRect();
+
+		const clampedClientX = Math.max(
+			boundary.left + CLOSE_TILE_HALF_WIDTH + MENU_MARGIN,
+			Math.min(boundary.right - CLOSE_TILE_HALF_WIDTH - MENU_MARGIN, clientX)
+		);
+		menuX = clampedClientX;
+
+		const spaceAbove = clientY - boundary.top;
+		const spaceBelow = boundary.bottom - clientY;
+		menuAbove = spaceAbove >= MENU_HEIGHT_ESTIMATE || spaceAbove >= spaceBelow;
+		menuY = Math.max(boundary.top + MENU_MARGIN, Math.min(boundary.bottom - MENU_MARGIN, clientY));
+		holdMenuOpen = true;
+		activePrimary = null;
+		activeDeferPreset = null;
+		scheduleMenuTimeout();
+	}
+
+	function onTaskPointerDown(event: PointerEvent): void {
+		if (!holdEnabled) return;
+		if (holdMenuOpen) return;
+		holdFired = false;
+		holdStartX = event.clientX;
+		holdStartY = event.clientY;
+		holdTimer = window.setTimeout(() => {
+			holdFired = true;
+			holdTimer = null;
+			openHoldMenuAt(holdStartX, holdStartY);
+		}, HOLD_DELAY_MS);
+	}
+
+	function onTaskPointerMove(event: PointerEvent): void {
+		if (holdTimer === null) return;
+		const dx = Math.abs(event.clientX - holdStartX);
+		const dy = Math.abs(event.clientY - holdStartY);
+		if (dx > MOVE_CANCEL_PX || dy > MOVE_CANCEL_PX) {
+			window.clearTimeout(holdTimer);
+			holdTimer = null;
+		}
+	}
+
+	function onTaskPointerCancel(): void {
+		if (holdTimer !== null) {
+			window.clearTimeout(holdTimer);
+			holdTimer = null;
+		}
+		holdFired = false;
+	}
+
+	function onTaskPointerUp(): void {
+		if (holdTimer !== null) {
+			window.clearTimeout(holdTimer);
+			holdTimer = null;
+		}
+		if (holdFired) {
+			suppressNextClick = true;
+			holdFired = false;
+		}
+	}
+
+	async function executePrimaryAction(action: MenuPrimaryAction): Promise<void> {
+		if (action === 'edit') {
+			onOpen(task.path);
+			return;
+		}
+		if (action === 'none') return;
+		await plugin.runQuickAction(action, task.path, { showNotice: false });
+	}
+
+	async function executeDeferPreset(preset: DeferPreset): Promise<void> {
+		if (preset === 'custom') {
+			const response = window.prompt('Defer by how many days?', String(plugin.settings.quickActions.deferDays ?? 1));
+			if (!response) return;
+			const parsed = parseInt(response, 10);
+			if (isNaN(parsed) || parsed < 1 || parsed > 365) {
+				new Notice('TTasks: enter a number between 1 and 365.');
 				return;
 			}
-			dragging = true;
-			suppressClick = true;
+			await deferByDays(parsed);
+			return;
 		}
-
-		event.preventDefault();
-		dragOffset = clampOffset(baseOffset + dx);
+		await deferByDays(preset);
 	}
 
-	function onPointerUp(event: PointerEvent): void {
-		if (pointerId !== event.pointerId) return;
-		if (dragging) {
-			if (dragOffset >= OPEN_THRESHOLD && canRevealLeft) {
-				openSide = 'left';
-			} else if (dragOffset <= -OPEN_THRESHOLD && canRevealRight) {
-				openSide = 'right';
-			} else {
-				openSide = null;
-			}
-		}
-		resetPointerState();
-	}
-
-	function onPointerCancel(event: PointerEvent): void {
-		if (pointerId !== event.pointerId) return;
-		resetPointerState();
+	async function deferByDays(days: number): Promise<void> {
+		const base = task.due_date ?? today();
+		const date = new Date(base + 'T00:00:00');
+		date.setDate(date.getDate() + days);
+		await plugin.taskStore.update(task.path, {
+			due_date: date.toISOString().slice(0, 10),
+		});
 	}
 
 	function handleOpen(event: MouseEvent): void {
-		if (suppressClick) {
+		if (suppressNextClick) {
+			suppressNextClick = false;
 			event.preventDefault();
 			event.stopPropagation();
-			suppressClick = false;
 			return;
 		}
-
-		if (openSide) {
+		if (holdMenuOpen) {
 			event.preventDefault();
-			openSide = null;
+			closeHoldMenu();
 			return;
 		}
-
 		onOpen(task.path);
 	}
 
-	async function triggerAction(action: QuickActionId): Promise<void> {
-		if (action === 'none') return;
-		const didRun = await plugin.runQuickAction(action, task.path, { showNotice: false });
-		if (didRun) openSide = null;
+	async function onPrimaryClick(action: MenuPrimaryAction): Promise<void> {
+		scheduleMenuTimeout();
+		if (action === 'defer') {
+			activePrimary = 'defer';
+			return;
+		}
+		await executePrimaryAction(action);
+		closeHoldMenu();
+	}
+
+	function onDismissClick(): void {
+		closeHoldMenu();
+	}
+
+	async function onDeferPresetClick(preset: DeferPreset): Promise<void> {
+		scheduleMenuTimeout();
+		await executeDeferPreset(preset);
+		closeHoldMenu();
 	}
 
 	onMount(() => {
 		if (typeof window === 'undefined') return;
 		const media = window.matchMedia('(pointer: coarse)');
-		const updateSwipeCapable = () => {
-			swipeCapable = media.matches;
+		const updateTouchCapable = () => {
+			touchCapable = media.matches;
 		};
-		updateSwipeCapable();
-		media.addEventListener?.('change', updateSwipeCapable);
+		const onWindowPointerDown = (event: PointerEvent) => {
+			if (!holdMenuOpen) return;
+			const target = event.target as Node | null;
+			if (!target) return;
+			if (rowEl?.contains(target)) return;
+			closeHoldMenu();
+		};
+		updateTouchCapable();
+		media.addEventListener?.('change', updateTouchCapable);
+		window.addEventListener('pointerdown', onWindowPointerDown, { capture: true });
 		return () => {
-			media.removeEventListener?.('change', updateSwipeCapable);
+			clearTimers();
+			media.removeEventListener?.('change', updateTouchCapable);
+			window.removeEventListener('pointerdown', onWindowPointerDown, { capture: true } as EventListenerOptions);
 		};
 	});
 </script>
 
-<li class="tt-task" class:is-overdue={isOverdue(task.due_date)} class:is-active={active} class:is-swipe-enabled={swipeEnabled}>
-	{#if canRevealLeft}
-		<div class="tt-swipe-actions tt-swipe-actions-left" aria-hidden={openSide !== 'left' && !dragging}>
-			<button
-				type="button"
-				class="tt-swipe-action"
-				style={`--tt-action-color:${getActionColor(revealLeftAction)}`}
-				on:click|stopPropagation={() => triggerAction(revealLeftAction)}
-			>{QUICK_ACTION_LABELS[revealLeftAction]}</button>
-		</div>
-	{/if}
-
-	{#if canRevealRight}
-		<div class="tt-swipe-actions tt-swipe-actions-right" aria-hidden={openSide !== 'right' && !dragging}>
-			<button
-				type="button"
-				class="tt-swipe-action"
-				style={`--tt-action-color:${getActionColor(revealRightAction)}`}
-				on:click|stopPropagation={() => triggerAction(revealRightAction)}
-			>{QUICK_ACTION_LABELS[revealRightAction]}</button>
+<li class="tt-task" class:is-overdue={isOverdue(task.due_date)} class:is-active={active} class:is-hold-open={holdMenuOpen} bind:this={rowEl}>
+	{#if holdMenuOpen}
+		<div
+			class="tt-hold-menu"
+			class:is-left-handed={handedness === 'left'}
+			class:is-below={!menuAbove}
+			style={`--tt-menu-x:${menuX}px; --tt-menu-y:${menuY}px;`}
+		>
+			<div class="tt-hold-lava" aria-hidden="true"></div>
+			<div class="tt-hold-cluster">
+				<div class="tt-hold-row tt-hold-row-top" role="group" aria-label="Primary quick actions">
+					{#each topActions as action (action)}
+						<button
+							type="button"
+							class="tt-hold-action tt-hold-action-primary"
+							class:is-active={activePrimary === action}
+							data-hold-primary={action}
+							style={`--tt-action-color:${getActionColor(action)}`}
+							on:click|stopPropagation={() => onPrimaryClick(action)}
+						><span class="tt-hold-label">{getActionLabel(action)}</span></button>
+					{/each}
+				</div>
+				<div class="tt-hold-row tt-hold-row-bottom" role="group" aria-label="Secondary quick actions">
+					<button
+						type="button"
+						class="tt-hold-action tt-hold-action-secondary"
+						class:is-active={activePrimary === bottomActions[0]}
+						data-hold-primary={bottomActions[0]}
+						style={`--tt-action-color:${getActionColor(bottomActions[0])}`}
+						on:click|stopPropagation={() => onPrimaryClick(bottomActions[0])}
+					><span class="tt-hold-label">{getActionLabel(bottomActions[0])}</span></button>
+					<button
+						type="button"
+						class="tt-hold-close-tile"
+						on:click|stopPropagation={onDismissClick}
+						aria-label="Dismiss quick menu"
+					><span class="tt-hold-label">×</span></button>
+					<button
+						type="button"
+						class="tt-hold-action tt-hold-action-secondary"
+						class:is-active={activePrimary === bottomActions[1]}
+						data-hold-primary={bottomActions[1]}
+						style={`--tt-action-color:${getActionColor(bottomActions[1])}`}
+						on:click|stopPropagation={() => onPrimaryClick(bottomActions[1])}
+					><span class="tt-hold-label">{getActionLabel(bottomActions[1])}</span></button>
+				</div>
+			</div>
+			{#if showDeferOptions}
+				<div class="tt-hold-row tt-hold-defer" role="group" aria-label="Defer presets">
+					{#each deferPresets as preset (preset)}
+						<button
+							type="button"
+							class="tt-hold-action tt-hold-action-defer"
+							class:is-active={activeDeferPreset === preset}
+							data-defer-preset={String(preset)}
+							style={`--tt-action-color:${ACTION_COLORS.defer}`}
+							on:click|stopPropagation={() => onDeferPresetClick(preset)}
+						><span class="tt-hold-label">{getDeferPresetLabel(preset)}</span></button>
+					{/each}
+				</div>
+			{/if}
 		</div>
 	{/if}
 
@@ -204,13 +346,12 @@
 		type="button"
 		class="tt-task-btn"
 		class:is-active={active}
-		class:is-dragging={dragging}
-		style={`transform: translateX(${offsetX}px);`}
+		bind:this={rowButtonEl}
+		on:pointerdown={onTaskPointerDown}
+		on:pointermove={onTaskPointerMove}
+		on:pointercancel={onTaskPointerCancel}
+		on:pointerup={onTaskPointerUp}
 		on:click={handleOpen}
-		on:pointerdown={onPointerDown}
-		on:pointermove={onPointerMove}
-		on:pointerup={onPointerUp}
-		on:pointercancel={onPointerCancel}
 	>
 		<div class="tt-task-main">
 			<span
@@ -230,6 +371,7 @@
 			{#if task.type === 'task' && task.task_type}
 				<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!taskTypeColors?.[task.task_type]} style={getBadgeStyle(taskTypeColors?.[task.task_type])}>{task.task_type}</span>
 			{/if}
+
 		</div>
 	</button>
 </li>
@@ -239,38 +381,191 @@
 		position: relative;
 		display: flex;
 		align-items: stretch;
-		overflow: hidden;
+		overflow: visible;
 		border-radius: var(--radius-m, 6px);
 	}
 
-	.tt-swipe-actions {
-		position: absolute;
-		inset: 0;
+	.tt-hold-menu {
+		--tt-tile-w: 100px;
+		--tt-tile-h: 115px;
+		--tt-gap: 6px;
+		--tt-row-step-y: calc((var(--tt-tile-h) * 3 / 4) + (var(--tt-gap) / 2));
+		--tt-close-center-y: calc(var(--tt-row-step-y) + (var(--tt-tile-h) / 2));
+		position: fixed;
+		left: var(--tt-menu-x);
+		top: var(--tt-menu-y);
+		z-index: 9999;
 		display: flex;
-		align-items: stretch;
+		flex-direction: column;
+		gap: var(--tt-gap);
 		pointer-events: none;
+		transform: translate(-50%, calc(-1 * var(--tt-close-center-y)));
+		/* GPU acceleration for crisp rendering */
+		-webkit-transform: translate(-50%, calc(-1 * var(--tt-close-center-y)));
+		-webkit-perspective: 1000;
+		backface-visibility: hidden;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		will-change: transform;
 	}
 
-	.tt-swipe-actions-left {
-		justify-content: flex-start;
+	.tt-hold-menu.is-below {
+		transform: translate(-50%, calc(-1 * var(--tt-close-center-y)));
+		-webkit-transform: translate(-50%, calc(-1 * var(--tt-close-center-y)));
 	}
 
-	.tt-swipe-actions-right {
-		justify-content: flex-end;
+	.tt-hold-lava {
+		display: none;
 	}
 
-	.tt-swipe-action {
+	.tt-hold-menu.is-below .tt-hold-lava {
+		top: 42%;
+	}
+
+	.tt-hold-cluster {
+		display: flex;
+		flex-direction: column;
+		gap: 0;
 		pointer-events: auto;
-		min-width: 88px;
+	}
+
+	.tt-hold-row {
+		display: flex;
+		gap: var(--tt-gap);
+		pointer-events: auto;
+		justify-content: center;
+	}
+
+	.tt-hold-row-top {
+		transform: translateY(0);
+	}
+
+	.tt-hold-row-bottom {
+		margin-top: calc(var(--tt-row-step-y) - var(--tt-tile-h));
+	}
+
+	.tt-hold-defer {
+		opacity: 1;
+		transform: translateY(-6px) scale(1);
+		transition: opacity 170ms ease, transform 170ms cubic-bezier(0.2, 0.9, 0.2, 1);
+		gap: var(--tt-gap);
+	}
+
+	.tt-hold-action {
+		--tt-stroke-width: 2.5px;
+		--tt-stroke-color: color-mix(in srgb, var(--tt-action-color) 78%, var(--background-modifier-border-focus));
+		--tt-fill-color: color-mix(in srgb, var(--tt-action-color) 46%, var(--background-primary));
 		border: none;
-		border-radius: 0;
-		background: var(--tt-action-color);
-		color: var(--text-on-accent);
-		font-size: 0.78rem;
+		background: transparent;
+		color: var(--text-normal);
+		font-size: 0.8rem;
 		font-weight: 700;
 		letter-spacing: 0.02em;
-		padding: 0 14px;
+		border-radius: 0;
+		width: var(--tt-tile-w);
+		height: var(--tt-tile-h);
+		padding: 0 12px;
+		line-height: 1.05;
+		text-align: center;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		position: relative;
+		isolation: isolate;
 		box-shadow: none;
+		transform: scale(0.85);
+		opacity: 0;
+		animation: tt-action-pop 180ms cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+		/* High-DPI rendering */
+		backface-visibility: hidden;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		-webkit-touch-callout: none;
+		will-change: transform, opacity;
+	}
+
+	.tt-hold-action::before,
+	.tt-hold-action::after,
+	.tt-hold-close-tile::before,
+	.tt-hold-close-tile::after {
+		content: '';
+		position: absolute;
+		pointer-events: none;
+		-webkit-clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+		clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+	}
+
+	.tt-hold-action::before,
+	.tt-hold-close-tile::before {
+		inset: 0;
+		background: var(--tt-stroke-color);
+		z-index: 0;
+	}
+
+	.tt-hold-action::after,
+	.tt-hold-close-tile::after {
+		inset: var(--tt-stroke-width);
+		background: var(--tt-fill-color);
+		z-index: 1;
+	}
+
+	.tt-hold-label {
+		position: relative;
+		z-index: 2;
+	}
+
+	.tt-hold-close-tile {
+		--tt-stroke-width: 2.5px;
+		--tt-stroke-color: var(--background-modifier-border-focus);
+		--tt-fill-color: var(--background-secondary);
+		border: none;
+		background: transparent;
+		color: var(--text-muted);
+		font-size: 1.08rem;
+		font-weight: 600;
+		width: var(--tt-tile-w);
+		height: var(--tt-tile-h);
+		padding: 0;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		position: relative;
+		isolation: isolate;
+		box-shadow: none;
+		/* High-DPI rendering */
+		backface-visibility: hidden;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		-webkit-touch-callout: none;
+	}
+
+	.tt-hold-close-tile:active {
+		transform: scale(0.96);
+		will-change: auto;
+	}
+
+	.tt-hold-action.is-active {
+		background: color-mix(in srgb, var(--tt-action-color) 40%, var(--background-primary));
+		--tt-stroke-color: color-mix(in srgb, var(--tt-action-color) 72%, var(--background-modifier-border-focus));
+		transform: scale(1.04);
+		will-change: auto;
+	}
+
+	.tt-hold-action-primary:nth-child(2) {
+		animation-delay: 25ms;
+	}
+
+	.tt-hold-action-secondary {
+		animation-delay: 50ms;
+	}
+
+	.tt-hold-action-defer {
+		animation-delay: 90ms;
+	}
+
+	.tt-hold-action:active {
+		transform: scale(0.96);
+		will-change: auto;
 	}
 
 	.tt-task-btn {
@@ -286,15 +581,14 @@
 		color: var(--text-normal);
 		cursor: pointer;
 		text-align: left;
-		transition: transform 0.14s ease, background 0.1s ease;
+		transition: background 0.1s ease;
 		box-shadow: none;
+		-webkit-touch-callout: none;
+		-webkit-user-select: none;
+		user-select: none;
 		touch-action: pan-y;
 		position: relative;
 		z-index: 1;
-	}
-
-	.tt-task-btn.is-dragging {
-		transition: none;
 	}
 
 	.tt-task-btn:hover {
@@ -381,8 +675,34 @@
 		background: var(--background-secondary);
 	}
 
+	@keyframes tt-lava-in {
+		from {
+			opacity: 0;
+			transform: translate(-50%, -50%) scale(0.72);
+			backface-visibility: hidden;
+		}
+		to {
+			opacity: 1;
+			transform: translate(-50%, -50%) scale(1);
+			backface-visibility: hidden;
+		}
+	}
+
+	@keyframes tt-action-pop {
+		from {
+			opacity: 0;
+			transform: scale(0.82) translateY(2px);
+			backface-visibility: hidden;
+		}
+		to {
+			opacity: 1;
+			transform: scale(1) translateY(0);
+			backface-visibility: hidden;
+		}
+	}
+
 	@media (hover: hover) and (pointer: fine) {
-		.tt-task.is-swipe-enabled .tt-swipe-actions {
+		.tt-hold-menu {
 			display: none;
 		}
 	}

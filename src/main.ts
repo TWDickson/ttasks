@@ -53,30 +53,6 @@ export default class TTasksPlugin extends Plugin {
 			callback: () => this.taskStore.migrateCssClasses(),
 		});
 
-		this.addCommand({
-			id: 'quick-start',
-			name: 'Quick action: Start task',
-			callback: () => this.runQuickAction('start'),
-		});
-
-		this.addCommand({
-			id: 'quick-complete',
-			name: 'Quick action: Complete task',
-			callback: () => this.runQuickAction('complete'),
-		});
-
-		this.addCommand({
-			id: 'quick-block',
-			name: 'Quick action: Block task',
-			callback: () => this.runQuickAction('block'),
-		});
-
-		this.addCommand({
-			id: 'quick-defer',
-			name: 'Quick action: Defer task',
-			callback: () => this.runQuickAction('defer'),
-		});
-
 		this.addSettingTab(new TTasksSettingTab(this.app, this));
 
 		this.app.workspace.onLayoutReady(() => this.taskStore.load());
@@ -99,7 +75,16 @@ export default class TTasksPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-		this.settings.quickActions = Object.assign({}, DEFAULT_SETTINGS.quickActions, this.settings.quickActions ?? {});
+		const qa = Object.assign({}, DEFAULT_SETTINGS.quickActions, this.settings.quickActions ?? {});
+		const qaWithLegacy = qa as typeof qa & { mobileSwipeEnabled?: boolean };
+		this.settings.quickActions = {
+			startStatus: qa.startStatus,
+			blockStatus: qa.blockStatus,
+			deferDays: qa.deferDays,
+			mobileHoldEnabled: qa.mobileHoldEnabled ?? qaWithLegacy.mobileSwipeEnabled ?? DEFAULT_SETTINGS.quickActions.mobileHoldEnabled,
+			mobileHandedness: qa.mobileHandedness,
+			mobileHoldTimeoutMs: qa.mobileHoldTimeoutMs,
+		};
 		this.settings.statuses = normalizeStatuses(this.settings.statuses);
 		this.settings.completionStatus = resolveCompletionStatus(this.settings.statuses, this.settings.completionStatus);
 		this.settings.quickActions.startStatus = resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus);

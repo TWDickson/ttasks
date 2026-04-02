@@ -3,6 +3,7 @@ import type TTasksPlugin from './main';
 
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
+export type QuickActionHandedness = 'right' | 'left';
 
 export const QUICK_ACTION_LABELS: Record<QuickActionId, string> = {
 	none: 'None',
@@ -24,9 +25,9 @@ export interface QuickActionsSettings {
 	startStatus: string;
 	blockStatus: string;
 	deferDays: number;
-	mobileSwipeEnabled: boolean;
-	mobileSwipeLeftAction: QuickActionId;
-	mobileSwipeRightAction: QuickActionId;
+	mobileHoldEnabled: boolean;
+	mobileHandedness: QuickActionHandedness;
+	mobileHoldTimeoutMs: number;
 }
 
 export interface TTasksSettings {
@@ -64,9 +65,9 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		startStatus: 'In Progress',
 		blockStatus: 'Blocked',
 		deferDays: 1,
-		mobileSwipeEnabled: true,
-		mobileSwipeLeftAction: 'defer',
-		mobileSwipeRightAction: 'complete',
+		mobileHoldEnabled: true,
+		mobileHandedness: 'right',
+		mobileHoldTimeoutMs: 2400,
 	},
 };
 
@@ -421,7 +422,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 	private renderQuickActionsSettings(containerEl: HTMLElement): void {
 		containerEl.createEl('h2', { text: 'Quick Actions' });
 		containerEl.createEl('p', {
-			text: 'Commands act on the currently selected task. Mobile list and agenda swipes use the same action mappings.',
+			text: 'Quick actions update task status and due dates. On mobile, touch-and-hold opens a thumb menu that uses these preferences.',
 			cls: 'setting-item-description',
 			attr: { style: 'margin-bottom: 12px;' },
 		});
@@ -431,7 +432,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Start status')
-			.setDesc('Status applied by "Quick action: Start task".')
+			.setDesc('Status applied by Start from the quick actions menu.')
 			.addDropdown(dd => {
 				for (const s of statuses) dd.addOption(s, s);
 				dd.setValue(statuses.includes(qa.startStatus) ? qa.startStatus : (statuses[0] ?? ''));
@@ -443,7 +444,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Block status')
-			.setDesc('Status applied by "Quick action: Block task".')
+			.setDesc('Status applied by Block from the quick actions menu.')
 			.addDropdown(dd => {
 				for (const s of statuses) dd.addOption(s, s);
 				dd.setValue(statuses.includes(qa.blockStatus) ? qa.blockStatus : (statuses[0] ?? ''));
@@ -455,7 +456,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Defer days')
-			.setDesc('Days added to the due date by "Quick action: Defer task". If there is no due date, today is used as the base.')
+			.setDesc('Default days used when the defer action does not receive a specific preset date. If there is no due date, today is used as the base.')
 			.addText(text => text
 				.setPlaceholder('1')
 				.setValue(String(qa.deferDays))
@@ -469,38 +470,40 @@ export class TTasksSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Enable mobile swipe actions')
-			.setDesc('Reveal configurable quick actions in mobile list and agenda rows with a horizontal swipe.')
+			.setName('Enable mobile hold menu')
+			.setDesc('Touch-and-hold a task row in mobile list and agenda views to open quick actions.')
 			.addToggle(toggle => toggle
-				.setValue(qa.mobileSwipeEnabled)
+				.setValue(qa.mobileHoldEnabled)
 				.onChange(async (value) => {
-					this.plugin.settings.quickActions.mobileSwipeEnabled = value;
+					this.plugin.settings.quickActions.mobileHoldEnabled = value;
 					await this.plugin.saveSettings();
 				}));
 
 		new Setting(containerEl)
-			.setName('Mobile swipe left')
-			.setDesc('Action revealed when you swipe a task row left.')
-			.addDropdown(dd => {
-				for (const option of QUICK_ACTION_OPTIONS) dd.addOption(option.value, option.label);
-				dd.setValue(qa.mobileSwipeLeftAction);
-				dd.onChange(async (value) => {
-					this.plugin.settings.quickActions.mobileSwipeLeftAction = value as QuickActionId;
+			.setName('Mobile handedness bias')
+			.setDesc('Bias the hold menu toward right or left thumb reach by changing tile placement and ordering.')
+			.addDropdown(dd => dd
+				.addOption('right', 'Right-handed')
+				.addOption('left', 'Left-handed')
+				.setValue(qa.mobileHandedness ?? 'right')
+				.onChange(async (value) => {
+					this.plugin.settings.quickActions.mobileHandedness = value as QuickActionHandedness;
 					await this.plugin.saveSettings();
-				});
-			});
+				}));
 
 		new Setting(containerEl)
-			.setName('Mobile swipe right')
-			.setDesc('Action revealed when you swipe a task row right.')
-			.addDropdown(dd => {
-				for (const option of QUICK_ACTION_OPTIONS) dd.addOption(option.value, option.label);
-				dd.setValue(qa.mobileSwipeRightAction);
-				dd.onChange(async (value) => {
-					this.plugin.settings.quickActions.mobileSwipeRightAction = value as QuickActionId;
-					await this.plugin.saveSettings();
-				});
-			});
+			.setName('Mobile hold menu timeout (ms)')
+			.setDesc('Auto-dismiss delay for the hold menu when idle.')
+			.addText(text => text
+				.setPlaceholder('2400')
+				.setValue(String(qa.mobileHoldTimeoutMs ?? 2400))
+				.onChange(async (v) => {
+					const n = parseInt(v, 10);
+					if (!isNaN(n) && n >= 800 && n <= 8000) {
+						this.plugin.settings.quickActions.mobileHoldTimeoutMs = n;
+						await this.plugin.saveSettings();
+					}
+				}));
 	}
 
 	private renderManagedListStyles(containerEl: HTMLElement): void {
