@@ -32,6 +32,10 @@
 	background: color-mix(in srgb, var(--background-secondary) 70%, transparent);
 }
 
+.tt-hidden {
+	display: none !important;
+}
+
 .tt-modal-section-toggle {
 	display: none;
 	align-items: center;
@@ -55,6 +59,20 @@
 .tt-modal-section-chevron {
 	color: var(--text-muted);
 	transition: transform 0.12s ease;
+}
+
+.tt-modal-section-body {
+	overflow: hidden;
+	max-height: 0;
+	opacity: 0;
+	transform: translateY(-4px);
+	transition: max-height 0.22s ease, opacity 0.18s ease, transform 0.22s ease;
+}
+
+.tt-modal-section.is-open .tt-modal-section-body {
+	max-height: 1600px;
+	opacity: 1;
+	transform: translateY(0);
 }
 
 .tt-modal-section.is-open .tt-modal-section-chevron {
@@ -81,6 +99,27 @@
 .tt-modal-name:focus {
 	outline: none;
 	border-bottom-color: var(--interactive-accent);
+}
+
+.tt-modal-quick-row {
+	display: none;
+}
+
+.tt-modal-quick-toggle {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 999px;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: 0.78rem;
+	font-weight: 600;
+	padding: 6px 12px;
+	cursor: pointer;
+}
+
+.tt-modal-quick-toggle.tt-chip-active {
+	background: color-mix(in srgb, var(--interactive-accent) 18%, var(--background-primary));
+	border-color: var(--interactive-accent);
+	color: var(--interactive-accent);
 }
 
 /* Field: label stacked above control */
@@ -392,6 +431,12 @@
 		background: color-mix(in srgb, var(--background-secondary) 82%, transparent);
 	}
 
+	.tt-modal-quick-row {
+		display: flex;
+		justify-content: flex-start;
+		margin-top: -4px;
+	}
+
 	.tt-modal-section-toggle {
 		display: flex;
 		border: none;
@@ -406,6 +451,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
+	}
+
+	.tt-modal-section:not(.is-open) .tt-modal-section-body {
+		padding-top: 0;
+		padding-bottom: 0;
 	}
 
 	.tt-modal-field {
@@ -485,5 +535,9 @@
 		display: flex !important;
 		flex-direction: column;
 		gap: 14px;
+		max-height: none;
+		opacity: 1;
+		transform: none;
+		overflow: visible;
 	}
 }

@@ -66,6 +66,7 @@ export class CreateTaskModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 		const isMobile = window.matchMedia('(max-width: 768px)').matches;
+		let quickCreateMode = isMobile;
 		contentEl.addClass('tt-modal');
 		this.modalEl.addClass('tt-create-modal');
 		this.notesRenderComponent = new Component();
@@ -91,6 +92,9 @@ export class CreateTaskModal extends Modal {
 		const schedulingSection = this.createModalSection(sectionsRoot, 'Scheduling', !isMobile);
 		const notesSection = this.createModalSection(sectionsRoot, 'Notes', !isMobile);
 		const advancedSection = this.createModalSection(sectionsRoot, 'Advanced', false);
+		const schedulingSectionEl = schedulingSection.closest('.tt-modal-section') as HTMLElement;
+		const notesSectionEl = notesSection.closest('.tt-modal-section') as HTMLElement;
+		const advancedSectionEl = advancedSection.closest('.tt-modal-section') as HTMLElement;
 
 		// ── Type — full-width segmented ──────────────────────────────────────────
 		const typeGroup = basicsSection.createDiv('tt-modal-type-group');
@@ -136,6 +140,34 @@ export class CreateTaskModal extends Modal {
 				btn.addClass('tt-chip-active');
 				this.applyPriorityStyle(btn, p);
 			});
+		}
+
+		if (isMobile) {
+			const quickRow = sectionsRoot.createDiv('tt-modal-quick-row');
+			const quickToggle = quickRow.createEl('button', {
+				cls: 'tt-modal-quick-toggle',
+				attr: { type: 'button' },
+			});
+
+			const applyQuickMode = (enabled: boolean) => {
+				quickCreateMode = enabled;
+				quickToggle.setText(enabled ? 'Quick create on' : 'Quick create off');
+				quickToggle.setAttribute('aria-pressed', String(enabled));
+				quickToggle.toggleClass('tt-chip-active', enabled);
+				taskTypeField.toggleClass('tt-hidden', enabled);
+				priorityField.toggleClass('tt-hidden', enabled);
+				schedulingSectionEl.toggleClass('tt-hidden', enabled);
+				notesSectionEl.toggleClass('tt-hidden', enabled);
+				advancedSectionEl.toggleClass('tt-hidden', enabled);
+				if (enabled) {
+					this.setSectionOpen(schedulingSectionEl, false);
+					this.setSectionOpen(notesSectionEl, false);
+					this.setSectionOpen(advancedSectionEl, false);
+				}
+			};
+
+			applyQuickMode(quickCreateMode);
+			quickToggle.addEventListener('click', () => applyQuickMode(!quickCreateMode));
 		}
 
 		// ── Task Type chips (grayed out for project) ────────────────────────────
@@ -413,25 +445,27 @@ export class CreateTaskModal extends Modal {
 		return wrap;
 	}
 
+	private setSectionOpen(section: HTMLElement, open: boolean): void {
+		section.toggleClass('is-open', open);
+		const toggle = section.querySelector<HTMLButtonElement>('.tt-modal-section-toggle');
+		if (toggle) {
+			toggle.setAttribute('aria-expanded', String(open));
+		}
+	}
+
 	private createModalSection(parent: HTMLElement, title: string, isOpenByDefault: boolean): HTMLElement {
 		const section = parent.createDiv(`tt-modal-section${isOpenByDefault ? ' is-open' : ''}`);
 		const toggle = section.createEl('button', {
 			cls: 'tt-modal-section-toggle',
-			attr: { type: 'button' },
+			attr: { type: 'button', 'aria-expanded': String(isOpenByDefault) },
 		});
 		toggle.createSpan({ cls: 'tt-modal-section-title', text: title });
 		toggle.createSpan({ cls: 'tt-modal-section-chevron', text: '▾' });
 
 		const body = section.createDiv('tt-modal-section-body');
-
-		const applyState = (open: boolean) => {
-			section.toggleClass('is-open', open);
-			body.style.display = open ? '' : 'none';
-		};
-
-		applyState(isOpenByDefault);
+		this.setSectionOpen(section, isOpenByDefault);
 		toggle.addEventListener('click', () => {
-			applyState(!section.hasClass('is-open'));
+			this.setSectionOpen(section, !section.hasClass('is-open'));
 		});
 
 		return body;
