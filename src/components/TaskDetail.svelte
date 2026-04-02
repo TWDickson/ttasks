@@ -6,6 +6,7 @@
 	import type { Task, TaskStatus, TaskPriority, TaskType } from '../types';
 	import type { TaskStore } from '../store/TaskStore';
 	import { resolveCompletionStatus } from '../settings';
+	import { buildTaskGraph } from '../store/taskGraph';
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Writable<Task[]>;
@@ -235,6 +236,45 @@
 			.sort((a, b) => a.label.localeCompare(b.label)),
 	];
 
+	function normalizeTaskPath(pathLike: string | null | undefined): string | null {
+		if (!pathLike) return null;
+		const clean = pathLike.trim();
+		if (!clean) return null;
+		return clean.endsWith('.md') ? clean : `${clean}.md`;
+	}
+
+	function linkedTask(pathLike: string | null | undefined): Task | null {
+		const normalized = normalizeTaskPath(pathLike);
+		if (!normalized) return null;
+		return $tasks.find((item) => item.path === normalized) ?? null;
+	}
+
+	function taskLabelFromPath(pathLike: string | null | undefined): string {
+		const normalized = normalizeTaskPath(pathLike);
+		if (!normalized) return 'Unknown';
+		const resolved = linkedTask(normalized);
+		if (resolved) return resolved.name;
+		return normalized.split('/').pop()?.replace(/^[a-f0-9]+-/, '').replace(/\.md$/, '') ?? normalized;
+	}
+
+	function openLinkedPath(pathLike: string): void {
+		const normalized = normalizeTaskPath(pathLike);
+		if (!normalized) return;
+		activeTaskPath.set(normalized);
+	}
+
+	$: dependencyTasks = task ? task.depends_on.map((dep) => linkedTask(dep)).filter((dep): dep is Task => !!dep) : [];
+	$: dependentTasks = task ? task.blocks.map((dep) => linkedTask(dep)).filter((dep): dep is Task => !!dep) : [];
+	$: missingDependencies = task ? task.depends_on.filter((dep) => !linkedTask(dep)) : [];
+	$: openDependencies = dependencyTasks.filter((dep) => dep.status !== completionStatus);
+	$: relationshipLayout = buildTaskGraph($tasks, { completionStatus });
+	$: relationshipNode = task ? relationshipLayout.nodes.find((node) => node.path === task.path) ?? null : null;
+	$: relationshipIssues = [
+		...(relationshipNode?.isCycle ? ['Cycle detected for this task chain.'] : []),
+		...(missingDependencies.length > 0 ? [`${missingDependencies.length} dependency link(s) missing from current task set.`] : []),
+		...(openDependencies.length > 0 ? [`Blocked by ${openDependencies.length} unfinished dependency task(s).`] : []),
+	];
+
 	const PRIORITY_COLORS: Record<TaskPriority, string> = {
 		High:   'var(--color-red)',
 		Medium: 'var(--color-orange)',
@@ -421,34 +461,68 @@
 			{/if}
 		</div>
 
-		<!-- Relationships -->
-		{#if task.depends_on.length > 0 || task.blocks.length > 0}
+		<!-- Relationship health -->
+		{#if task.type === 'task'}
 			<hr class="tt-divider" />
-			<div class="tt-relationships">
-				{#if task.depends_on.length > 0}
-					<div class="tt-rel-row">
-						<span class="tt-label">Depends on</span>
-						<div class="tt-chips">
-							{#each task.depends_on as dep}
-								<button class="tt-chip tt-chip-rel" on:click={() => activeTaskPath.set(dep + '.md')}>
-									{dep.split('/').pop()?.replace(/^[a-f0-9]+-/, '') ?? dep}
-								</button>
-							{/each}
+			<div class="tt-field-group">
+				<span class="tt-label">System Fit</span>
+				<div class="tt-rel-health">
+					<div class="tt-rel-health-metrics">
+						<span class="tt-rel-pill">Upstream {task.depends_on.length}</span>
+						<span class="tt-rel-pill">Downstream {task.blocks.length}</span>
+						{#if openDependencies.length > 0}
+							<span class="tt-rel-pill tt-rel-pill-alert">Blocked by {openDependencies.length}</span>
+						{/if}
+						{#if relationshipNode?.isCycle}
+							<span class="tt-rel-pill tt-rel-pill-danger">Cycle</span>
+						{/if}
+					</div>
+
+					<div class="tt-rel-lanes">
+						<div class="tt-rel-lane">
+							<div class="tt-rel-heading">Depends On</div>
+							{#if task.depends_on.length === 0}
+								<div class="tt-rel-empty">None</div>
+							{:else}
+								<div class="tt-chips">
+									{#each task.depends_on as dep}
+										<button class="tt-chip tt-chip-rel" class:tt-chip-warning={!linkedTask(dep)} class:tt-chip-blocking={!!linkedTask(dep) && linkedTask(dep)?.status !== completionStatus} on:click={() => openLinkedPath(dep)}>
+											{taskLabelFromPath(dep)}
+										</button>
+									{/each}
+								</div>
+							{/if}
+						</div>
+
+						<div class="tt-rel-center">
+							<span class="tt-rel-center-tag">Selected</span>
+							<span class="tt-rel-center-name">{task.name}</span>
+						</div>
+
+						<div class="tt-rel-lane">
+							<div class="tt-rel-heading">Blocks</div>
+							{#if task.blocks.length === 0}
+								<div class="tt-rel-empty">None</div>
+							{:else}
+								<div class="tt-chips">
+									{#each task.blocks as dep}
+										<button class="tt-chip tt-chip-rel" on:click={() => openLinkedPath(dep)}>
+											{taskLabelFromPath(dep)}
+										</button>
+									{/each}
+								</div>
+							{/if}
 						</div>
 					</div>
-				{/if}
-				{#if task.blocks.length > 0}
-					<div class="tt-rel-row">
-						<span class="tt-label">Blocks</span>
-						<div class="tt-chips">
-							{#each task.blocks as dep}
-								<button class="tt-chip tt-chip-rel" on:click={() => activeTaskPath.set(dep + '.md')}>
-									{dep.split('/').pop()?.replace(/^[a-f0-9]+-/, '') ?? dep}
-								</button>
+
+					{#if relationshipIssues.length > 0}
+						<div class="tt-rel-issues">
+							{#each relationshipIssues as issue}
+								<div class="tt-rel-issue">{issue}</div>
 							{/each}
 						</div>
-					</div>
-				{/if}
+					{/if}
+				</div>
 			</div>
 		{/if}
 
@@ -638,16 +712,118 @@
 		font-size: 0.78rem;
 	}
 
-	.tt-relationships {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
+	.tt-chip-warning {
+		border-color: color-mix(in srgb, var(--color-orange) 48%, var(--background-modifier-border));
+		background: color-mix(in srgb, var(--color-orange) 12%, var(--background-primary));
 	}
 
-	.tt-rel-row {
+	.tt-chip-blocking {
+		border-color: color-mix(in srgb, var(--color-red) 45%, var(--background-modifier-border));
+	}
+
+
+	.tt-rel-health {
 		display: flex;
-		align-items: center;
+		flex-direction: column;
 		gap: 10px;
+	}
+
+	.tt-rel-health-metrics {
+		display: flex;
+		gap: 6px;
+		flex-wrap: wrap;
+	}
+
+	.tt-rel-pill {
+		display: inline-flex;
+		align-items: center;
+		padding: 3px 9px;
+		border-radius: 999px;
+		border: 1px solid var(--background-modifier-border);
+		background: var(--background-secondary);
+		color: var(--text-muted);
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.02em;
+	}
+
+	.tt-rel-pill-alert {
+		border-color: color-mix(in srgb, var(--color-orange) 42%, var(--background-modifier-border));
+		color: var(--color-orange);
+	}
+
+	.tt-rel-pill-danger {
+		border-color: color-mix(in srgb, var(--color-red) 42%, var(--background-modifier-border));
+		color: var(--color-red);
+	}
+
+	.tt-rel-lanes {
+		display: grid;
+		grid-template-columns: 1fr auto 1fr;
+		gap: 10px;
+		align-items: start;
+	}
+
+	.tt-rel-lane {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		min-width: 0;
+	}
+
+	.tt-rel-heading {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-faint);
+	}
+
+	.tt-rel-empty {
+		font-size: 0.78rem;
+		color: var(--text-faint);
+	}
+
+	.tt-rel-center {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 2px;
+		padding: 6px 10px;
+		border: 1px dashed var(--background-modifier-border);
+		border-radius: var(--radius-m, 6px);
+		min-width: 120px;
+	}
+
+	.tt-rel-center-tag {
+		font-size: 0.64rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-faint);
+	}
+
+	.tt-rel-center-name {
+		font-size: 0.8rem;
+		font-weight: 600;
+		text-align: center;
+		color: var(--text-normal);
+	}
+
+	.tt-rel-issues {
+		display: flex;
+		flex-direction: column;
+		gap: 5px;
+	}
+
+	.tt-rel-issue {
+		font-size: 0.78rem;
+		padding: 6px 8px;
+		border-left: 3px solid var(--color-orange);
+		border-radius: var(--radius-s, 4px);
+		background: color-mix(in srgb, var(--color-orange) 9%, var(--background-secondary));
+		color: var(--text-muted);
 	}
 
 	.tt-divider {
@@ -722,5 +898,16 @@
 		gap: 16px;
 		font-size: 0.72rem;
 		color: var(--text-faint);
+	}
+
+	@media (max-width: 700px) {
+		.tt-rel-lanes {
+			grid-template-columns: 1fr;
+		}
+
+		.tt-rel-center {
+			align-items: flex-start;
+			text-align: left;
+		}
 	}
 </style>

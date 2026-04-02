@@ -53,6 +53,12 @@ export default class TTasksPlugin extends Plugin {
 			callback: () => this.taskStore.migrateCssClasses(),
 		});
 
+		this.addCommand({
+			id: 'seed-graph-test-data',
+			name: 'Seed graph sandbox tasks',
+			callback: () => this.taskStore.seedGraphTestData(),
+		});
+
 		this.addSettingTab(new TTasksSettingTab(this.app, this));
 
 		this.app.workspace.onLayoutReady(() => this.taskStore.load());

@@ -2,6 +2,24 @@
 
 This file is the implementation backlog checkpoint for the current phase plan.
 
+## Progress Notes (2026-04-02)
+
+- Phase 3A started with a new Graph board mode supporting two sub-modes:
+  - Dependency map with cycle and blocked-chain highlighting.
+  - Overview timeline grouped by Category then Project (Gantt-like lanes).
+- Detail panel now includes relationship health context for the selected task:
+  - upstream/downstream counts,
+  - missing dependency warnings,
+  - cycle and blocker indicators,
+  - quick navigation chips.
+- Added graph sandbox seeding command: "Seed graph sandbox tasks".
+  - Creates realistic multi-project test data with dependencies, blockers, and a deliberate cycle.
+  - Uses [GS] prefix and skips duplicate seeding when sandbox tasks already exist.
+- Validation snapshot:
+  - build: passing
+  - lint: passing
+  - tests: passing (including graph/store coverage)
+
 ## Phase 2.5 Hardening
 
 Goal: tighten data integrity and reduce regressions before larger Phase 3 features.

@@ -6,6 +6,7 @@
 	import TaskList from './TaskList.svelte';
 	import TaskKanban from './TaskKanban.svelte';
 	import TaskAgenda from './TaskAgenda.svelte';
+	import TaskGraph from './TaskGraph.svelte';
 	import TaskDetail from './TaskDetail.svelte';
 
 	export let plugin: TTasksPlugin;
@@ -14,7 +15,7 @@
 	const activeTaskPath = plugin.activeTaskPath;
 	const tasks          = plugin.taskStore.tasks;
 
-	type ViewMode = 'list' | 'kanban' | 'agenda';
+	type ViewMode = 'list' | 'kanban' | 'agenda' | 'graph';
 	let currentView: ViewMode = 'list';
 
 	$: showDetail = $activeTaskPath !== null;
@@ -53,6 +54,7 @@
 		{ id: 'list',   label: 'List',   icon: 'list' },
 		{ id: 'kanban', label: 'Kanban', icon: 'columns-2' },
 		{ id: 'agenda', label: 'Agenda', icon: 'calendar' },
+		{ id: 'graph',  label: 'Graph',  icon: 'git-branch-plus' },
 	];
 
 	$: configuredStatuses = plugin.settings.statuses ?? ['Active'];
@@ -186,6 +188,14 @@
 						taskTypeColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						store={plugin.taskStore}
+						onOpen={(path) => plugin.taskStore.openDetail(path)}
+					/>
+				{:else if currentView === 'graph'}
+					<TaskGraph
+						{plugin}
+						tasks={displayTasks}
+						statusColors={configuredStatusColors}
+						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
 					/>
 				{:else}
