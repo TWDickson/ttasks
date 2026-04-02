@@ -78,10 +78,22 @@
 		e.preventDefault();
 		dragOverCol = null;
 		if (!draggingPath) return;
+		moveDraggingTaskTo(colId);
+	}
+
+	function moveDraggingTaskTo(colId: TaskStatus) {
+		if (!draggingPath) return;
 		const task = $tasks.find(t => t.path === draggingPath);
 		draggingPath = null;
 		if (!task || task.status === colId) return;
 		store.update(task.path, { status: colId });
+	}
+
+	function onCardKeyDown(e: KeyboardEvent, path: string) {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			onOpen(path);
+		}
 	}
 
 	function onDragEnd() {
@@ -138,7 +150,6 @@
 						<div class="tt-kanban-empty">Drop tasks here</div>
 					{:else}
 						{#each cards as task (task.path)}
-							<!-- svelte-ignore a11y-no-static-element-interactions -->
 							<div
 								class="tt-kanban-card"
 								class:is-active={$activeTaskPath === task.path}
@@ -147,8 +158,9 @@
 								draggable="true"
 								role="button"
 								tabindex="0"
+								aria-grabbed={draggingPath === task.path}
 								on:click={() => onOpen(task.path)}
-								on:keydown={(e) => e.key === 'Enter' && onOpen(task.path)}
+								on:keydown={(e) => onCardKeyDown(e, task.path)}
 								on:dragstart={(e) => onDragStart(e, task.path)}
 								on:dragend={onDragEnd}
 							>
