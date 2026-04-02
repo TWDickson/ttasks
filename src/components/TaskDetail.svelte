@@ -35,6 +35,9 @@
 	let saving = false;
 	let notesPreviewEl: HTMLDivElement | null = null;
 	let markdownComponent: Component | null = null;
+	let previewTimer: ReturnType<typeof setTimeout> | null = null;
+	let previewRenderSeq = 0;
+	let lastPreviewText = '';
 
 	type DebounceKey = 'name' | 'assigned_to' | 'blocked_reason' | 'notes';
 	const saveTimers: Partial<Record<DebounceKey, ReturnType<typeof setTimeout>>> = {};
@@ -120,9 +123,24 @@
 
 	async function renderNotesPreview(markdown: string): Promise<void> {
 		if (!notesPreviewEl || !markdownComponent || !task) return;
+		const renderSeq = ++previewRenderSeq;
 		notesPreviewEl.innerHTML = '';
 		const sourcePath = task.path;
 		await MarkdownRenderer.renderMarkdown(markdown || '_No notes yet._', notesPreviewEl, sourcePath, markdownComponent);
+		if (renderSeq !== previewRenderSeq) return;
+	}
+
+	function scheduleNotesPreview(markdown: string): void {
+		if (previewTimer) {
+			clearTimeout(previewTimer);
+			previewTimer = null;
+		}
+		previewTimer = setTimeout(() => {
+			previewTimer = null;
+			if (markdown === lastPreviewText) return;
+			lastPreviewText = markdown;
+			void renderNotesPreview(markdown);
+		}, 120);
 	}
 
 	// ── Field handlers ──────────────────────────────────────────────────────────
@@ -243,10 +261,14 @@
 		for (const key of Object.keys(saveTimers) as DebounceKey[]) {
 			clearSaveTimer(key);
 		}
+		if (previewTimer) {
+			clearTimeout(previewTimer);
+			previewTimer = null;
+		}
 	});
 
 	$: if (task && notesPreviewEl && markdownComponent) {
-		void renderNotesPreview(notes);
+		scheduleNotesPreview(notes);
 	}
 
 </script>
