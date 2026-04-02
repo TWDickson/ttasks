@@ -3,6 +3,7 @@ import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskPriority, TaskType, TaskRecordType } from '../types';
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
+import { materializeChecklistChildren } from './checklistMaterializer';
 import { resolveCompletionStatus } from '../settings';
 
 type MigratableField = 'status' | 'category' | 'task_type';
@@ -355,65 +356,20 @@ export class TaskStore {
 		};
 	}
 
-	private indentationWidth(indent: string): number {
-		let width = 0;
-		for (const ch of indent) {
-			width += ch === '\t' ? 4 : 1;
-		}
-		return width;
-	}
-
 	private async materializeChecklistChildrenFromBody(parentPath: string, body: string): Promise<string> {
 		if (!body) return body;
 		const parent = get(this.tasks).find(t => t.path === parentPath);
 		if (!parent) return body;
 
-		const lines = body.split('\n');
-		let inFence = false;
-		let changed = false;
-		const checklistStack: Array<{ indent: number; path: string }> = [];
-
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			const trimmed = line.trimStart();
-			if (trimmed.startsWith('```')) {
-				inFence = !inFence;
-				continue;
-			}
-			if (inFence) continue;
-
-			const match = line.match(/^(\s*)- \[( |x|X)\]\s+(.+)$/);
-			if (!match) continue;
-
-			const indent = match[1] ?? '';
-			const checkedMarker = (match[2] ?? ' ').toLowerCase();
-			const content = (match[3] ?? '').trim();
-			const indentWidth = this.indentationWidth(indent);
-
-			while (checklistStack.length > 0 && checklistStack[checklistStack.length - 1]!.indent >= indentWidth) {
-				checklistStack.pop();
-			}
-
-			const linked = this.extractChecklistLink(line);
-			if (linked?.path) {
-				checklistStack.push({ indent: indentWidth, path: linked.path });
-				continue;
-			}
-
-			if (!content || checkedMarker !== ' ') continue;
-
-			const effectiveParentPath = checklistStack.length > 0
-				? checklistStack[checklistStack.length - 1]!.path
-				: parentPath;
-			const child = await this.create(this.buildChildTaskInput(parent, content, effectiveParentPath));
-			const childPath = child.path.replace(/\.md$/, '');
-			lines[i] = `${indent}- [ ] [[${childPath}|${child.name}]]`;
-			checklistStack.push({ indent: indentWidth, path: child.path });
-			changed = true;
-		}
-
-		if (!changed) return body;
-		return lines.join('\n').trim();
+		return materializeChecklistChildren({
+			body,
+			parentPath,
+			extractChecklistLink: (line) => this.extractChecklistLink(line),
+			createChecklistChild: async (content, effectiveParentPath) => {
+				const child = await this.create(this.buildChildTaskInput(parent, content, effectiveParentPath));
+				return { path: child.path, name: child.name };
+			},
+		});
 	}
 
 	async updateParentTask(taskPath: string, parentPath: string | null): Promise<void> {
