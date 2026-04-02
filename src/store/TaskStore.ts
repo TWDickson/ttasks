@@ -3,6 +3,7 @@ import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskStatus, TaskPriority, TaskType, TaskRecordType } from '../types';
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
+import { resolveCompletionStatus } from '../settings';
 
 type MigratableField = 'status' | 'category' | 'task_type';
 
@@ -57,6 +58,7 @@ export class TaskStore {
 						if (idx >= 0) { all[idx] = task; return [...all]; }
 						return [...all, task];
 					});
+					void this.syncParentChecklistFromChild(task);
 				});
 			})
 		);
@@ -147,14 +149,197 @@ export class TaskStore {
 		});
 	}
 
-	async updateNotes(path: string, notes: string): Promise<void> {
+	async updateNotes(path: string, notes: string): Promise<string> {
 		const file = this.app.vault.getAbstractFileByPath(path);
-		if (!(file instanceof TFile)) return;
+		if (!(file instanceof TFile)) return notes;
 		await this.app.vault.process(file, (content) => {
 			const fmEnd = content.indexOf('\n---', 3);
 			const frontmatter = fmEnd >= 0 ? content.substring(0, fmEnd + 4) : content;
 			return frontmatter + (notes ? '\n\n' + notes : '') + '\n';
 		});
+		const rewritten = await this.materializeChecklistChildren(path);
+		await this.syncChildrenFromParentChecklist(path, rewritten);
+		return rewritten;
+	}
+
+	private normalizeTaskPath(pathLike: string): string {
+		const trimmed = pathLike.trim();
+		if (!trimmed) return '';
+		return trimmed.endsWith('.md') ? trimmed : `${trimmed}.md`;
+	}
+
+	private completionStatus(): string {
+		return resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+	}
+
+	private isCompleteStatus(status: string): boolean {
+		return status === this.completionStatus();
+	}
+
+	private extractChecklistLink(line: string): { checked: boolean; path: string } | null {
+		const match = line.match(/^\s*- \[( |x|X)\]\s+\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/);
+		if (!match) return null;
+		return {
+			checked: (match[1] ?? ' ').toLowerCase() === 'x',
+			path: this.normalizeTaskPath(match[2] ?? ''),
+		};
+	}
+
+	private async syncChildrenFromParentChecklist(parentPath: string, body: string): Promise<void> {
+		if (!body) return;
+		const wanted = new Map<string, boolean>();
+		const lines = body.split('\n');
+
+		for (const line of lines) {
+			const parsed = this.extractChecklistLink(line);
+			if (!parsed?.path) continue;
+			wanted.set(parsed.path, parsed.checked);
+		}
+
+		if (wanted.size === 0) return;
+
+		const complete = this.completionStatus();
+		const fallback = this.plugin.settings.statuses?.[0] ?? 'Active';
+
+		for (const [childPath, checked] of wanted.entries()) {
+			if (childPath === parentPath) continue;
+			const child = get(this.tasks).find(t => t.path === childPath);
+			if (!child) continue;
+
+			const targetStatus = checked ? complete : (child.status === complete ? fallback : child.status);
+			const targetCompleted = checked ? new Date().toISOString().slice(0, 10) : null;
+			const statusChanged = child.status !== targetStatus;
+			const completedChanged = (child.completed ?? null) !== targetCompleted;
+			if (!statusChanged && !completedChanged) continue;
+
+			await this.update(child.path, {
+				status: targetStatus,
+				completed: targetCompleted,
+			});
+		}
+	}
+
+	private async syncParentChecklistFromChild(child: Task): Promise<void> {
+		if (!child.parent_task) return;
+		const parentPath = this.normalizeTaskPath(child.parent_task);
+		const parentFile = this.app.vault.getAbstractFileByPath(parentPath);
+		if (!(parentFile instanceof TFile)) return;
+
+		const content = await this.app.vault.cachedRead(parentFile);
+		const fmEnd = content.indexOf('\n---', 3);
+		if (fmEnd < 0) return;
+
+		const body = content.substring(fmEnd + 4).trim();
+		if (!body) return;
+
+		const lines = body.split('\n');
+		const childPathWithoutExt = child.path.replace(/\.md$/, '');
+		const shouldBeChecked = this.isCompleteStatus(child.status);
+		let changed = false;
+
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			const match = line.match(/^(\s*)- \[( |x|X)\](\s+\[\[([^\]|]+)(?:\|[^\]]+)?\]\].*)$/);
+			if (!match) continue;
+			const linked = this.normalizeTaskPath(match[4] ?? '');
+			if (linked !== child.path && linked.replace(/\.md$/, '') !== childPathWithoutExt) continue;
+
+			const currentChecked = (match[2] ?? ' ').toLowerCase() === 'x';
+			if (currentChecked === shouldBeChecked) continue;
+
+			const marker = shouldBeChecked ? 'x' : ' ';
+			lines[i] = `${match[1]}- [${marker}]${match[3]}`;
+			changed = true;
+		}
+
+		if (!changed) return;
+
+		const rewritten = lines.join('\n').trim();
+		await this.app.vault.process(parentFile, (current) => {
+			const currentFmEnd = current.indexOf('\n---', 3);
+			if (currentFmEnd < 0) return current;
+			const frontmatter = current.substring(0, currentFmEnd + 4);
+			return frontmatter + (rewritten ? '\n\n' + rewritten : '') + '\n';
+		});
+	}
+
+	private buildChildTaskInput(parent: Task, title: string, parentPath: string): TaskCreateInput {
+		const today = new Date().toISOString().slice(0, 10);
+		return {
+			type: 'task',
+			name: title,
+			category: parent.category,
+			status: parent.status,
+			priority: parent.priority,
+			task_type: parent.task_type,
+			parent_task: parentPath.replace(/\.md$/, ''),
+			depends_on: [],
+			blocked_reason: '',
+			assigned_to: parent.assigned_to,
+			source: parent.source,
+			start_date: parent.start_date,
+			due_date: null,
+			estimated_days: null,
+			created: today,
+			completed: null,
+			notes: '',
+		};
+	}
+
+	private async materializeChecklistChildren(parentPath: string): Promise<string> {
+		const file = this.app.vault.getAbstractFileByPath(parentPath);
+		if (!(file instanceof TFile)) return '';
+
+		const parent = get(this.tasks).find(t => t.path === parentPath);
+		if (!parent) {
+			const existing = await this.app.vault.cachedRead(file);
+			return this.extractNotes(existing);
+		}
+
+		const content = await this.app.vault.cachedRead(file);
+		const fmEnd = content.indexOf('\n---', 3);
+		if (fmEnd < 0) return '';
+
+		const body = content.substring(fmEnd + 4).trim();
+		if (!body) return '';
+
+		const lines = body.split('\n');
+		let inFence = false;
+		let changed = false;
+
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			const trimmed = line.trimStart();
+			if (trimmed.startsWith('```')) {
+				inFence = !inFence;
+				continue;
+			}
+			if (inFence) continue;
+
+			const match = line.match(/^(\s*)- \[ \]\s+(.+)$/);
+			if (!match) continue;
+
+			const indent = match[1] ?? '';
+			const title = (match[2] ?? '').trim();
+			if (!title || title.includes('[[')) continue;
+
+			const child = await this.create(this.buildChildTaskInput(parent, title, parentPath));
+			const childPath = child.path.replace(/\.md$/, '');
+			lines[i] = `${indent}- [ ] [[${childPath}|${child.name}]]`;
+			changed = true;
+		}
+
+		if (!changed) return body;
+
+		const rewrittenBody = lines.join('\n').trim();
+		await this.app.vault.process(file, (currentContent) => {
+			const currentFmEnd = currentContent.indexOf('\n---', 3);
+			if (currentFmEnd < 0) return currentContent;
+			const frontmatter = currentContent.substring(0, currentFmEnd + 4);
+			return frontmatter + (rewrittenBody ? '\n\n' + rewrittenBody : '') + '\n';
+		});
+
+		return rewrittenBody;
 	}
 
 	async updateParentTask(taskPath: string, parentPath: string | null): Promise<void> {

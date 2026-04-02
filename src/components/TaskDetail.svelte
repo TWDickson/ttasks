@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { Component, MarkdownRenderer } from 'obsidian';
+	import { onDestroy, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
 	import type { Task, TaskStatus, TaskPriority, TaskType } from '../types';
@@ -31,6 +33,8 @@
 	let formTaskPath: string | null = null;
 	let pendingSaves = 0;
 	let saving = false;
+	let notesPreviewEl: HTMLDivElement | null = null;
+	let markdownComponent: Component | null = null;
 
 	type DebounceKey = 'name' | 'assigned_to' | 'blocked_reason' | 'notes';
 	const saveTimers: Partial<Record<DebounceKey, ReturnType<typeof setTimeout>>> = {};
@@ -103,12 +107,22 @@
 		saveTimers.notes = setTimeout(async () => {
 			beginSave();
 			try {
-				await store.updateNotes(taskPath, nextNotes);
+				const savedNotes = await store.updateNotes(taskPath, nextNotes);
+				if (task?.path === taskPath) {
+					notes = savedNotes;
+				}
 			} finally {
 				endSave();
 				delete saveTimers.notes;
 			}
 		}, 600);
+	}
+
+	async function renderNotesPreview(markdown: string): Promise<void> {
+		if (!notesPreviewEl || !markdownComponent || !task) return;
+		notesPreviewEl.innerHTML = '';
+		const sourcePath = task.path;
+		await MarkdownRenderer.renderMarkdown(markdown || '_No notes yet._', notesPreviewEl, sourcePath, markdownComponent);
 	}
 
 	// ── Field handlers ──────────────────────────────────────────────────────────
@@ -214,6 +228,25 @@
 		return color
 			? `--tt-select-color:${color};background:color-mix(in srgb, ${color} 10%, var(--background-primary));border-color:color-mix(in srgb, ${color} 42%, var(--background-modifier-border));color:${color};`
 			: '';
+	}
+
+	onMount(() => {
+		markdownComponent = new Component();
+		markdownComponent.load();
+		return () => {
+			markdownComponent?.unload();
+			markdownComponent = null;
+		};
+	});
+
+	onDestroy(() => {
+		for (const key of Object.keys(saveTimers) as DebounceKey[]) {
+			clearSaveTimer(key);
+		}
+	});
+
+	$: if (task && notesPreviewEl && markdownComponent) {
+		void renderNotesPreview(notes);
 	}
 
 </script>
@@ -410,6 +443,7 @@
 				placeholder="Add notes…"
 				rows="6"
 			></textarea>
+			<div class="tt-notes-preview" bind:this={notesPreviewEl}></div>
 		</div>
 
 		<hr class="tt-divider" />
@@ -616,6 +650,15 @@
 	.tt-notes:focus {
 		outline: none;
 		border-color: var(--interactive-accent);
+	}
+
+	.tt-notes-preview {
+		margin-top: 8px;
+		padding: 10px;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: var(--radius-m, 6px);
+		background: var(--background-secondary);
+		font-size: 0.88rem;
 	}
 
 	.tt-actions {
