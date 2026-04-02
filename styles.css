@@ -456,6 +456,7 @@
 		display: flex;
 		justify-content: flex-start;
 		margin-top: -2px;
+		margin-bottom: 2px;
 	}
 
 	.tt-modal-quick-toggle {
@@ -548,6 +549,12 @@
 		box-shadow: 0 -6px 16px color-mix(in srgb, var(--background-primary) 78%, transparent);
 	}
 
+	.tt-create-modal.tt-mobile-quick-create .tt-modal-btn-row {
+		position: static;
+		margin-top: 2px;
+		box-shadow: none;
+	}
+
 	.tt-modal-btn-row .tt-modal-btn {
 		flex: 1 1 0;
 		justify-content: center;
@@ -558,13 +565,19 @@
 
 	.tt-modal-date-control {
 		grid-template-columns: 1fr auto auto;
-		gap: 8px;
+		gap: 6px;
+	}
+
+	.tt-modal-date-control .tt-modal-input {
+		min-height: 34px;
 	}
 
 	.tt-modal-mini-btn {
-		min-height: 34px;
-		padding: 6px 10px;
-		font-size: 0.74rem;
+		min-height: 32px;
+		padding: 5px 9px;
+		font-size: 0.72rem;
+		border-radius: 7px;
+		background: color-mix(in srgb, var(--background-secondary) 72%, transparent);
 	}
 
 	.tt-hybrid-notes-editor {

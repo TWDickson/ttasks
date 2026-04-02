@@ -172,6 +172,7 @@ export class CreateTaskModal extends Modal {
 			const applyQuickMode = (enabled: boolean) => {
 				quickCreateMode = enabled;
 				this.persistQuickCreateMode(enabled);
+				this.modalEl.toggleClass('tt-mobile-quick-create', enabled);
 				quickToggle.setText(enabled ? 'Quick create on' : 'Quick create off');
 				quickToggle.setAttribute('aria-pressed', String(enabled));
 				quickToggle.toggleClass('tt-chip-active', enabled);
