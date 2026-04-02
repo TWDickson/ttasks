@@ -13,6 +13,8 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
 	None:   'var(--text-faint)',
 };
 
+const MOBILE_QUICK_CREATE_PREF_KEY = 'ttasks.mobileQuickCreate';
+
 export class CreateTaskModal extends Modal {
 	private plugin: TTasksPlugin;
 
@@ -66,7 +68,7 @@ export class CreateTaskModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 		const isMobile = window.matchMedia('(max-width: 768px)').matches;
-		let quickCreateMode = isMobile;
+		let quickCreateMode = this.getInitialQuickCreateMode(isMobile);
 		contentEl.addClass('tt-modal');
 		this.modalEl.addClass('tt-create-modal');
 		this.notesRenderComponent = new Component();
@@ -151,6 +153,7 @@ export class CreateTaskModal extends Modal {
 
 			const applyQuickMode = (enabled: boolean) => {
 				quickCreateMode = enabled;
+				this.persistQuickCreateMode(enabled);
 				quickToggle.setText(enabled ? 'Quick create on' : 'Quick create off');
 				quickToggle.setAttribute('aria-pressed', String(enabled));
 				quickToggle.toggleClass('tt-chip-active', enabled);
@@ -435,6 +438,26 @@ export class CreateTaskModal extends Modal {
 			primaryBtn.disabled = this.submitting || !this.name.trim();
 		});
 		primaryBtn.addEventListener('click', () => void this.submit(primaryBtn));
+	}
+
+	private getInitialQuickCreateMode(isMobile: boolean): boolean {
+		if (!isMobile) return false;
+		try {
+			const saved = localStorage.getItem(MOBILE_QUICK_CREATE_PREF_KEY);
+			if (saved === '1') return true;
+			if (saved === '0') return false;
+		} catch {
+			// Ignore storage access issues and fall back to mobile default.
+		}
+		return true;
+	}
+
+	private persistQuickCreateMode(enabled: boolean): void {
+		try {
+			localStorage.setItem(MOBILE_QUICK_CREATE_PREF_KEY, enabled ? '1' : '0');
+		} catch {
+			// Ignore storage access issues to avoid blocking task creation UX.
+		}
 	}
 
 	// ── Helpers ──────────────────────────────────────────────────────────────────
