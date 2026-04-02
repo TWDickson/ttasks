@@ -197,10 +197,15 @@
 }
 
 .tt-modal-date-control {
-	display: grid;
-	grid-template-columns: 1fr auto auto;
+	display: flex;
+	flex-direction: column;
 	gap: 6px;
-	align-items: center;
+}
+
+.tt-modal-date-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 6px;
 }
 
 .tt-modal-mini-btn {
@@ -491,7 +496,7 @@
 	}
 
 	.tt-modal-section-body {
-		padding: 0 13px 12px;
+		padding: 8px 13px 12px;
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
@@ -564,20 +569,25 @@
 	}
 
 	.tt-modal-date-control {
-		grid-template-columns: 1fr auto auto;
-		gap: 6px;
+		gap: 5px;
 	}
 
 	.tt-modal-date-control .tt-modal-input {
 		min-height: 34px;
 	}
 
+	.tt-modal-date-actions {
+		justify-content: flex-start;
+		gap: 5px;
+	}
+
 	.tt-modal-mini-btn {
-		min-height: 32px;
-		padding: 5px 9px;
+		min-height: 28px;
+		padding: 4px 8px;
 		font-size: 0.72rem;
 		border-radius: 7px;
-		background: color-mix(in srgb, var(--background-secondary) 72%, transparent);
+		background: color-mix(in srgb, var(--background-secondary) 44%, transparent);
+		border-color: color-mix(in srgb, var(--background-modifier-border) 64%, transparent);
 	}
 
 	.tt-hybrid-notes-editor {

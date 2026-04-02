@@ -192,43 +192,32 @@ export class CreateTaskModal extends Modal {
 			quickToggle.addEventListener('click', () => applyQuickMode(!quickCreateMode));
 		}
 
-		// ── Task Type chips (grayed out for project) ────────────────────────────
+		// ── Task Type dropdown (grayed out for project) ─────────────────────────
 		if (this.type === 'project') {
 			taskTypeField.style.opacity       = '0.35';
 			taskTypeField.style.pointerEvents = 'none';
 		}
-		const taskTypeChips = taskTypeField.createDiv('tt-modal-chips');
-
+		const taskTypeSelect = taskTypeField.createEl('select', { cls: 'tt-modal-select' });
 		for (const t of this.taskTypes) {
-			const btn = taskTypeChips.createEl('button', {
-				text: t || '— none —',
-				cls: `tt-modal-chip${!t ? ' tt-chip-active' : ''}`,
-			});
-			if (t && this.taskTypeColors[t]) {
-				btn.style.borderColor = this.taskTypeColors[t];
-				btn.style.color = this.taskTypeColors[t];
-			}
-			btn.addEventListener('click', () => {
-				this.task_type = (t as TaskType) || null;
-				taskTypeChips.querySelectorAll<HTMLButtonElement>('.tt-modal-chip').forEach(b => {
-					b.removeClass('tt-chip-active');
-					b.style.removeProperty('background');
-					if (b.textContent && this.taskTypeColors[b.textContent]) {
-						b.style.borderColor = this.taskTypeColors[b.textContent];
-						b.style.color = this.taskTypeColors[b.textContent];
-					} else {
-						b.style.removeProperty('border-color');
-						b.style.removeProperty('color');
-					}
-				});
-				btn.addClass('tt-chip-active');
-				if (t && this.taskTypeColors[t]) {
-					btn.style.background = `color-mix(in srgb, ${this.taskTypeColors[t]} 18%, var(--background-primary))`;
-					btn.style.borderColor = this.taskTypeColors[t];
-					btn.style.color = this.taskTypeColors[t];
-				}
-			});
+			taskTypeSelect.createEl('option', { text: t || '— none —', value: t });
 		}
+		const applyTaskTypeTint = () => {
+			const color = this.task_type ? this.taskTypeColors[this.task_type] : undefined;
+			if (!color) {
+				taskTypeSelect.style.removeProperty('background');
+				taskTypeSelect.style.removeProperty('border-color');
+				taskTypeSelect.style.removeProperty('color');
+				return;
+			}
+			taskTypeSelect.style.background = `color-mix(in srgb, ${color} 10%, var(--background-primary))`;
+			taskTypeSelect.style.borderColor = `color-mix(in srgb, ${color} 42%, var(--background-modifier-border))`;
+			taskTypeSelect.style.color = color;
+		};
+		applyTaskTypeTint();
+		taskTypeSelect.addEventListener('change', () => {
+			this.task_type = (taskTypeSelect.value as TaskType) || null;
+			applyTaskTypeTint();
+		});
 
 		// ── Start Date | After Task (mutually exclusive) ─────────────────────────
 		const startRow = schedulingSection.createDiv('tt-modal-pair-row');
@@ -239,11 +228,12 @@ export class CreateTaskModal extends Modal {
 			cls: 'tt-modal-input',
 			attr: { type: 'date' },
 		});
-		const startTodayBtn = startDateControl.createEl('button', {
+		const startDateActions = startDateControl.createDiv('tt-modal-date-actions');
+		const startTodayBtn = startDateActions.createEl('button', {
 			cls: 'tt-modal-mini-btn',
 			text: 'Today',
 		});
-		const startClearBtn = startDateControl.createEl('button', {
+		const startClearBtn = startDateActions.createEl('button', {
 			cls: 'tt-modal-mini-btn',
 			text: 'Clear',
 		});
@@ -305,11 +295,12 @@ export class CreateTaskModal extends Modal {
 			cls: 'tt-modal-input',
 			attr: { type: 'date' },
 		});
-		const dueTodayBtn = dueDateControl.createEl('button', {
+		const dueDateActions = dueDateControl.createDiv('tt-modal-date-actions');
+		const dueTodayBtn = dueDateActions.createEl('button', {
 			cls: 'tt-modal-mini-btn',
 			text: 'Today',
 		});
-		const dueClearBtn = dueDateControl.createEl('button', {
+		const dueClearBtn = dueDateActions.createEl('button', {
 			cls: 'tt-modal-mini-btn',
 			text: 'Clear',
 		});
