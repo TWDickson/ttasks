@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { setIcon } from 'obsidian';
-	import { writable } from 'svelte/store';
+	import { derived, writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
 	import TaskList from './TaskList.svelte';
@@ -61,13 +61,19 @@
 	$: configuredStatusColors = plugin.settings.statusColors ?? {};
 	$: configuredCategoryColors = plugin.settings.categoryColors ?? {};
 	$: configuredTaskTypeColors = plugin.settings.taskTypeColors ?? {};
+	$: configuredBlockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
 
 	function openNewTask()    { new CreateTaskModal(plugin.app, plugin).open(); }
 	function openNewProject() { new CreateTaskModal(plugin.app, plugin, 'project').open(); }
 	function closeDetail()    { activeTaskPath.set(null); }
 	function openSettings()   {
-		(plugin.app as any).setting.open();
-		(plugin.app as any).setting.openTabById('ttasks');
+		try {
+			(plugin.app as any).setting.open();
+			(plugin.app as any).setting.openTabById(plugin.manifest.id);
+		} catch {
+			// Fallback: open settings via the built-in command if internal API changes
+			(plugin.app as any).commands?.executeCommandById?.('app:open-settings');
+		}
 	}
 
 	function icon(el: HTMLElement, name: string) {
@@ -178,12 +184,14 @@
 						taskTypeColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
+						onNewTask={openNewTask}
 					/>
 				{:else if currentView === 'kanban'}
 					<TaskKanban
 						tasks={displayTasks}
 						statuses={configuredStatuses}
 						statusColors={configuredStatusColors}
+						blockStatus={configuredBlockStatus}
 						categoryColors={configuredCategoryColors}
 						taskTypeColors={configuredTaskTypeColors}
 						{activeTaskPath}
@@ -245,6 +253,7 @@
 		<button
 			class="tt-fab"
 			class:tt-fab-left={plugin.settings.fabPosition === 'left'}
+			class:tt-fab-hidden={showDetail}
 			on:click={openNewTask}
 			aria-label="New task"
 		>
@@ -621,6 +630,11 @@
 		/* FAB above safe area */
 		.tt-fab {
 			bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+		}
+
+		/* Hide FAB when detail panel covers content on mobile */
+		.tt-fab.tt-fab-hidden {
+			display: none;
 		}
 	}
 </style>

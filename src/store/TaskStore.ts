@@ -76,11 +76,12 @@ export class TaskStore {
 		const startedAt = Date.now();
 
 		try {
+			// Atomic swap — avoids losing paths queued during an async yield
 			const paths = [...this.changedTaskPaths];
-			this.changedTaskPaths.clear();
+			this.changedTaskPaths = new Set();
 
 			const files = paths
-				.map((path) => this.app.vault.getAbstractFileByPath(path))
+				.map((path) => this.app.vault.getAbstractFileByPath(normalizePath(path)))
 				.filter((f): f is TFile => f instanceof TFile && f.extension === 'md');
 
 			if (files.length === 0) return;
@@ -142,6 +143,11 @@ export class TaskStore {
 				if (file.path.startsWith(this.folderPath + '/')) {
 					this.queueChangedTask(file);
 				}
+				// Update relationship references (depends_on, blocks, parent_task)
+				// in other tasks that pointed to the old path.
+				if (oldPath.startsWith(this.folderPath + '/')) {
+					void this.rewriteRelationshipReferences(oldPath, file.path);
+				}
 			})
 		);
 	}
@@ -195,7 +201,7 @@ export class TaskStore {
 	}
 
 	async update(path: string, updates: Partial<Task>): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(path);
+		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return;
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
@@ -210,11 +216,28 @@ export class TaskStore {
 		});
 	}
 
+	/**
+	 * Check whether a file is currently open in an active editor.
+	 * vault.process() can conflict with the editor's requestSave debounce
+	 * (~2s window), so callers that rewrite file bodies should be aware.
+	 */
+	private isFileOpenInEditor(file: TFile): boolean {
+		return this.app.workspace.getLeavesOfType('markdown')
+			.some(leaf => (leaf.view as any)?.file?.path === file.path);
+	}
+
 	async updateNotes(path: string, notes: string): Promise<string> {
-		const file = this.app.vault.getAbstractFileByPath(path);
+		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return notes;
 
 		const rewritten = await this.materializeChecklistChildrenFromBody(path, notes);
+
+		if (this.isFileOpenInEditor(file)) {
+			// Delay slightly to let the editor's requestSave debounce settle.
+			// vault.process() can silently conflict with pending editor saves.
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+
 		await this.app.vault.process(file, (content) => {
 			const fmEnd = content.indexOf('\n---', 3);
 			const frontmatter = fmEnd >= 0 ? content.substring(0, fmEnd + 4) : content;
@@ -292,7 +315,7 @@ export class TaskStore {
 	private async syncParentChecklistFromChild(child: Task): Promise<void> {
 		if (!child.parent_task) return;
 		const parentPath = this.normalizeTaskPath(child.parent_task);
-		const parentFile = this.app.vault.getAbstractFileByPath(parentPath);
+		const parentFile = this.app.vault.getAbstractFileByPath(normalizePath(parentPath));
 		if (!(parentFile instanceof TFile)) return;
 
 		const content = await this.app.vault.cachedRead(parentFile);
@@ -323,6 +346,10 @@ export class TaskStore {
 		}
 
 		if (!changed) return;
+
+		if (this.isFileOpenInEditor(parentFile)) {
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
 
 		const rewritten = lines.join('\n').trim();
 		await this.app.vault.process(parentFile, (current) => {
@@ -372,8 +399,52 @@ export class TaskStore {
 		});
 	}
 
+	async addDependency(taskPath: string, depPathWithoutExt: string): Promise<void> {
+		const file = this.app.vault.getAbstractFileByPath(normalizePath(taskPath));
+		if (!(file instanceof TFile)) return;
+		const selfClean = taskPath.replace(/\.md$/, '');
+		if (depPathWithoutExt === selfClean) return;
+
+		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(depPathWithoutExt + '.md'));
+		if (!(depFile instanceof TFile)) return;
+
+		const all = get(this.tasks);
+		const depTask = all.find(t => t.path.replace(/\.md$/, '') === depPathWithoutExt);
+		const depName = depTask?.name ?? depPathWithoutExt.split('/').pop() ?? depPathWithoutExt;
+		const selfTask = all.find(t => t.path === taskPath);
+		const selfName = selfTask?.name ?? taskPath.replace(/\.md$/, '').split('/').pop() ?? taskPath;
+
+		await this.app.fileManager.processFrontMatter(file, (fm) => {
+			const current: unknown[] = Array.isArray(fm.depends_on) ? fm.depends_on : [];
+			const already = current.some(v => String(v ?? '').includes(depPathWithoutExt));
+			if (!already) fm.depends_on = [...current, `[[${depPathWithoutExt}|${depName}]]`];
+		});
+
+		await this.addToBlocks(depPathWithoutExt, taskPath, selfName);
+	}
+
+	async removeDependency(taskPath: string, depPathWithoutExt: string): Promise<void> {
+		const file = this.app.vault.getAbstractFileByPath(normalizePath(taskPath));
+		if (!(file instanceof TFile)) return;
+
+		await this.app.fileManager.processFrontMatter(file, (fm) => {
+			if (!Array.isArray(fm.depends_on)) return;
+			fm.depends_on = fm.depends_on.filter((v: unknown) => !String(v ?? '').includes(depPathWithoutExt));
+		});
+
+		// Remove from blocks on the dependency target
+		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(depPathWithoutExt + '.md'));
+		if (depFile instanceof TFile) {
+			const selfClean = taskPath.replace(/\.md$/, '');
+			await this.app.fileManager.processFrontMatter(depFile, (fm) => {
+				if (!Array.isArray(fm.blocks)) return;
+				fm.blocks = fm.blocks.filter((v: unknown) => !String(v ?? '').includes(selfClean));
+			});
+		}
+	}
+
 	async updateParentTask(taskPath: string, parentPath: string | null): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(taskPath);
+		const file = this.app.vault.getAbstractFileByPath(normalizePath(taskPath));
 		if (!(file instanceof TFile)) return;
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
@@ -389,7 +460,7 @@ export class TaskStore {
 	}
 
 	async delete(path: string): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(path);
+		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return;
 		await this.app.vault.delete(file);
 	}
@@ -400,9 +471,57 @@ export class TaskStore {
 	}
 
 	async openFile(path: string): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(path);
+		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return;
 		await this.app.workspace.getLeaf('tab').openFile(file);
+	}
+
+	// ── Relationship maintenance ─────────────────────────────────────────────────
+
+	private async rewriteRelationshipReferences(oldPath: string, newPath: string): Promise<void> {
+		const oldClean = oldPath.replace(/\.md$/, '');
+		const newClean = newPath.replace(/\.md$/, '');
+		if (oldClean === newClean) return;
+
+		const folder = this.app.vault.getFolderByPath(this.folderPath);
+		if (!folder) return;
+
+		const files = folder.children.filter(
+			(f): f is TFile => f instanceof TFile && f.extension === 'md' && f.path !== newPath
+		);
+
+		const oldPattern = oldClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const linkRegex = new RegExp(`\\[\\[${oldPattern}(\\|[^\\]]+)?\\]\\]`, 'g');
+
+		for (const file of files) {
+			const cache = this.app.metadataCache.getFileCache(file);
+			const fm = cache?.frontmatter;
+			if (!fm) continue;
+
+			const raw = JSON.stringify(fm);
+			if (!raw.includes(oldClean)) continue;
+
+			await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+				const rewriteLink = (val: unknown): unknown => {
+					if (typeof val !== 'string') return val;
+					return val.replace(linkRegex, (match, alias) => `[[${newClean}${alias ?? ''}]]`);
+				};
+
+				for (const key of ['parent_task', 'blocked_reason']) {
+					if (typeof frontmatter[key] === 'string' && frontmatter[key].includes(oldClean)) {
+						frontmatter[key] = rewriteLink(frontmatter[key]);
+					}
+				}
+
+				for (const key of ['depends_on', 'blocks']) {
+					if (Array.isArray(frontmatter[key])) {
+						frontmatter[key] = frontmatter[key].map((v: unknown) => rewriteLink(v));
+					}
+				}
+			});
+		}
+
+		this.plugin.log(`Rewrote relationship references: ${oldClean} → ${newClean}`);
 	}
 
 	// ── Bulk operations ──────────────────────────────────────────────────────────
@@ -749,7 +868,8 @@ export class TaskStore {
 		const slug = dashIdx >= 0 ? file.basename.substring(dashIdx + 1) : '';
 
 		const content = await this.app.vault.cachedRead(file);
-		const notes = this.extractNotes(content);
+		const fmEndOffset = cache?.frontmatterPosition?.end?.offset;
+		const notes = this.extractNotes(content, fmEndOffset);
 
 		const allowedStatuses = this.plugin.settings.statuses ?? ['Active'];
 		const fallbackStatus = allowedStatuses[0] ?? 'Active';
@@ -782,7 +902,12 @@ export class TaskStore {
 		};
 	}
 
-	private extractNotes(content: string): string {
+	private extractNotes(content: string, fmEndOffset?: number): string {
+		if (fmEndOffset !== undefined && fmEndOffset > 0) {
+			// Use the cache's exact frontmatter boundary when available
+			return content.substring(fmEndOffset).trim();
+		}
+		// Fallback: manual scan for closing ---
 		const fmEnd = content.indexOf('\n---', 3);
 		if (fmEnd < 0) return '';
 		return content.substring(fmEnd + 4).trim();
@@ -801,7 +926,7 @@ export class TaskStore {
 
 	private async addToBlocks(depPath: string, thisPath: string, thisName: string): Promise<void> {
 		const fullPath = depPath.endsWith('.md') ? depPath : depPath + '.md';
-		const depFile = this.app.vault.getAbstractFileByPath(fullPath);
+		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(fullPath));
 		if (!(depFile instanceof TFile)) return;
 
 		const cleanPath = thisPath.replace(/\.md$/, '');
@@ -827,9 +952,22 @@ export class TaskStore {
 
 	// ── Frontmatter builder (creation only) ──────────────────────────────────────
 
+	private resolveNameForPath(pathWithoutExt: string): string {
+		const all = get(this.tasks);
+		const match = all.find(t => t.path === pathWithoutExt + '.md' || t.path.replace(/\.md$/, '') === pathWithoutExt);
+		if (match) return match.name;
+		return pathWithoutExt.split('/').pop()?.replace(/^[a-f0-9]+-/, '') ?? pathWithoutExt;
+	}
+
 	private buildFrontmatter(task: Task): string {
 		const esc = (s: string) => String(s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-		const link = (p: string | null) => p ? `'[[${p.replace(/\.md$/, '')}|${p}]]'` : 'null';
+		const strOrNull = (s: string | null | undefined) => s ? `"${esc(s)}"` : 'null';
+		const link = (p: string | null) => {
+			if (!p) return 'null';
+			const clean = p.replace(/\.md$/, '');
+			const name = this.resolveNameForPath(clean);
+			return `'[[${clean}|${name}]]'`;
+		};
 		const depsStr = task.depends_on.length
 			? `\n${task.depends_on.map(d => `  - ${link(d)}`).join('\n')}`
 			: ' []';
@@ -839,10 +977,10 @@ export class TaskStore {
 			`type: ${task.type}`,
 			`name: "${esc(task.name)}"`,
 			`cssclasses: [ttask]`,
-			`category: ${task.category ?? 'null'}`,
-			`status: ${task.status}`,
-			`priority: ${task.priority}`,
-			`task_type: ${task.task_type ?? 'null'}`,
+			`category: ${strOrNull(task.category)}`,
+			`status: "${esc(task.status)}"`,
+			`priority: "${esc(task.priority)}"`,
+			`task_type: ${strOrNull(task.task_type)}`,
 			`parent_task: ${link(task.parent_task)}`,
 			`depends_on:${depsStr}`,
 			`blocks: []`,

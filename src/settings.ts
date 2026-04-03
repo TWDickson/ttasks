@@ -278,6 +278,7 @@ class ValueMigrationModal extends Modal {
 	}
 
 	onClose(): void {
+		super.onClose();
 		this.contentEl.empty();
 		this.finish(null);
 	}

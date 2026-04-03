@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Component, MarkdownRenderer } from 'obsidian';
 	import { onDestroy, onMount } from 'svelte';
-	import type { Writable } from 'svelte/store';
+	import type { Readable, Writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
 	import type { Task, TaskStatus, TaskPriority, TaskType } from '../types';
 	import type { TaskStore } from '../store/TaskStore';
@@ -9,7 +9,7 @@
 	import { buildTaskGraph } from '../store/taskGraph';
 
 	export let plugin: TTasksPlugin;
-	export let tasks: Writable<Task[]>;
+	export let tasks: Readable<Task[]>;
 	export let activeTaskPath: Writable<string | null>;
 	export let store: TaskStore;
 
@@ -31,6 +31,7 @@
 	let estimated_days: number | null = null;
 	let blocked_reason = '';
 	let notes = '';
+	let notesMode: 'preview' | 'edit' = 'preview';
 	let formTaskPath: string | null = null;
 	let pendingSaves = 0;
 	let saving = false;
@@ -127,7 +128,7 @@
 		const renderSeq = ++previewRenderSeq;
 		notesPreviewEl.innerHTML = '';
 		const sourcePath = task.path;
-		await MarkdownRenderer.renderMarkdown(markdown || '_No notes yet._', notesPreviewEl, sourcePath, markdownComponent);
+		await MarkdownRenderer.render(plugin.app, markdown || '_No notes yet._', notesPreviewEl, sourcePath, markdownComponent);
 		if (renderSeq !== previewRenderSeq) return;
 	}
 
@@ -223,6 +224,7 @@
 
 	$: statusOptions = withCurrentOption(plugin.settings.statuses ?? [], status || null);
 	$: completionStatus = getCompletionStatus();
+	$: blockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
 	$: categoryOptions = ['', ...withCurrentOption(plugin.settings.categories ?? [], category || null)];
 	$: taskTypeOptions = ['', ...withCurrentOption(plugin.settings.taskTypes ?? [], task_type)];
 	$: categoryColors = plugin.settings.categoryColors ?? {};
@@ -261,6 +263,30 @@
 		const normalized = normalizeTaskPath(pathLike);
 		if (!normalized) return;
 		activeTaskPath.set(normalized);
+	}
+
+	$: availableDependencies = task ? $tasks
+		.filter(t => t.type === 'task' && t.path !== task.path && !task.depends_on.some(d => normalizeTaskPath(d) === t.path))
+		.sort((a, b) => a.name.localeCompare(b.name)) : [];
+
+	async function addDependency(depPath: string): Promise<void> {
+		if (!task) return;
+		beginSave();
+		try {
+			await store.addDependency(task.path, depPath.replace(/\.md$/, ''));
+		} finally {
+			endSave();
+		}
+	}
+
+	async function removeDependency(depPath: string): Promise<void> {
+		if (!task) return;
+		beginSave();
+		try {
+			await store.removeDependency(task.path, depPath.replace(/\.md$/, ''));
+		} finally {
+			endSave();
+		}
 	}
 
 	$: dependencyTasks = task ? task.depends_on.map((dep) => linkedTask(dep)).filter((dep): dep is Task => !!dep) : [];
@@ -308,6 +334,8 @@
 	});
 
 	$: if (task && notesPreviewEl && markdownComponent) {
+		// Reset cache so preview re-renders when switching from edit to preview
+		lastPreviewText = '';
 		scheduleNotesPreview(notes);
 	}
 
@@ -449,7 +477,7 @@
 				placeholder="—"
 			/>
 
-			{#if status === 'Blocked'}
+			{#if status === blockStatus}
 				<label class="tt-label" for="tt-blocked-reason">Blocked Reason</label>
 				<input
 					id="tt-blocked-reason"
@@ -486,11 +514,22 @@
 							{:else}
 								<div class="tt-chips">
 									{#each task.depends_on as dep}
-										<button class="tt-chip tt-chip-rel" class:tt-chip-warning={!linkedTask(dep)} class:tt-chip-blocking={!!linkedTask(dep) && linkedTask(dep)?.status !== completionStatus} on:click={() => openLinkedPath(dep)}>
-											{taskLabelFromPath(dep)}
-										</button>
+										<span class="tt-chip-group">
+											<button class="tt-chip tt-chip-rel" class:tt-chip-warning={!linkedTask(dep)} class:tt-chip-blocking={!!linkedTask(dep) && linkedTask(dep)?.status !== completionStatus} on:click={() => openLinkedPath(dep)}>
+												{taskLabelFromPath(dep)}
+											</button>
+											<button class="tt-chip-remove" on:click|stopPropagation={() => removeDependency(dep)} aria-label="Remove dependency" title="Remove dependency">&times;</button>
+										</span>
 									{/each}
 								</div>
+							{/if}
+							{#if availableDependencies.length > 0}
+								<select class="tt-dep-add" on:change={(e) => { const v = e.currentTarget.value; if (v) { addDependency(v); e.currentTarget.value = ''; } }}>
+									<option value="">+ Add dependency…</option>
+									{#each availableDependencies as t}
+										<option value={t.path}>{t.name}</option>
+									{/each}
+								</select>
 							{/if}
 						</div>
 
@@ -530,16 +569,26 @@
 
 		<!-- Notes -->
 		<div class="tt-field-group">
-			<label class="tt-label" for="tt-notes">Notes</label>
-			<textarea
-				id="tt-notes"
-				class="tt-notes"
-				bind:value={notes}
-				on:input={() => saveNotesDebounced(notes)}
-				placeholder="Add notes…"
-				rows="8"
-			></textarea>
-			<div class="tt-notes-preview" bind:this={notesPreviewEl}></div>
+			<div class="tt-notes-header">
+				<span class="tt-label">Notes</span>
+				<div class="tt-notes-toggle">
+					<button type="button" class="tt-notes-tab" class:is-active={notesMode === 'preview'} on:click={() => notesMode = 'preview'}>Preview</button>
+					<button type="button" class="tt-notes-tab" class:is-active={notesMode === 'edit'} on:click={() => notesMode = 'edit'}>Edit</button>
+				</div>
+			</div>
+			{#if notesMode === 'edit'}
+				<textarea
+					id="tt-notes"
+					class="tt-notes"
+					bind:value={notes}
+					on:input={() => saveNotesDebounced(notes)}
+					placeholder="Add notes…"
+					rows="8"
+				></textarea>
+			{:else}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<div class="tt-notes-preview" bind:this={notesPreviewEl} on:click={() => notesMode = 'edit'} role="button" tabindex="0"></div>
+			{/if}
 		</div>
 
 		<hr class="tt-divider" />
@@ -721,6 +770,46 @@
 		border-color: color-mix(in srgb, var(--color-red) 45%, var(--background-modifier-border));
 	}
 
+	.tt-chip-group {
+		display: inline-flex;
+		align-items: stretch;
+		gap: 0;
+	}
+
+	.tt-chip-group .tt-chip {
+		border-top-right-radius: 0;
+		border-bottom-right-radius: 0;
+		border-right: none;
+	}
+
+	.tt-chip-remove {
+		padding: 2px 7px;
+		border-radius: 0 999px 999px 0;
+		border: 1.5px solid var(--background-modifier-border);
+		border-left: none;
+		background: var(--background-secondary);
+		color: var(--text-faint);
+		font-size: 0.78rem;
+		cursor: pointer;
+		line-height: 1;
+	}
+
+	.tt-chip-remove:hover {
+		background: color-mix(in srgb, var(--color-red) 12%, var(--background-primary));
+		color: var(--color-red);
+	}
+
+	.tt-dep-add {
+		font-size: 0.74rem;
+		padding: 3px 8px;
+		border-radius: var(--radius-s, 4px);
+		border: 1px dashed var(--background-modifier-border);
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+		margin-top: 4px;
+	}
+
 
 	.tt-rel-health {
 		display: flex;
@@ -830,6 +919,36 @@
 		border: none;
 		border-top: 1px solid var(--background-modifier-border);
 		margin: 0;
+	}
+
+	.tt-notes-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.tt-notes-toggle {
+		display: flex;
+		gap: 2px;
+		background: var(--background-modifier-border);
+		border-radius: 6px;
+		padding: 2px;
+	}
+
+	.tt-notes-tab {
+		padding: 3px 10px;
+		border: none;
+		border-radius: 4px;
+		background: transparent;
+		color: var(--text-muted);
+		font-size: 0.72rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.tt-notes-tab.is-active {
+		background: var(--background-primary);
+		color: var(--text-normal);
 	}
 
 	.tt-notes {

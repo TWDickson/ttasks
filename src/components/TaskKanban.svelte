@@ -1,13 +1,15 @@
 <script lang="ts">
-	import type { Writable } from 'svelte/store';
+	import { onMount } from 'svelte';
+	import type { Readable, Writable } from 'svelte/store';
 	import type { Task, TaskStatus } from '../types';
 	import type TaskStore from '../store/TaskStore';
 
-	export let tasks: Writable<Task[]>;
+	export let tasks: Readable<Task[]>;
 	export let statuses: string[];
 	export let statusColors: Record<string, string>;
 	export let categoryColors: Record<string, string>;
 	export let taskTypeColors: Record<string, string>;
+	export let blockStatus = 'Blocked';
 	export let activeTaskPath: Writable<string | null>;
 	export let store: TaskStore;
 	export let onOpen: (path: string) => void;
@@ -49,9 +51,36 @@
 		return map;
 	}
 
+	let cachedToday = new Date().toISOString().slice(0, 10);
+
+	onMount(() => {
+		const scheduleRefresh = () => {
+			const now = new Date();
+			const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+			const ms = tomorrow.getTime() - now.getTime() + 100;
+			return window.setTimeout(() => {
+				cachedToday = new Date().toISOString().slice(0, 10);
+				midnightTimer = scheduleRefresh();
+			}, ms);
+		};
+		let midnightTimer = scheduleRefresh();
+		return () => window.clearTimeout(midnightTimer);
+	});
+
 	function isOverdue(due: string | null): boolean {
 		if (!due) return false;
-		return due < new Date().toISOString().slice(0, 10);
+		return due < cachedToday;
+	}
+
+	function relativeDate(due: string): string {
+		const t = cachedToday;
+		if (due === t) return 'Today';
+		const diff = Math.round((new Date(due + 'T00:00:00').getTime() - new Date(t + 'T00:00:00').getTime()) / 86400000);
+		if (diff === 1) return 'Tomorrow';
+		if (diff === -1) return 'Yesterday';
+		if (diff < -1) return `${Math.abs(diff)}d overdue`;
+		if (diff <= 7) return `In ${diff}d`;
+		return due;
 	}
 
 	function onDragStart(e: DragEvent, path: string) {
@@ -173,7 +202,7 @@
 									<span class="tt-card-name">{task.name}</span>
 								</div>
 
-								{#if task.status === 'Blocked' && task.blocked_reason}
+								{#if task.status === blockStatus && task.blocked_reason}
 									<p class="tt-card-blocked-reason">{task.blocked_reason}</p>
 								{/if}
 
@@ -182,13 +211,29 @@
 										<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!categoryColors?.[task.category]} style={getBadgeStyle(categoryColors?.[task.category])}>{task.category}</span>
 									{/if}
 									{#if task.due_date}
-										<span class="tt-badge" class:tt-badge-overdue={isOverdue(task.due_date)}>
-											{task.due_date}
+										<span class="tt-badge" class:tt-badge-overdue={isOverdue(task.due_date)} title={task.due_date}>
+											{relativeDate(task.due_date)}
 										</span>
 									{/if}
 									{#if task.task_type}
 										<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!taskTypeColors?.[task.task_type]} style={getBadgeStyle(taskTypeColors?.[task.task_type])}>{task.task_type}</span>
 									{/if}
+									<!-- Mobile-only: inline status change -->
+									<select
+										class="tt-card-status-select"
+										value={task.status}
+										on:click|stopPropagation
+										on:change|stopPropagation={(e) => {
+											const target = e.currentTarget;
+											if (target.value !== task.status) {
+												store.update(task.path, { status: target.value });
+											}
+										}}
+									>
+										{#each statuses as s}
+											<option value={s}>{s}</option>
+										{/each}
+									</select>
 								</div>
 							</div>
 						{/each}
@@ -397,8 +442,25 @@
 		background: var(--background-secondary);
 	}
 
+	/* Status select: hidden on desktop, visible on mobile */
+	.tt-card-status-select {
+		display: none;
+	}
+
 	/* ── Mobile ─────────────────────────────────────────────────────────────────── */
 	@media (max-width: 768px) {
+		.tt-card-status-select {
+			display: inline-block;
+			font-size: 0.68rem;
+			padding: 2px 6px;
+			border-radius: 999px;
+			border: 1px solid var(--background-modifier-border);
+			background: var(--background-secondary);
+			color: var(--text-muted);
+			cursor: pointer;
+			-webkit-appearance: none;
+			appearance: none;
+		}
 		.tt-kanban-tabs {
 			display: flex;
 			overflow-x: auto;

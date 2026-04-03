@@ -1,16 +1,17 @@
 <script lang="ts">
 	import type TTasksPlugin from '../main';
 	import SwipeableTaskRow from './SwipeableTaskRow.svelte';
-	import type { Writable } from 'svelte/store';
+	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
 
 	export let plugin: TTasksPlugin;
-	export let tasks: Writable<Task[]>;
+	export let tasks: Readable<Task[]>;
 	export let statuses: string[];
 	export let categoryColors: Record<string, string>;
 	export let taskTypeColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
+	export let onNewTask: (() => void) | undefined = undefined;
 
 	type GroupKey = string;
 
@@ -37,7 +38,13 @@
 
 <div class="tt-list">
 	{#if $tasks.length === 0}
-		<div class="tt-empty">No tasks found in the configured folder.</div>
+		<div class="tt-empty">
+			<p>No tasks yet.</p>
+			<p class="tt-empty-hint">Create your first task to get started.</p>
+			{#if onNewTask}
+				<button class="tt-empty-cta" on:click={onNewTask}>+ New task</button>
+			{/if}
+		</div>
 	{:else}
 		{#each statusOrder as group}
 			{#if grouped.has(group)}
@@ -79,11 +86,28 @@
 		padding: 32px 16px;
 		text-align: center;
 		display: flex;
+		flex-direction: column;
 		align-items: center;
 		gap: 4px;
 		flex-shrink: 0;
 		color: var(--text-muted);
 		font-size: 0.9rem;
+	}
+
+	.tt-empty-cta {
+		margin-top: 12px;
+		padding: 8px 20px;
+		border: none;
+		border-radius: var(--radius-m, 6px);
+		background: var(--interactive-accent);
+		color: var(--text-on-accent);
+		font-size: 0.88rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background 0.1s;
+	}
+	.tt-empty-cta:hover {
+		background: var(--interactive-accent-hover);
 	}
 
 	.tt-group-heading {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Notice } from 'obsidian';
+	import { Modal, Notice } from 'obsidian';
 	import { onMount } from 'svelte';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
@@ -69,13 +69,41 @@
 	$: deferPresets = handedness === 'left' ? [...DEFER_PRESETS_BASE].reverse() : DEFER_PRESETS_BASE;
 	$: showDeferOptions = activePrimary === 'defer';
 
+	let cachedToday = new Date().toISOString().slice(0, 10);
+
 	function today(): string {
-		return new Date().toISOString().slice(0, 10);
+		return cachedToday;
 	}
+
+	// Refresh cached today at midnight
+	onMount(() => {
+		const scheduleRefresh = () => {
+			const now = new Date();
+			const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+			const ms = tomorrow.getTime() - now.getTime() + 100; // 100ms past midnight
+			return window.setTimeout(() => {
+				cachedToday = new Date().toISOString().slice(0, 10);
+				midnightTimer = scheduleRefresh();
+			}, ms);
+		};
+		let midnightTimer = scheduleRefresh();
+		return () => window.clearTimeout(midnightTimer);
+	});
 
 	function isOverdue(due: string | null): boolean {
 		if (!due) return false;
 		return due < today();
+	}
+
+	function relativeDate(due: string): string {
+		const t = today();
+		if (due === t) return 'Today';
+		const diff = Math.round((new Date(due + 'T00:00:00').getTime() - new Date(t + 'T00:00:00').getTime()) / 86400000);
+		if (diff === 1) return 'Tomorrow';
+		if (diff === -1) return 'Yesterday';
+		if (diff < -1) return `${Math.abs(diff)}d overdue`;
+		if (diff <= 7) return `In ${diff}d`;
+		return due;
 	}
 
 	function getBadgeStyle(color: string | undefined): string {
@@ -195,16 +223,41 @@
 		await plugin.runQuickAction(action, task.path, { showNotice: false });
 	}
 
+	function promptCustomDeferDays(): Promise<number | null> {
+		return new Promise((resolve) => {
+			const modal = new Modal(plugin.app);
+			let settled = false;
+			modal.titleEl.setText('Defer by how many days?');
+			const input = modal.contentEl.createEl('input', {
+				cls: 'tt-modal-input',
+				attr: { type: 'number', min: '1', max: '365', step: '1', placeholder: 'Days', value: String(plugin.settings.quickActions.deferDays ?? 1) },
+			});
+			input.style.marginBottom = '12px';
+			input.focus();
+			const submit = () => {
+				const parsed = parseInt(input.value, 10);
+				if (isNaN(parsed) || parsed < 1 || parsed > 365) {
+					new Notice('TTasks: enter a number between 1 and 365.');
+					return;
+				}
+				settled = true;
+				modal.close();
+				resolve(parsed);
+			};
+			input.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+			const btnRow = modal.contentEl.createDiv({ cls: 'modal-button-container' });
+			btnRow.createEl('button', { text: 'Cancel' }).addEventListener('click', () => modal.close());
+			btnRow.createEl('button', { text: 'Defer', cls: 'mod-cta' }).addEventListener('click', submit);
+			modal.onClose = () => { if (!settled) resolve(null); };
+			modal.open();
+		});
+	}
+
 	async function executeDeferPreset(preset: DeferPreset): Promise<void> {
 		if (preset === 'custom') {
-			const response = window.prompt('Defer by how many days?', String(plugin.settings.quickActions.deferDays ?? 1));
-			if (!response) return;
-			const parsed = parseInt(response, 10);
-			if (isNaN(parsed) || parsed < 1 || parsed > 365) {
-				new Notice('TTasks: enter a number between 1 and 365.');
-				return;
-			}
-			await deferByDays(parsed);
+			const days = await promptCustomDeferDays();
+			if (days === null) return;
+			await deferByDays(days);
 			return;
 		}
 		await deferByDays(preset);
@@ -366,7 +419,7 @@
 				<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!categoryColors?.[task.category]} style={getBadgeStyle(categoryColors?.[task.category])}>{task.category}</span>
 			{/if}
 			{#if task.due_date}
-				<span class="tt-badge" class:tt-badge-overdue={isOverdue(task.due_date)}>{task.due_date}</span>
+				<span class="tt-badge" class:tt-badge-overdue={isOverdue(task.due_date)} title={task.due_date}>{relativeDate(task.due_date)}</span>
 			{/if}
 			{#if task.type === 'task' && task.task_type}
 				<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!taskTypeColors?.[task.task_type]} style={getBadgeStyle(taskTypeColors?.[task.task_type])}>{task.task_type}</span>
@@ -698,6 +751,28 @@
 			opacity: 1;
 			transform: scale(1) translateY(0);
 			backface-visibility: hidden;
+		}
+	}
+
+	@media (max-width: 768px) {
+		.tt-task-btn {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 4px;
+		}
+
+		.tt-task-meta {
+			padding-left: 16px; /* align under name, past the priority dot */
+			flex-wrap: wrap;
+		}
+
+		.tt-task-name {
+			white-space: normal;
+			overflow: visible;
+			text-overflow: unset;
+			-webkit-line-clamp: 2;
+			display: -webkit-box;
+			-webkit-box-orient: vertical;
 		}
 	}
 

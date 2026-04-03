@@ -53,15 +53,27 @@ export default class TTasksPlugin extends Plugin {
 			callback: () => this.taskStore.migrateCssClasses(),
 		});
 
-		this.addCommand({
-			id: 'seed-graph-test-data',
-			name: 'Seed graph sandbox tasks',
-			callback: () => this.taskStore.seedGraphTestData(),
-		});
+		if (process.env.NODE_ENV !== 'production') {
+			this.addCommand({
+				id: 'seed-graph-test-data',
+				name: 'Seed graph sandbox tasks',
+				callback: () => this.taskStore.seedGraphTestData(),
+			});
+		}
 
 		this.addSettingTab(new TTasksSettingTab(this.app, this));
 
-		this.app.workspace.onLayoutReady(() => this.taskStore.load());
+		this.app.workspace.onLayoutReady(() => {
+			this.taskStore.load();
+			// MetadataCache may not be fully resolved when layout is ready.
+			// Re-sync once the cache finishes indexing to pick up any tasks
+			// that were skipped due to missing frontmatter on first pass.
+			const resolvedRef = this.app.metadataCache.on('resolved', () => {
+				this.app.metadataCache.offref(resolvedRef);
+				this.taskStore.load();
+			});
+			this.registerEvent(resolvedRef);
+		});
 	}
 
 	onunload() {

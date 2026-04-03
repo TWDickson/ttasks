@@ -75,6 +75,14 @@ export class CreateTaskModal extends Modal {
 		this.notesRenderComponent = new Component();
 		this.notesRenderComponent.load();
 
+		// Cmd/Ctrl+Enter submits from anywhere in the modal
+		this.modalEl.addEventListener('keydown', (e: KeyboardEvent) => {
+			if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+				e.preventDefault();
+				void this.submit();
+			}
+		});
+
 		const sectionsRoot = contentEl.createDiv('tt-modal-sections');
 
 		// ── Name ────────────────────────────────────────────────────────────────
@@ -238,19 +246,49 @@ export class CreateTaskModal extends Modal {
 			text: 'Clear',
 		});
 
-		const afterTaskField = this.field(startRow, 'After Task');
+		const afterTaskField = this.field(startRow, 'After Task(s)');
 		const allTasks = get(this.plugin.taskStore.tasks);
+		const depsChipsEl = afterTaskField.createDiv('tt-modal-chips');
 		const afterTaskSelect = afterTaskField.createEl('select', { cls: 'tt-modal-select' });
-		afterTaskSelect.createEl('option', { text: '— none —', value: '' });
-		for (const t of allTasks) {
-			afterTaskSelect.createEl('option', { text: t.name, value: t.path.replace(/\.md$/, '') });
-		}
+
+		const renderDepsChips = () => {
+			depsChipsEl.empty();
+			for (const depPath of this.depends_on) {
+				const depTask = allTasks.find(t => t.path.replace(/\.md$/, '') === depPath);
+				const label = depTask?.name ?? depPath.split('/').pop() ?? depPath;
+				const chip = depsChipsEl.createEl('span', { cls: 'tt-modal-chip tt-chip-active', text: label });
+				const removeBtn = chip.createEl('span', { text: ' ×', cls: 'tt-modal-chip-remove' });
+				removeBtn.addEventListener('click', () => {
+					this.depends_on = this.depends_on.filter(d => d !== depPath);
+					renderDepsChips();
+					renderAfterTaskOptions();
+					if (this.depends_on.length === 0) {
+						startDateInput.disabled = false;
+						startTodayBtn.disabled = false;
+					}
+				});
+			}
+		};
+
+		const renderAfterTaskOptions = () => {
+			afterTaskSelect.empty();
+			afterTaskSelect.createEl('option', { text: '+ Add dependency…', value: '' });
+			for (const t of allTasks) {
+				const path = t.path.replace(/\.md$/, '');
+				if (this.depends_on.includes(path)) continue;
+				afterTaskSelect.createEl('option', { text: t.name, value: path });
+			}
+		};
+
+		renderAfterTaskOptions();
+		renderDepsChips();
 
 		startDateInput.addEventListener('change', () => {
 			this.start_date = startDateInput.value;
 			if (startDateInput.value) {
 				this.depends_on = [];
-				afterTaskSelect.value    = '';
+				renderDepsChips();
+				renderAfterTaskOptions();
 				afterTaskSelect.disabled = true;
 			} else {
 				afterTaskSelect.disabled = false;
@@ -262,7 +300,8 @@ export class CreateTaskModal extends Modal {
 			startDateInput.value = today;
 			this.start_date = today;
 			this.depends_on = [];
-			afterTaskSelect.value = '';
+			renderDepsChips();
+			renderAfterTaskOptions();
 			afterTaskSelect.disabled = true;
 		});
 
@@ -274,16 +313,15 @@ export class CreateTaskModal extends Modal {
 
 		afterTaskSelect.addEventListener('change', () => {
 			const val = afterTaskSelect.value;
-			this.depends_on = val ? [val] : [];
-			if (val) {
-				this.start_date          = '';
-				startDateInput.value     = '';
-				startDateInput.disabled  = true;
-				startTodayBtn.disabled   = true;
-			} else {
-				startDateInput.disabled  = false;
-				startTodayBtn.disabled   = false;
-			}
+			if (!val) return;
+			this.depends_on = [...this.depends_on, val];
+			afterTaskSelect.value = '';
+			renderDepsChips();
+			renderAfterTaskOptions();
+			this.start_date          = '';
+			startDateInput.value     = '';
+			startDateInput.disabled  = true;
+			startTodayBtn.disabled   = true;
 		});
 
 		// ── Due Date | Est. Days (mutually exclusive) ────────────────────────────
@@ -367,7 +405,7 @@ export class CreateTaskModal extends Modal {
 		const renderNotes = async () => {
 			if (!this.notesRenderComponent) return;
 			notesPreview.innerHTML = '';
-			await MarkdownRenderer.renderMarkdown(this.notes || '_No notes yet._', notesPreview, this.plugin.manifest.id, this.notesRenderComponent);
+			await MarkdownRenderer.render(this.app, this.notes || '_No notes yet._', notesPreview, this.plugin.manifest.id, this.notesRenderComponent);
 		};
 
 		const scheduleRenderNotes = () => {
@@ -578,6 +616,7 @@ export class CreateTaskModal extends Modal {
 	}
 
 	onClose() {
+		super.onClose();
 		if (this.notesRenderFrame !== null) {
 			cancelAnimationFrame(this.notesRenderFrame);
 			this.notesRenderFrame = null;

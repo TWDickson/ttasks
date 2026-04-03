@@ -1,12 +1,12 @@
 <script lang="ts">
-	import type { Writable } from 'svelte/store';
+	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
 	import type TTasksPlugin from '../main';
 	import { buildTaskGraph, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
 	import { resolveCompletionStatus } from '../settings';
 
 	export let plugin: TTasksPlugin;
-	export let tasks: Writable<Task[]>;
+	export let tasks: Readable<Task[]>;
 	export let statusColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;

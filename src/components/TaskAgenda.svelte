@@ -1,11 +1,11 @@
 <script lang="ts">
 	import type TTasksPlugin from '../main';
 	import SwipeableTaskRow from './SwipeableTaskRow.svelte';
-	import type { Writable } from 'svelte/store';
+	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
 
 	export let plugin: TTasksPlugin;
-	export let tasks: Writable<Task[]>;
+	export let tasks: Readable<Task[]>;
 	export let categoryColors: Record<string, string>;
 	export let taskTypeColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
