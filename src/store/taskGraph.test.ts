@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
-import { buildTaskGraph } from './taskGraph';
+import { buildTaskGraph, resolveTaskDates } from './taskGraph';
 
 function makeTask(overrides: Partial<Task> & Pick<Task, 'path' | 'name'>): Task {
 	const { path, name, ...rest } = overrides;
@@ -65,5 +65,76 @@ describe('buildTaskGraph', () => {
 		expect(layout.edges.filter((edge) => edge.isCycle)).toHaveLength(3);
 		expect(blockedNodes).toEqual(['Tasks/a.md', 'Tasks/b.md', 'Tasks/c.md']);
 		expect(layout.blockedEdgeCount).toBe(3);
+	});
+});
+
+describe('resolveTaskDates', () => {
+	it('uses explicit start_date and due_date directly', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', start_date: '2026-04-01', due_date: '2026-04-05' }),
+		];
+		const result = resolveTaskDates(tasks);
+		const a = result.get('Tasks/a.md');
+		expect(a).toBeDefined();
+		expect(a!.start.toISOString().slice(0, 10)).toBe('2026-04-01');
+		expect(a!.end.toISOString().slice(0, 10)).toBe('2026-04-05');
+		expect(a!.isInferred).toBe(false);
+	});
+
+	it('infers start from dependency end date across a full chain', () => {
+		// A finishes 2026-04-10, B has 3 estimated days, C has 2 estimated days
+		// Expected: B starts 2026-04-11, ends 2026-04-13; C starts 2026-04-14, ends 2026-04-15
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', due_date: '2026-04-10' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'], estimated_days: 3 }),
+			makeTask({ path: 'Tasks/c.md', name: 'C', depends_on: ['Tasks/b'], estimated_days: 2 }),
+		];
+		const result = resolveTaskDates(tasks);
+
+		const b = result.get('Tasks/b.md');
+		expect(b).toBeDefined();
+		expect(b!.start.toISOString().slice(0, 10)).toBe('2026-04-11');
+		expect(b!.end.toISOString().slice(0, 10)).toBe('2026-04-13');
+		expect(b!.isInferred).toBe(true);
+
+		const c = result.get('Tasks/c.md');
+		expect(c).toBeDefined();
+		expect(c!.start.toISOString().slice(0, 10)).toBe('2026-04-14');
+		expect(c!.end.toISOString().slice(0, 10)).toBe('2026-04-15');
+		expect(c!.isInferred).toBe(true);
+	});
+
+	it('excludes tasks with no resolvable dates', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A' }), // no dates, no deps
+		];
+		const result = resolveTaskDates(tasks);
+		expect(result.has('Tasks/a.md')).toBe(false);
+	});
+
+	it('excludes tasks in dependency cycles', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', depends_on: ['Tasks/b'], due_date: '2026-04-10' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'], estimated_days: 3 }),
+		];
+		const result = resolveTaskDates(tasks);
+		// A has a due_date so it CAN resolve independently; B depends on A but A→B→A is a cycle
+		// A resolves (deadline-only from due_date); B's dep on A resolves A first,
+		// but A also depends on B so B's in-degree never reaches 0 → excluded
+		expect(result.has('Tasks/b.md')).toBe(false);
+	});
+
+	it('uses latest dependency end when a task has multiple upstream deps', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', due_date: '2026-04-05' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', due_date: '2026-04-10' }),
+			makeTask({ path: 'Tasks/c.md', name: 'C', depends_on: ['Tasks/a', 'Tasks/b'], estimated_days: 2 }),
+		];
+		const result = resolveTaskDates(tasks);
+		const c = result.get('Tasks/c.md');
+		expect(c).toBeDefined();
+		// start = day after latest dep end (2026-04-10) = 2026-04-11
+		expect(c!.start.toISOString().slice(0, 10)).toBe('2026-04-11');
+		expect(c!.end.toISOString().slice(0, 10)).toBe('2026-04-12');
 	});
 });

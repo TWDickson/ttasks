@@ -338,3 +338,131 @@ function normalizeTaskPath(path: string | null | undefined): string | null {
 function dedupePaths(paths: string[]): string[] {
 	return [...new Set(paths)];
 }
+
+// ---------------------------------------------------------------------------
+// Timeline date inference
+// ---------------------------------------------------------------------------
+
+export interface ResolvedTaskDate {
+	start: Date;
+	end: Date;
+	/** True when start was propagated from dependency end dates rather than
+	 *  set explicitly by the user. Used by the timeline to visually distinguish
+	 *  inferred bars from explicitly scheduled ones. */
+	isInferred: boolean;
+}
+
+const INFER_DAY_MS = 24 * 60 * 60 * 1000;
+
+function inferParseDate(value: string | null | undefined): Date | null {
+	if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+	const d = new Date(`${value}T00:00:00`);
+	return isNaN(d.getTime()) ? null : d;
+}
+
+function inferAddDays(date: Date, days: number): Date {
+	return new Date(date.getTime() + days * INFER_DAY_MS);
+}
+
+/**
+ * Resolves start/end dates for all tasks via topological sort over the
+ * dependency graph. Propagates resolved end dates forward through
+ * arbitrary-depth dependency chains so that a task with no explicit dates
+ * can inherit its position from its dependencies.
+ *
+ * Cycle handling: tasks whose in-degree never reaches zero during Kahn's
+ * traversal are in a dependency cycle and are excluded from the result.
+ *
+ * Inclusion: a task appears in the result if at least one anchor date can
+ * be established — either an explicit start_date / due_date, or a start
+ * inferred from a resolved upstream dependency.
+ */
+export function resolveTaskDates(tasks: Task[]): Map<string, ResolvedTaskDate> {
+	const taskByPath = new Map(tasks.map((t) => [t.path, t]));
+
+	// Build normalized depends_on map for each task
+	const depsOf = new Map<string, string[]>();
+	for (const task of tasks) {
+		const deps = dedupePaths(
+			(task.depends_on ?? [])
+				.map((p) => normalizeTaskPath(p))
+				.filter((p): p is string => !!p && taskByPath.has(p) && p !== task.path)
+		);
+		depsOf.set(task.path, deps);
+	}
+
+	// Reverse map: dep path → paths that depend on it (for propagation)
+	const dependentsOf = new Map<string, string[]>();
+	for (const task of tasks) dependentsOf.set(task.path, []);
+	for (const [path, deps] of depsOf) {
+		for (const dep of deps) dependentsOf.get(dep)?.push(path);
+	}
+
+	// Kahn's: in-degree = number of unprocessed dependencies
+	const inDegree = new Map<string, number>();
+	for (const task of tasks) inDegree.set(task.path, depsOf.get(task.path)?.length ?? 0);
+
+	const queue: string[] = [];
+	for (const task of tasks) {
+		if ((inDegree.get(task.path) ?? 0) === 0) queue.push(task.path);
+	}
+
+	const resolved = new Map<string, ResolvedTaskDate>();
+
+	while (queue.length > 0) {
+		const path = queue.shift()!;
+		const task = taskByPath.get(path);
+		if (!task) continue;
+
+		const deps = depsOf.get(path) ?? [];
+
+		// Latest resolved end across all dependencies
+		const depEndTimes = deps
+			.map((d) => resolved.get(d)?.end.getTime())
+			.filter((t): t is number => t !== undefined);
+		const latestDepEnd = depEndTimes.length > 0
+			? new Date(Math.max(...depEndTimes))
+			: null;
+
+		// Resolve start — explicit start_date wins, then propagate from deps,
+		// then fall back to due_date as a deadline-only anchor point
+		const explicitStart = inferParseDate(task.start_date);
+		const explicitDue   = inferParseDate(task.due_date);
+
+		let start: Date | null = explicitStart;
+		let isInferred = false;
+
+		if (!start && latestDepEnd) {
+			start = inferAddDays(latestDepEnd, 1);
+			isInferred = true;
+		}
+		if (!start && explicitDue) {
+			start = new Date(explicitDue.getTime()); // deadline-only: point bar
+		}
+
+		if (start) {
+			// Resolve end — explicit due_date wins, then estimated_days from start
+			let end: Date | null = explicitDue;
+			if (!end) {
+				const estDays = task.estimated_days;
+				if (estDays && estDays > 0) {
+					end = inferAddDays(start, Math.max(0, Math.round(estDays) - 1));
+				}
+			}
+			if (!end) end = new Date(start.getTime()); // point bar
+			if (end.getTime() < start.getTime()) end = new Date(start.getTime());
+
+			resolved.set(path, { start, end, isInferred });
+		}
+
+		// Propagate: decrement in-degree of dependents, enqueue when ready
+		for (const dependent of dependentsOf.get(path) ?? []) {
+			const newDegree = (inDegree.get(dependent) ?? 1) - 1;
+			inDegree.set(dependent, newDegree);
+			if (newDegree === 0) queue.push(dependent);
+		}
+	}
+
+	// Any task still with inDegree > 0 is in a cycle — not included in result
+	return resolved;
+}

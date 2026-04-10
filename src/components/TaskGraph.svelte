@@ -2,7 +2,7 @@
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
 	import type TTasksPlugin from '../main';
-	import { buildTaskGraph, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
+	import { buildTaskGraph, resolveTaskDates, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
 	import { resolveCompletionStatus } from '../settings';
 
 	export let plugin: TTasksPlugin;
@@ -21,6 +21,7 @@
 		leftPercent: number;
 		widthPercent: number;
 		isLate: boolean;
+		isInferred: boolean;
 	};
 	type TimelineLane = { projectName: string; items: TimelineItem[] };
 	type TimelineCategory = { categoryName: string; lanes: TimelineLane[] };
@@ -129,28 +130,21 @@
 
 	function buildTimelineRows(allTasks: Task[], doneStatus: string, projectMap: Map<string, Task>): TimelineCategory[] {
 		const today = startOfToday();
+		// Resolve dates for all tasks via topological sort over the dependency
+		// graph. This handles arbitrary-depth chains: task C depends on B which
+		// depends on A — if A has a due date, B and C get inferred positions.
+		const resolvedDates = resolveTaskDates(allTasks);
 		const groups = new Map<string, Map<string, TimelineItem[]>>();
 
 		for (const task of allTasks) {
 			if (task.type !== 'task') continue;
-			// Only include tasks with real scheduling information. Tasks with only a
-			// created date (no start_date, no due_date) are not scheduled and would
-			// render as synthetic 1-day bars with no meaningful position.
-			if (!task.start_date && !task.due_date) continue;
+			const dates = resolvedDates.get(task.path);
+			if (!dates) continue; // no resolvable dates, or task is in a cycle
 
+			const { start, end, isInferred } = dates;
 			const categoryName = task.category?.trim() || 'Uncategorized';
 			const projectPath = normalizeTaskPath(task.parent_task);
 			const projectName = projectPath ? (projectMap.get(projectPath)?.name ?? projectPath.split('/').pop()?.replace(/\.md$/, '') ?? 'Unknown Project') : 'No Project';
-
-			const start = parseDate(task.start_date) ?? parseDate(task.created) ?? parseDate(task.due_date) ?? today;
-			let end = parseDate(task.due_date);
-			if (!end) {
-				const days = Math.max(1, Math.round(task.estimated_days ?? 1));
-				end = addDays(start, Math.max(0, days - 1));
-			}
-			if (end.getTime() < start.getTime()) {
-				end = new Date(start.getTime());
-			}
 
 			if (!groups.has(categoryName)) groups.set(categoryName, new Map<string, TimelineItem[]>());
 			const lanes = groups.get(categoryName)!;
@@ -164,6 +158,7 @@
 				leftPercent: 0,
 				widthPercent: 0,
 				isLate: !!task.due_date && parseDate(task.due_date) !== null && parseDate(task.due_date)!.getTime() < today.getTime() && task.status !== doneStatus,
+				isInferred,
 			});
 		}
 
@@ -281,7 +276,7 @@
 
 	{#if graphMode === 'dependency'}
 		{#if dependencyEmpty}
-			<div class="tt-graph-empty">No tasks available for the current filters.</div>
+			<div class="tt-graph-empty">No dependency relationships found. Add depends_on links between tasks to see the graph.</div>
 		{:else}
 			<div class="tt-graph-scroll">
 				<div class="tt-graph-stage" style={`width:${layout.width}px;height:${layout.height}px;`}>
@@ -332,7 +327,7 @@
 		{/if}
 	{:else}
 		{#if timelineEmpty}
-			<div class="tt-graph-empty">No scheduled tasks. Add a start date or due date to tasks to see them here.</div>
+			<div class="tt-graph-empty">No scheduled tasks. Add a start or due date, or chain tasks with dependencies and estimated durations to see them here.</div>
 		{:else}
 			<div class="tt-overview-scroll">
 				<div class="tt-overview-axis">
@@ -357,8 +352,9 @@
 											class:is-late={item.isLate}
 											class:is-done={item.task.status === completionStatus}
 											class:is-active={$activeTaskPath === item.task.path}
+											class:is-inferred={item.isInferred}
 											style={timelineBarStyle(item)}
-											title={`${item.task.name} | ${formatDate(item.start)} -> ${formatDate(item.end)}`}
+											title={`${item.task.name} | ${formatDate(item.start)} → ${formatDate(item.end)}${item.isInferred ? ' (inferred)' : ''}`}
 											on:click={() => onOpen(item.task.path)}
 										>
 											<span>{item.task.name}</span>
@@ -568,6 +564,11 @@
 
 	.tt-overview-bar.is-done {
 		opacity: 0.62;
+	}
+
+	.tt-overview-bar.is-inferred {
+		border-style: dashed;
+		opacity: 0.82;
 	}
 
 	.tt-overview-bar.is-active {
