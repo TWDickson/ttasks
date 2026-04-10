@@ -1,13 +1,15 @@
 import { Notice, Plugin } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
-import { type QuickActionId, type TTasksSettings, DEFAULT_SETTINGS, TTasksSettingTab, normalizeStatuses, normalizeColorMap, resolveCompletionStatus, resolveConfiguredStatus } from './settings';
+import { type QuickActionId, type TTasksSettings, DEFAULT_SETTINGS, DEFAULT_REMINDERS_SETTINGS, TTasksSettingTab, normalizeStatuses, normalizeColorMap, resolveCompletionStatus, resolveConfiguredStatus } from './settings';
 import { TaskStore } from './store/TaskStore';
 import { TaskBoardView, TASK_BOARD_VIEW_TYPE } from './views/TaskBoardView';
 import { CreateTaskModal } from './modals/CreateTaskModal';
+import { ReminderService } from './reminders';
 
 export default class TTasksPlugin extends Plugin {
 	settings!: TTasksSettings;
 	taskStore!: TaskStore;
+	reminderService!: ReminderService;
 	activeTaskPath: Writable<string | null> = writable(null);
 
 	async onload() {
@@ -63,6 +65,8 @@ export default class TTasksPlugin extends Plugin {
 
 		this.addSettingTab(new TTasksSettingTab(this.app, this));
 
+		this.reminderService = new ReminderService(this);
+
 		this.app.workspace.onLayoutReady(() => {
 			this.taskStore.load();
 			// MetadataCache may not be fully resolved when layout is ready.
@@ -73,6 +77,8 @@ export default class TTasksPlugin extends Plugin {
 				this.taskStore.load();
 			});
 			this.registerEvent(resolvedRef);
+			// Start reminders after tasks are loaded so the first check has data.
+			void this.reminderService.start();
 		});
 	}
 
@@ -103,6 +109,7 @@ export default class TTasksPlugin extends Plugin {
 			mobileHandedness: qa.mobileHandedness,
 			mobileHoldTimeoutMs: qa.mobileHoldTimeoutMs,
 		};
+		this.settings.reminders = Object.assign({}, DEFAULT_REMINDERS_SETTINGS, this.settings.reminders ?? {});
 		this.settings.statuses = normalizeStatuses(this.settings.statuses);
 		this.settings.completionStatus = resolveCompletionStatus(this.settings.statuses, this.settings.completionStatus);
 		this.settings.quickActions.startStatus = resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus);
