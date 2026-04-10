@@ -154,6 +154,10 @@
 	}
 
 	function openHoldMenuAt(clientX: number, clientY: number): void {
+		// Short haptic pulse on supported devices (Android). iOS WKWebView does not
+		// support navigator.vibrate and will silently ignore this.
+		navigator.vibrate?.(8);
+
 		const boundary = getMenuBoundaryRect();
 
 		const clampedClientX = Math.max(
