@@ -133,6 +133,10 @@
 
 		for (const task of allTasks) {
 			if (task.type !== 'task') continue;
+			// Only include tasks with real scheduling information. Tasks with only a
+			// created date (no start_date, no due_date) are not scheduled and would
+			// render as synthetic 1-day bars with no meaningful position.
+			if (!task.start_date && !task.due_date) continue;
 
 			const categoryName = task.category?.trim() || 'Uncategorized';
 			const projectPath = normalizeTaskPath(task.parent_task);
@@ -328,7 +332,7 @@
 		{/if}
 	{:else}
 		{#if timelineEmpty}
-			<div class="tt-graph-empty">No timeline data available for current filters.</div>
+			<div class="tt-graph-empty">No scheduled tasks. Add a start date or due date to tasks to see them here.</div>
 		{:else}
 			<div class="tt-overview-scroll">
 				<div class="tt-overview-axis">
