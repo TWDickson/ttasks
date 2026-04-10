@@ -2,106 +2,61 @@
 
 This file is the implementation backlog checkpoint for the current phase plan.
 
-## Progress Notes (2026-04-02)
+## Progress Notes (2026-04-10)
 
-- Phase 3A started with a new Graph board mode supporting two sub-modes:
-  - Dependency map with cycle and blocked-chain highlighting.
-  - Overview timeline grouped by Category then Project (Gantt-like lanes).
-- Detail panel now includes relationship health context for the selected task:
-  - upstream/downstream counts,
-  - missing dependency warnings,
-  - cycle and blocker indicators,
-  - quick navigation chips.
-- Added graph sandbox seeding command: "Seed graph sandbox tasks".
-  - Creates realistic multi-project test data with dependencies, blockers, and a deliberate cycle.
-  - Uses [GS] prefix and skips duplicate seeding when sandbox tasks already exist.
-- Validation snapshot:
-  - build: passing
-  - lint: passing
-  - tests: passing (including graph/store coverage)
+Phases 3A, 3B, and 3C are complete. Build, lint, and tests all passing (14 tests).
 
-## Phase 2.5 Hardening
+### Phase 3A — Dependency Graph ✓
 
-Goal: tighten data integrity and reduce regressions before larger Phase 3 features.
+- Graph board mode with dependency map and overview timeline (Gantt-like lanes).
+- Dependency map: nodes/edges, cycle highlighting (red ring), blocked-chain highlighting (amber dashed).
+- Detail panel: relationship health context — upstream/downstream counts, cycle/blocker indicators, quick nav chips.
+- Timeline: `resolveTaskDates()` in `taskGraph.ts` uses topological sort (Kahn's) to propagate end dates through full dependency chains. Tasks with no explicit dates but with deps + estimated_days appear at their inferred position. Inferred bars render with dashed border + reduced opacity.
+- Cycle detection: tasks in dependency cycles are excluded from the timeline automatically.
+- Sandbox seeding command for testing (dev-only, `[GS]` prefix).
+
+### Phase 3B — Reminders ✓
+
+- `ReminderService` polls every 5 minutes via `registerInterval`.
+- Rules: due-today, overdue, lead-time (N days before due), stale-in-progress.
+- Deduplication: `{path}|{rule}|{YYYY-MM-DD}` keys stored in `localStorage` (vault-namespaced). Per-device — each device fires its own reminders independently, does not sync.
+- Clicking a notice opens the board and selects the task in the detail panel.
+- Quiet hours: suppresses checks without consuming keys, so reminders fire after the window ends.
+- Stale rule uses `start_date` as proxy; tasks without a start date are silently skipped. A future `status_changed` field would make this more reliable.
+- 11 settings controls under "Reminders" in the settings tab.
+
+### Phase 3C — Quick Actions ✓
+
+- Start, complete, block, defer via command palette and mobile hold menu.
+- Hold menu opens at press position with haptic feedback (`navigator.vibrate(8)`, Android only).
+- Swipe gestures abandoned — don't work reliably in the Obsidian context.
+- Configurable: start status, block status, defer days, handedness bias, hold timeout.
+
+---
+
+## Phase 2.5 Hardening [done]
 
 1. ID collision-safe create [done]
-- Problem: task IDs use random 6-hex prefixes; collisions are rare but possible.
-- Scope: retry ID generation until an unused `{6hex}-{slug}.md` path is found.
-- Acceptance:
-  - Create never overwrites an existing task file.
-  - If collisions occur repeatedly, create fails with a clear error.
-
 2. Relationship safeguards on create [done]
-- Problem: depends_on can include duplicates or invalid paths.
-- Scope: sanitize dependencies at store layer.
-- Acceptance:
-  - Duplicate dependencies are removed.
-  - Invalid or missing dependency targets are ignored.
-  - Self references are ignored.
-
 3. Configurable categories and task types [done]
-- Problem: category/task type options are hard-coded in UI components.
-- Scope: add settings fields and use them in create/detail views.
-- Acceptance:
-  - Settings allow comma-separated category and task type values.
-  - Create modal and detail panel read from settings arrays.
-  - Existing data with custom task_type values remains editable.
+4. Quality guardrails — lint + baseline tests [done]
 
-4. Quality guardrails [done]
-- Problem: build exists but lint/tests are minimal.
-- Scope: add lint script and initial store-focused tests.
-- Acceptance:
-  - CI/local workflow includes lint + build.
-  - Store has at least baseline tests for create/sanitize helpers.
-
-## Phase 3A Dependency Graph MVP
-
-Goal: ship first differentiator vs TickTick.
-
-- Add Graph mode to board navigation.
-- Render tasks as nodes and depends_on as directed edges.
-- Color nodes by status/priority.
-- Click node to open task detail.
-- Highlight cycles and blocked chains.
-
-## Phase 3B Reminders MVP
-
-Goal: reminders that are useful and non-spammy.
-
-- Rules: due today, overdue, stale in-progress.
-- Settings: enable/disable rules + quiet hours + lead time.
-- Deduplicate reminders by task + rule + day.
-
-## Phase 3C Quick Actions MVP
-
-Goal: speed up common state transitions.
-
-- Desktop commands: start, block, complete, defer one day.
-- Mobile swipes (list first): complete, defer.
-- Status: in progress.
-- Implemented in current slice:
-  - Configurable quick-action settings (start status, block status, defer days).
-  - Shared quick-action execution path used by command palette actions.
-  - Mobile swipe reveal actions for list and agenda rows, mapped to configurable left/right actions.
-- Known issues to fix next:
-  - Mobile swipe gesture thresholds and action reveal feel need tuning on-device.
-  - Optional notice/haptic behavior for swipe actions needs product decision.
-  - Additional swipe UX polish (icons/affordances) pending.
+---
 
 ## Phase 4 (Parity Plus)
 
 - Recurrence.
 - Natural language quick capture.
 - Capacity-aware Today planner (suggested top tasks, overload guardrails).
+- Explicit status metadata (`is_complete`, later possibly `is_inbox`) so completion/default behavior no longer depends on literal status names.
+- `status_changed` date field on tasks — would improve the stale-in-progress reminder rule (currently uses `start_date` as a proxy).
+- Dedicated per-item icon/emoji field for statuses, categories, and task types.
+  - Separate from the label so compact views (kanban column header, tight badges) can show icon-only while full views show `{icon} {label}`.
+  - Interim: emoji embedded in the name (e.g. `📥 Inbox`) works everywhere and is easy to migrate.
+  - Consider protecting Done/Inbox as system statuses at the same time.
 - Mobile notes authoring toolbar above keyboard (deferred):
   - Floating action row that follows keyboard while editing notes on mobile.
   - Shared actions for create modal and detail view (checklist, heading, link, code, quote).
-  - Keep hybrid notes workflow (rendered mode + source edit mode), no separate split preview pane.
+  - Keep hybrid notes workflow (rendered mode + source edit mode).
 - Optional CodeMirror embed for true inline Live Preview parity (deferred):
-  - Explore embedding a dedicated editor surface in create/detail notes for closer core Obsidian editing feel.
   - Defer until after current mobile stability/UX hardening due lifecycle complexity and mobile keyboard risk.
-- Explicit status metadata (`is_complete`, later possibly `is_inbox`) so completion/default behavior no longer depends on literal status names.
-- Dedicated per-item icon/emoji field for statuses, categories, and task types.
-  - Separate from the label so compact views (kanban column header, tight badges) can show icon-only while full views show `{icon} {label}`.
-  - Interim: emoji embedded in the name (e.g. `📥 Inbox`) works everywhere and is easy to migrate — just split on the first emoji character.
-  - Consider protecting Done/Inbox as system statuses at the same time.
