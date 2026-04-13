@@ -18,6 +18,14 @@
 	type ViewMode = 'list' | 'kanban' | 'agenda' | 'graph';
 	let currentView: ViewMode = 'list';
 
+	// Allow external callers (e.g. ReminderService) to switch the active view.
+	plugin.activeViewMode.subscribe(mode => {
+		if (mode !== null) {
+			currentView = mode;
+			plugin.activeViewMode.set(null);
+		}
+	});
+
 	$: showDetail = $activeTaskPath !== null;
 
 	// ── Filter state ───────────────────────────────────────────────────────────

@@ -55,13 +55,18 @@ export class ReminderService {
 
 		let dirty = false;
 
+		// Counts for the batched summary notice (date-based rules only).
+		let overdueCount  = 0;
+		let dueTodayCount = 0;
+		let leadTimeCount = 0;
+
 		for (const task of tasks) {
 			if (isComplete(task, completionStatus)) continue;
 
 			// due-today — check before lead-time so we don't double-fire on the same day
 			if (r.ruleDueToday && task.due_date === today) {
 				if (this.fire(task.path, 'due-today', today)) {
-					this.showNotice(`Due today: ${task.name}`, task);
+					dueTodayCount++;
 					dirty = true;
 				}
 				// Skip lead-time for this task today — due-today is more specific
@@ -71,7 +76,7 @@ export class ReminderService {
 			// overdue
 			if (r.ruleOverdue && task.due_date !== null && task.due_date < today) {
 				if (this.fire(task.path, 'overdue', today)) {
-					this.showNotice(`Overdue: ${task.name} (was ${task.due_date})`, task);
+					overdueCount++;
 					dirty = true;
 				}
 			}
@@ -81,10 +86,7 @@ export class ReminderService {
 				const daysUntilDue = daysBetween(today, task.due_date);
 				if (daysUntilDue <= r.leadTimeDays) {
 					if (this.fire(task.path, 'lead-time', today)) {
-						this.showNotice(
-							`Due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}: ${task.name}`,
-							task
-						);
+						leadTimeCount++;
 						dirty = true;
 					}
 				}
@@ -94,6 +96,7 @@ export class ReminderService {
 			// If start_date is null (e.g. status set via quick-action without a start date), the
 			// rule is silently skipped. A future schema addition (status_changed field) would
 			// make this more reliable.
+			// Stale fires as an individual notice — it's a soft nudge, not time-critical.
 			if (
 				r.ruleStaleInProgress &&
 				task.status === startStatus &&
@@ -112,13 +115,39 @@ export class ReminderService {
 			}
 		}
 
+		// Emit one summary notice for all date-based rules combined.
+		if (overdueCount > 0 || dueTodayCount > 0 || leadTimeCount > 0) {
+			const parts: string[] = [];
+			if (overdueCount  > 0) parts.push(`${overdueCount} overdue`);
+			if (dueTodayCount > 0) parts.push(`${dueTodayCount} due today`);
+			if (leadTimeCount > 0) parts.push(`${leadTimeCount} coming up`);
+			this.showSummaryNotice(parts.join(' · '));
+		}
+
 		if (dirty) this.saveFiredKeys();
 	}
 
 	// ---------------------------------------------------------------------------
-	// Notice with click-to-open
+	// Notices
 	// ---------------------------------------------------------------------------
 
+	/** One-liner summary that opens the agenda view on click. */
+	private showSummaryNotice(summary: string): void {
+		const frag = document.createDocumentFragment();
+		const span = frag.createEl('span', { text: `${summary} — open agenda` });
+		span.style.cursor = 'pointer';
+
+		const notice = new Notice(frag, NOTICE_DURATION_MS);
+		notice.noticeEl.style.cursor = 'pointer';
+		notice.noticeEl.addEventListener('click', () => {
+			notice.hide();
+			void this.plugin.openBoard().then(() => {
+				this.plugin.activeViewMode.set('agenda');
+			});
+		});
+	}
+
+	/** Individual notice for a single task — used for stale-in-progress. */
 	private showNotice(message: string, task: Task): void {
 		const frag = document.createDocumentFragment();
 		const span = frag.createEl('span', { text: message });

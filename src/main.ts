@@ -6,11 +6,14 @@ import { TaskBoardView, TASK_BOARD_VIEW_TYPE } from './views/TaskBoardView';
 import { CreateTaskModal } from './modals/CreateTaskModal';
 import { ReminderService } from './reminders';
 
+export type BoardViewMode = 'list' | 'kanban' | 'agenda' | 'graph';
+
 export default class TTasksPlugin extends Plugin {
 	settings!: TTasksSettings;
 	taskStore!: TaskStore;
 	reminderService!: ReminderService;
 	activeTaskPath: Writable<string | null> = writable(null);
+	activeViewMode: Writable<BoardViewMode | null> = writable(null);
 
 	async onload() {
 		await this.loadSettings();
