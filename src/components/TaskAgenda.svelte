@@ -93,6 +93,7 @@
 
 		for (const task of all) {
 			if (task.type === 'project') continue;
+			if (task.is_complete) continue;
 			const key = classifyDate(task.due_date);
 			map.get(key)!.push(task);
 		}

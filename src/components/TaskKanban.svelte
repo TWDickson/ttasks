@@ -251,7 +251,7 @@
 		display: flex;
 		flex-direction: column;
 		height: 100%;
-		overflow: hidden;
+		overflow: clip; /* clip layout overflow without blocking child scroll */
 	}
 
 	/* ── Mobile tab strip (hidden on desktop) ───────────────────────────────────── */
@@ -264,12 +264,22 @@
 		display: flex;
 		gap: 10px;
 		padding: 12px;
+		padding-bottom: 20px; /* room for horizontal scrollbar */
 		height: 100%;
 		overflow-x: auto;
 		overflow-y: hidden;
 		align-items: stretch;
 		box-sizing: border-box;
+		/* Force a visible scrollbar — macOS hides overlay scrollbars until hover */
+		scrollbar-width: thin;
+		scrollbar-color: var(--scrollbar-thumb-bg, var(--interactive-normal)) transparent;
 	}
+	.tt-kanban::-webkit-scrollbar { height: 6px; }
+	.tt-kanban::-webkit-scrollbar-thumb {
+		background: var(--scrollbar-thumb-bg, var(--interactive-normal));
+		border-radius: 3px;
+	}
+	.tt-kanban::-webkit-scrollbar-track { background: transparent; }
 
 	/* ── Column ─────────────────────────────────────────────────────────────────── */
 	.tt-kanban-col {

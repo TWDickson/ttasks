@@ -471,8 +471,8 @@
 		display: flex;
 		flex-direction: column;
 		background: var(--background-primary);
-		border-left: 1px solid var(--background-modifier-border);
-		box-shadow: -4px 0 16px rgba(var(--mono-rgb-100), 0.12);
+		border-left: 2px solid var(--interactive-accent);
+		box-shadow: -6px 0 28px rgba(0, 0, 0, 0.18);
 		transform: translateX(100%);
 		transition: transform 0.22s ease;
 		z-index: 5;
@@ -487,9 +487,9 @@
 		inset: 0;
 		z-index: 4;
 		border: 0;
-		/* Desktop: transparent click-target only */
-		background: transparent;
+		background: rgba(var(--mono-rgb-100), 0.28);
 		pointer-events: auto;
+		cursor: default;
 	}
 
 	/* ── Detail topbar ──────────────────────────────────────────────────────────── */
