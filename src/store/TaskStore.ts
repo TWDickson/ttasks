@@ -482,8 +482,8 @@ export class TaskStore {
 		};
 
 		await deleteFileSafely(file, {
-			promptForDeletion: fileManager.promptForDeletion,
-			trashFile: fileManager.trashFile,
+			promptForDeletion: fileManager.promptForDeletion?.bind(fileManager),
+			trashFile: fileManager.trashFile?.bind(fileManager),
 			vaultDelete: (f) => this.app.vault.delete(f),
 		}, { prompt: options?.prompt ?? false });
 	}
