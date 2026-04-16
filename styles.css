@@ -5,12 +5,26 @@
 	display: none !important;
 }
 
+.tt-create-modal {
+	background: var(--modal-background, var(--background-primary));
+	border-color: var(--modal-border-color, var(--background-modifier-border));
+	border-radius: var(--modal-radius, var(--radius-l, 12px));
+}
+
 /* ── Create Task Modal ──────────────────────────────────────────────────────── */
 
 .tt-modal {
+	--tt-space-1: var(--size-2-3, 6px);
+	--tt-space-2: var(--size-4-2, 8px);
+	--tt-space-3: var(--size-4-3, 12px);
+	--tt-space-4: var(--size-4-4, 16px);
+	--tt-control-height: var(--input-height, 38px);
+	--tt-control-radius: var(--input-radius, var(--radius-m, 8px));
+	--tt-button-radius: var(--button-radius, var(--radius-m, 8px));
+	--tt-border-width: var(--input-border-width, var(--border-width, 1px));
 	display: flex;
 	flex-direction: column;
-	gap: 14px;
+	gap: var(--tt-space-3);
 	padding-bottom: 4px;
 	min-width: 0;
 	overflow-x: clip;
@@ -19,17 +33,17 @@
 .tt-modal-sections {
 	display: flex;
 	flex-direction: column;
-	gap: 14px;
+	gap: var(--tt-space-3);
 }
 
 .tt-modal-section {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m, 8px);
-	padding: 10px;
-	background: color-mix(in srgb, var(--background-secondary) 70%, transparent);
+	gap: var(--tt-space-2);
+	border: var(--border-width, 1px) solid var(--background-modifier-border);
+	border-radius: var(--modal-radius, var(--radius-m, 8px));
+	padding: var(--tt-space-2);
+	background: var(--background-primary-alt, var(--background-secondary));
 }
 
 .tt-hidden {
@@ -40,11 +54,11 @@
 	display: none;
 	align-items: center;
 	justify-content: space-between;
-	gap: 8px;
-	padding: 8px 10px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m, 8px);
-	background: var(--background-secondary);
+	gap: var(--tt-space-2);
+	padding: var(--tt-space-2) var(--tt-space-3);
+	border: var(--border-width, 1px) solid var(--background-modifier-border);
+	border-radius: var(--modal-radius, var(--radius-m, 8px));
+	background: var(--background-primary-alt, var(--background-secondary));
 	color: var(--text-normal);
 	cursor: pointer;
 	font-size: 0.88rem;
@@ -89,11 +103,12 @@
 	box-sizing: border-box;
 	font-size: 1.3rem;
 	font-weight: 600;
-	padding: 8px 4px;
+	padding: var(--tt-space-2) var(--size-4-1, 4px);
 	border: none;
 	border-bottom: 2px solid var(--background-modifier-border);
 	background: transparent;
 	color: var(--text-normal);
+	caret-color: var(--caret-color, var(--interactive-accent));
 	transition: border-color 0.15s;
 }
 .tt-modal-name:focus {
@@ -106,13 +121,13 @@
 }
 
 .tt-modal-quick-toggle {
-	border: 1px solid var(--background-modifier-border);
+	border: var(--border-width, 1px) solid var(--background-modifier-border);
 	border-radius: 999px;
-	background: var(--background-secondary);
+	background: var(--interactive-normal, var(--background-secondary));
 	color: var(--text-muted);
 	font-size: 0.78rem;
 	font-weight: 600;
-	padding: 6px 12px;
+	padding: var(--tt-space-1) var(--tt-space-3);
 	cursor: pointer;
 }
 
@@ -127,13 +142,13 @@
 }
 
 .tt-modal-quick-hint-dismiss {
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-s, 6px);
-	background: var(--background-primary);
+	border: var(--border-width, 1px) solid var(--background-modifier-border);
+	border-radius: var(--tt-button-radius);
+	background: var(--interactive-normal, var(--background-primary));
 	color: var(--text-normal);
 	font-size: 0.72rem;
 	font-weight: 600;
-	padding: 4px 8px;
+	padding: var(--size-4-1, 4px) var(--tt-space-2);
 	cursor: pointer;
 }
 
@@ -141,7 +156,7 @@
 .tt-modal-field {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: var(--tt-space-1);
 }
 
 .tt-modal-label {
@@ -156,15 +171,15 @@
 .tt-modal-chips {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
+	gap: var(--tt-space-1);
 }
 
 .tt-modal-chip {
-	padding: 6px 14px;
+	padding: var(--tt-space-1) 14px;
 	min-height: 34px;
 	border-radius: 999px;
-	border: 1.5px solid var(--background-modifier-border);
-	background: var(--background-secondary);
+	border: var(--tt-border-width) solid var(--background-modifier-border);
+	background: var(--interactive-normal, var(--background-secondary));
 	color: var(--text-muted);
 	font-size: 0.82rem;
 	font-weight: 600;
@@ -197,32 +212,40 @@
 	width: 100%;
 	box-sizing: border-box;
 	font-size: 0.9rem;
-	padding: 8px 10px;
-	min-height: 38px;
-	border-radius: var(--radius-m, 6px);
-	border: 1px solid var(--background-modifier-border);
-	background: var(--background-primary);
+	min-height: var(--tt-control-height);
+	border-radius: var(--tt-control-radius);
+	border: var(--tt-border-width) solid var(--background-modifier-border);
+	background: var(--background-modifier-form-field);
 	color: var(--text-normal);
+}
+
+.tt-modal-select {
+	padding: var(--dropdown-padding, var(--tt-space-2) var(--tt-space-3));
+	background: var(--dropdown-background, var(--background-modifier-form-field));
+}
+
+.tt-modal-input {
+	padding: var(--tt-space-2) var(--tt-space-3);
 }
 
 .tt-modal-date-control {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: var(--tt-space-1);
 }
 
 .tt-modal-date-actions {
 	display: flex;
 	justify-content: flex-end;
-	gap: 6px;
+	gap: var(--tt-space-1);
 }
 
 .tt-modal-mini-btn {
-	padding: 6px 10px;
+	padding: var(--tt-space-1) var(--tt-space-3);
 	min-height: 34px;
-	border-radius: var(--radius-s, 5px);
-	border: 1px solid var(--background-modifier-border);
-	background: var(--background-secondary);
+	border-radius: var(--tt-button-radius);
+	border: var(--border-width, 1px) solid var(--background-modifier-border);
+	background: var(--interactive-normal, var(--background-secondary));
 	color: var(--text-muted);
 	font-size: 0.76rem;
 	font-weight: 600;
@@ -231,7 +254,7 @@
 }
 
 .tt-modal-mini-btn:hover {
-	background: var(--background-modifier-hover);
+	background: var(--interactive-hover, var(--background-modifier-hover));
 	color: var(--text-normal);
 }
 
@@ -256,14 +279,14 @@
 	grid-template-columns: 1fr 1fr;
 	gap: 3px;
 	background: var(--background-modifier-border);
-	border-radius: calc(var(--radius-m, 8px) + 3px);
+	border-radius: calc(var(--tt-control-radius) + 3px);
 	padding: 3px;
 }
 
 .tt-modal-type-btn {
-	padding: 9px 10px;
+	padding: 9px var(--tt-space-3);
 	border: none;
-	border-radius: var(--radius-m, 8px);
+	border-radius: var(--tt-control-radius);
 	background: transparent;
 	color: var(--text-muted);
 	font-size: 0.9rem;
@@ -284,16 +307,16 @@
 .tt-modal-pair-row {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	gap: 12px;
+	gap: var(--tt-space-3);
 }
 
 /* More options */
 .tt-modal-details {
 	border-top: 1px solid var(--background-modifier-border);
-	padding-top: 10px;
+	padding-top: var(--tt-space-2);
 	display: flex;
 	flex-direction: column;
-	gap: 14px;
+	gap: var(--tt-space-3);
 }
 .tt-modal-summary {
 	font-size: 0.82rem;
@@ -310,14 +333,15 @@
 	width: 100%;
 	box-sizing: border-box;
 	font-size: 0.88rem;
-	padding: 8px 10px;
-	border-radius: var(--radius-m, 6px);
-	border: 1px solid var(--background-modifier-border);
-	background: var(--background-primary);
+	padding: var(--tt-space-2) var(--tt-space-3);
+	border-radius: var(--tt-control-radius);
+	border: var(--tt-border-width) solid var(--background-modifier-border);
+	background: var(--background-modifier-form-field);
 	color: var(--text-normal);
 	resize: vertical;
 	font-family: var(--font-text);
 	min-height: 80px;
+	caret-color: var(--caret-color, var(--interactive-accent));
 }
 
 /* ── Editor suggest rows ───────────────────────────────────────────────────── */
@@ -353,14 +377,14 @@
 .tt-hybrid-notes {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: var(--tt-space-1);
 }
 
 .tt-hybrid-notes-toolbar {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 8px;
+	gap: var(--tt-space-2);
 }
 
 .tt-hybrid-notes-hint {
@@ -370,10 +394,10 @@
 
 .tt-hybrid-notes-preview {
 	min-height: 100px;
-	padding: 10px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m, 6px);
-	background: var(--background-secondary);
+	padding: var(--tt-space-2);
+	border: var(--tt-border-width) solid var(--background-modifier-border);
+	border-radius: var(--tt-control-radius);
+	background: var(--background-primary-alt, var(--background-secondary));
 	font-size: 0.88rem;
 	cursor: text;
 }
@@ -389,25 +413,25 @@
 /* Button row */
 .tt-modal-btn-row {
 	display: flex;
-	gap: 8px;
+	gap: var(--tt-space-2);
 	justify-content: flex-end;
 	padding-top: 4px;
 	border-top: 1px solid var(--background-modifier-border);
 }
 
 .tt-modal-btn {
-	padding: 8px 18px;
-	min-height: 38px;
-	border-radius: var(--radius-m, 6px);
-	border: 1px solid var(--background-modifier-border);
-	background: var(--background-secondary);
+	padding: var(--tt-space-2) 18px;
+	min-height: var(--tt-control-height);
+	border-radius: var(--tt-button-radius);
+	border: var(--border-width, 1px) solid var(--background-modifier-border);
+	background: var(--interactive-normal, var(--background-secondary));
 	color: var(--text-normal);
 	font-size: 0.9rem;
 	font-weight: 500;
 	cursor: pointer;
 	transition: all 0.12s;
 }
-.tt-modal-btn:hover { background: var(--background-modifier-hover); }
+.tt-modal-btn:hover { background: var(--interactive-hover, var(--background-modifier-hover)); }
 
 .tt-modal-btn-primary {
 	background: var(--interactive-accent);

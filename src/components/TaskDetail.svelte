@@ -701,11 +701,11 @@
 	}
 
 	.tt-detail {
-		padding: 16px;
+		padding: var(--size-4-4, 16px);
 		padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
 		display: flex;
 		flex-direction: column;
-		gap: 14px;
+		gap: var(--size-4-3, 12px);
 		max-width: 600px;
 	}
 
@@ -763,11 +763,13 @@
 		width: 100%;
 		box-sizing: border-box;
 		font-size: 0.88rem;
-		padding: 5px 8px;
-		border-radius: var(--radius-m, 6px);
-		border: 1px solid var(--background-modifier-border);
-		background: var(--background-primary);
+		padding: var(--size-2-3, 6px) var(--size-4-2, 8px);
+		min-height: var(--input-height, 38px);
+		border-radius: var(--input-radius, var(--radius-m, 8px));
+		border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
+		background: var(--background-modifier-form-field);
 		color: var(--text-normal);
+		caret-color: var(--caret-color, var(--interactive-accent));
 	}
 
 	.tt-date-field {
@@ -781,11 +783,11 @@
 	}
 
 	.tt-date-today {
-		border: 1px solid var(--background-modifier-border);
-		background: var(--background-secondary);
+		border: var(--border-width, 1px) solid var(--background-modifier-border);
+		background: var(--interactive-normal, var(--background-secondary));
 		color: var(--text-muted);
-		border-radius: var(--radius-s, 5px);
-		padding: 6px 10px;
+		border-radius: var(--button-radius, var(--radius-m, 8px));
+		padding: var(--size-2-3, 6px) var(--size-4-3, 12px);
 		font-size: 0.78rem;
 		font-weight: 600;
 		cursor: pointer;
@@ -793,7 +795,7 @@
 	}
 
 	.tt-date-today:hover {
-		background: var(--background-modifier-hover);
+		background: var(--interactive-hover, var(--background-modifier-hover));
 		color: var(--text-normal);
 	}
 
@@ -823,10 +825,10 @@
 	}
 
 	.tt-chip {
-		padding: 4px 12px;
+		padding: var(--size-4-1, 4px) var(--size-4-3, 12px);
 		border-radius: 999px;
-		border: 1.5px solid var(--background-modifier-border);
-		background: var(--background-secondary);
+		border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
+		background: var(--interactive-normal, var(--background-secondary));
 		color: var(--text-muted);
 		font-size: 0.8rem;
 		font-weight: 600;
@@ -874,9 +876,9 @@
 	.tt-chip-remove {
 		padding: 2px 7px;
 		border-radius: 0 999px 999px 0;
-		border: 1.5px solid var(--background-modifier-border);
+		border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
 		border-left: none;
-		background: var(--background-secondary);
+		background: var(--interactive-normal, var(--background-secondary));
 		color: var(--text-faint);
 		font-size: 0.78rem;
 		cursor: pointer;
@@ -890,8 +892,8 @@
 
 	.tt-dep-add {
 		font-size: 0.74rem;
-		padding: 3px 8px;
-		border-radius: var(--radius-s, 4px);
+		padding: 3px var(--size-4-2, 8px);
+		border-radius: var(--button-radius, var(--radius-m, 8px));
 		border: 1px dashed var(--background-modifier-border);
 		background: transparent;
 		color: var(--text-muted);
@@ -917,8 +919,8 @@
 		align-items: center;
 		padding: 3px 9px;
 		border-radius: 999px;
-		border: 1px solid var(--background-modifier-border);
-		background: var(--background-secondary);
+		border: var(--border-width, 1px) solid var(--background-modifier-border);
+		background: var(--interactive-normal, var(--background-secondary));
 		color: var(--text-muted);
 		font-size: 0.72rem;
 		font-weight: 700;
@@ -970,8 +972,9 @@
 		gap: 2px;
 		padding: 6px 10px;
 		border: 1px dashed var(--background-modifier-border);
-		border-radius: var(--radius-m, 6px);
+		border-radius: var(--radius-m, 8px);
 		min-width: 120px;
+		background: var(--background-primary-alt, var(--background-secondary));
 	}
 
 	.tt-rel-center-tag {
@@ -1000,7 +1003,7 @@
 		padding: 6px 8px;
 		border-left: 3px solid var(--color-orange);
 		border-radius: var(--radius-s, 4px);
-		background: color-mix(in srgb, var(--color-orange) 9%, var(--background-secondary));
+		background: color-mix(in srgb, var(--color-orange) 9%, var(--background-primary-alt, var(--background-secondary)));
 		color: var(--text-muted);
 	}
 
@@ -1020,14 +1023,14 @@
 		display: flex;
 		gap: 2px;
 		background: var(--background-modifier-border);
-		border-radius: 6px;
+		border-radius: calc(var(--button-radius, var(--radius-m, 8px)) - 2px);
 		padding: 2px;
 	}
 
 	.tt-notes-tab {
 		padding: 3px 10px;
 		border: none;
-		border-radius: 4px;
+		border-radius: var(--radius-s, 4px);
 		background: transparent;
 		color: var(--text-muted);
 		font-size: 0.72rem;
@@ -1044,14 +1047,15 @@
 		width: 100%;
 		box-sizing: border-box;
 		font-size: 0.88rem;
-		padding: 8px;
-		border-radius: var(--radius-m, 6px);
-		border: 1px solid var(--background-modifier-border);
-		background: var(--background-primary);
+		padding: var(--size-4-2, 8px);
+		border-radius: var(--input-radius, var(--radius-m, 8px));
+		border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
+		background: var(--background-modifier-form-field);
 		color: var(--text-normal);
 		resize: vertical;
 		font-family: var(--font-text);
 		min-height: 160px;
+		caret-color: var(--caret-color, var(--interactive-accent));
 	}
 
 	.tt-notes:focus {
@@ -1060,25 +1064,25 @@
 	}
 
 	.tt-notes-preview {
-		padding: 10px;
+		padding: var(--size-4-3, 12px);
 		min-height: 160px;
-		border: 1px solid var(--background-modifier-border);
-		border-radius: var(--radius-m, 6px);
-		background: var(--background-secondary);
+		border: var(--border-width, 1px) solid var(--background-modifier-border);
+		border-radius: var(--input-radius, var(--radius-m, 8px));
+		background: var(--background-primary-alt, var(--background-secondary));
 		font-size: 0.88rem;
 	}
 
 	.tt-actions {
 		display: flex;
-		gap: 8px;
+		gap: var(--size-4-2, 8px);
 		flex-wrap: wrap;
 	}
 
 	.tt-btn {
 		padding: 7px 16px;
-		border-radius: var(--radius-m, 6px);
-		border: 1px solid var(--background-modifier-border);
-		background: var(--background-secondary);
+		border-radius: var(--button-radius, var(--radius-m, 8px));
+		border: var(--border-width, 1px) solid var(--background-modifier-border);
+		background: var(--interactive-normal, var(--background-secondary));
 		color: var(--text-normal);
 		font-size: 0.88rem;
 		font-weight: 500;
@@ -1087,7 +1091,7 @@
 	}
 
 	.tt-btn:hover {
-		background: var(--background-modifier-hover);
+		background: var(--interactive-hover, var(--background-modifier-hover));
 	}
 
 	.tt-btn-primary {

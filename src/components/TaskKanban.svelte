@@ -146,6 +146,10 @@
 	function getBadgeStyle(color: string | undefined): string {
 		return color ? `--tt-badge-color:${color};` : '';
 	}
+
+	function getColumnLabelId(colId: TaskStatus): string {
+		return `tt-kanban-col-${String(colId).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+	}
 </script>
 
 <div class="tt-kanban-wrap">
@@ -174,13 +178,14 @@
 				class:is-active-col={activeColumn === col.id}
 				class:is-drag-over={dragOverCol === col.id}
 				role="group"
-				aria-label="{col.label} column"
+				aria-labelledby={getColumnLabelId(col.id)}
 				on:dragover={(e) => onDragOver(e, col.id)}
 				on:dragleave={onDragLeave}
 				on:drop={(e) => onDrop(e, col.id)}
 			>
 				<div class="tt-kanban-col-header">
 					<span
+						id={getColumnLabelId(col.id)}
 						class="tt-kanban-col-label"
 						style={col.accent ? `color:${col.accent}` : ''}
 					>{col.label}</span>
@@ -261,6 +266,13 @@
 </div>
 
 <style>
+	:global(.tt-kanban-wrap) {
+		--tt-space-1: var(--size-2-3, 6px);
+		--tt-space-2: var(--size-4-2, 8px);
+		--tt-space-3: var(--size-4-3, 12px);
+		--tt-space-4: var(--size-4-4, 16px);
+	}
+
 	/* ── Wrapper ────────────────────────────────────────────────────────────────── */
 	.tt-kanban-wrap {
 		display: flex;
@@ -277,8 +289,8 @@
 	/* ── Board ──────────────────────────────────────────────────────────────────── */
 	.tt-kanban {
 		display: flex;
-		gap: 10px;
-		padding: 12px;
+		gap: var(--tt-space-3);
+		padding: var(--tt-space-3);
 		padding-bottom: 20px; /* room for horizontal scrollbar */
 		height: 100%;
 		overflow-x: auto;
@@ -305,8 +317,8 @@
 		height: 100%;
 		min-height: 0;
 		max-height: 100%;
-		background: var(--background-secondary);
-		border-radius: var(--radius-m, 6px);
+		background: var(--background-primary-alt, var(--background-secondary));
+		border-radius: var(--radius-m, 8px);
 		overflow: hidden;
 		border: 2px solid transparent;
 		transition: border-color 0.12s;
@@ -319,7 +331,7 @@
 	.tt-kanban-col-header {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: var(--tt-space-1);
 		padding: 10px 12px 8px;
 		flex-shrink: 0;
 		border-bottom: 1px solid var(--background-modifier-border);
@@ -346,17 +358,17 @@
 	.tt-kanban-col-body {
 		flex: 1;
 		overflow-y: auto;
-		padding: 8px;
+		padding: var(--tt-space-2);
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
+		gap: var(--tt-space-1);
 		/* Ensure the drop zone is always full-height */
 		min-height: 60px;
 	}
 
 	.tt-kanban-empty {
 		text-align: center;
-		padding: 16px 0;
+		padding: var(--tt-space-4) 0;
 		color: var(--text-faint);
 		font-size: 0.82rem;
 		border: 1px dashed var(--background-modifier-border);
@@ -370,7 +382,7 @@
 		gap: 7px;
 		padding: 10px 12px;
 		border: none;
-		border-radius: var(--radius-m, 6px);
+		border-radius: var(--radius-m, 8px);
 		background: var(--background-primary);
 		color: var(--text-normal);
 		cursor: grab;

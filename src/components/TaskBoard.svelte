@@ -278,6 +278,14 @@
 </div>
 
 <style>
+	:global(.tt-board) {
+		--tt-space-1: var(--size-4-1, 4px);
+		--tt-space-2: var(--size-4-2, 8px);
+		--tt-space-3: var(--size-4-3, 12px);
+		--tt-control-radius: var(--input-radius, var(--radius-m, 8px));
+		--tt-button-radius: var(--button-radius, var(--radius-m, 8px));
+	}
+
 	/* ── Root ──────────────────────────────────────────────────────────────────── */
 	.tt-board {
 		display: flex;
@@ -315,7 +323,7 @@
 		gap: 10px;
 		padding: 8px 10px;
 		border: none;
-		border-radius: var(--radius-m, 6px);
+		border-radius: var(--tt-button-radius);
 		background: transparent;
 		color: var(--text-muted);
 		font-size: 0.88rem;
@@ -366,8 +374,8 @@
 		align-items: center;
 		flex: 1;
 		background: var(--background-modifier-form-field);
-		border: 1px solid var(--background-modifier-border);
-		border-radius: var(--radius-m, 6px);
+		border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
+		border-radius: var(--tt-control-radius);
 		padding: 0 8px;
 		gap: 6px;
 		min-width: 0;
@@ -410,9 +418,9 @@
 	.tt-filter-select {
 		font-size: 0.82rem;
 		padding: 4px 6px;
-		border: 1px solid var(--background-modifier-border);
-		border-radius: var(--radius-m, 6px);
-		background: var(--background-modifier-form-field);
+		border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
+		border-radius: var(--tt-control-radius);
+		background: var(--dropdown-background, var(--background-modifier-form-field));
 		color: var(--text-normal);
 		cursor: pointer;
 		flex-shrink: 0;
@@ -421,8 +429,8 @@
 	.tt-filter-clear {
 		font-size: 0.8rem;
 		padding: 4px 10px;
-		border: 1px solid var(--background-modifier-border);
-		border-radius: var(--radius-m, 6px);
+		border: var(--border-width, 1px) solid var(--background-modifier-border);
+		border-radius: var(--tt-button-radius);
 		background: transparent;
 		color: var(--text-muted);
 		cursor: pointer;
@@ -431,7 +439,7 @@
 	}
 	.tt-filter-clear:hover {
 		color: var(--text-normal);
-		background: var(--background-modifier-hover);
+		background: var(--interactive-hover, var(--background-modifier-hover));
 	}
 
 	/* ── Body ──────────────────────────────────────────────────────────────────── */
@@ -475,7 +483,7 @@
 		flex-direction: column;
 		background: var(--background-primary);
 		border-left: 2px solid var(--interactive-accent);
-		box-shadow: -6px 0 28px rgba(0, 0, 0, 0.18);
+		box-shadow: -6px 0 28px rgba(var(--mono-rgb-100), 0.18);
 		transform: translateX(100%);
 		transition: transform 0.22s ease;
 		z-index: 5;
@@ -512,7 +520,7 @@
 		gap: 6px;
 		padding: 6px 10px;
 		border: none;
-		border-radius: var(--radius-m, 6px);
+		border-radius: var(--tt-button-radius);
 		background: transparent;
 		color: var(--text-muted);
 		font-size: 0.88rem;

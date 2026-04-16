@@ -540,8 +540,8 @@
 	.tt-overview-lane-track {
 		position: relative;
 		height: 34px;
-		border-radius: var(--radius-m, 6px);
-		border: 1px solid var(--background-modifier-border);
+		border-radius: var(--radius-m, 8px);
+		border: var(--border-width, 1px) solid var(--background-modifier-border);
 		background: repeating-linear-gradient(
 			90deg,
 			color-mix(in srgb, var(--background-secondary) 76%, transparent),
@@ -557,8 +557,8 @@
 		top: 4px;
 		height: 24px;
 		padding: 0 8px;
-		border-radius: 6px;
-		border: 1px solid color-mix(in srgb, var(--tt-bar-accent) 52%, var(--background-modifier-border));
+		border-radius: var(--radius-s, 4px);
+		border: var(--border-width, 1px) solid color-mix(in srgb, var(--tt-bar-accent) 52%, var(--background-modifier-border));
 		background: linear-gradient(180deg, color-mix(in srgb, var(--tt-bar-accent) 18%, var(--background-primary)), color-mix(in srgb, var(--tt-bar-accent) 10%, var(--background-secondary)));
 		color: var(--text-normal);
 		font-size: 0.73rem;
@@ -627,10 +627,10 @@
 		justify-content: space-between;
 		gap: 8px;
 		padding: 12px 14px;
-		border-radius: 16px;
-		border: 1px solid color-mix(in srgb, var(--tt-node-accent) 42%, var(--background-modifier-border));
+		border-radius: var(--radius-xl, 16px);
+		border: var(--border-width, 1px) solid color-mix(in srgb, var(--tt-node-accent) 42%, var(--background-modifier-border));
 		background: linear-gradient(180deg, color-mix(in srgb, var(--tt-node-accent) 12%, var(--background-primary)), var(--background-primary));
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--background-primary) 72%, transparent), 0 8px 24px rgba(0, 0, 0, 0.08);
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--background-primary) 72%, transparent), 0 8px 24px rgba(var(--mono-rgb-100), 0.08);
 		cursor: pointer;
 		text-align: left;
 	}
@@ -640,12 +640,12 @@
 		position: absolute;
 		inset: 0 auto 0 0;
 		width: 5px;
-		border-radius: 16px 0 0 16px;
+		border-radius: var(--radius-xl, 16px) 0 0 var(--radius-xl, 16px);
 		background: var(--tt-node-accent);
 	}
 
 	.tt-graph-node.is-active {
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 45%, transparent), 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 28%, transparent), 0 10px 24px rgba(0, 0, 0, 0.12);
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 45%, transparent), 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 28%, transparent), 0 10px 24px rgba(var(--mono-rgb-100), 0.12);
 	}
 
 	.tt-graph-node.is-blocked {
@@ -653,7 +653,7 @@
 	}
 
 	.tt-graph-node.is-cycle {
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-red) 40%, transparent), 0 0 0 2px color-mix(in srgb, var(--color-red) 18%, transparent), 0 10px 24px rgba(0, 0, 0, 0.12);
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-red) 40%, transparent), 0 0 0 2px color-mix(in srgb, var(--color-red) 18%, transparent), 0 10px 24px rgba(var(--mono-rgb-100), 0.12);
 	}
 
 	.tt-graph-node-top {
@@ -704,7 +704,7 @@
 		margin: 16px 14px;
 		padding: 28px 16px;
 		border: 1px dashed var(--background-modifier-border);
-		border-radius: 14px;
+		border-radius: var(--radius-l, 12px);
 		text-align: center;
 		color: var(--text-muted);
 	}

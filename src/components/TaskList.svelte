@@ -75,32 +75,32 @@
 
 <style>
 	.tt-list {
-		padding: 8px 4px;
+		padding: var(--size-4-2, 8px) var(--size-4-1, 4px);
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
+		gap: var(--size-4-4, 16px);
 		max-width: 660px;
 		overflow-y: auto;
 		flex: 1;
 	}
 
 	.tt-empty {
-		padding: 32px 16px;
+		padding: var(--size-4-8, 32px) var(--size-4-4, 16px);
 		text-align: center;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 4px;
+		gap: var(--size-4-1, 4px);
 		flex-shrink: 0;
 		color: var(--text-muted);
 		font-size: 0.9rem;
 	}
 
 	.tt-empty-cta {
-		margin-top: 12px;
-		padding: 8px 20px;
+		margin-top: var(--size-4-3, 12px);
+		padding: var(--size-4-2, 8px) var(--size-4-5, 20px);
 		border: none;
-		border-radius: var(--radius-m, 6px);
+		border-radius: var(--button-radius, var(--radius-m, 8px));
 		background: var(--interactive-accent);
 		color: var(--text-on-accent);
 		font-size: 0.88rem;
@@ -115,13 +115,13 @@
 	.tt-group-heading {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--size-4-2, 8px);
 		font-size: 0.72rem;
 		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: var(--text-muted);
-		padding: 0 12px 4px;
+		padding: 0 var(--size-4-3, 12px) var(--size-4-1, 4px);
 		margin: 0;
 	}
 

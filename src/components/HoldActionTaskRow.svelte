@@ -448,11 +448,15 @@
 
 <style>
 	.tt-task {
+		--tt-space-1: var(--size-4-1, 4px);
+		--tt-space-2: var(--size-4-2, 8px);
+		--tt-space-3: var(--size-4-3, 12px);
+		--tt-button-radius: var(--button-radius, var(--radius-m, 8px));
 		position: relative;
 		display: flex;
 		align-items: stretch;
 		overflow: visible;
-		border-radius: var(--radius-m, 6px);
+		border-radius: var(--radius-m, 8px);
 	}
 
 	.tt-hold-menu {
@@ -642,11 +646,11 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
-		padding: 8px 12px;
+		gap: var(--tt-space-2);
+		padding: var(--tt-space-2) var(--tt-space-3);
 		width: 100%;
 		border: none;
-		border-radius: var(--radius-m, 6px);
+		border-radius: var(--tt-button-radius);
 		background: var(--background-primary);
 		color: var(--text-normal);
 		cursor: pointer;
@@ -694,7 +698,7 @@
 	.tt-task-main {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--tt-space-2);
 		min-width: 0;
 	}
 
@@ -716,7 +720,7 @@
 	.tt-task-meta {
 		display: flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--tt-space-1);
 		flex-shrink: 0;
 	}
 
