@@ -9,7 +9,7 @@ import { nextDueDate, nextStartDate } from './recurrence';
 import { computeStatusChanged } from './statusChanged';
 import { buildDuplicateInput } from './taskDuplicate';
 import { resetChecklistCompletionInNotes } from './recurrenceNotes';
-import { deleteFileSafely } from '../integration/safeDelete';
+import { deleteFileSafely, buildDeleteDeps } from '../integration/safeDelete';
 import { buildAliasedLink } from '../integration/relationshipLink';
 import { localDateString, addDaysLocal } from '../utils/dateUtils';
 import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
@@ -481,11 +481,11 @@ export class TaskStore {
 			trashFile?: (file: TFile) => Promise<void> | void;
 		};
 
-		await deleteFileSafely(file, {
-			promptForDeletion: fileManager.promptForDeletion?.bind(fileManager),
-			trashFile: fileManager.trashFile?.bind(fileManager),
-			vaultDelete: (f) => this.app.vault.delete(f),
-		}, { prompt: options?.prompt ?? false });
+		await deleteFileSafely(
+			file,
+			buildDeleteDeps(fileManager, (f) => this.app.vault.delete(f)),
+			{ prompt: options?.prompt ?? false }
+		);
 	}
 
 	/**
