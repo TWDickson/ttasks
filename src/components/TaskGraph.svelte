@@ -3,7 +3,7 @@
 	import type { Task } from '../types';
 	import type TTasksPlugin from '../main';
 	import { buildTaskGraph, resolveTaskDates, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
-
+	import { PRIORITY_COLORS } from '../constants';
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
@@ -28,13 +28,6 @@
 	type TimelineCategory = { categoryName: string; lanes: TimelineLane[] };
 
 	const DAY_MS = 24 * 60 * 60 * 1000;
-	const PRIORITY_COLORS: Record<string, string> = {
-		High: 'var(--color-red)',
-		Medium: 'var(--color-orange)',
-		Low: 'var(--color-blue)',
-		None: 'var(--text-faint)',
-	};
-
 	let graphMode: GraphMode = 'dependency';
 
 	$: layout = buildTaskGraph($tasks, {});

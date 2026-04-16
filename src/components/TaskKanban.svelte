@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { localDateString, daysBetweenLocal } from '../utils/dateUtils';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task, TaskStatus } from '../types';
 	import type TaskStore from '../store/TaskStore';
     import type TTasksPlugin from '../main';
+	import { PRIORITY_COLORS } from '../constants';
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
@@ -34,13 +36,6 @@
 		activeColumn = COLUMNS[0]?.id ?? 'Active';
 	}
 
-	const PRIORITY_COLORS: Record<string, string> = {
-		High:   'var(--color-red)',
-		Medium: 'var(--color-orange)',
-		Low:    'var(--color-blue)',
-		None:   'var(--text-faint)',
-	};
-
 	$: tasksByStatus = groupByStatus($tasks);
 
 	function groupByStatus(all: Task[]): Map<TaskStatus, Task[]> {
@@ -54,7 +49,7 @@
 		return map;
 	}
 
-	let cachedToday = new Date().toISOString().slice(0, 10);
+	let cachedToday = localDateString();
 
 	onMount(() => {
 		const scheduleRefresh = () => {
@@ -62,7 +57,7 @@
 			const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 			const ms = tomorrow.getTime() - now.getTime() + 100;
 			return window.setTimeout(() => {
-				cachedToday = new Date().toISOString().slice(0, 10);
+				cachedToday = localDateString();
 				midnightTimer = scheduleRefresh();
 			}, ms);
 		};
@@ -78,7 +73,7 @@
 	function relativeDate(due: string): string {
 		const t = cachedToday;
 		if (due === t) return 'Today';
-		const diff = Math.round((new Date(due + 'T00:00:00').getTime() - new Date(t + 'T00:00:00').getTime()) / 86400000);
+		const diff = daysBetweenLocal(t, due);
 		if (diff === 1) return 'Tomorrow';
 		if (diff === -1) return 'Yesterday';
 		if (diff < -1) return `${Math.abs(diff)}d overdue`;

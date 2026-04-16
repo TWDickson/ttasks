@@ -4,15 +4,10 @@ import type TTasksPlugin from '../main';
 import type { TaskPriority, TaskRecordType, TaskStatus, TaskType } from '../types';
 import { resolveEmergencyStatus } from '../settings';
 import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
+import { PRIORITY_COLORS } from '../constants';
+import { localDateString } from '../utils/dateUtils';
 
 const PRIORITIES: TaskPriority[]    = ['None', 'Low', 'Medium', 'High'];
-
-const PRIORITY_COLORS: Record<TaskPriority, string> = {
-	High:   'var(--color-red)',
-	Medium: 'var(--color-orange)',
-	Low:    'var(--color-blue)',
-	None:   'var(--text-faint)',
-};
 
 const MOBILE_QUICK_CREATE_PREF_KEY = 'ttasks.mobileQuickCreate';
 const MOBILE_QUICK_CREATE_HINT_DISMISSED_KEY = 'ttasks.mobileQuickCreateHintDismissed';
@@ -299,7 +294,7 @@ export class CreateTaskModal extends Modal {
 		});
 
 		startTodayBtn.addEventListener('click', () => {
-			const today = new Date().toISOString().slice(0, 10);
+			const today = localDateString();
 			startDateInput.value = today;
 			this.start_date = today;
 			this.depends_on = [];
@@ -381,7 +376,7 @@ export class CreateTaskModal extends Modal {
 		});
 
 		dueTodayBtn.addEventListener('click', () => {
-			const today = new Date().toISOString().slice(0, 10);
+			const today = localDateString();
 			dueDateInput.value = today;
 			this.due_date = today;
 			this.estimated_days = null;
@@ -625,7 +620,7 @@ export class CreateTaskModal extends Modal {
 				start_date:     startDate,
 				due_date:       dueDate,
 				estimated_days:  this.estimated_days,
-				created:         new Date().toISOString().slice(0, 10),
+				created:         localDateString(),
 				completed:       null,
 				notes:           this.notes,
 				recurrence:      this.recurrence,

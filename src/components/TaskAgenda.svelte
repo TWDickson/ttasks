@@ -3,6 +3,7 @@
 	import HoldActionTaskRow from './HoldActionTaskRow.svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
+	import { localDateString, addDaysLocal } from '../utils/dateUtils';
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
@@ -49,13 +50,11 @@
 	// ── Helpers ───────────────────────────────────────────────────────────────
 
 	function today(): string {
-		return new Date().toISOString().slice(0, 10);
+		return localDateString();
 	}
 
 	function offsetDate(days: number): string {
-		const d = new Date();
-		d.setDate(d.getDate() + days);
-		return d.toISOString().slice(0, 10);
+		return addDaysLocal(localDateString(), days);
 	}
 
 	function classifyDate(due: string | null): DateGroupKey {

@@ -1,4 +1,5 @@
 import type { QuickActionId } from '../settings';
+import { ensureMdExt } from '../utils/pathUtils';
 
 export type ProtocolActionName =
 	| 'open-board'
@@ -45,20 +46,16 @@ function normalizeQuickAction(value: string | undefined): Exclude<QuickActionId,
 	return undefined;
 }
 
-function normalizePath(path: string | undefined): string | undefined {
-	if (!path) return undefined;
-	return path.endsWith('.md') ? path : `${path}.md`;
-}
-
 export function parseProtocolAction(params: Record<string, unknown>): ParsedProtocolAction {
 	const rawAction = firstString(params.action) ?? 'open-board';
 	const rawPath = firstString(params.path);
+	const normalizedPath = rawPath ? ensureMdExt(rawPath) : undefined;
 
 	if (rawAction === 'open-board') {
 		return { action: 'open-board' };
 	}
 	if (rawAction === 'open') {
-		return { action: 'open', path: normalizePath(rawPath) };
+		return { action: 'open', path: normalizedPath };
 	}
 	if (rawAction === 'new-task') {
 		return { action: 'new-task' };
@@ -70,14 +67,14 @@ export function parseProtocolAction(params: Record<string, unknown>): ParsedProt
 	if (rawAction === 'quick') {
 		const quickAction = normalizeQuickAction(firstString(params.quickAction));
 		if (!quickAction) return { action: 'open-board' };
-		return { action: 'quick', quickAction, path: normalizePath(rawPath) };
+		return { action: 'quick', quickAction, path: normalizedPath };
 	}
 
 	const prefixedQuick = rawAction.match(/^quick-(start|complete|block|defer)$/);
 	if (prefixedQuick?.[1]) {
 		const quickAction = normalizeQuickAction(prefixedQuick[1]);
 		if (!quickAction) return { action: 'open-board' };
-		return { action: 'quick', quickAction, path: normalizePath(rawPath) };
+		return { action: 'quick', quickAction, path: normalizedPath };
 	}
 
 	return { action: 'open-board' };

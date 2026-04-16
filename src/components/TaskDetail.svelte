@@ -9,6 +9,7 @@
 	import { buildTaskGraph } from '../store/taskGraph';
 	import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 	import { localDateString } from '../utils/dateUtils';
+	import { PRIORITY_COLORS } from '../constants';
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
@@ -349,12 +350,6 @@
 		...(openDependencies.length > 0 ? [`Blocked by ${openDependencies.length} unfinished dependency task(s).`] : []),
 	];
 
-	const PRIORITY_COLORS: Record<TaskPriority, string> = {
-		High:   'var(--color-red)',
-		Medium: 'var(--color-orange)',
-		Low:    'var(--color-blue)',
-		None:   'var(--text-faint)',
-	};
 
 	function getSelectTintStyle(color: string | undefined): string {
 		return color

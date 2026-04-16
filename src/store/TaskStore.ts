@@ -10,6 +10,8 @@ import { resetChecklistCompletionInNotes } from './recurrenceNotes';
 import { deleteFileSafely } from '../integration/safeDelete';
 import { buildAliasedLink } from '../integration/relationshipLink';
 import { localDateString, addDaysLocal } from '../utils/dateUtils';
+import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
+import { parseWikiLink, parseWikiLinks, extractChecklistLink } from '../utils/wikiLink';
 
 type MigratableField = 'status' | 'category' | 'task_type';
 
@@ -259,12 +261,6 @@ export class TaskStore {
 		return rewritten;
 	}
 
-	private normalizeTaskPath(pathLike: string): string {
-		const trimmed = pathLike.trim();
-		if (!trimmed) return '';
-		return trimmed.endsWith('.md') ? trimmed : `${trimmed}.md`;
-	}
-
 	private completionStatus(): string {
 		return resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
 	}
@@ -273,22 +269,13 @@ export class TaskStore {
 		return status === this.completionStatus();
 	}
 
-	private extractChecklistLink(line: string): { checked: boolean; path: string } | null {
-		const match = line.match(/^\s*- \[( |x|X)\]\s+\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/);
-		if (!match) return null;
-		return {
-			checked: (match[1] ?? ' ').toLowerCase() === 'x',
-			path: this.normalizeTaskPath(match[2] ?? ''),
-		};
-	}
-
 	private async syncChildrenFromParentChecklist(parentPath: string, body: string): Promise<void> {
 		if (!body) return;
 		const wanted = new Map<string, boolean>();
 		const lines = body.split('\n');
 
 		for (const line of lines) {
-			const parsed = this.extractChecklistLink(line);
+			const parsed = extractChecklistLink(line);
 			if (!parsed?.path) continue;
 			wanted.set(parsed.path, parsed.checked);
 		}
@@ -325,7 +312,7 @@ export class TaskStore {
 
 	private async syncParentChecklistFromChild(child: Task): Promise<void> {
 		if (!child.parent_task) return;
-		const parentPath = this.normalizeTaskPath(child.parent_task);
+		const parentPath = ensureMdExt(child.parent_task.trim());
 		const parentFile = this.app.vault.getAbstractFileByPath(normalizePath(parentPath));
 		if (!(parentFile instanceof TFile)) return;
 
@@ -337,7 +324,7 @@ export class TaskStore {
 		if (!body) return;
 
 		const lines = body.split('\n');
-		const childPathWithoutExt = child.path.replace(/\.md$/, '');
+		const childPathWithoutExt = stripMdExt(child.path);
 		const shouldBeChecked = this.isCompleteStatus(child.status);
 		let changed = false;
 
@@ -345,8 +332,8 @@ export class TaskStore {
 			const line = lines[i];
 			const match = line.match(/^(\s*)- \[( |x|X)\](\s+\[\[([^\]|]+)(?:\|[^\]]+)?\]\].*)$/);
 			if (!match) continue;
-			const linked = this.normalizeTaskPath(match[4] ?? '');
-			if (linked !== child.path && linked.replace(/\.md$/, '') !== childPathWithoutExt) continue;
+			const linked = ensureMdExt((match[4] ?? '').trim());
+			if (linked !== child.path && stripMdExt(linked) !== childPathWithoutExt) continue;
 
 			const currentChecked = (match[2] ?? ' ').toLowerCase() === 'x';
 			if (currentChecked === shouldBeChecked) continue;
@@ -404,7 +391,7 @@ export class TaskStore {
 		return materializeChecklistChildren({
 			body,
 			parentPath,
-			extractChecklistLink: (line) => this.extractChecklistLink(line),
+			extractChecklistLink,
 			createChecklistChild: async (content, effectiveParentPath) => {
 				const child = await this.create(this.buildChildTaskInput(parent, content, effectiveParentPath));
 				return { path: child.path, name: child.name };
@@ -611,7 +598,7 @@ export class TaskStore {
 
 			let changed = false;
 			await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-				const currentParent = this.parseWikiLink(frontmatter.parent_task);
+				const currentParent = parseWikiLink(frontmatter.parent_task);
 				if (currentParent === deletedClean) {
 					frontmatter.parent_task = null;
 					changed = true;
@@ -620,7 +607,7 @@ export class TaskStore {
 				for (const key of ['depends_on', 'blocks']) {
 					if (!Array.isArray(frontmatter[key])) continue;
 					const current = frontmatter[key] as unknown[];
-					const next = current.filter((value: unknown) => this.parseWikiLink(value) !== deletedClean);
+					const next = current.filter((value: unknown) => parseWikiLink(value) !== deletedClean);
 					if (next.length !== current.length) {
 						frontmatter[key] = next;
 						changed = true;
@@ -653,7 +640,7 @@ export class TaskStore {
 			const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
 			if (!fm) continue;
 			const name: string = fm.name ?? file.basename;
-			const deps = this.parseWikiLinks(fm.depends_on);
+			const deps = parseWikiLinks(fm.depends_on);
 			for (const dep of deps) {
 				if (!reverseMap.has(dep)) reverseMap.set(dep, []);
 				reverseMap.get(dep)!.push({ path: file.path.replace(/\.md$/, ''), name });
@@ -1002,9 +989,9 @@ export class TaskStore {
 			status:         normalizedStatus,
 			priority:       (fm.priority as TaskPriority) ?? 'None',
 			task_type:      (fm.task_type as TaskType)    ?? null,
-			parent_task:    this.parseWikiLink(fm.parent_task),
-			depends_on:     this.parseWikiLinks(fm.depends_on),
-			blocks:         this.parseWikiLinks(fm.blocks),
+			parent_task:    parseWikiLink(fm.parent_task),
+			depends_on:     parseWikiLinks(fm.depends_on),
+			blocks:         parseWikiLinks(fm.blocks),
 			blocked_reason: fm.blocked_reason ?? '',
 			assigned_to:    fm.assigned_to    ?? '',
 			source:         fm.source         ?? '',
@@ -1032,19 +1019,8 @@ export class TaskStore {
 		return content.substring(fmEnd + 4).trim();
 	}
 
-	private parseWikiLink(val: unknown): string | null {
-		if (!val) return null;
-		const match = String(val).match(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/);
-		return match ? match[1] : null;
-	}
-
-	private parseWikiLinks(val: unknown): string[] {
-		if (!Array.isArray(val)) return [];
-		return val.map(v => this.parseWikiLink(v)).filter((v): v is string => v !== null);
-	}
-
 	private buildAliasedTaskLink(pathWithoutExt: string, alias: string, sourcePath: string): string {
-		const cleanPath = pathWithoutExt.replace(/\.md$/, '');
+		const cleanPath = stripMdExt(pathWithoutExt);
 		return buildAliasedLink({
 			targetPathWithoutExt: cleanPath,
 			alias,
