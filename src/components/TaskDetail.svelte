@@ -8,6 +8,7 @@
 	import { resolveCompletionStatus } from '../settings';
 	import { buildTaskGraph } from '../store/taskGraph';
 	import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
+	import { localDateString } from '../utils/dateUtils';
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
@@ -176,7 +177,7 @@
 				new Notice(`Completed. Next due ${next.due_date ?? 'TBD'} (${next.name})`);
 			}
 		} else {
-			const today = new Date().toISOString().slice(0, 10);
+			const today = localDateString();
 			await saveImmediate({ status: completeStatus, completed: today });
 		}
 	}
@@ -225,7 +226,7 @@
 	}
 
 	function todayDateString(): string {
-		return new Date().toISOString().slice(0, 10);
+		return localDateString();
 	}
 
 	function saveDueDate(nextValue: string): void {

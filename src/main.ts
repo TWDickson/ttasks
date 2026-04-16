@@ -13,6 +13,7 @@ import { pathToLinktext } from './integration/hoverLink';
 import { TaskLinkSuggestModal } from './editor/TaskLinkSuggestModal';
 import { buildAliasedLink } from './integration/relationshipLink';
 import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
+import { localDateString, addDaysLocal } from './utils/dateUtils';
 
 export type BoardViewMode = 'list' | 'kanban' | 'agenda' | 'graph';
 
@@ -354,10 +355,8 @@ export default class TTasksPlugin extends Plugin {
 
 		if (action === 'defer') {
 			const days = this.settings.quickActions.deferDays;
-			const base = task.due_date ?? new Date().toISOString().slice(0, 10);
-			const date = new Date(base + 'T00:00:00');
-			date.setDate(date.getDate() + days);
-			const newDate = date.toISOString().slice(0, 10);
+			const base = task.due_date ?? localDateString();
+			const newDate = addDaysLocal(base, days);
 			await this.taskStore.update(resolvedPath, { due_date: newDate });
 			if (showNotice) new Notice(`TTasks: Deferred "${task.name}" to ${newDate}`);
 			return true;
@@ -378,8 +377,10 @@ export default class TTasksPlugin extends Plugin {
 		}
 
 		const updates = action === 'complete'
-			? { status: targetStatus, completed: new Date().toISOString().slice(0, 10) }
-			: { status: targetStatus, completed: null };
+			? { status: targetStatus, completed: localDateString() }
+			: action === 'start'
+				? { status: targetStatus, completed: null, start_date: localDateString() }
+				: { status: targetStatus, completed: null };
 
 		await this.taskStore.update(resolvedPath, updates);
 		if (showNotice) {

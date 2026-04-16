@@ -1,4 +1,5 @@
 import type { Task } from '../types';
+import { localDateString } from '../utils/dateUtils';
 
 export interface StatusSummary {
 	overdue: number;
@@ -12,7 +13,7 @@ export interface StatusSummaryOptions {
 }
 
 function todayString(): string {
-	return new Date().toISOString().slice(0, 10);
+	return localDateString();
 }
 
 export function buildStatusSummary(tasks: Task[], options: StatusSummaryOptions): StatusSummary {

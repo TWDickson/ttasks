@@ -6,8 +6,10 @@ import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 import { materializeChecklistChildren } from './checklistMaterializer';
 import { resolveCompletionStatus, resolveInboxStatus } from '../settings';
 import { nextDueDate, nextStartDate } from './recurrence';
+import { resetChecklistCompletionInNotes } from './recurrenceNotes';
 import { deleteFileSafely } from '../integration/safeDelete';
 import { buildAliasedLink } from '../integration/relationshipLink';
+import { localDateString, addDaysLocal } from '../utils/dateUtils';
 
 type MigratableField = 'status' | 'category' | 'task_type';
 
@@ -135,6 +137,7 @@ export class TaskStore {
 				if (!file.path.startsWith(this.folderPath + '/')) return;
 				this.changedTaskPaths.delete(file.path);
 				this.tasks.update(all => all.filter(t => t.path !== file.path));
+				void this.removeRelationshipReferences(file.path);
 			})
 		);
 
@@ -172,7 +175,7 @@ export class TaskStore {
 		const slug = unique.slug;
 		const filePath = normalizePath(unique.filePath);
 
-		const today = new Date().toISOString().slice(0, 10);
+		const today = localDateString();
 		const sanitizedDependsOn = sanitizeDependsOnPaths(
 			input.depends_on,
 			filePath,
@@ -295,7 +298,7 @@ export class TaskStore {
 		const complete = this.completionStatus();
 		const fallback = this.plugin.settings.statuses?.[0] ?? 'Active';
 		const tasksByPath = new Map(get(this.tasks).map((t) => [t.path, t]));
-		const today = new Date().toISOString().slice(0, 10);
+		const today = localDateString();
 		const updates: Promise<void>[] = [];
 
 		for (const [childPath, checked] of wanted.entries()) {
@@ -369,7 +372,7 @@ export class TaskStore {
 	}
 
 	private buildChildTaskInput(parent: Task, title: string, parentPath: string): TaskCreateInput {
-		const today = new Date().toISOString().slice(0, 10);
+		const today = localDateString();
 		return {
 			type: 'task',
 			name: title,
@@ -492,7 +495,7 @@ export class TaskStore {
 	 * null if the task has no recurrence rule.
 	 */
 	async completeAndRecur(task: Task): Promise<Task | null> {
-		const today = new Date().toISOString().slice(0, 10);
+		const today = localDateString();
 		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
 
 		await this.update(task.path, { status: completionStatus, completed: today });
@@ -512,7 +515,7 @@ export class TaskStore {
 			priority:        task.priority,
 			task_type:       task.task_type,
 			parent_task:     task.parent_task,
-			depends_on:      task.depends_on,
+			depends_on:      [],
 			blocked_reason:  '',
 			assigned_to:     task.assigned_to,
 			source:          task.source,
@@ -521,7 +524,7 @@ export class TaskStore {
 			estimated_days:  task.estimated_days,
 			created:         today,
 			completed:       null,
-			notes:           '',
+			notes:           resetChecklistCompletionInNotes(task.notes ?? ''),
 			recurrence:      task.recurrence,
 			recurrence_type: task.recurrence_type,
 		};
@@ -586,6 +589,51 @@ export class TaskStore {
 		}
 
 		this.plugin.log(`Rewrote relationship references: ${oldClean} → ${newClean}`);
+	}
+
+	private async removeRelationshipReferences(deletedPath: string): Promise<void> {
+		const deletedClean = deletedPath.replace(/\.md$/, '');
+		const folder = this.app.vault.getFolderByPath(this.folderPath);
+		if (!folder) return;
+
+		const files = folder.children.filter(
+			(f): f is TFile => f instanceof TFile && f.extension === 'md' && f.path !== deletedPath
+		);
+
+		let touched = 0;
+		for (const file of files) {
+			const cache = this.app.metadataCache.getFileCache(file);
+			const fm = cache?.frontmatter;
+			if (!fm) continue;
+
+			const raw = JSON.stringify(fm);
+			if (!raw.includes(deletedClean)) continue;
+
+			let changed = false;
+			await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+				const currentParent = this.parseWikiLink(frontmatter.parent_task);
+				if (currentParent === deletedClean) {
+					frontmatter.parent_task = null;
+					changed = true;
+				}
+
+				for (const key of ['depends_on', 'blocks']) {
+					if (!Array.isArray(frontmatter[key])) continue;
+					const current = frontmatter[key] as unknown[];
+					const next = current.filter((value: unknown) => this.parseWikiLink(value) !== deletedClean);
+					if (next.length !== current.length) {
+						frontmatter[key] = next;
+						changed = true;
+					}
+				}
+			});
+
+			if (changed) touched += 1;
+		}
+
+		if (touched > 0) {
+			this.plugin.log(`Removed relationship references to deleted task: ${deletedClean} (${touched} file(s))`);
+		}
 	}
 
 	// ── Bulk operations ──────────────────────────────────────────────────────────
@@ -712,9 +760,7 @@ export class TaskStore {
 		};
 
 		const iso = (daysFromToday: number): string => {
-			const date = new Date();
-			date.setDate(date.getDate() + daysFromToday);
-			return date.toISOString().slice(0, 10);
+			return addDaysLocal(localDateString(), daysFromToday);
 		};
 
 		const makeInput = (overrides: Partial<TaskCreateInput> & Pick<TaskCreateInput, 'name' | 'type'>): TaskCreateInput => ({

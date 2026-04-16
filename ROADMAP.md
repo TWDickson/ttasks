@@ -25,6 +25,21 @@ Recurrence foundation is now implemented and test-hardened.
 - Plugin data is in canonical schema shape (`data.json` now includes reminders object and hold-menu quick-action keys only).
 - Verification status: full test suite passing (130 tests) and production build passing.
 
+## Current State (2026-04-16 Recurrence + Date Semantics Follow-up)
+
+- Date-only handling is standardized on local calendar semantics across task operations and reminders:
+  - Shared helpers in `src/utils/dateUtils.ts` (`localDateString`, `daysBetweenLocal`, `addDaysLocal`).
+  - UTC-slice usage (`toISOString().slice(0, 10)`) removed from active task/date workflows.
+- Reminder and status-summary date comparisons now use calendar-day-safe helpers to avoid timezone drift and DST edge regressions.
+- Recurring completion behavior refined in `TaskStore.completeAndRecur()`:
+  - keep `parent_task` (project membership continuity),
+  - clear `depends_on` (fresh instance, no stale prerequisite chain carry-over),
+  - preserve `notes` while resetting checklist completion markers.
+- Checklist reset now supports Obsidian-native task list forms in notes:
+  - unordered: `- [x]`, `* [x]`, `+ [x]`
+  - ordered: `1. [x]`, `2. [X]`, etc.
+- Validation status after follow-up: full suite passing (156 tests) and production build passing.
+
 ## Planning Notes (2026-04-16) - Obsidian API Integration
 
 Decisions captured from product review. This section tracks what to build now,

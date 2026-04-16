@@ -3,6 +3,7 @@ import { get } from 'svelte/store';
 import type TTasksPlugin from './main';
 import { resolveConfiguredStatus, DEFAULT_SETTINGS } from './settings';
 import type { Task } from './types';
+import { localDateString, daysBetweenLocal } from './utils/dateUtils';
 
 // Keys are `{path}|{rule}|{YYYY-MM-DD}`.
 // Pipe cannot appear in vault paths on any OS and is not used in rule IDs.
@@ -79,7 +80,7 @@ export class ReminderService {
 
 			// lead-time
 			if (r.ruleLeadTime && task.due_date !== null && task.due_date > today) {
-				const daysUntilDue = daysBetween(today, task.due_date);
+					const daysUntilDue = daysBetweenLocal(today, task.due_date);
 				if (daysUntilDue <= r.leadTimeDays) {
 					if (this.fire(task.path, 'lead-time', today)) {
 						leadTimeCount++;
@@ -98,7 +99,7 @@ export class ReminderService {
 				task.status === startStatus &&
 				task.start_date !== null
 			) {
-				const daysInProgress = daysBetween(task.start_date, today);
+					const daysInProgress = daysBetweenLocal(task.start_date, today);
 				if (daysInProgress >= r.staleThresholdDays) {
 					if (this.fire(task.path, 'stale', today)) {
 						this.showNotice(
@@ -238,13 +239,6 @@ export class ReminderService {
 // ---------------------------------------------------------------------------
 
 function todayString(): string {
-	return new Date().toISOString().slice(0, 10);
-}
-
-/** Number of calendar days from `from` to `to` (both YYYY-MM-DD). */
-function daysBetween(from: string, to: string): number {
-	const a = new Date(from + 'T00:00:00');
-	const b = new Date(to + 'T00:00:00');
-	return Math.round((b.getTime() - a.getTime()) / (24 * 60 * 60 * 1000));
+	return localDateString();
 }
 
