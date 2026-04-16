@@ -168,6 +168,35 @@
 		await saveImmediate({ status: completeStatus, completed: today });
 	}
 
+	async function confirmDelete() {
+		if (!task) return;
+		const { Modal } = await import('obsidian');
+		const taskName = task.name;
+		const taskPath = task.path;
+
+		await new Promise<void>((resolve) => {
+			const modal = new Modal(plugin.app);
+			modal.titleEl.setText('Delete task');
+			modal.contentEl.createEl('p', { text: `Are you sure you want to delete "${taskName}"? This cannot be undone.` });
+			const actions = modal.contentEl.createDiv({ cls: 'modal-button-container' });
+
+			actions.createEl('button', { text: 'Cancel' }).addEventListener('click', () => {
+				modal.close();
+				resolve();
+			});
+
+			const confirmBtn = actions.createEl('button', { text: 'Delete', cls: 'mod-warning' });
+			confirmBtn.addEventListener('click', async () => {
+				modal.close();
+				activeTaskPath.set(null);
+				await store.delete(taskPath);
+				resolve();
+			});
+
+			modal.open();
+		});
+	}
+
 	async function onParentTaskChange() {
 		if (!task) return;
 		beginSave();
@@ -292,8 +321,8 @@
 	$: dependencyTasks = task ? task.depends_on.map((dep) => linkedTask(dep)).filter((dep): dep is Task => !!dep) : [];
 	$: dependentTasks = task ? task.blocks.map((dep) => linkedTask(dep)).filter((dep): dep is Task => !!dep) : [];
 	$: missingDependencies = task ? task.depends_on.filter((dep) => !linkedTask(dep)) : [];
-	$: openDependencies = dependencyTasks.filter((dep) => dep.status !== completionStatus);
-	$: relationshipLayout = buildTaskGraph($tasks, { completionStatus });
+	$: openDependencies = dependencyTasks.filter((dep) => !dep.is_complete);
+	$: relationshipLayout = buildTaskGraph($tasks, {});
 	$: relationshipNode = task ? relationshipLayout.nodes.find((node) => node.path === task.path) ?? null : null;
 	$: relationshipIssues = [
 		...(relationshipNode?.isCycle ? ['Cycle detected for this task chain.'] : []),
@@ -515,7 +544,7 @@
 								<div class="tt-chips">
 									{#each task.depends_on as dep}
 										<span class="tt-chip-group">
-											<button class="tt-chip tt-chip-rel" class:tt-chip-warning={!linkedTask(dep)} class:tt-chip-blocking={!!linkedTask(dep) && linkedTask(dep)?.status !== completionStatus} on:click={() => openLinkedPath(dep)}>
+											<button class="tt-chip tt-chip-rel" class:tt-chip-warning={!linkedTask(dep)} class:tt-chip-blocking={!!linkedTask(dep) && !linkedTask(dep)?.is_complete} on:click={() => openLinkedPath(dep)}>
 												{taskLabelFromPath(dep)}
 											</button>
 											<button class="tt-chip-remove" on:click|stopPropagation={() => removeDependency(dep)} aria-label="Remove dependency" title="Remove dependency">&times;</button>
@@ -595,13 +624,16 @@
 
 		<!-- Actions -->
 		<div class="tt-actions">
-			{#if status !== completionStatus}
+			{#if !task?.is_complete}
 				<button class="tt-btn tt-btn-primary" on:click={markComplete}>
 					✓ Mark Complete
 				</button>
 			{/if}
 			<button class="tt-btn" on:click={() => store.openFile(task.path)}>
 				Open in editor
+			</button>
+			<button class="tt-btn tt-btn-danger" on:click={confirmDelete}>
+				Delete
 			</button>
 		</div>
 
@@ -1010,6 +1042,17 @@
 	.tt-btn-primary:hover {
 		background: var(--interactive-accent-hover);
 		border-color: var(--interactive-accent-hover);
+	}
+
+	.tt-btn-danger {
+		color: var(--color-red);
+		border-color: color-mix(in srgb, var(--color-red) 35%, var(--background-modifier-border));
+		margin-left: auto;
+	}
+
+	.tt-btn-danger:hover {
+		background: color-mix(in srgb, var(--color-red) 10%, var(--background-primary));
+		border-color: color-mix(in srgb, var(--color-red) 60%, var(--background-modifier-border));
 	}
 
 	.tt-meta-footer {

@@ -26,6 +26,8 @@ function makeTask(overrides: Partial<Task> & Pick<Task, 'path' | 'name'>): Task 
 		created: '2026-04-02',
 		completed: null,
 		notes: '',
+		is_complete: false,
+		is_inbox: false,
 		...rest,
 	};
 }
@@ -38,7 +40,7 @@ describe('buildTaskGraph', () => {
 			makeTask({ path: 'Tasks/c.md', name: 'C', depends_on: ['Tasks/b'] }),
 		];
 
-		const layout = buildTaskGraph(tasks, { completionStatus: 'Done' });
+		const layout = buildTaskGraph(tasks, {});
 		const columns = new Map(layout.nodes.map((node) => [node.path, node.column]));
 
 		expect(layout.edges).toHaveLength(2);
@@ -53,11 +55,11 @@ describe('buildTaskGraph', () => {
 			makeTask({ path: 'Tasks/a.md', name: 'A', status: 'Active', depends_on: ['Tasks/c'] }),
 			makeTask({ path: 'Tasks/b.md', name: 'B', status: 'Active', depends_on: ['Tasks/a'] }),
 			makeTask({ path: 'Tasks/c.md', name: 'C', status: 'Active', depends_on: ['Tasks/b'] }),
-			makeTask({ path: 'Tasks/d.md', name: 'D', status: 'Done' }),
+			makeTask({ path: 'Tasks/d.md', name: 'D', status: 'Done', is_complete: true }),
 			makeTask({ path: 'Tasks/e.md', name: 'E', status: 'Active', depends_on: ['Tasks/d'] }),
 		];
 
-		const layout = buildTaskGraph(tasks, { completionStatus: 'Done' });
+		const layout = buildTaskGraph(tasks, {});
 		const cycleNodes = layout.nodes.filter((node) => node.isCycle).map((node) => node.path).sort();
 		const blockedNodes = layout.nodes.filter((node) => node.isBlockedChain).map((node) => node.path).sort();
 
@@ -65,6 +67,20 @@ describe('buildTaskGraph', () => {
 		expect(layout.edges.filter((edge) => edge.isCycle)).toHaveLength(3);
 		expect(blockedNodes).toEqual(['Tasks/a.md', 'Tasks/b.md', 'Tasks/c.md']);
 		expect(layout.blockedEdgeCount).toBe(3);
+	});
+
+	it('does not mark a dependency chain as blocked when the upstream task is complete', () => {
+		// E depends on D which is complete — E should not be in a blocked chain
+		const tasks = [
+			makeTask({ path: 'Tasks/d.md', name: 'D', status: 'Done', is_complete: true }),
+			makeTask({ path: 'Tasks/e.md', name: 'E', status: 'Active', depends_on: ['Tasks/d'] }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const blockedNodes = layout.nodes.filter((node) => node.isBlockedChain).map((node) => node.path);
+
+		expect(blockedNodes).toEqual([]);
+		expect(layout.blockedEdgeCount).toBe(0);
 	});
 });
 

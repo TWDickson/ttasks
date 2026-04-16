@@ -1,6 +1,6 @@
 import { Notice, Plugin } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
-import { type QuickActionId, type TTasksSettings, DEFAULT_SETTINGS, DEFAULT_REMINDERS_SETTINGS, TTasksSettingTab, normalizeStatuses, normalizeColorMap, resolveCompletionStatus, resolveConfiguredStatus } from './settings';
+import { type QuickActionId, type TTasksSettings, DEFAULT_SETTINGS, DEFAULT_REMINDERS_SETTINGS, TTasksSettingTab, normalizeStatuses, normalizeColorMap, resolveCompletionStatus, resolveInboxStatus, resolveConfiguredStatus } from './settings';
 import { TaskStore } from './store/TaskStore';
 import { TaskBoardView, TASK_BOARD_VIEW_TYPE } from './views/TaskBoardView';
 import { CreateTaskModal } from './modals/CreateTaskModal';
@@ -115,6 +115,7 @@ export default class TTasksPlugin extends Plugin {
 		this.settings.reminders = Object.assign({}, DEFAULT_REMINDERS_SETTINGS, this.settings.reminders ?? {});
 		this.settings.statuses = normalizeStatuses(this.settings.statuses);
 		this.settings.completionStatus = resolveCompletionStatus(this.settings.statuses, this.settings.completionStatus);
+		this.settings.inboxStatus = resolveInboxStatus(this.settings.statuses, this.settings.inboxStatus);
 		this.settings.quickActions.startStatus = resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus);
 		this.settings.quickActions.blockStatus = resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.blockStatus, DEFAULT_SETTINGS.quickActions.blockStatus);
 		this.settings.statusColors = normalizeColorMap(this.settings.statuses, this.settings.statusColors);

@@ -36,6 +36,10 @@ export interface Task {
 
 	// Free-form body content (everything after frontmatter)
 	notes: string;
+
+	// Derived flags — computed at load time from status + settings, not stored in frontmatter
+	is_complete: boolean;
+	is_inbox: boolean;
 }
 
-export type TaskCreateInput = Omit<Task, 'id' | 'slug' | 'path' | 'blocks'>;
+export type TaskCreateInput = Omit<Task, 'id' | 'slug' | 'path' | 'blocks' | 'is_complete' | 'is_inbox'>;

@@ -3,7 +3,7 @@
 	import type { Task } from '../types';
 	import type TTasksPlugin from '../main';
 	import { buildTaskGraph, resolveTaskDates, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
-	import { resolveCompletionStatus } from '../settings';
+
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
@@ -36,13 +36,12 @@
 
 	let graphMode: GraphMode = 'dependency';
 
-	$: completionStatus = resolveCompletionStatus(plugin.settings.statuses, plugin.settings.completionStatus);
-	$: layout = buildTaskGraph($tasks, { completionStatus });
+	$: layout = buildTaskGraph($tasks, {});
 	$: nodesByPath = new Map(layout.nodes.map((node) => [node.path, node]));
 	$: dependencyEmpty = layout.nodes.length === 0;
 
 	$: projectByPath = new Map($tasks.filter((task) => task.type === 'project').map((task) => [task.path, task]));
-	$: timelineRows = buildTimelineRows($tasks, completionStatus, projectByPath);
+	$: timelineRows = buildTimelineRows($tasks, projectByPath);
 	$: timelineCategoryCount = timelineRows.length;
 	$: timelineLaneCount = timelineRows.reduce((count, group) => count + group.lanes.length, 0);
 	$: timelineTaskCount = timelineRows.reduce((count, group) => count + group.lanes.reduce((inner, lane) => inner + lane.items.length, 0), 0);
@@ -128,7 +127,7 @@
 		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;--tt-bar-accent:${accent};`;
 	}
 
-	function buildTimelineRows(allTasks: Task[], doneStatus: string, projectMap: Map<string, Task>): TimelineCategory[] {
+	function buildTimelineRows(allTasks: Task[], projectMap: Map<string, Task>): TimelineCategory[] {
 		const today = startOfToday();
 		// Resolve dates for all tasks via topological sort over the dependency
 		// graph. This handles arbitrary-depth chains: task C depends on B which
@@ -157,7 +156,7 @@
 				end,
 				leftPercent: 0,
 				widthPercent: 0,
-				isLate: !!task.due_date && parseDate(task.due_date) !== null && parseDate(task.due_date)!.getTime() < today.getTime() && task.status !== doneStatus,
+				isLate: !!task.due_date && parseDate(task.due_date) !== null && parseDate(task.due_date)!.getTime() < today.getTime() && !task.is_complete,
 				isInferred,
 			});
 		}
@@ -350,7 +349,7 @@
 											type="button"
 											class="tt-overview-bar"
 											class:is-late={item.isLate}
-											class:is-done={item.task.status === completionStatus}
+											class:is-done={item.task.is_complete}
 											class:is-active={$activeTaskPath === item.task.path}
 											class:is-inferred={item.isInferred}
 											style={timelineBarStyle(item)}

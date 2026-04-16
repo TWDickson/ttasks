@@ -4,7 +4,7 @@ import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskPriority, TaskType, TaskRecordType } from '../types';
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 import { materializeChecklistChildren } from './checklistMaterializer';
-import { resolveCompletionStatus } from '../settings';
+import { resolveCompletionStatus, resolveInboxStatus } from '../settings';
 
 type MigratableField = 'status' | 'category' | 'task_type';
 
@@ -179,6 +179,8 @@ export class TaskStore {
 			}
 		);
 
+		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+		const inboxStatus = resolveInboxStatus(this.plugin.settings.statuses, this.plugin.settings.inboxStatus);
 		const full: Task = {
 			...input,
 			depends_on: sanitizedDependsOn,
@@ -187,6 +189,8 @@ export class TaskStore {
 			path: filePath,
 			blocks: [],
 			created: today,
+			is_complete: input.status === completionStatus,
+			is_inbox:    input.status === inboxStatus,
 		};
 
 		const body = full.notes?.trim() ? '\n\n' + full.notes.trim() : '';
@@ -878,6 +882,9 @@ export class TaskStore {
 			? rawStatus
 			: fallbackStatus;
 
+		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+		const inboxStatus = resolveInboxStatus(this.plugin.settings.statuses, this.plugin.settings.inboxStatus);
+
 		return {
 			id, slug,
 			path: file.path,
@@ -899,6 +906,8 @@ export class TaskStore {
 			created:        fm.created        ?? null,
 			completed:      fm.completed      ?? null,
 			notes,
+			is_complete: normalizedStatus === completionStatus,
+			is_inbox:    normalizedStatus === inboxStatus,
 		};
 	}
 

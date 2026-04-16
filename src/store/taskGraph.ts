@@ -38,7 +38,6 @@ export interface TaskGraphLayout {
 }
 
 export interface BuildTaskGraphOptions {
-	completionStatus: string;
 	nodeWidth?: number;
 	nodeHeight?: number;
 	horizontalGap?: number;
@@ -154,7 +153,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	for (const edge of edges) {
 		const dependencyTask = taskByPath.get(edge.from);
 		if (!dependencyTask) continue;
-		if (dependencyTask.status === options.completionStatus) continue;
+		if (dependencyTask.is_complete) continue;
 		edge.isBlockedChain = true;
 		blockedPaths.add(edge.from);
 		blockedPaths.add(edge.to);

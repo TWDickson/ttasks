@@ -1,7 +1,7 @@
 import { Notice } from 'obsidian';
 import { get } from 'svelte/store';
 import type TTasksPlugin from './main';
-import { resolveCompletionStatus, resolveConfiguredStatus, DEFAULT_SETTINGS } from './settings';
+import { resolveConfiguredStatus, DEFAULT_SETTINGS } from './settings';
 import type { Task } from './types';
 
 // Keys are `{path}|{rule}|{YYYY-MM-DD}`.
@@ -41,10 +41,6 @@ export class ReminderService {
 
 		const today = todayString();
 		const tasks = get(this.plugin.taskStore.tasks);
-		const completionStatus = resolveCompletionStatus(
-			this.plugin.settings.statuses,
-			this.plugin.settings.completionStatus
-		);
 		const startStatus = resolveConfiguredStatus(
 			this.plugin.settings.statuses,
 			this.plugin.settings.quickActions.startStatus,
@@ -61,7 +57,7 @@ export class ReminderService {
 		let leadTimeCount = 0;
 
 		for (const task of tasks) {
-			if (isComplete(task, completionStatus)) continue;
+			if (task.is_complete) continue;
 
 			// due-today — check before lead-time so we don't double-fire on the same day
 			if (r.ruleDueToday && task.due_date === today) {
@@ -252,6 +248,3 @@ function daysBetween(from: string, to: string): number {
 	return Math.round((b.getTime() - a.getTime()) / (24 * 60 * 60 * 1000));
 }
 
-function isComplete(task: Task, completionStatus: string): boolean {
-	return task.status === completionStatus;
-}

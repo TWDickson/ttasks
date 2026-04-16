@@ -51,6 +51,7 @@ export interface TTasksSettings {
 	fabPosition: FabPosition;
 	statuses: string[];
 	completionStatus: string;
+	inboxStatus: string;
 	statusColors: Record<string, string>;
 	categories: string[];
 	categoryColors: Record<string, string>;
@@ -80,6 +81,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	fabPosition: 'right',
 	statuses: DEFAULT_STATUSES,
 	completionStatus: 'Done',
+	inboxStatus: 'Inbox',
 	statusColors: {
 		Inbox: '#64748b',
 		'In Progress': '#2563eb',
@@ -187,6 +189,13 @@ export function resolveCompletionStatus(statuses: string[] | null | undefined, c
 	if (completionStatus && valid.includes(completionStatus)) return completionStatus;
 	if (valid.includes('Done')) return 'Done';
 	return valid[0] ?? 'Active';
+}
+
+export function resolveInboxStatus(statuses: string[] | null | undefined, inboxStatus?: string | null): string {
+	const valid = statuses ?? [];
+	if (inboxStatus && valid.includes(inboxStatus)) return inboxStatus;
+	if (valid.includes('Inbox')) return 'Inbox';
+	return valid[0] ?? 'Inbox';
 }
 
 export function resolveConfiguredStatus(statuses: string[] | null | undefined, configured: string | null | undefined, preferred: string): string {
@@ -389,6 +398,34 @@ export class TTasksSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 						await this.plugin.taskStore.load();
 					});
+			});
+
+		const statuses = this.plugin.settings.statuses ?? [];
+
+		new Setting(containerEl)
+			.setName('Completion status')
+			.setDesc('Tasks with this status are treated as done. Used for filtering, reminders, and dependency checks.')
+			.addDropdown(dd => {
+				for (const s of statuses) dd.addOption(s, s);
+				dd.setValue(statuses.includes(this.plugin.settings.completionStatus) ? this.plugin.settings.completionStatus : (statuses[0] ?? ''));
+				dd.onChange(async (v) => {
+					this.plugin.settings.completionStatus = v;
+					await this.plugin.saveSettings();
+					await this.plugin.taskStore.load();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName('Inbox status')
+			.setDesc('Tasks with this status are treated as inbox / triage items. Surfaced by is_inbox in views and future capture flow.')
+			.addDropdown(dd => {
+				for (const s of statuses) dd.addOption(s, s);
+				dd.setValue(statuses.includes(this.plugin.settings.inboxStatus) ? this.plugin.settings.inboxStatus : (statuses[0] ?? ''));
+				dd.onChange(async (v) => {
+					this.plugin.settings.inboxStatus = v;
+					await this.plugin.saveSettings();
+					await this.plugin.taskStore.load();
+				});
 			});
 
 		this.renderManagedListSetting(containerEl, {
