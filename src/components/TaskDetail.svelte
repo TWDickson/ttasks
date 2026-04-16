@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Component, MarkdownRenderer, Modal } from 'obsidian';
+	import { Component, MarkdownRenderer, Modal, Notice } from 'obsidian';
 	import { onDestroy, onMount } from 'svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
@@ -7,6 +7,7 @@
 	import type { TaskStore } from '../store/TaskStore';
 	import { resolveCompletionStatus } from '../settings';
 	import { buildTaskGraph } from '../store/taskGraph';
+	import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
@@ -31,6 +32,8 @@
 	let estimated_days: number | null = null;
 	let blocked_reason = '';
 	let notes = '';
+	let recurrence: string | null = null;
+	let recurrence_type: string | null = null;
 	let notesMode: 'preview' | 'edit' = 'preview';
 	let formTaskPath: string | null = null;
 	let pendingSaves = 0;
@@ -59,9 +62,11 @@
 		start_date    = task.start_date ?? '';
 		assigned_to   = task.assigned_to ?? '';
 		estimated_days = task.estimated_days;
-		blocked_reason = task.blocked_reason ?? '';
-		notes         = task.notes ?? '';
-		formTaskPath  = task.path;
+		blocked_reason  = task.blocked_reason ?? '';
+		notes           = task.notes ?? '';
+		recurrence      = task.recurrence ?? null;
+		recurrence_type = task.recurrence_type ?? null;
+		formTaskPath    = task.path;
 	}
 
 	// ── Save helpers ────────────────────────────────────────────────────────────
@@ -162,10 +167,18 @@
 
 	async function markComplete() {
 		if (!task) return;
-		const today = new Date().toISOString().slice(0, 10);
 		const completeStatus = getCompletionStatus();
 		status = completeStatus;
-		await saveImmediate({ status: completeStatus, completed: today });
+
+		if (task.recurrence) {
+			const next = await store.completeAndRecur(task);
+			if (next) {
+				new Notice(`Completed. Next due ${next.due_date ?? 'TBD'} (${next.name})`);
+			}
+		} else {
+			const today = new Date().toISOString().slice(0, 10);
+			await saveImmediate({ status: completeStatus, completed: today });
+		}
 	}
 
 	async function confirmDelete() {
@@ -515,6 +528,31 @@
 					placeholder="Why is this blocked?"
 				/>
 			{/if}
+
+			<label class="tt-label" for="tt-recurrence">Repeats</label>
+			<div class="tt-recurrence-row">
+				<select
+					id="tt-recurrence"
+					bind:value={recurrence}
+					on:change={() => saveImmediate({ recurrence: recurrence || null })}
+				>
+					<option value="">— never —</option>
+					{#each RECURRENCE_OPTIONS as r}
+						<option value={r}>{RECURRENCE_LABELS[r]}</option>
+					{/each}
+				</select>
+				{#if recurrence}
+					<select
+						bind:value={recurrence_type}
+						on:change={() => saveImmediate({ recurrence_type: recurrence_type || null })}
+						class="tt-recurrence-type"
+					>
+						{#each RECURRENCE_TYPES as t}
+							<option value={t}>{RECURRENCE_TYPE_LABELS[t]}</option>
+						{/each}
+					</select>
+				{/if}
+			</div>
 		</div>
 
 		<!-- Relationship health -->
@@ -750,6 +788,19 @@
 	.tt-date-today:hover {
 		background: var(--background-modifier-hover);
 		color: var(--text-normal);
+	}
+
+	.tt-recurrence-row {
+		display: flex;
+		gap: 8px;
+	}
+
+	.tt-recurrence-row select {
+		flex: 1;
+	}
+
+	.tt-recurrence-type {
+		flex: 1.4 !important;
 	}
 
 	.tt-fields input:focus,

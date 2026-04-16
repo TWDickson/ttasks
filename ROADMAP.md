@@ -6,6 +6,17 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 Phases 3A, 3B, and 3C are complete. Build, lint, and tests all passing (14 tests).
 
+## Progress Notes (2026-04-16)
+
+Recurrence foundation is now implemented and test-hardened.
+
+- Recurrence rule helpers added in `src/store/recurrence.ts` (`daily`, `weekly`, `biweekly`, `monthly`, `yearly`) with `fixed` and `from_completion` schedule modes.
+- Month/year advancement now clamps correctly at month-end and leap-year boundaries.
+- Completion flow supports recurrence rollover via `TaskStore.completeAndRecur()`.
+- Create + detail UI now expose recurrence and recurrence type.
+- Regression and edge-case coverage expanded in `src/store/recurrence.test.ts` (table-driven assertions + leap/DST/month-end cases).
+- Current test status: 101 passing tests.
+
 ### Phase 3A — Dependency Graph ✓
 
 - Graph board mode with dependency map and overview timeline (Gantt-like lanes).

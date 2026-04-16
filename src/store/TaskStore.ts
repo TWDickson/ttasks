@@ -5,6 +5,7 @@ import type { Task, TaskCreateInput, TaskPriority, TaskType, TaskRecordType } fr
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 import { materializeChecklistChildren } from './checklistMaterializer';
 import { resolveCompletionStatus, resolveInboxStatus } from '../settings';
+import { nextDueDate, nextStartDate } from './recurrence';
 
 type MigratableField = 'status' | 'category' | 'task_type';
 
@@ -213,6 +214,7 @@ export class TaskStore {
 				'name', 'status', 'priority', 'category', 'task_type',
 				'blocked_reason', 'assigned_to', 'source',
 				'start_date', 'due_date', 'estimated_days', 'completed',
+				'recurrence', 'recurrence_type',
 			];
 			for (const key of fields) {
 				if (key in updates) fm[key] = (updates as Record<string, unknown>)[key] ?? null;
@@ -384,6 +386,8 @@ export class TaskStore {
 			created: today,
 			completed: null,
 			notes: '',
+			recurrence: null,
+			recurrence_type: null,
 		};
 	}
 
@@ -467,6 +471,49 @@ export class TaskStore {
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return;
 		await this.app.vault.delete(file);
+	}
+
+	/**
+	 * Mark the task complete and, if it has a recurrence rule, create the next
+	 * instance with dates advanced by one interval. Returns the new task, or
+	 * null if the task has no recurrence rule.
+	 */
+	async completeAndRecur(task: Task): Promise<Task | null> {
+		const today = new Date().toISOString().slice(0, 10);
+		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+
+		await this.update(task.path, { status: completionStatus, completed: today });
+
+		if (!task.recurrence) return null;
+
+		const recurType = (task.recurrence_type ?? 'fixed') as import('./recurrence').RecurrenceType;
+		const nextDue   = nextDueDate(task.recurrence, recurType, task.due_date, today);
+		const nextStart = nextStartDate(task.recurrence, recurType, task.start_date, task.due_date, today);
+		const inboxStatus = resolveInboxStatus(this.plugin.settings.statuses, this.plugin.settings.inboxStatus);
+
+		const nextInput: TaskCreateInput = {
+			type:            task.type,
+			name:            task.name,
+			category:        task.category,
+			status:          inboxStatus,
+			priority:        task.priority,
+			task_type:       task.task_type,
+			parent_task:     task.parent_task,
+			depends_on:      task.depends_on,
+			blocked_reason:  '',
+			assigned_to:     task.assigned_to,
+			source:          task.source,
+			start_date:      nextStart,
+			due_date:        nextDue,
+			estimated_days:  task.estimated_days,
+			created:         today,
+			completed:       null,
+			notes:           '',
+			recurrence:      task.recurrence,
+			recurrence_type: task.recurrence_type,
+		};
+
+		return this.create(nextInput);
 	}
 
 	async openDetail(path: string): Promise<void> {
@@ -675,6 +722,8 @@ export class TaskStore {
 			created: overrides.created ?? iso(-2),
 			completed: overrides.completed ?? null,
 			notes: overrides.notes ?? '',
+			recurrence: overrides.recurrence ?? null,
+			recurrence_type: overrides.recurrence_type ?? null,
 		});
 
 		const created: Task[] = [];
@@ -906,6 +955,8 @@ export class TaskStore {
 			created:        fm.created        ?? null,
 			completed:      fm.completed      ?? null,
 			notes,
+			recurrence:      typeof fm.recurrence === 'string' ? fm.recurrence : null,
+			recurrence_type: typeof fm.recurrence_type === 'string' ? fm.recurrence_type : null,
 			is_complete: normalizedStatus === completionStatus,
 			is_inbox:    normalizedStatus === inboxStatus,
 		};
@@ -1001,6 +1052,8 @@ export class TaskStore {
 			`estimated_days: ${task.estimated_days ?? 'null'}`,
 			`created: '${task.created}'`,
 			`completed: null`,
+			`recurrence: ${task.recurrence ? `"${esc(task.recurrence)}"` : 'null'}`,
+			`recurrence_type: ${task.recurrence_type ? `"${esc(task.recurrence_type)}"` : 'null'}`,
 			'---',
 		].join('\n');
 	}

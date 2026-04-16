@@ -34,6 +34,11 @@ export interface Task {
 	created: string | null;
 	completed: string | null;
 
+	// Recurrence (stored in frontmatter; null = no recurrence)
+	recurrence: string | null;
+	// 'fixed' = advance from due_date (default); 'from_completion' = advance from completion date
+	recurrence_type: string | null;
+
 	// Free-form body content (everything after frontmatter)
 	notes: string;
 

@@ -26,6 +26,8 @@ function makeTask(overrides: Partial<Task> & Pick<Task, 'path' | 'name'>): Task 
 		created: '2026-04-02',
 		completed: null,
 		notes: '',
+		recurrence: null,
+		recurrence_type: null,
 		is_complete: false,
 		is_inbox: false,
 		...rest,

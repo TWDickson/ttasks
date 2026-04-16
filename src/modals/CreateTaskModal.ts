@@ -3,6 +3,7 @@ import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { TaskPriority, TaskRecordType, TaskStatus, TaskType } from '../types';
 import { resolveEmergencyStatus } from '../settings';
+import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 
 const PRIORITIES: TaskPriority[]    = ['None', 'Low', 'Medium', 'High'];
 
@@ -30,6 +31,8 @@ export class CreateTaskModal extends Modal {
 	private start_date                 = '';
 	private estimated_days: number | null = null;
 	private notes                      = '';
+	private recurrence: string | null  = null;
+	private recurrence_type: string | null = null;
 	private submitting                 = false;
 	private notesRenderComponent: Component | null = null;
 	private notesRenderFrame: number | null = null;
@@ -474,6 +477,31 @@ export class CreateTaskModal extends Modal {
 			applyCategoryTint();
 		});
 
+		// ── Recurrence ───────────────────────────────────────────────────────────
+		const recurrenceField = this.field(details, 'Repeats');
+		const recurrenceRow = recurrenceField.createDiv('tt-modal-recurrence-row');
+		const recurrenceSelect = recurrenceRow.createEl('select', { cls: 'tt-modal-select' });
+		recurrenceSelect.createEl('option', { text: '— never —', value: '' });
+		for (const r of RECURRENCE_OPTIONS) {
+			recurrenceSelect.createEl('option', { text: RECURRENCE_LABELS[r], value: r });
+		}
+
+		const recurrenceTypeSelect = recurrenceRow.createEl('select', {
+			cls: 'tt-modal-select tt-modal-recurrence-type',
+		});
+		for (const t of RECURRENCE_TYPES) {
+			recurrenceTypeSelect.createEl('option', { text: RECURRENCE_TYPE_LABELS[t], value: t });
+		}
+		recurrenceTypeSelect.style.display = 'none';
+
+		recurrenceSelect.addEventListener('change', () => {
+			this.recurrence = recurrenceSelect.value || null;
+			recurrenceTypeSelect.style.display = this.recurrence ? '' : 'none';
+		});
+		recurrenceTypeSelect.addEventListener('change', () => {
+			this.recurrence_type = recurrenceTypeSelect.value || null;
+		});
+
 		// ── Buttons ──────────────────────────────────────────────────────────────
 		const btnRow = contentEl.createDiv('tt-modal-btn-row');
 		btnRow.createEl('button', { text: 'Cancel', cls: 'tt-modal-btn' })
@@ -596,10 +624,12 @@ export class CreateTaskModal extends Modal {
 				source:         '',
 				start_date:     startDate,
 				due_date:       dueDate,
-				estimated_days: this.estimated_days,
-				created:        new Date().toISOString().slice(0, 10),
-				completed:      null,
-				notes:          this.notes,
+				estimated_days:  this.estimated_days,
+				created:         new Date().toISOString().slice(0, 10),
+				completed:       null,
+				notes:           this.notes,
+				recurrence:      this.recurrence,
+				recurrence_type: this.recurrence_type,
 			});
 			this.close();
 			await this.plugin.taskStore.openDetail(task.path);
