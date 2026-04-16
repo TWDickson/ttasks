@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Component, MarkdownRenderer } from 'obsidian';
+	import { Component, MarkdownRenderer, Modal } from 'obsidian';
 	import { onDestroy, onMount } from 'svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
@@ -170,7 +170,6 @@
 
 	async function confirmDelete() {
 		if (!task) return;
-		const { Modal } = await import('obsidian');
 		const taskName = task.name;
 		const taskPath = task.path;
 
@@ -372,7 +371,7 @@
 
 {#if !task}
 	<div class="tt-detail-empty">
-		<p>Select a task to view details.</p>
+		<p>No task selected.</p>
 	</div>
 {:else}
 	<div class="tt-detail">

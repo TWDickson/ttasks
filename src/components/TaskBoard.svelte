@@ -26,7 +26,10 @@
 		}
 	});
 
-	$: showDetail = $activeTaskPath !== null;
+	// Panel open state is decoupled from task selection so the panel can show
+	// an empty state (e.g. after deletion) without collapsing.
+	let panelOpen = false;
+	$: if ($activeTaskPath !== null) panelOpen = true;
 
 	// ── Filter state ───────────────────────────────────────────────────────────
 	let searchQuery    = '';
@@ -73,7 +76,7 @@
 
 	function openNewTask()    { new CreateTaskModal(plugin.app, plugin).open(); }
 	function openNewProject() { new CreateTaskModal(plugin.app, plugin, 'project').open(); }
-	function closeDetail()    { activeTaskPath.set(null); }
+	function closeDetail()    { panelOpen = false; activeTaskPath.set(null); }
 	function openSettings()   {
 		try {
 			(plugin.app as any).setting.open();
@@ -229,12 +232,12 @@
 		</div>
 
 		<!-- Backdrop: mobile gets dark overlay, desktop is transparent click-target -->
-		{#if showDetail}
+		{#if panelOpen}
 			<button class="tt-detail-backdrop" type="button" aria-label="Close detail panel" on:click={closeDetail}></button>
 		{/if}
 
 		<!-- Detail panel -->
-		<div class="tt-board-detail" class:is-visible={showDetail}>
+		<div class="tt-board-detail" class:is-visible={panelOpen}>
 			<div class="tt-detail-topbar">
 				<button class="tt-back-btn" on:click={closeDetail}>
 					<span use:icon={'arrow-left'}></span>
@@ -261,7 +264,7 @@
 		<button
 			class="tt-fab"
 			class:tt-fab-left={plugin.settings.fabPosition === 'left'}
-			class:tt-fab-hidden={showDetail}
+			class:tt-fab-hidden={panelOpen}
 			on:click={openNewTask}
 			aria-label="New task"
 		>
