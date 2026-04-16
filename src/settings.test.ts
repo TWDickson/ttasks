@@ -6,6 +6,7 @@ import {
 	resolveConfiguredStatus,
 	normalizeEditorSuggestTrigger,
 	normalizeSettingsFromSources,
+	isSystemStatus,
 	DEFAULT_SETTINGS,
 	DEFAULT_STATUSES,
 } from './settings';
@@ -118,6 +119,43 @@ describe('normalizeEditorSuggestTrigger', () => {
 
 	it('keeps @ prefix when present', () => {
 		expect(normalizeEditorSuggestTrigger('@todo')).toBe('@todo');
+	});
+});
+
+// ── isSystemStatus ───────────────────────────────────────────────────────────
+
+describe('isSystemStatus', () => {
+	it('returns true for the completion status', () => {
+		expect(isSystemStatus('Done', 'Done', 'Inbox')).toBe(true);
+	});
+
+	it('returns true for the inbox status', () => {
+		expect(isSystemStatus('Inbox', 'Done', 'Inbox')).toBe(true);
+	});
+
+	it('returns false for any other status', () => {
+		expect(isSystemStatus('Active', 'Done', 'Inbox')).toBe(false);
+		expect(isSystemStatus('Blocked', 'Done', 'Inbox')).toBe(false);
+		expect(isSystemStatus('In Progress', 'Done', 'Inbox')).toBe(false);
+	});
+
+	it('uses the actual configured names, not hardcoded strings', () => {
+		// If the user has renamed their completion status to 'Closed', that becomes protected
+		expect(isSystemStatus('Closed', 'Closed', 'Triage')).toBe(true);
+		expect(isSystemStatus('Triage', 'Closed', 'Triage')).toBe(true);
+		// The old names are no longer protected
+		expect(isSystemStatus('Done', 'Closed', 'Triage')).toBe(false);
+		expect(isSystemStatus('Inbox', 'Closed', 'Triage')).toBe(false);
+	});
+
+	it('returns false when checking an empty string against named system statuses', () => {
+		expect(isSystemStatus('', 'Done', 'Inbox')).toBe(false);
+	});
+
+	it('handles the edge case where completionStatus and inboxStatus are the same', () => {
+		// Unusual config but should still work — that status is protected
+		expect(isSystemStatus('Done', 'Done', 'Done')).toBe(true);
+		expect(isSystemStatus('Active', 'Done', 'Done')).toBe(false);
 	});
 });
 

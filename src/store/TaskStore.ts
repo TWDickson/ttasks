@@ -6,6 +6,8 @@ import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 import { materializeChecklistChildren } from './checklistMaterializer';
 import { resolveCompletionStatus, resolveInboxStatus } from '../settings';
 import { nextDueDate, nextStartDate } from './recurrence';
+import { computeStatusChanged } from './statusChanged';
+import { buildDuplicateInput } from './taskDuplicate';
 import { resetChecklistCompletionInNotes } from './recurrenceNotes';
 import { deleteFileSafely } from '../integration/safeDelete';
 import { buildAliasedLink } from '../integration/relationshipLink';
@@ -197,6 +199,7 @@ export class TaskStore {
 			path: filePath,
 			blocks: [],
 			created: today,
+			status_changed: today,
 			is_complete: input.status === completionStatus,
 			is_inbox:    input.status === inboxStatus,
 		};
@@ -226,6 +229,15 @@ export class TaskStore {
 			for (const key of fields) {
 				if (key in updates) fm[key] = (updates as Record<string, unknown>)[key] ?? null;
 			}
+
+			// Write status_changed whenever status actually transitions
+			const today = localDateString();
+			const changed = computeStatusChanged(
+				typeof fm.status === 'string' ? fm.status : undefined,
+				updates.status,
+				today,
+			);
+			if (changed !== undefined) fm.status_changed = changed;
 		});
 	}
 
@@ -511,12 +523,29 @@ export class TaskStore {
 			estimated_days:  task.estimated_days,
 			created:         today,
 			completed:       null,
+			// status_changed not carried over — the new instance starts fresh at inboxStatus
 			notes:           resetChecklistCompletionInNotes(task.notes ?? ''),
 			recurrence:      task.recurrence,
 			recurrence_type: task.recurrence_type,
 		};
 
 		return this.create(nextInput);
+	}
+
+	/**
+	 * Create a duplicate of the task at `path`.
+	 * The duplicate lands in the inbox with a new ID; dates and relationships
+	 * are reset per `buildDuplicateInput`.
+	 */
+	async duplicate(path: string): Promise<Task | null> {
+		const all = get(this.tasks);
+		const task = all.find(t => t.path === normalizePath(path));
+		if (!task) return null;
+
+		const today = localDateString();
+		const inboxStatus = resolveInboxStatus(this.plugin.settings.statuses, this.plugin.settings.inboxStatus);
+		const input = buildDuplicateInput(task, today, inboxStatus);
+		return this.create(input);
 	}
 
 	async openDetail(path: string): Promise<void> {
@@ -702,6 +731,38 @@ export class TaskStore {
 		}
 
 		this.plugin.log(`MigrateFieldValues(${field}): patched ${patched} of ${files.length} files`);
+		return patched;
+	}
+
+	/**
+	 * Backfill `status_changed` on existing tasks that predate the field.
+	 * Sets it to `start_date ?? created` so stale-in-progress reminders have
+	 * a reasonable baseline. Safe to run multiple times — skips tasks that
+	 * already have `status_changed` set.
+	 */
+	async migrateStatusChanged(): Promise<number> {
+		const folder = this.app.vault.getFolderByPath(this.folderPath);
+		if (!folder) return 0;
+
+		const files = folder.children.filter(
+			(f): f is TFile => f instanceof TFile && f.extension === 'md'
+		);
+
+		let patched = 0;
+		for (const file of files) {
+			await this.app.fileManager.processFrontMatter(file, (fm) => {
+				if (typeof fm.status_changed === 'string' && fm.status_changed) return;
+				const fallback = (typeof fm.start_date === 'string' && fm.start_date)
+					? fm.start_date
+					: (typeof fm.created === 'string' && fm.created)
+						? fm.created
+						: localDateString();
+				fm.status_changed = fallback;
+				patched++;
+			});
+		}
+
+		this.plugin.log(`MigrateStatusChanged: patched ${patched} of ${files.length} files`);
 		return patched;
 	}
 
@@ -998,8 +1059,9 @@ export class TaskStore {
 			start_date:     fm.start_date     ?? null,
 			due_date:       fm.due_date       ?? null,
 			estimated_days: fm.estimated_days ?? null,
-			created:        fm.created        ?? null,
-			completed:      fm.completed      ?? null,
+			created:         fm.created         ?? null,
+			completed:       fm.completed       ?? null,
+			status_changed:  typeof fm.status_changed === 'string' ? fm.status_changed : null,
 			notes,
 			recurrence:      typeof fm.recurrence === 'string' ? fm.recurrence : null,
 			recurrence_type: typeof fm.recurrence_type === 'string' ? fm.recurrence_type : null,
@@ -1102,6 +1164,7 @@ export class TaskStore {
 			`estimated_days: ${task.estimated_days ?? 'null'}`,
 			`created: '${task.created}'`,
 			`completed: null`,
+			`status_changed: '${task.created}'`,
 			`recurrence: ${task.recurrence ? `"${esc(task.recurrence)}"` : 'null'}`,
 			`recurrence_type: ${task.recurrence_type ? `"${esc(task.recurrence_type)}"` : 'null'}`,
 			'---',

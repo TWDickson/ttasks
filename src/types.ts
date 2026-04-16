@@ -33,6 +33,8 @@ export interface Task {
 	estimated_days: number | null;
 	created: string | null;
 	completed: string | null;
+	// Set whenever status changes; used by stale-in-progress reminder (more reliable than start_date proxy)
+	status_changed: string | null;
 
 	// Recurrence (stored in frontmatter; null = no recurrence)
 	recurrence: string | null;
@@ -47,4 +49,4 @@ export interface Task {
 	is_inbox: boolean;
 }
 
-export type TaskCreateInput = Omit<Task, 'id' | 'slug' | 'path' | 'blocks' | 'is_complete' | 'is_inbox'>;
+export type TaskCreateInput = Omit<Task, 'id' | 'slug' | 'path' | 'blocks' | 'is_complete' | 'is_inbox' | 'status_changed'>;

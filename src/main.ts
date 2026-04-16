@@ -77,6 +77,32 @@ export default class TTasksPlugin extends Plugin {
 			callback: () => this.taskStore.migrateCssClasses(),
 		});
 
+		this.addCommand({
+			id: 'migrate-status-changed',
+			name: 'Migrate status_changed field (backfill existing tasks)',
+			callback: async () => {
+				const count = await this.taskStore.migrateStatusChanged();
+				new Notice(`TTasks: backfilled status_changed on ${count} task(s).`);
+			},
+		});
+
+		this.addCommand({
+			id: 'duplicate-task',
+			name: 'Duplicate active task',
+			checkCallback: (checking) => {
+				const path = get(this.activeTaskPath);
+				if (!path) return false;
+				if (checking) return true;
+				void this.taskStore.duplicate(path).then((task) => {
+					if (task) {
+						this.activeTaskPath.set(task.path);
+						new Notice(`TTasks: duplicated as "${task.name}"`);
+					}
+				});
+				return true;
+			},
+		});
+
 		if (process.env.NODE_ENV !== 'production') {
 			this.addCommand({
 				id: 'seed-graph-test-data',
@@ -169,6 +195,13 @@ export default class TTasksPlugin extends Plugin {
 				void this.taskStore.openDetail(path);
 			},
 			runQuickAction: (action, path) => this.runQuickAction(action, path),
+			duplicateTask: async (path) => {
+				const created = await this.taskStore.duplicate(path);
+				if (created) {
+					this.activeTaskPath.set(created.path);
+					new Notice(`TTasks: duplicated as "${created.name}"`);
+				}
+			},
 			deleteTask: (path) => this.taskStore.delete(path, { prompt: true }),
 		});
 		menu.showAtMouseEvent(event);
@@ -238,6 +271,13 @@ export default class TTasksPlugin extends Plugin {
 					void this.taskStore.openDetail(path);
 				},
 				runQuickAction: (action, path) => this.runQuickAction(action, path),
+				duplicateTask: async (path) => {
+					const created = await this.taskStore.duplicate(path);
+					if (created) {
+						this.activeTaskPath.set(created.path);
+						new Notice(`TTasks: duplicated as "${created.name}"`);
+					}
+				},
 				deleteTask: (path) => this.taskStore.delete(path, { prompt: true }),
 			});
 		};

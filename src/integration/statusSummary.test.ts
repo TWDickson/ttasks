@@ -29,6 +29,7 @@ function task(overrides: Partial<Task>): Task {
 		notes: '',
 		is_complete: false,
 		is_inbox: false,
+		status_changed: null,
 		...overrides,
 	};
 }

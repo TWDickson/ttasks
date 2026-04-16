@@ -4,6 +4,7 @@ import type TTasksPlugin from './main';
 import { resolveConfiguredStatus, DEFAULT_SETTINGS } from './settings';
 import type { Task } from './types';
 import { localDateString, daysBetweenLocal } from './utils/dateUtils';
+import { resolveStaleDate } from './store/statusChanged';
 
 // Keys are `{path}|{rule}|{YYYY-MM-DD}`.
 // Pipe cannot appear in vault paths on any OS and is not used in rule IDs.
@@ -89,18 +90,18 @@ export class ReminderService {
 				}
 			}
 
-			// stale-in-progress — uses start_date as a proxy for when the task was started.
-			// If start_date is null (e.g. status set via quick-action without a start date), the
-			// rule is silently skipped. A future schema addition (status_changed field) would
-			// make this more reliable.
-			// Stale fires as an individual notice — it's a soft nudge, not time-critical.
+			// stale-in-progress — uses status_changed as the anchor date; falls back to
+			// start_date for tasks predating the field. If neither is available the rule
+			// is silently skipped. Stale fires as an individual notice — soft nudge, not
+			// time-critical.
+			const staleAnchor = resolveStaleDate(task.status_changed, task.start_date);
 			if (
 				r.ruleStaleInProgress &&
 				task.status === startStatus &&
-				task.start_date !== null
+				staleAnchor !== null
 			) {
-					const daysInProgress = daysBetweenLocal(task.start_date, today);
-				if (daysInProgress >= r.staleThresholdDays) {
+					const daysInProgress = daysBetweenLocal(staleAnchor, today);
+					if (daysInProgress >= r.staleThresholdDays) {
 					if (this.fire(task.path, 'stale', today)) {
 						this.showNotice(
 							`Stale in-progress: ${task.name} (${daysInProgress} day${daysInProgress === 1 ? '' : 's'})`,

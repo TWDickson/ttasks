@@ -5,6 +5,7 @@ import type { Task } from '../types';
 export interface TaskContextMenuDeps {
 	openTask: (path: string) => void;
 	runQuickAction: (action: Exclude<QuickActionId, 'none'>, path: string) => Promise<boolean>;
+	duplicateTask: (path: string) => Promise<void>;
 	deleteTask: (path: string) => Promise<void>;
 }
 
@@ -44,6 +45,9 @@ export function addTaskContextMenuItems(
 	}
 
 	menu.addSeparator();
+	addMenuItem(menu, 'Duplicate', 'copy', () => {
+		void deps.duplicateTask(task.path);
+	});
 	addMenuItem(menu, 'Delete', 'trash-2', () => {
 		void deps.deleteTask(task.path);
 	});

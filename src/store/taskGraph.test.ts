@@ -30,6 +30,7 @@ function makeTask(overrides: Partial<Task> & Pick<Task, 'path' | 'name'>): Task 
 		recurrence_type: null,
 		is_complete: false,
 		is_inbox: false,
+		status_changed: null,
 		...rest,
 	};
 }

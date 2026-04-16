@@ -43,6 +43,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 		notes: '',
 		is_complete: false,
 		is_inbox: false,
+		status_changed: null,
 		...overrides,
 	};
 }
@@ -54,6 +55,7 @@ describe('addTaskContextMenuItems', () => {
 		const deps = {
 			openTask: vi.fn(),
 			runQuickAction: vi.fn(async () => true),
+			duplicateTask: vi.fn(async () => {}),
 			deleteTask: vi.fn(async () => {}),
 		};
 
@@ -65,10 +67,14 @@ describe('addTaskContextMenuItems', () => {
 		expect(titles).toContain('Complete');
 		expect(titles).toContain('Block');
 		expect(titles).toContain('Defer');
+		expect(titles).toContain('Duplicate');
 		expect(titles).toContain('Delete');
 
 		menu.items.find(i => i.title === 'Open')?.onClick?.();
 		expect(deps.openTask).toHaveBeenCalledWith(task.path);
+
+		menu.items.find(i => i.title === 'Duplicate')?.onClick?.();
+		expect(deps.duplicateTask).toHaveBeenCalledWith(task.path);
 	});
 
 	it('omits quick actions for projects', () => {
@@ -77,6 +83,7 @@ describe('addTaskContextMenuItems', () => {
 		const deps = {
 			openTask: vi.fn(),
 			runQuickAction: vi.fn(async () => true),
+			duplicateTask: vi.fn(async () => {}),
 			deleteTask: vi.fn(async () => {}),
 		};
 

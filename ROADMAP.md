@@ -2,6 +2,8 @@
 
 This file is the implementation backlog checkpoint for the current phase plan.
 
+---
+
 ## Progress Notes (2026-04-10)
 
 Phases 3A, 3B, and 3C are complete. Build, lint, and tests all passing (14 tests).
@@ -27,116 +29,234 @@ Recurrence foundation is now implemented and test-hardened.
 
 ## Current State (2026-04-16 Recurrence + Date Semantics Follow-up)
 
-- Date-only handling is standardized on local calendar semantics across task operations and reminders:
-  - Shared helpers in `src/utils/dateUtils.ts` (`localDateString`, `daysBetweenLocal`, `addDaysLocal`).
-  - UTC-slice usage (`toISOString().slice(0, 10)`) removed from active task/date workflows.
-- Reminder and status-summary date comparisons now use calendar-day-safe helpers to avoid timezone drift and DST edge regressions.
-- Recurring completion behavior refined in `TaskStore.completeAndRecur()`:
-  - keep `parent_task` (project membership continuity),
-  - clear `depends_on` (fresh instance, no stale prerequisite chain carry-over),
-  - preserve `notes` while resetting checklist completion markers.
-- Checklist reset now supports Obsidian-native task list forms in notes:
-  - unordered: `- [x]`, `* [x]`, `+ [x]`
-  - ordered: `1. [x]`, `2. [X]`, etc.
-- Validation status after follow-up: full suite passing (156 tests) and production build passing.
+- Date-only handling is standardized on local calendar semantics across task operations and reminders.
+- Recurring completion behavior refined in `TaskStore.completeAndRecur()`.
+- Checklist reset supports all Obsidian-native task list forms.
+- Validation status: full suite passing (156 tests) and production build passing.
 
-## Planning Notes (2026-04-16) - Obsidian API Integration
+## Current State (2026-04-16 Phase 4A + Code Quality Refactor)
 
-Decisions captured from product review. This section tracks what to build now,
-what needs more data, and what is intentionally deferred.
+- `is_complete` / `is_inbox` derived boolean fields on every `Task`.
+- Settings UI: Completion status and Inbox status dropdowns.
+- Delete task with confirm dialog; panel open state decoupled from activeTaskPath.
+- Agenda view filters out completed tasks. Kanban always-visible horizontal scrollbar.
+- TDD-driven DRY pass: `pathUtils.ts`, `wikiLink.ts`, `constants.ts`, date utility adoption.
+- Test suite: 198 passing. Zero TypeScript errors.
 
-### Approved now
+---
 
-1. Obsidian protocol handler (`registerObsidianProtocolHandler`) with action routing.
-2. Context menus:
-  - Native Obsidian context menus (`workspace.on('file-menu'|'editor-menu'|'files-menu')`).
-  - In-view right-click menus for TTasks List/Kanban/Agenda/Graph rows/cards.
-3. File operation hardening:
-  - Replace hard delete path with `promptForDeletion`/`trashFile` semantics.
-  - Replace manual wikilink string creation with `generateMarkdownLink` where practical.
-4. Hover previews (`registerHoverLinkSource`) for graph nodes and relationship chips.
-5. Editor assist/fuzzy select flow (`registerEditorSuggest` and/or `FuzzySuggestModal`) for fast dependency/parent insertion.
-6. Status bar signal on desktop (`addStatusBarItem`) for overdue/blocked counts.
-7. Hardening follow-up:
-  - Reduce reliance on internal settings APIs currently accessed via `(app as any).setting`.
+## Progress Notes (2026-04-16) — Phase 4B Complete
 
-### Implemented (2026-04-16 follow-up)
+Phase 4B complete. TDD throughout — all features built red→green. 244 passing tests, zero TypeScript errors, build clean.
 
-1. External settings synchronization (`onExternalSettingsChange`) now uses a full merge:
-  - Merge order: defaults -> current in-memory settings -> externally persisted settings.
-  - Re-normalizes statuses, configured status pointers, colors, reminders, and editor trigger.
-  - Refreshes runtime views/state after external changes.
-2. Legacy settings cleanup for retired mobile swipe model:
-  - Deprecated `mobileSwipeLeftAction`, `mobileSwipeRightAction`, and other swipe-only fields are no longer persisted.
-  - Deprecated `mobileSwipeEnabled` is no longer read; only `mobileHoldEnabled` is respected.
-  - Stale top-level keys (for example legacy `remindersFired`) are dropped during canonical save.
+### status_changed field
+- `status_changed: string | null` added to `Task` (excluded from `TaskCreateInput` — store owns it)
+- `computeStatusChanged(currentStatus, nextStatus, today)` pure helper in `src/store/statusChanged.ts`
+- `resolveStaleDate(statusChanged, startDate)` picks best anchor for stale-in-progress rule
+- `TaskStore.update()` writes `status_changed = today` inside `processFrontMatter` when status actually transitions
+- `TaskStore.create()` and `buildFrontmatter()` seed it from `created` date
+- `completeAndRecur()` does not carry `status_changed` to the new recurrence instance
+- `migrateStatusChanged()` backfills existing tasks with `start_date ?? created`
+- Command: "Migrate status_changed field (backfill existing tasks)"
+- `ReminderService` stale rule uses `resolveStaleDate(task.status_changed, task.start_date)` — graceful fallback for old tasks
 
-### Explicitly future
+### System status protection
+- `isSystemStatus(status, completionStatus, inboxStatus): boolean` exported from `settings.ts`
+- Both completion AND inbox statuses: remove button disabled, lock tooltip, hard guard in `saveManagedList()`
+- Config-driven — protects current pointer values, not hardcoded strings
 
-1. Markdown embedded task blocks (`registerMarkdownCodeBlockProcessor` / post processor)
-  are deferred to a future phase.
+### Task duplication
+- `buildDuplicateInput(task, today, inboxStatus): TaskCreateInput` pure helper in `src/store/taskDuplicate.ts`
+- Reset on duplicate: status → inboxStatus, completed → null, created → today, start_date → null, depends_on → [], blocked_reason → ''
+- Preserved: name, type, category, priority, task_type, parent_task, due_date, estimated_days, notes, recurrence, recurrence_type, assigned_to, source
+- `TaskStore.duplicate(path)` wires the helper into the store
+- Right-click menu: "Duplicate" item on all three context menu surfaces (in-view, file-menu, editor-menu)
+- Command palette: "Duplicate active task" (only available when a task is selected in the detail panel)
+- After duplication: detail panel navigates to the new task, Notice shown
 
-### Proposed implementation slices
+---
 
-1. Slice A: Protocol actions + command routing + tests.
-2. Slice B: Native and in-view context menus for core task actions.
-3. Slice C: Delete/link hardening (`trashFile`/`promptForDeletion` + link generator).
-4. Slice D: Desktop status bar + hover preview wiring.
-5. Slice E: Editor suggest/fuzzy picker integration.
-6. Slice F: Internal settings API hardening and compatibility fallback cleanup.
-7. Research track: external settings change telemetry, then implementation decision.
+## Phase 4B — COMPLETE ✓ (2026-04-16)
+
+### `status_changed` field [ ]
+- Add `status_changed?: string` to `types.ts`
+- `TaskStore.update()` writes today when `status` changes
+- `ReminderService` stale rule uses `status_changed` over `start_date` proxy
+- Migration command: set `status_changed = start_date ?? created` on existing tasks
+- TDD: pure logic in `statusChanged.ts`, integration in `TaskStore.test.ts`
+
+### Protect system statuses [ ]
+- Mark Done and Inbox statuses as system-protected in settings schema
+- Settings UI: system statuses shown with lock icon, rename/delete disabled
+- Validation in `TaskStore.update()` — cannot set a task to a deleted status
+- `resolveCompletionStatus()` / `resolveInboxStatus()` fall back to first non-system status if pointer becomes stale
+- TDD: settings resolver tests, guard tests
+
+### Task duplication [ ]
+- `TaskStore.duplicate(path)` — clone frontmatter, new `{6hex}-{slug}` ID, clear `completed`, `status_changed`, `created` = today, status reset to inboxStatus
+- Command palette: "Duplicate task"
+- Context menu item on task rows
+- Detail panel "Duplicate" button
+- TDD: duplication logic isolated and tested before wiring UI
+
+---
+
+## Phase 5 — UX Hardening
+
+### Kanban overhaul (broken layout)
+- Diagnose and fix column layout regressions
+- Card hover contrast fix (currently too dark, text unreadable)
+- Drag-to-reorder within a column (priority ordering)
+- Stable column widths with proper overflow
+
+### Customizable card display
+- User-configurable field set per card (e.g. show start_date, due_date, category, tags)
+- Field order configurable
+- Compact vs. detailed card density toggle
+
+### Style fixes
+- Button text truncation in modals and panels
+- Alignment regressions across list/detail/kanban
+- List view hover states (too aggressive)
+- Consistent Obsidian CSS token usage throughout
+
+### Right-click context menu on task items
+- Inline context menu on all row/card types (list, kanban, agenda, graph)
+- Actions: open detail, open in editor, duplicate, start, complete, block, defer, delete
+
+### "Open in editor" title fix
+- Task editor view title uses `name` frontmatter field, not the raw filename
+
+### Completed task handling + Logbook
+- Completed tasks removed from all active views by default
+- Dedicated Logbook tab: searchable, filterable archive of Done/Cancelled tasks
+- Optional: auto-archive after N days (configurable)
+
+### Settings pane reorganization
+- Group settings into collapsible sections: General, Statuses, Categories & Types, Quick Actions, Reminders, Appearance
+- Reduce visual noise for first-time setup
+
+---
+
+## Phase 6 — Views & Filtering
+
+### Custom saved views (Smart Lists)
+- Save a filter + sort + groupBy combo with a name and icon
+- Complex filter logic: AND/OR, field comparisons, date ranges, tag intersections
+- Sidebar navigation to saved views
+- Default views (All, Today, Inbox, Blocked) remain but become instances of the same engine
+
+### Custom sort on default views
+- Per-view sort: by due date, priority, created, name, status, estimated_days
+- Secondary sort key support
+
+### Forecast / Calendar view
+- Monthly/weekly calendar grid with tasks overlaid by due date
+- Complements and extends the existing DAG timeline direction
+- Shows scheduling gaps and overload days
+
+### Progress rollup on projects
+- Project nodes in list/graph show `X of N tasks complete` as a progress bar
+- Blocked and overdue counts surfaced at project level
+
+### Tags (freeform, multi-value)
+- `tags` frontmatter array field (separate from `category`)
+- Orthogonal axis: tag tasks `#waiting`, `#quick`, `#deep-work`
+- Tag filter in all views; tag cloud in sidebar
+
+---
+
+## Phase 7 — Data Model Expansion
+
+### Activity log on tasks
+- Timestamped append-only log in task note body (or separate frontmatter array)
+- Auto-entries: status changes (uses `status_changed`), creation, completion, recurrence rollover
+- Manual entries: user comments from detail panel
+- Renders as a timeline in the detail panel
+
+### Areas (explore — may map to top-level category)
+- Hierarchy level above projects: Work, Personal, Health, etc.
+- Investigate whether this is a separate `area` field or a reserved top-level category value
+- If separate: areas appear as section headers in sidebar nav
+
+### Milestones within projects
+- A milestone is a zero-effort task with a target date that gates downstream deps
+- Renders as a diamond node in the graph view
+- Timeline shows milestone markers
+
+### Icon/emoji field for statuses, categories, task types
+- Separate `icon` from `label` so compact views (kanban headers, tight badges) can be icon-only
+- Interim: emoji embedded in name (e.g. `📥 Inbox`) works everywhere and is easy to migrate
+- Implement alongside protecting system statuses
+
+### Eisenhower Matrix view
+- 2×2 board: Important × Urgent
+- Urgent axis derived from due-date proximity (configurable threshold) or explicit flag
+- Important axis from priority field (High/Medium = important)
+
+### Sections within projects
+- Sub-grouping inside a project (`Design`, `Dev`, `QA`)
+- Lightweight alternative to deep nesting
+- Investigate: separate `section` field vs. lightweight parent_task grouping
+
+---
+
+## Phase 8 — Power Features
+
+### Natural language quick capture
+- Parse text entry: `Fix auth bug #high due:tomorrow @Project blocking:abc123`
+- Available from command palette, status bar, and mobile floating button
+- Deferred until after recurrence (now complete) and smart lists (Phase 6)
+
+### Capacity-aware Today planner
+- "Evening review" intent: mark tasks as "for today" independent of due date
+- Suggests top tasks based on `estimated_days` budget vs. available hours
+- Overload guardrails: warns when today's committed work exceeds capacity
+- Requires `status_changed` (Phase 4B) for accurate in-progress accounting
+
+### Pomodoro integration
+- "Start Pomo on this task" command → links Pomodoro Timer plugin session to task
+- On session end: log duration to task note activity log
+- Aggregate time-spent visible in detail panel
+
+### Cycles / Sprints (investigate)
+- Time-boxed work windows; pull tasks into a cycle, track velocity
+- May overlap with Capacity planner — evaluate together
+
+### Obsidian ecosystem compatibility
+- Daily note integration: surface today's due/started tasks in the daily note template
+- Tasks plugin compatibility: read/render `- [ ]` checkboxes in task notes
+- Dataview/Datacore compatibility: ensure frontmatter schema works with community queries
+- Templater hooks: expose TTasks API to Templater scripts
+
+### Markdown code block processor (deferred)
+- ```` ```ttasks filter: category=Work ```` ``` ` embeds a live task list in any note
+- High community value if plugin is published
+- Deferred: requires stable filter engine (Phase 6 prerequisite)
+
+---
+
+## Deferred / Investigate Later
+
+- **Evening review modal** — GTD clarify flow; needs capacity planner design first
+- **Workload view** — needs multi-user `assigned_to` story
+- **Habit tracking** — distinct enough to be its own plugin; revisit after core is stable
+- **Asana-style sections** — investigate overlap with Milestones and project sections above
+- **CodeMirror embed** — true Live Preview in detail panel; deferred due to mobile keyboard risk
+- **Mobile authoring toolbar** — floating row above keyboard; deferred due to WKWebView complexity
+
+---
+
+## Historical Phase Notes
 
 ### Phase 3A — Dependency Graph ✓
-
-- Graph board mode with dependency map and overview timeline (Gantt-like lanes).
-- Dependency map: nodes/edges, cycle highlighting (red ring), blocked-chain highlighting (amber dashed).
-- Detail panel: relationship health context — upstream/downstream counts, cycle/blocker indicators, quick nav chips.
-- Timeline: `resolveTaskDates()` in `taskGraph.ts` uses topological sort (Kahn's) to propagate end dates through full dependency chains. Tasks with no explicit dates but with deps + estimated_days appear at their inferred position. Inferred bars render with dashed border + reduced opacity.
-- Cycle detection: tasks in dependency cycles are excluded from the timeline automatically.
-- Sandbox seeding command for testing (dev-only, `[GS]` prefix).
+- Graph board mode, dependency map, cycle detection, Gantt timeline, topological date inference.
 
 ### Phase 3B — Reminders ✓
-
-- `ReminderService` polls every 5 minutes via `registerInterval`.
-- Rules: due-today, overdue, lead-time (N days before due), stale-in-progress.
-- Deduplication: `{path}|{rule}|{YYYY-MM-DD}` keys stored in `localStorage` (vault-namespaced). Per-device — each device fires its own reminders independently, does not sync.
-- Clicking a notice opens the board and selects the task in the detail panel.
-- Quiet hours: suppresses checks without consuming keys, so reminders fire after the window ends.
-- Stale rule uses `start_date` as proxy; tasks without a start date are silently skipped. A future `status_changed` field would make this more reliable.
-- 11 settings controls under "Reminders" in the settings tab.
+- `ReminderService`: due-today, overdue, lead-time, stale-in-progress. Quiet hours, deduplication.
 
 ### Phase 3C — Quick Actions ✓
+- Start, complete, block, defer via command palette and mobile hold menu with haptic feedback.
 
-- Start, complete, block, defer via command palette and mobile hold menu.
-- Hold menu opens at press position with haptic feedback (`navigator.vibrate(8)`, Android only).
-- Swipe gestures abandoned — don't work reliably in the Obsidian context.
-- Configurable: start status, block status, defer days, handedness bias, hold timeout.
-
----
-
-## Phase 2.5 Hardening [done]
-
-1. ID collision-safe create [done]
-2. Relationship safeguards on create [done]
-3. Configurable categories and task types [done]
-4. Quality guardrails — lint + baseline tests [done]
-
----
-
-## Phase 4 (Parity Plus)
-
-- Recurrence.
-- Natural language quick capture.
-- Capacity-aware Today planner (suggested top tasks, overload guardrails).
-- Explicit status metadata (`is_complete`, later possibly `is_inbox`) so completion/default behavior no longer depends on literal status names.
-- `status_changed` date field on tasks — would improve the stale-in-progress reminder rule (currently uses `start_date` as a proxy).
-- Dedicated per-item icon/emoji field for statuses, categories, and task types.
-  - Separate from the label so compact views (kanban column header, tight badges) can show icon-only while full views show `{icon} {label}`.
-  - Interim: emoji embedded in the name (e.g. `📥 Inbox`) works everywhere and is easy to migrate.
-  - Consider protecting Done/Inbox as system statuses at the same time.
-- Mobile notes authoring toolbar above keyboard (deferred):
-  - Floating action row that follows keyboard while editing notes on mobile.
-  - Shared actions for create modal and detail view (checklist, heading, link, code, quote).
-  - Keep hybrid notes workflow (rendered mode + source edit mode).
-- Optional CodeMirror embed for true inline Live Preview parity (deferred):
-  - Defer until after current mobile stability/UX hardening due lifecycle complexity and mobile keyboard risk.
+### Phase 2.5 — Hardening ✓
+- ID collision-safe create, relationship safeguards, configurable categories/task types, lint + tests.

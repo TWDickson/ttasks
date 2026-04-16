@@ -417,6 +417,16 @@ export function resolveEmergencyStatus(statuses: string[] | null | undefined): s
 	return statuses?.[0] ?? 'Active';
 }
 
+/**
+ * Returns true when `status` is a system-protected status that must not be
+ * deleted. System statuses are the current completion status and inbox status —
+ * not the hardcoded strings 'Done' / 'Inbox', but whatever the user has
+ * configured those pointers to be right now.
+ */
+export function isSystemStatus(status: string, completionStatus: string, inboxStatus: string): boolean {
+	return status === completionStatus || status === inboxStatus;
+}
+
 export function normalizeEditorSuggestTrigger(value: string | null | undefined): string {
 	const trimmed = (value ?? '').trim();
 	if (!trimmed) return DEFAULT_SETTINGS.editorSuggestTrigger;
@@ -1323,14 +1333,18 @@ export class TTasksSettingTab extends PluginSettingTab {
 					}
 					renderRows();
 				});
-				const isProtectedCompletion = config.field === 'status' && (item.originalValue === completionStatus || item.value.trim() === completionStatus);
+				const inboxStatus = this.plugin.settings.inboxStatus;
+				const isProtectedSystem = config.field === 'status' && (
+					item.originalValue === completionStatus || item.value.trim() === completionStatus ||
+					item.originalValue === inboxStatus     || item.value.trim() === inboxStatus
+				);
 				const removeButton = actionsRowEl.createEl('button', { text: 'Remove', cls: 'tt-managed-list-remove' });
-				if (isProtectedCompletion) {
+				if (isProtectedSystem) {
 					removeButton.disabled = true;
-					removeButton.title = 'Rename the completion status instead of removing it.';
+					removeButton.title = 'System statuses (completion and inbox) can be renamed but not removed.';
 				}
 				removeButton.addEventListener('click', () => {
-					if (isProtectedCompletion) return;
+					if (isProtectedSystem) return;
 					state.items = state.items.filter(entry => entry.id !== item.id);
 					renderRows();
 				});
@@ -1375,9 +1389,16 @@ export class TTasksSettingTab extends PluginSettingTab {
 			(value) => !nextValues.includes(value) && !Object.prototype.hasOwnProperty.call(renameMappings, value)
 		);
 
-		if (config.field === 'status' && removedValues.includes(currentCompletionStatus)) {
-			new Notice('TTasks: rename the completion status instead of removing it. Explicit status metadata is planned later.');
-			return;
+		const currentInboxStatus = this.plugin.settings.inboxStatus;
+		if (config.field === 'status') {
+			if (removedValues.includes(currentCompletionStatus)) {
+				new Notice('TTasks: the completion status cannot be removed — rename it instead.');
+				return;
+			}
+			if (removedValues.includes(currentInboxStatus)) {
+				new Notice('TTasks: the inbox status cannot be removed — rename it instead.');
+				return;
+			}
 		}
 
 		let removalMappings: Record<string, string | null> = {};
