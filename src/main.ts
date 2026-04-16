@@ -1,10 +1,18 @@
-import { Notice, Plugin } from 'obsidian';
+import { Menu, Notice, Platform, Plugin, TFile } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
-import { type QuickActionId, type TTasksSettings, DEFAULT_SETTINGS, DEFAULT_REMINDERS_SETTINGS, TTasksSettingTab, normalizeStatuses, normalizeColorMap, resolveCompletionStatus, resolveInboxStatus, resolveConfiguredStatus } from './settings';
+import { type QuickActionId, type TTasksSettings, DEFAULT_SETTINGS, TTasksSettingTab, resolveConfiguredStatus, normalizeSettingsFromSources } from './settings';
 import { TaskStore } from './store/TaskStore';
 import { TaskBoardView, TASK_BOARD_VIEW_TYPE } from './views/TaskBoardView';
 import { CreateTaskModal } from './modals/CreateTaskModal';
 import { ReminderService } from './reminders';
+import type { Task } from './types';
+import { addTaskContextMenuItems } from './integration/contextMenu';
+import { dispatchProtocolAction, parseProtocolAction } from './integration/protocol';
+import { buildStatusSummary } from './integration/statusSummary';
+import { pathToLinktext } from './integration/hoverLink';
+import { TaskLinkSuggestModal } from './editor/TaskLinkSuggestModal';
+import { buildAliasedLink } from './integration/relationshipLink';
+import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
 
 export type BoardViewMode = 'list' | 'kanban' | 'agenda' | 'graph';
 
@@ -14,17 +22,21 @@ export default class TTasksPlugin extends Plugin {
 	reminderService!: ReminderService;
 	activeTaskPath: Writable<string | null> = writable(null);
 	activeViewMode: Writable<BoardViewMode | null> = writable(null);
+	private statusBarEl: HTMLElement | null = null;
+	private isApplyingExternalSettings = false;
 
 	async onload() {
 		await this.loadSettings();
 
 		this.taskStore = new TaskStore(this);
 		this.taskStore.register();
+		this.registerEditorSuggest(new TaskLinkEditorSuggest(this.app, this));
 
 		this.registerView(
 			TASK_BOARD_VIEW_TYPE,
 			leaf => new TaskBoardView(leaf, this)
 		);
+        this.registerHoverLinkSource('ttasks-board', { display: 'TTasks Board', defaultMod: true });
 
 		this.addRibbonIcon('check-square', 'TTasks', () => this.openBoard());
 
@@ -44,6 +56,12 @@ export default class TTasksPlugin extends Plugin {
 			id: 'new-project',
 			name: 'New project',
 			callback: () => new CreateTaskModal(this.app, this, 'project').open(),
+		});
+
+		this.addCommand({
+			id: 'insert-task-link',
+			name: 'Insert task link',
+			callback: () => this.openTaskLinkSuggest(),
 		});
 
 		this.addCommand({
@@ -67,6 +85,9 @@ export default class TTasksPlugin extends Plugin {
 		}
 
 		this.addSettingTab(new TTasksSettingTab(this.app, this));
+		this.registerProtocolHandler();
+		this.registerNativeContextMenus();
+		this.initializeStatusBar();
 
 		this.reminderService = new ReminderService(this);
 
@@ -101,34 +122,218 @@ export default class TTasksPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-		const qa = Object.assign({}, DEFAULT_SETTINGS.quickActions, this.settings.quickActions ?? {});
-		const qaWithLegacy = qa as typeof qa & { mobileSwipeEnabled?: boolean };
-		this.settings.quickActions = {
-			startStatus: qa.startStatus,
-			blockStatus: qa.blockStatus,
-			deferDays: qa.deferDays,
-			mobileHoldEnabled: qa.mobileHoldEnabled ?? qaWithLegacy.mobileSwipeEnabled ?? DEFAULT_SETTINGS.quickActions.mobileHoldEnabled,
-			mobileHandedness: qa.mobileHandedness,
-			mobileHoldTimeoutMs: qa.mobileHoldTimeoutMs,
-		};
-		this.settings.reminders = Object.assign({}, DEFAULT_REMINDERS_SETTINGS, this.settings.reminders ?? {});
-		this.settings.statuses = normalizeStatuses(this.settings.statuses);
-		this.settings.completionStatus = resolveCompletionStatus(this.settings.statuses, this.settings.completionStatus);
-		this.settings.inboxStatus = resolveInboxStatus(this.settings.statuses, this.settings.inboxStatus);
-		this.settings.quickActions.startStatus = resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus);
-		this.settings.quickActions.blockStatus = resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.blockStatus, DEFAULT_SETTINGS.quickActions.blockStatus);
-		this.settings.statusColors = normalizeColorMap(this.settings.statuses, this.settings.statusColors);
-		this.settings.categoryColors = normalizeColorMap(this.settings.categories ?? [], this.settings.categoryColors);
-		this.settings.taskTypeColors = normalizeColorMap(this.settings.taskTypes ?? [], this.settings.taskTypeColors);
+		const persisted = await this.loadData();
+		this.settings = normalizeSettingsFromSources([DEFAULT_SETTINGS, persisted]);
 	}
 
 	async saveSettings() {
+		this.settings = normalizeSettingsFromSources([DEFAULT_SETTINGS, this.settings]);
 		await this.saveData(this.settings);
+	}
+
+	async onExternalSettingsChange() {
+		if (this.isApplyingExternalSettings) return;
+		this.isApplyingExternalSettings = true;
+		try {
+			const previous = this.settings;
+			const persisted = await this.loadData();
+			const merged = normalizeSettingsFromSources([DEFAULT_SETTINGS, previous, persisted]);
+			const changed = JSON.stringify(previous) !== JSON.stringify(merged);
+			this.settings = merged;
+
+			if (this.taskStore && changed) {
+				await this.taskStore.load();
+			}
+
+			if (this.statusBarEl) {
+				this.updateStatusBar();
+			}
+
+			// Canonicalize persisted settings to remove legacy keys and stale fields.
+			await this.saveData(this.settings);
+		} finally {
+			this.isApplyingExternalSettings = false;
+		}
 	}
 
 	log(msg: string) {
 		console.log(`[TTasks] ${msg}`);
+	}
+
+	showTaskContextMenu(task: Task, event: MouseEvent): void {
+		event.preventDefault();
+		const menu = new Menu();
+		addTaskContextMenuItems(menu, task, {
+			openTask: (path) => {
+				void this.taskStore.openDetail(path);
+			},
+			runQuickAction: (action, path) => this.runQuickAction(action, path),
+			deleteTask: (path) => this.taskStore.delete(path, { prompt: true }),
+		});
+		menu.showAtMouseEvent(event);
+	}
+
+	taskStoreTasksSnapshot(): Task[] {
+		return get(this.taskStore.tasks);
+	}
+
+	triggerTaskHoverPreview(pathLike: string, event: MouseEvent): void {
+		const linktext = pathToLinktext(pathLike);
+		const sourcePath = this.app.workspace.getActiveFile()?.path ?? `${linktext}.md`;
+		const payload = {
+			event,
+			source: 'ttasks-board',
+			hoverParent: this,
+			targetEl: event.currentTarget as HTMLElement | null,
+			linktext,
+			sourcePath,
+		};
+		(this.app.workspace as any).trigger('hover-link', payload);
+	}
+
+	openPluginSettings(): void {
+		type SettingsHost = {
+			setting?: {
+				open?: () => void;
+				openTabById?: (id: string) => void;
+			};
+			commands?: {
+				executeCommandById?: (id: string) => void;
+			};
+		};
+
+		const host = this.app as unknown as SettingsHost;
+		if (host.setting?.open && host.setting.openTabById) {
+			host.setting.open();
+			host.setting.openTabById(this.manifest.id);
+			return;
+		}
+		host.commands?.executeCommandById?.('app:open-settings');
+	}
+
+	private getTaskByPath(path: string): Task | null {
+		const normalized = path.endsWith('.md') ? path : `${path}.md`;
+		return get(this.taskStore.tasks).find(task => task.path === normalized) ?? null;
+	}
+
+	private registerProtocolHandler(): void {
+		this.registerObsidianProtocolHandler('ttasks', (params) => {
+			const parsed = parseProtocolAction(params as Record<string, unknown>);
+			void dispatchProtocolAction(parsed, {
+				openBoard: () => this.openBoard(),
+				openTask: (path) => this.taskStore.openDetail(path),
+				createTask: async () => { new CreateTaskModal(this.app, this).open(); },
+				createProject: async () => { new CreateTaskModal(this.app, this, 'project').open(); },
+				runQuickAction: (action, path) => this.runQuickAction(action, path),
+				notice: (message) => { new Notice(message); },
+			});
+		});
+	}
+
+	private registerNativeContextMenus(): void {
+		const addForTask = (menu: Menu, task: Task): void => {
+			addTaskContextMenuItems(menu, task, {
+				openTask: (path) => {
+					void this.taskStore.openDetail(path);
+				},
+				runQuickAction: (action, path) => this.runQuickAction(action, path),
+				deleteTask: (path) => this.taskStore.delete(path, { prompt: true }),
+			});
+		};
+
+		this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
+			if (!(file instanceof TFile)) return;
+			const task = this.getTaskByPath(file.path);
+			if (!task) return;
+			addForTask(menu, task);
+		}));
+
+		this.registerEvent((this.app.workspace as any).on('editor-menu', (menu: Menu, _editor: unknown, view: { file?: TFile } | null) => {
+			const file = view?.file;
+			if (!(file instanceof TFile)) return;
+			const task = this.getTaskByPath(file.path);
+			if (!task) return;
+			addForTask(menu, task);
+		}));
+
+		this.registerEvent((this.app.workspace as any).on('files-menu', (menu: Menu, files: unknown[]) => {
+			const taskFiles = files
+				.filter((file): file is TFile => file instanceof TFile)
+				.map((file) => this.getTaskByPath(file.path))
+				.filter((task): task is Task => task !== null);
+
+			if (taskFiles.length === 1) {
+				addForTask(menu, taskFiles[0]);
+				return;
+			}
+
+			if (taskFiles.length > 1) {
+				menu.addSeparator();
+				menu.addItem((item) => {
+					item.setTitle('Open TTasks board');
+					item.setIcon('check-square');
+					item.onClick(() => {
+						void this.openBoard();
+					});
+				});
+			}
+		}));
+	}
+
+	private initializeStatusBar(): void {
+		if (Platform.isMobile) return;
+		this.statusBarEl = this.addStatusBarItem();
+		this.statusBarEl.addClass('ttasks-statusbar');
+		this.statusBarEl.style.cursor = 'pointer';
+		this.statusBarEl.addEventListener('click', () => {
+			void this.openBoard().then(() => {
+				this.activeViewMode.set('agenda');
+			});
+		});
+
+		const unsubscribe = this.taskStore.tasks.subscribe(() => {
+			this.updateStatusBar();
+		});
+		this.register(() => unsubscribe());
+		this.updateStatusBar();
+	}
+
+	private openTaskLinkSuggest(): void {
+		const editor = this.app.workspace.activeEditor?.editor;
+		if (!editor) {
+			new Notice('TTasks: open a markdown editor to insert a task link.');
+			return;
+		}
+
+		const sourcePath = this.app.workspace.getActiveFile()?.path ?? '';
+		const tasks = get(this.taskStore.tasks);
+		if (tasks.length === 0) {
+			new Notice('TTasks: no tasks available to link.');
+			return;
+		}
+
+		new TaskLinkSuggestModal(this.app, tasks, (task) => {
+			const pathWithoutExt = task.path.replace(/\.md$/, '');
+			const link = buildAliasedLink({
+				targetPathWithoutExt: pathWithoutExt,
+				alias: task.name,
+				sourcePath,
+				resolveFile: (path) => {
+					const resolved = this.app.vault.getAbstractFileByPath(path);
+					return resolved instanceof TFile ? resolved : null;
+				},
+				generateMarkdownLink: (file, src, subpath, alias) => this.app.fileManager.generateMarkdownLink(file, src, subpath, alias),
+			});
+			editor.replaceSelection(link);
+		}).open();
+	}
+
+	private updateStatusBar(): void {
+		if (!this.statusBarEl) return;
+		const summary = buildStatusSummary(get(this.taskStore.tasks), {
+			blockStatus: this.settings.quickActions.blockStatus,
+		});
+		this.statusBarEl.setText(summary.label);
 	}
 
 	async runQuickAction(action: QuickActionId, path?: string, options?: { showNotice?: boolean }): Promise<boolean> {

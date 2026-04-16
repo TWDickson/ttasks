@@ -3,7 +3,9 @@
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task, TaskStatus } from '../types';
 	import type TaskStore from '../store/TaskStore';
+    import type TTasksPlugin from '../main';
 
+	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
 	export let statuses: string[];
 	export let statusColors: Record<string, string>;
@@ -13,6 +15,7 @@
 	export let activeTaskPath: Writable<string | null>;
 	export let store: TaskStore;
 	export let onOpen: (path: string) => void;
+	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 
 	type Column = { id: TaskStatus; label: string; accent?: string };
 
@@ -125,6 +128,16 @@
 		}
 	}
 
+	function onCardContextMenu(event: MouseEvent, task: Task): void {
+		if (!onContextMenu) return;
+		event.preventDefault();
+		onContextMenu(task, event);
+	}
+
+	function onCardHover(event: MouseEvent, task: Task): void {
+		plugin.triggerTaskHoverPreview(task.path, event);
+	}
+
 	function onDragEnd() {
 		draggingPath = null;
 		dragOverCol = null;
@@ -190,6 +203,8 @@
 								aria-grabbed={draggingPath === task.path}
 								on:click={() => onOpen(task.path)}
 								on:keydown={(e) => onCardKeyDown(e, task.path)}
+								on:mouseenter={(event) => onCardHover(event, task)}
+								on:contextmenu={(event) => onCardContextMenu(event, task)}
 								on:dragstart={(e) => onDragStart(e, task.path)}
 								on:dragend={onDragEnd}
 							>

@@ -10,6 +10,7 @@
 	export let statusColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
+	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 
 	type GraphMode = 'dependency' | 'overview';
 	type TimelineItem = {
@@ -125,6 +126,16 @@
 	function timelineBarStyle(item: TimelineItem): string {
 		const accent = statusColors?.[item.task.status] ?? 'var(--interactive-accent)';
 		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;--tt-bar-accent:${accent};`;
+	}
+
+	function showTaskHoverPreview(event: MouseEvent, task: Task): void {
+		plugin.triggerTaskHoverPreview(task.path, event);
+	}
+
+	function handleTaskContextMenu(event: MouseEvent, task: Task): void {
+		if (!onContextMenu) return;
+		event.preventDefault();
+		onContextMenu(task, event);
 	}
 
 	function buildTimelineRows(allTasks: Task[], projectMap: Map<string, Task>): TimelineCategory[] {
@@ -307,6 +318,8 @@
 							class:is-blocked={node.isBlockedChain}
 							style={nodeStyle(node)}
 							on:click={() => onOpen(node.path)}
+							on:mouseenter={(event) => showTaskHoverPreview(event, node.task)}
+							on:contextmenu={(event) => handleTaskContextMenu(event, node.task)}
 						>
 							<div class="tt-graph-node-top">
 								<span class="tt-graph-priority-dot"></span>
@@ -355,6 +368,8 @@
 											style={timelineBarStyle(item)}
 											title={`${item.task.name} | ${formatDate(item.start)} → ${formatDate(item.end)}${item.isInferred ? ' (inferred)' : ''}`}
 											on:click={() => onOpen(item.task.path)}
+											on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
+											on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
 										>
 											<span>{item.task.name}</span>
 										</button>

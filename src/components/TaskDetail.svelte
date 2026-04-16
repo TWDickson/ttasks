@@ -306,6 +306,12 @@
 		activeTaskPath.set(normalized);
 	}
 
+	function showLinkedHoverPreview(event: MouseEvent, pathLike: string): void {
+		const normalized = normalizeTaskPath(pathLike);
+		if (!normalized) return;
+		plugin.triggerTaskHoverPreview(normalized, event);
+	}
+
 	$: availableDependencies = task ? $tasks
 		.filter(t => t.type === 'task' && t.path !== task.path && !task.depends_on.some(d => normalizeTaskPath(d) === t.path))
 		.sort((a, b) => a.name.localeCompare(b.name)) : [];
@@ -581,7 +587,7 @@
 								<div class="tt-chips">
 									{#each task.depends_on as dep}
 										<span class="tt-chip-group">
-											<button class="tt-chip tt-chip-rel" class:tt-chip-warning={!linkedTask(dep)} class:tt-chip-blocking={!!linkedTask(dep) && !linkedTask(dep)?.is_complete} on:click={() => openLinkedPath(dep)}>
+											<button class="tt-chip tt-chip-rel" class:tt-chip-warning={!linkedTask(dep)} class:tt-chip-blocking={!!linkedTask(dep) && !linkedTask(dep)?.is_complete} on:click={() => openLinkedPath(dep)} on:mouseenter={(event) => showLinkedHoverPreview(event, dep)}>
 												{taskLabelFromPath(dep)}
 											</button>
 											<button class="tt-chip-remove" on:click|stopPropagation={() => removeDependency(dep)} aria-label="Remove dependency" title="Remove dependency">&times;</button>
@@ -611,7 +617,7 @@
 							{:else}
 								<div class="tt-chips">
 									{#each task.blocks as dep}
-										<button class="tt-chip tt-chip-rel" on:click={() => openLinkedPath(dep)}>
+										<button class="tt-chip tt-chip-rel" on:click={() => openLinkedPath(dep)} on:mouseenter={(event) => showLinkedHoverPreview(event, dep)}>
 											{taskLabelFromPath(dep)}
 										</button>
 									{/each}

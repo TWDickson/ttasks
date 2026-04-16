@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type TTasksPlugin from '../main';
-	import SwipeableTaskRow from './SwipeableTaskRow.svelte';
+	import HoldActionTaskRow from './HoldActionTaskRow.svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
 
@@ -11,6 +11,7 @@
 	export let taskTypeColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
+	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 	export let onNewTask: (() => void) | undefined = undefined;
 
 	type GroupKey = string;
@@ -55,13 +56,14 @@
 					</h3>
 					<ul class="tt-task-list">
 						{#each (grouped.get(group) ?? []) as task (task.path)}
-							<SwipeableTaskRow
+							<HoldActionTaskRow
 								{plugin}
 								{task}
 								active={$activeTaskPath === task.path}
 								{categoryColors}
 								{taskTypeColors}
 								{onOpen}
+								onContextMenu={onContextMenu}
 							/>
 						{/each}
 					</ul>

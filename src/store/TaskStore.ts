@@ -6,6 +6,8 @@ import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 import { materializeChecklistChildren } from './checklistMaterializer';
 import { resolveCompletionStatus, resolveInboxStatus } from '../settings';
 import { nextDueDate, nextStartDate } from './recurrence';
+import { deleteFileSafely } from '../integration/safeDelete';
+import { buildAliasedLink } from '../integration/relationshipLink';
 
 type MigratableField = 'status' | 'category' | 'task_type';
 
@@ -421,11 +423,12 @@ export class TaskStore {
 		const depName = depTask?.name ?? depPathWithoutExt.split('/').pop() ?? depPathWithoutExt;
 		const selfTask = all.find(t => t.path === taskPath);
 		const selfName = selfTask?.name ?? taskPath.replace(/\.md$/, '').split('/').pop() ?? taskPath;
+		const depLink = this.buildAliasedTaskLink(depPathWithoutExt, depName, file.path);
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			const current: unknown[] = Array.isArray(fm.depends_on) ? fm.depends_on : [];
 			const already = current.some(v => String(v ?? '').includes(depPathWithoutExt));
-			if (!already) fm.depends_on = [...current, `[[${depPathWithoutExt}|${depName}]]`];
+			if (!already) fm.depends_on = [...current, depLink];
 		});
 
 		await this.addToBlocks(depPathWithoutExt, taskPath, selfName);
@@ -463,14 +466,24 @@ export class TaskStore {
 			const all = get(this.tasks);
 			const parent = all.find(t => t.path.replace(/\.md$/, '') === parentPath);
 			const name = parent?.name ?? parentPath.split('/').pop() ?? parentPath;
-			fm.parent_task = `[[${parentPath}|${name}]]`;
+			fm.parent_task = this.buildAliasedTaskLink(parentPath, name, file.path);
 		});
 	}
 
-	async delete(path: string): Promise<void> {
+	async delete(path: string, options?: { prompt?: boolean }): Promise<void> {
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return;
-		await this.app.vault.delete(file);
+
+		const fileManager = this.app.fileManager as typeof this.app.fileManager & {
+			promptForDeletion?: (file: TFile) => Promise<void> | void;
+			trashFile?: (file: TFile) => Promise<void> | void;
+		};
+
+		await deleteFileSafely(file, {
+			promptForDeletion: fileManager.promptForDeletion,
+			trashFile: fileManager.trashFile,
+			vaultDelete: (f) => this.app.vault.delete(f),
+		}, { prompt: options?.prompt ?? false });
 	}
 
 	/**
@@ -603,7 +616,7 @@ export class TaskStore {
 			const cleanPath = file.path.replace(/\.md$/, '');
 			const blockers = reverseMap.get(cleanPath) ?? [];
 			await this.app.fileManager.processFrontMatter(file, (fm) => {
-				fm.blocks = blockers.map(b => `[[${b.path}|${b.name}]]`);
+				fm.blocks = blockers.map((b) => this.buildAliasedTaskLink(b.path, b.name, file.path));
 			});
 		}
 
@@ -984,16 +997,31 @@ export class TaskStore {
 		return val.map(v => this.parseWikiLink(v)).filter((v): v is string => v !== null);
 	}
 
+	private buildAliasedTaskLink(pathWithoutExt: string, alias: string, sourcePath: string): string {
+		const cleanPath = pathWithoutExt.replace(/\.md$/, '');
+		return buildAliasedLink({
+			targetPathWithoutExt: cleanPath,
+			alias,
+			sourcePath,
+			resolveFile: (path) => {
+				const resolved = this.app.vault.getAbstractFileByPath(normalizePath(path));
+				return resolved instanceof TFile ? resolved : null;
+			},
+			generateMarkdownLink: (file, src, subpath, linkAlias) => this.app.fileManager.generateMarkdownLink(file, src, subpath, linkAlias),
+		});
+	}
+
 	private async addToBlocks(depPath: string, thisPath: string, thisName: string): Promise<void> {
 		const fullPath = depPath.endsWith('.md') ? depPath : depPath + '.md';
 		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(fullPath));
 		if (!(depFile instanceof TFile)) return;
 
 		const cleanPath = thisPath.replace(/\.md$/, '');
+		const thisLink = this.buildAliasedTaskLink(cleanPath, thisName, depFile.path);
 		await this.app.fileManager.processFrontMatter(depFile, (fm) => {
 			const current: unknown[] = Array.isArray(fm.blocks) ? fm.blocks : [];
 			const already = current.some(b => String(b ?? '').includes(cleanPath));
-			if (!already) fm.blocks = [...current, `[[${cleanPath}|${thisName}]]`];
+			if (!already) fm.blocks = [...current, thisLink];
 		});
 	}
 

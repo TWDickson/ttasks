@@ -12,6 +12,7 @@
 	export let categoryColors: Record<string, string>;
 	export let taskTypeColors: Record<string, string>;
 	export let onOpen: (path: string) => void;
+	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 
 	type MenuPrimaryAction = QuickActionId | 'edit';
 	type DeferPreset = 1 | 3 | 7 | 'custom';
@@ -291,6 +292,16 @@
 		onOpen(task.path);
 	}
 
+	function handleContextMenu(event: MouseEvent): void {
+		if (!onContextMenu) return;
+		event.preventDefault();
+		onContextMenu(task, event);
+	}
+
+	function handleHoverPreview(event: MouseEvent): void {
+		plugin.triggerTaskHoverPreview(task.path, event);
+	}
+
 	async function onPrimaryClick(action: MenuPrimaryAction): Promise<void> {
 		scheduleMenuTimeout();
 		if (action === 'defer') {
@@ -409,6 +420,8 @@
 		on:pointercancel={onTaskPointerCancel}
 		on:pointerup={onTaskPointerUp}
 		on:click={handleOpen}
+		on:mouseenter={handleHoverPreview}
+		on:contextmenu={handleContextMenu}
 	>
 		<div class="tt-task-main">
 			<span

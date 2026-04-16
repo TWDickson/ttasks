@@ -2,6 +2,7 @@
 	import { setIcon } from 'obsidian';
 	import { derived, writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
+	import type { Task } from '../types';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
 	import TaskList from './TaskList.svelte';
 	import TaskKanban from './TaskKanban.svelte';
@@ -77,14 +78,11 @@
 	function openNewTask()    { new CreateTaskModal(plugin.app, plugin).open(); }
 	function openNewProject() { new CreateTaskModal(plugin.app, plugin, 'project').open(); }
 	function closeDetail()    { panelOpen = false; activeTaskPath.set(null); }
+	function openContextMenu(task: Task, event: MouseEvent) {
+		plugin.showTaskContextMenu(task, event);
+	}
 	function openSettings()   {
-		try {
-			(plugin.app as any).setting.open();
-			(plugin.app as any).setting.openTabById(plugin.manifest.id);
-		} catch {
-			// Fallback: open settings via the built-in command if internal API changes
-			(plugin.app as any).commands?.executeCommandById?.('app:open-settings');
-		}
+		plugin.openPluginSettings();
 	}
 
 	function icon(el: HTMLElement, name: string) {
@@ -195,10 +193,12 @@
 						taskTypeColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
+						onContextMenu={openContextMenu}
 						onNewTask={openNewTask}
 					/>
 				{:else if currentView === 'kanban'}
 					<TaskKanban
+						{plugin}
 						tasks={displayTasks}
 						statuses={configuredStatuses}
 						statusColors={configuredStatusColors}
@@ -208,6 +208,7 @@
 						{activeTaskPath}
 						store={plugin.taskStore}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
+						onContextMenu={openContextMenu}
 					/>
 				{:else if currentView === 'graph'}
 					<TaskGraph
@@ -216,6 +217,7 @@
 						statusColors={configuredStatusColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
+						onContextMenu={openContextMenu}
 					/>
 				{:else}
 					<TaskAgenda
@@ -225,6 +227,7 @@
 						taskTypeColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
+						onContextMenu={openContextMenu}
 					/>
 				{/if}
 			</div>

@@ -4,6 +4,9 @@ import {
 	resolveCompletionStatus,
 	resolveInboxStatus,
 	resolveConfiguredStatus,
+	normalizeEditorSuggestTrigger,
+	normalizeSettingsFromSources,
+	DEFAULT_SETTINGS,
 	DEFAULT_STATUSES,
 } from './settings';
 
@@ -100,5 +103,70 @@ describe('resolveConfiguredStatus', () => {
 
 	it('uses the preferred string as a last-resort when list is empty', () => {
 		expect(resolveConfiguredStatus([], null, 'In Progress')).toBe('In Progress');
+	});
+});
+
+describe('normalizeEditorSuggestTrigger', () => {
+	it('falls back to default when empty', () => {
+		expect(normalizeEditorSuggestTrigger('')).toBe('@task');
+		expect(normalizeEditorSuggestTrigger('   ')).toBe('@task');
+	});
+
+	it('prepends @ when missing', () => {
+		expect(normalizeEditorSuggestTrigger('todo')).toBe('@todo');
+	});
+
+	it('keeps @ prefix when present', () => {
+		expect(normalizeEditorSuggestTrigger('@todo')).toBe('@todo');
+	});
+});
+
+describe('normalizeSettingsFromSources', () => {
+	it('merges external settings over current settings and ignores deprecated swipe fields', () => {
+		const current = normalizeSettingsFromSources([
+			DEFAULT_SETTINGS,
+			{
+				tasksFolder: 'Planner/Tasks',
+				quickActions: {
+					mobileHoldEnabled: false,
+					mobileHandedness: 'left',
+				},
+				editorSuggestTrigger: '@task',
+			},
+		]);
+
+		const merged = normalizeSettingsFromSources([
+			DEFAULT_SETTINGS,
+			current,
+			{
+				quickActions: {
+					mobileSwipeEnabled: true,
+					mobileSwipeLeftAction: 'defer',
+					mobileSwipeRightAction: 'complete',
+				},
+				editorSuggestTrigger: 'link',
+				remindersFired: ['legacy-key'],
+			},
+		]);
+
+		expect(merged.quickActions.mobileHoldEnabled).toBe(false);
+		expect(merged.quickActions.mobileHandedness).toBe('left');
+		expect(merged.editorSuggestTrigger).toBe('@link');
+		expect(Object.prototype.hasOwnProperty.call(merged, 'remindersFired')).toBe(false);
+		expect(Object.prototype.hasOwnProperty.call(merged.quickActions, 'mobileSwipeEnabled')).toBe(false);
+		expect(Object.prototype.hasOwnProperty.call(merged.quickActions, 'mobileSwipeLeftAction')).toBe(false);
+		expect(Object.prototype.hasOwnProperty.call(merged.quickActions, 'mobileSwipeRightAction')).toBe(false);
+	});
+
+	it('preserves existing values when external payload is partial', () => {
+		const merged = normalizeSettingsFromSources([
+			DEFAULT_SETTINGS,
+			{ tasksFolder: 'Planner/Tasks', editorSuggestTrigger: '@todo' },
+			{ reminders: { enabled: false } },
+		]);
+
+		expect(merged.tasksFolder).toBe('Planner/Tasks');
+		expect(merged.editorSuggestTrigger).toBe('@todo');
+		expect(merged.reminders.enabled).toBe(false);
 	});
 });

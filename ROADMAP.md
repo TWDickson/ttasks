@@ -17,6 +17,60 @@ Recurrence foundation is now implemented and test-hardened.
 - Regression and edge-case coverage expanded in `src/store/recurrence.test.ts` (table-driven assertions + leap/DST/month-end cases).
 - Current test status: 101 passing tests.
 
+## Current State (2026-04-16 Final Pass)
+
+- External settings sync is implemented with full merge and canonical re-save on external changes.
+- Legacy swipe settings are fully removed from runtime support (`mobileSwipeEnabled`, left/right swipe actions, swipe layout fields).
+- Mobile interaction model is now hold-menu only; row component naming is aligned (`HoldActionTaskRow`).
+- Plugin data is in canonical schema shape (`data.json` now includes reminders object and hold-menu quick-action keys only).
+- Verification status: full test suite passing (130 tests) and production build passing.
+
+## Planning Notes (2026-04-16) - Obsidian API Integration
+
+Decisions captured from product review. This section tracks what to build now,
+what needs more data, and what is intentionally deferred.
+
+### Approved now
+
+1. Obsidian protocol handler (`registerObsidianProtocolHandler`) with action routing.
+2. Context menus:
+  - Native Obsidian context menus (`workspace.on('file-menu'|'editor-menu'|'files-menu')`).
+  - In-view right-click menus for TTasks List/Kanban/Agenda/Graph rows/cards.
+3. File operation hardening:
+  - Replace hard delete path with `promptForDeletion`/`trashFile` semantics.
+  - Replace manual wikilink string creation with `generateMarkdownLink` where practical.
+4. Hover previews (`registerHoverLinkSource`) for graph nodes and relationship chips.
+5. Editor assist/fuzzy select flow (`registerEditorSuggest` and/or `FuzzySuggestModal`) for fast dependency/parent insertion.
+6. Status bar signal on desktop (`addStatusBarItem`) for overdue/blocked counts.
+7. Hardening follow-up:
+  - Reduce reliance on internal settings APIs currently accessed via `(app as any).setting`.
+
+### Implemented (2026-04-16 follow-up)
+
+1. External settings synchronization (`onExternalSettingsChange`) now uses a full merge:
+  - Merge order: defaults -> current in-memory settings -> externally persisted settings.
+  - Re-normalizes statuses, configured status pointers, colors, reminders, and editor trigger.
+  - Refreshes runtime views/state after external changes.
+2. Legacy settings cleanup for retired mobile swipe model:
+  - Deprecated `mobileSwipeLeftAction`, `mobileSwipeRightAction`, and other swipe-only fields are no longer persisted.
+  - Deprecated `mobileSwipeEnabled` is no longer read; only `mobileHoldEnabled` is respected.
+  - Stale top-level keys (for example legacy `remindersFired`) are dropped during canonical save.
+
+### Explicitly future
+
+1. Markdown embedded task blocks (`registerMarkdownCodeBlockProcessor` / post processor)
+  are deferred to a future phase.
+
+### Proposed implementation slices
+
+1. Slice A: Protocol actions + command routing + tests.
+2. Slice B: Native and in-view context menus for core task actions.
+3. Slice C: Delete/link hardening (`trashFile`/`promptForDeletion` + link generator).
+4. Slice D: Desktop status bar + hover preview wiring.
+5. Slice E: Editor suggest/fuzzy picker integration.
+6. Slice F: Internal settings API hardening and compatibility fallback cleanup.
+7. Research track: external settings change telemetry, then implementation decision.
+
 ### Phase 3A — Dependency Graph ✓
 
 - Graph board mode with dependency map and overview timeline (Gantt-like lanes).

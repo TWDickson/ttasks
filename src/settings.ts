@@ -48,6 +48,7 @@ export interface RemindersSettings {
 
 export interface TTasksSettings {
 	tasksFolder: string;
+	editorSuggestTrigger: string;
 	fabPosition: FabPosition;
 	statuses: string[];
 	completionStatus: string;
@@ -78,6 +79,7 @@ export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
 
 export const DEFAULT_SETTINGS: TTasksSettings = {
 	tasksFolder: 'Tasks',
+	editorSuggestTrigger: '@task',
 	fabPosition: 'right',
 	statuses: DEFAULT_STATUSES,
 	completionStatus: 'Done',
@@ -103,6 +105,212 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	},
 	reminders: DEFAULT_REMINDERS_SETTINGS,
 };
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+		return null;
+	}
+	return value as Record<string, unknown>;
+}
+
+function asStringArray(value: unknown): string[] | null {
+	if (!Array.isArray(value)) return null;
+	const result = value.filter((item): item is string => typeof item === 'string');
+	return result;
+}
+
+function asBoolean(value: unknown): boolean | null {
+	return typeof value === 'boolean' ? value : null;
+}
+
+function asString(value: unknown): string | null {
+	return typeof value === 'string' ? value : null;
+}
+
+function asInteger(value: unknown): number | null {
+	if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+	return Math.round(value);
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+	if (value < min) return min;
+	if (value > max) return max;
+	return value;
+}
+
+function cloneSettings(settings: TTasksSettings): TTasksSettings {
+	return {
+		tasksFolder: settings.tasksFolder,
+		editorSuggestTrigger: settings.editorSuggestTrigger,
+		fabPosition: settings.fabPosition,
+		statuses: [...settings.statuses],
+		completionStatus: settings.completionStatus,
+		inboxStatus: settings.inboxStatus,
+		statusColors: { ...settings.statusColors },
+		categories: [...settings.categories],
+		categoryColors: { ...settings.categoryColors },
+		taskTypes: [...settings.taskTypes],
+		taskTypeColors: { ...settings.taskTypeColors },
+		quickActions: {
+			startStatus: settings.quickActions.startStatus,
+			blockStatus: settings.quickActions.blockStatus,
+			deferDays: settings.quickActions.deferDays,
+			mobileHoldEnabled: settings.quickActions.mobileHoldEnabled,
+			mobileHandedness: settings.quickActions.mobileHandedness,
+			mobileHoldTimeoutMs: settings.quickActions.mobileHoldTimeoutMs,
+		},
+		reminders: {
+			enabled: settings.reminders.enabled,
+			ruleDueToday: settings.reminders.ruleDueToday,
+			ruleOverdue: settings.reminders.ruleOverdue,
+			ruleStaleInProgress: settings.reminders.ruleStaleInProgress,
+			ruleLeadTime: settings.reminders.ruleLeadTime,
+			leadTimeDays: settings.reminders.leadTimeDays,
+			staleThresholdDays: settings.reminders.staleThresholdDays,
+			quietHoursEnabled: settings.reminders.quietHoursEnabled,
+			quietStart: settings.reminders.quietStart,
+			quietEnd: settings.reminders.quietEnd,
+		},
+	};
+}
+
+function applySettingsPatch(target: TTasksSettings, source: unknown): void {
+	const root = asRecord(source);
+	if (!root) return;
+
+	const tasksFolder = asString(root.tasksFolder);
+	if (tasksFolder !== null) target.tasksFolder = tasksFolder;
+
+	const editorSuggestTrigger = asString(root.editorSuggestTrigger);
+	if (editorSuggestTrigger !== null) target.editorSuggestTrigger = editorSuggestTrigger;
+
+	const fabPosition = asString(root.fabPosition);
+	if (fabPosition === 'right' || fabPosition === 'left' || fabPosition === 'hidden') {
+		target.fabPosition = fabPosition;
+	}
+
+	const statuses = asStringArray(root.statuses);
+	if (statuses !== null) target.statuses = statuses;
+
+	const completionStatus = asString(root.completionStatus);
+	if (completionStatus !== null) target.completionStatus = completionStatus;
+
+	const inboxStatus = asString(root.inboxStatus);
+	if (inboxStatus !== null) target.inboxStatus = inboxStatus;
+
+	const statusColors = asRecord(root.statusColors);
+	if (statusColors !== null) {
+		target.statusColors = Object.fromEntries(
+			Object.entries(statusColors).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+		);
+	}
+
+	const categories = asStringArray(root.categories);
+	if (categories !== null) target.categories = categories;
+
+	const categoryColors = asRecord(root.categoryColors);
+	if (categoryColors !== null) {
+		target.categoryColors = Object.fromEntries(
+			Object.entries(categoryColors).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+		);
+	}
+
+	const taskTypes = asStringArray(root.taskTypes);
+	if (taskTypes !== null) target.taskTypes = taskTypes;
+
+	const taskTypeColors = asRecord(root.taskTypeColors);
+	if (taskTypeColors !== null) {
+		target.taskTypeColors = Object.fromEntries(
+			Object.entries(taskTypeColors).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+		);
+	}
+
+	const quickActions = asRecord(root.quickActions);
+	if (quickActions !== null) {
+		const startStatus = asString(quickActions.startStatus);
+		if (startStatus !== null) target.quickActions.startStatus = startStatus;
+
+		const blockStatus = asString(quickActions.blockStatus);
+		if (blockStatus !== null) target.quickActions.blockStatus = blockStatus;
+
+		const deferDays = asInteger(quickActions.deferDays);
+		if (deferDays !== null) target.quickActions.deferDays = deferDays;
+
+		const mobileHoldEnabled = asBoolean(quickActions.mobileHoldEnabled);
+		if (mobileHoldEnabled !== null) {
+			target.quickActions.mobileHoldEnabled = mobileHoldEnabled;
+		}
+
+		const mobileHandedness = asString(quickActions.mobileHandedness);
+		if (mobileHandedness === 'left' || mobileHandedness === 'right') {
+			target.quickActions.mobileHandedness = mobileHandedness;
+		}
+
+		const mobileHoldTimeoutMs = asInteger(quickActions.mobileHoldTimeoutMs);
+		if (mobileHoldTimeoutMs !== null) target.quickActions.mobileHoldTimeoutMs = mobileHoldTimeoutMs;
+	}
+
+	const reminders = asRecord(root.reminders);
+	if (reminders !== null) {
+		const enabled = asBoolean(reminders.enabled);
+		if (enabled !== null) target.reminders.enabled = enabled;
+
+		const ruleDueToday = asBoolean(reminders.ruleDueToday);
+		if (ruleDueToday !== null) target.reminders.ruleDueToday = ruleDueToday;
+
+		const ruleOverdue = asBoolean(reminders.ruleOverdue);
+		if (ruleOverdue !== null) target.reminders.ruleOverdue = ruleOverdue;
+
+		const ruleStaleInProgress = asBoolean(reminders.ruleStaleInProgress);
+		if (ruleStaleInProgress !== null) target.reminders.ruleStaleInProgress = ruleStaleInProgress;
+
+		const ruleLeadTime = asBoolean(reminders.ruleLeadTime);
+		if (ruleLeadTime !== null) target.reminders.ruleLeadTime = ruleLeadTime;
+
+		const leadTimeDays = asInteger(reminders.leadTimeDays);
+		if (leadTimeDays !== null) target.reminders.leadTimeDays = leadTimeDays;
+
+		const staleThresholdDays = asInteger(reminders.staleThresholdDays);
+		if (staleThresholdDays !== null) target.reminders.staleThresholdDays = staleThresholdDays;
+
+		const quietHoursEnabled = asBoolean(reminders.quietHoursEnabled);
+		if (quietHoursEnabled !== null) target.reminders.quietHoursEnabled = quietHoursEnabled;
+
+		const quietStart = asInteger(reminders.quietStart);
+		if (quietStart !== null) target.reminders.quietStart = quietStart;
+
+		const quietEnd = asInteger(reminders.quietEnd);
+		if (quietEnd !== null) target.reminders.quietEnd = quietEnd;
+	}
+}
+
+export function normalizeSettingsFromSources(sources: unknown[]): TTasksSettings {
+	const merged = cloneSettings(DEFAULT_SETTINGS);
+	for (const source of sources) {
+		applySettingsPatch(merged, source);
+	}
+
+	merged.tasksFolder = merged.tasksFolder.trim() || DEFAULT_SETTINGS.tasksFolder;
+	merged.editorSuggestTrigger = normalizeEditorSuggestTrigger(merged.editorSuggestTrigger);
+	merged.statuses = normalizeStatuses(merged.statuses);
+	merged.completionStatus = resolveCompletionStatus(merged.statuses, merged.completionStatus);
+	merged.inboxStatus = resolveInboxStatus(merged.statuses, merged.inboxStatus);
+	merged.quickActions.startStatus = resolveConfiguredStatus(merged.statuses, merged.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus);
+	merged.quickActions.blockStatus = resolveConfiguredStatus(merged.statuses, merged.quickActions.blockStatus, DEFAULT_SETTINGS.quickActions.blockStatus);
+	merged.quickActions.deferDays = clampInteger(merged.quickActions.deferDays, 1, 365);
+	merged.quickActions.mobileHoldTimeoutMs = clampInteger(merged.quickActions.mobileHoldTimeoutMs, 800, 8000);
+	merged.quickActions.mobileHandedness = merged.quickActions.mobileHandedness === 'left' ? 'left' : 'right';
+	merged.statusColors = normalizeColorMap(merged.statuses, merged.statusColors);
+	merged.categoryColors = normalizeColorMap(merged.categories ?? [], merged.categoryColors);
+	merged.taskTypeColors = normalizeColorMap(merged.taskTypes ?? [], merged.taskTypeColors);
+
+	merged.reminders.leadTimeDays = clampInteger(merged.reminders.leadTimeDays, 1, 30);
+	merged.reminders.staleThresholdDays = clampInteger(merged.reminders.staleThresholdDays, 1, 180);
+	merged.reminders.quietStart = clampInteger(merged.reminders.quietStart, 0, 23);
+	merged.reminders.quietEnd = clampInteger(merged.reminders.quietEnd, 0, 23);
+
+	return merged;
+}
 
 type ManagedListField = 'status' | 'category' | 'task_type';
 
@@ -207,6 +415,13 @@ export function resolveConfiguredStatus(statuses: string[] | null | undefined, c
 
 export function resolveEmergencyStatus(statuses: string[] | null | undefined): string {
 	return statuses?.[0] ?? 'Active';
+}
+
+export function normalizeEditorSuggestTrigger(value: string | null | undefined): string {
+	const trimmed = (value ?? '').trim();
+	if (!trimmed) return DEFAULT_SETTINGS.editorSuggestTrigger;
+	if (!trimmed.startsWith('@')) return `@${trimmed}`;
+	return trimmed;
 }
 
 function createManagedListItem(value: string, color: string, originalValue: string | null = value): ManagedListItem {
@@ -399,6 +614,18 @@ export class TTasksSettingTab extends PluginSettingTab {
 						await this.plugin.taskStore.load();
 					});
 			});
+
+		new Setting(containerEl)
+			.setName('Inline task link trigger')
+			.setDesc('Token used by inline editor suggestions for task linking (for example @task).')
+			.addText(text => text
+				.setPlaceholder('@task')
+				.setValue(this.plugin.settings.editorSuggestTrigger)
+				.onChange(async (value) => {
+					this.plugin.settings.editorSuggestTrigger = normalizeEditorSuggestTrigger(value);
+					await this.plugin.saveSettings();
+				})
+			);
 
 		const statuses = this.plugin.settings.statuses ?? [];
 

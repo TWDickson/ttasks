@@ -319,6 +319,31 @@
 	font-family: var(--font-text);
 	min-height: 80px;
 }
+
+/* ── Editor suggest rows ───────────────────────────────────────────────────── */
+
+.suggestion-item.tt-editor-suggest-item,
+.suggestion-item.tt-link-suggest-item {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.tt-editor-suggest-title,
+.tt-link-suggest-title {
+	font-size: 0.86rem;
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.tt-editor-suggest-path,
+.tt-link-suggest-path {
+	font-size: 0.74rem;
+	color: var(--text-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
 .tt-modal-textarea:focus {
 	outline: none;
 	border-color: var(--interactive-accent);
