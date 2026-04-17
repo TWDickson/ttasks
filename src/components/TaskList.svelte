@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type TTasksPlugin from '../main';
-	import HoldActionTaskRow from './HoldActionTaskRow.svelte';
+	import TaskRow from './TaskRow.svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
 
@@ -56,7 +56,7 @@
 					</h3>
 					<ul class="tt-task-list">
 						{#each (grouped.get(group) ?? []) as task (task.path)}
-							<HoldActionTaskRow
+							<TaskRow
 								{plugin}
 								{task}
 								active={$activeTaskPath === task.path}

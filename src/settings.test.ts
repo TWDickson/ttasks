@@ -160,24 +160,17 @@ describe('isSystemStatus', () => {
 });
 
 describe('normalizeSettingsFromSources', () => {
-	it('merges external settings over current settings and ignores deprecated swipe fields', () => {
-		const current = normalizeSettingsFromSources([
+	it('merges external settings over current settings and ignores deprecated swipe and hold fields', () => {
+		const merged = normalizeSettingsFromSources([
 			DEFAULT_SETTINGS,
 			{
 				tasksFolder: 'Planner/Tasks',
 				quickActions: {
+					// legacy hold fields — should be silently dropped
 					mobileHoldEnabled: false,
 					mobileHandedness: 'left',
-				},
-				editorSuggestTrigger: '@task',
-			},
-		]);
-
-		const merged = normalizeSettingsFromSources([
-			DEFAULT_SETTINGS,
-			current,
-			{
-				quickActions: {
+					mobileHoldTimeoutMs: 1200,
+					// legacy swipe fields — already dropped, keep asserting
 					mobileSwipeEnabled: true,
 					mobileSwipeLeftAction: 'defer',
 					mobileSwipeRightAction: 'complete',
@@ -187,9 +180,12 @@ describe('normalizeSettingsFromSources', () => {
 			},
 		]);
 
-		expect(merged.quickActions.mobileHoldEnabled).toBe(false);
-		expect(merged.quickActions.mobileHandedness).toBe('left');
 		expect(merged.editorSuggestTrigger).toBe('@link');
+		// Deprecated hold fields must not appear on the result
+		expect(Object.prototype.hasOwnProperty.call(merged.quickActions, 'mobileHoldEnabled')).toBe(false);
+		expect(Object.prototype.hasOwnProperty.call(merged.quickActions, 'mobileHandedness')).toBe(false);
+		expect(Object.prototype.hasOwnProperty.call(merged.quickActions, 'mobileHoldTimeoutMs')).toBe(false);
+		// Deprecated swipe fields still absent
 		expect(Object.prototype.hasOwnProperty.call(merged, 'remindersFired')).toBe(false);
 		expect(Object.prototype.hasOwnProperty.call(merged.quickActions, 'mobileSwipeEnabled')).toBe(false);
 		expect(Object.prototype.hasOwnProperty.call(merged.quickActions, 'mobileSwipeLeftAction')).toBe(false);

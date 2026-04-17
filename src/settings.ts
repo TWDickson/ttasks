@@ -3,7 +3,6 @@ import type TTasksPlugin from './main';
 
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
-export type QuickActionHandedness = 'right' | 'left';
 
 export const QUICK_ACTION_LABELS: Record<QuickActionId, string> = {
 	none: 'None',
@@ -25,9 +24,6 @@ export interface QuickActionsSettings {
 	startStatus: string;
 	blockStatus: string;
 	deferDays: number;
-	mobileHoldEnabled: boolean;
-	mobileHandedness: QuickActionHandedness;
-	mobileHoldTimeoutMs: number;
 }
 
 export interface RemindersSettings {
@@ -99,9 +95,6 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		startStatus: 'In Progress',
 		blockStatus: 'Blocked',
 		deferDays: 1,
-		mobileHoldEnabled: true,
-		mobileHandedness: 'right',
-		mobileHoldTimeoutMs: 2400,
 	},
 	reminders: DEFAULT_REMINDERS_SETTINGS,
 };
@@ -155,9 +148,6 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 			startStatus: settings.quickActions.startStatus,
 			blockStatus: settings.quickActions.blockStatus,
 			deferDays: settings.quickActions.deferDays,
-			mobileHoldEnabled: settings.quickActions.mobileHoldEnabled,
-			mobileHandedness: settings.quickActions.mobileHandedness,
-			mobileHoldTimeoutMs: settings.quickActions.mobileHoldTimeoutMs,
 		},
 		reminders: {
 			enabled: settings.reminders.enabled,
@@ -236,18 +226,6 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		const deferDays = asInteger(quickActions.deferDays);
 		if (deferDays !== null) target.quickActions.deferDays = deferDays;
 
-		const mobileHoldEnabled = asBoolean(quickActions.mobileHoldEnabled);
-		if (mobileHoldEnabled !== null) {
-			target.quickActions.mobileHoldEnabled = mobileHoldEnabled;
-		}
-
-		const mobileHandedness = asString(quickActions.mobileHandedness);
-		if (mobileHandedness === 'left' || mobileHandedness === 'right') {
-			target.quickActions.mobileHandedness = mobileHandedness;
-		}
-
-		const mobileHoldTimeoutMs = asInteger(quickActions.mobileHoldTimeoutMs);
-		if (mobileHoldTimeoutMs !== null) target.quickActions.mobileHoldTimeoutMs = mobileHoldTimeoutMs;
 	}
 
 	const reminders = asRecord(root.reminders);
@@ -298,8 +276,6 @@ export function normalizeSettingsFromSources(sources: unknown[]): TTasksSettings
 	merged.quickActions.startStatus = resolveConfiguredStatus(merged.statuses, merged.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus);
 	merged.quickActions.blockStatus = resolveConfiguredStatus(merged.statuses, merged.quickActions.blockStatus, DEFAULT_SETTINGS.quickActions.blockStatus);
 	merged.quickActions.deferDays = clampInteger(merged.quickActions.deferDays, 1, 365);
-	merged.quickActions.mobileHoldTimeoutMs = clampInteger(merged.quickActions.mobileHoldTimeoutMs, 800, 8000);
-	merged.quickActions.mobileHandedness = merged.quickActions.mobileHandedness === 'left' ? 'left' : 'right';
 	merged.statusColors = normalizeColorMap(merged.statuses, merged.statusColors);
 	merged.categoryColors = normalizeColorMap(merged.categories ?? [], merged.categoryColors);
 	merged.taskTypeColors = normalizeColorMap(merged.taskTypes ?? [], merged.taskTypeColors);
@@ -776,41 +752,6 @@ export class TTasksSettingTab extends PluginSettingTab {
 				})
 			);
 
-		new Setting(containerEl)
-			.setName('Enable mobile hold menu')
-			.setDesc('Touch-and-hold a task row in mobile list and agenda views to open quick actions.')
-			.addToggle(toggle => toggle
-				.setValue(qa.mobileHoldEnabled)
-				.onChange(async (value) => {
-					this.plugin.settings.quickActions.mobileHoldEnabled = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Mobile handedness bias')
-			.setDesc('Bias the hold menu toward right or left thumb reach by changing tile placement and ordering.')
-			.addDropdown(dd => dd
-				.addOption('right', 'Right-handed')
-				.addOption('left', 'Left-handed')
-				.setValue(qa.mobileHandedness ?? 'right')
-				.onChange(async (value) => {
-					this.plugin.settings.quickActions.mobileHandedness = value as QuickActionHandedness;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Mobile hold menu timeout (ms)')
-			.setDesc('Auto-dismiss delay for the hold menu when idle.')
-			.addText(text => text
-				.setPlaceholder('2400')
-				.setValue(String(qa.mobileHoldTimeoutMs ?? 2400))
-				.onChange(async (v) => {
-					const n = parseInt(v, 10);
-					if (!isNaN(n) && n >= 800 && n <= 8000) {
-						this.plugin.settings.quickActions.mobileHoldTimeoutMs = n;
-						await this.plugin.saveSettings();
-					}
-				}));
 	}
 
 	private renderRemindersSettings(containerEl: HTMLElement): void {
