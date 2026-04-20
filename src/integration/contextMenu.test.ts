@@ -55,6 +55,7 @@ describe('addTaskContextMenuItems', () => {
 		const deps = {
 			openTask: vi.fn(),
 			runQuickAction: vi.fn(async () => true),
+			convertToProject: vi.fn(async () => {}),
 			duplicateTask: vi.fn(async () => {}),
 			deleteTask: vi.fn(async () => {}),
 		};
@@ -67,6 +68,7 @@ describe('addTaskContextMenuItems', () => {
 		expect(titles).toContain('Complete');
 		expect(titles).toContain('Block');
 		expect(titles).toContain('Defer');
+		expect(titles).toContain('Convert to Project');
 		expect(titles).toContain('Duplicate');
 		expect(titles).toContain('Delete');
 
@@ -77,12 +79,29 @@ describe('addTaskContextMenuItems', () => {
 		expect(deps.duplicateTask).toHaveBeenCalledWith(task.path);
 	});
 
-	it('omits quick actions for projects', () => {
+	it('invokes convertToProject callback', () => {
+		const menu = new FakeMenu();
+		const task = makeTask();
+		const deps = {
+			openTask: vi.fn(),
+			runQuickAction: vi.fn(async () => true),
+			convertToProject: vi.fn(async () => {}),
+			duplicateTask: vi.fn(async () => {}),
+			deleteTask: vi.fn(async () => {}),
+		};
+
+		addTaskContextMenuItems(menu as never, task, deps);
+		menu.items.find(i => i.title === 'Convert to Project')?.onClick?.();
+		expect(deps.convertToProject).toHaveBeenCalledWith(task.path);
+	});
+
+	it('omits quick actions and Convert to Project for projects', () => {
 		const menu = new FakeMenu();
 		const task = makeTask({ type: 'project' });
 		const deps = {
 			openTask: vi.fn(),
 			runQuickAction: vi.fn(async () => true),
+			convertToProject: vi.fn(async () => {}),
 			duplicateTask: vi.fn(async () => {}),
 			deleteTask: vi.fn(async () => {}),
 		};
@@ -92,5 +111,6 @@ describe('addTaskContextMenuItems', () => {
 		expect(titles).toContain('Open');
 		expect(titles).not.toContain('Start');
 		expect(titles).not.toContain('Complete');
+		expect(titles).not.toContain('Convert to Project');
 	});
 });

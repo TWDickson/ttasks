@@ -12,6 +12,14 @@
 	export let taskTypeColors: Record<string, string>;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
+	/** Hierarchical indent level — each level adds 20px left padding. */
+	export let indent = 0;
+	/** Show a collapse/expand chevron on this row. */
+	export let expandable = false;
+	/** Current expand state (only relevant when expandable = true). */
+	export let expanded = true;
+	/** Called when the chevron is clicked. */
+	export let onExpand: (() => void) | undefined = undefined;
 
 	let cachedToday = localDateString();
 
@@ -69,7 +77,22 @@
 	}
 </script>
 
-<li class="tt-task" class:is-overdue={isOverdue(task.due_date)} class:is-active={active}>
+<li
+	class="tt-task"
+	class:is-overdue={isOverdue(task.due_date)}
+	class:is-active={active}
+	style:padding-left={indent > 0 ? `${indent * 20}px` : undefined}
+>
+	{#if expandable}
+		<button
+			type="button"
+			class="tt-expand-btn"
+			aria-label={expanded ? 'Collapse' : 'Expand'}
+			on:click|stopPropagation={onExpand}
+		>{expanded ? '▾' : '▸'}</button>
+	{:else if indent > 0}
+		<span class="tt-expand-spacer" aria-hidden="true"></span>
+	{/if}
 	<button
 		type="button"
 		class="tt-task-btn"
@@ -111,6 +134,31 @@
 		align-items: stretch;
 		overflow: visible;
 		border-radius: var(--radius-m, 8px);
+	}
+
+	.tt-expand-btn {
+		flex-shrink: 0;
+		width: 20px;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		color: var(--text-muted);
+		font-size: 0.75rem;
+		line-height: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-s, 4px);
+	}
+	.tt-expand-btn:hover {
+		color: var(--text-normal);
+		background: var(--background-modifier-hover);
+	}
+
+	.tt-expand-spacer {
+		flex-shrink: 0;
+		width: 20px;
 	}
 
 	.tt-task-btn {

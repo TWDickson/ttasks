@@ -3,7 +3,6 @@
 	import TaskRow from './TaskRow.svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
-
 	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
 	export let statuses: string[];
@@ -49,13 +48,14 @@
 	{:else}
 		{#each statusOrder as group}
 			{#if grouped.has(group)}
+				{@const groupTaskList = grouped.get(group) ?? []}
 				<section class="tt-group">
 					<h3 class="tt-group-heading">
 						{groupLabel(group)}
-						<span class="tt-count">{grouped.get(group)?.length ?? 0}</span>
+						<span class="tt-count">{groupTaskList.length}</span>
 					</h3>
 					<ul class="tt-task-list">
-						{#each (grouped.get(group) ?? []) as task (task.path)}
+						{#each groupTaskList as task (task.path)}
 							<TaskRow
 								{plugin}
 								{task}

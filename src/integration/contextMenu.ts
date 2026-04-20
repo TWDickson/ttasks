@@ -5,6 +5,7 @@ import type { Task } from '../types';
 export interface TaskContextMenuDeps {
 	openTask: (path: string) => void;
 	runQuickAction: (action: Exclude<QuickActionId, 'none'>, path: string) => Promise<boolean>;
+	convertToProject: (path: string) => Promise<void>;
 	duplicateTask: (path: string) => Promise<void>;
 	deleteTask: (path: string) => Promise<void>;
 }
@@ -42,6 +43,10 @@ export function addTaskContextMenuItems(
 				void deps.runQuickAction(entry.action, task.path);
 			});
 		}
+		menu.addSeparator();
+		addMenuItem(menu, 'Convert to Project', 'folder', () => {
+			void deps.convertToProject(task.path);
+		});
 	}
 
 	menu.addSeparator();

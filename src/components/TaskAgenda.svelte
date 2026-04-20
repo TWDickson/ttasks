@@ -87,6 +87,7 @@
 	$: grouped = groupTasks($tasks);
 	$: totalCount = [...grouped.values()].reduce((n, g) => n + g.length, 0);
 
+
 	function groupTasks(all: Task[]): Map<DateGroupKey, Task[]> {
 		const map = new Map<DateGroupKey, Task[]>();
 		for (const key of GROUP_ORDER) map.set(key, []);
@@ -118,17 +119,17 @@
 	{:else}
 		{#each GROUP_ORDER as group}
 			{#if grouped.has(group)}
-				{@const groupTasks = grouped.get(group) ?? []}
+				{@const groupTaskList = grouped.get(group) ?? []}
 				<section class="tt-group">
 					<h3 class="tt-group-heading">
 						<span
 							class="tt-group-label"
 							style="color: {GROUP_COLORS[group]}"
 						>{GROUP_LABELS[group]}</span>
-						<span class="tt-count">{groupTasks.length}</span>
+						<span class="tt-count">{groupTaskList.length}</span>
 					</h3>
 					<ul class="tt-task-list">
-						{#each groupTasks as task (task.path)}
+						{#each groupTaskList as task (task.path)}
 							<TaskRow
 								{plugin}
 								{task}

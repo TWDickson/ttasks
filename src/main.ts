@@ -195,6 +195,10 @@ export default class TTasksPlugin extends Plugin {
 				void this.taskStore.openDetail(path);
 			},
 			runQuickAction: (action, path) => this.runQuickAction(action, path),
+			convertToProject: async (path) => {
+				await this.taskStore.convertToProject(path);
+				new Notice('TTasks: converted to project');
+			},
 			duplicateTask: async (path) => {
 				const created = await this.taskStore.duplicate(path);
 				if (created) {
@@ -271,6 +275,10 @@ export default class TTasksPlugin extends Plugin {
 					void this.taskStore.openDetail(path);
 				},
 				runQuickAction: (action, path) => this.runQuickAction(action, path),
+				convertToProject: async (path) => {
+					await this.taskStore.convertToProject(path);
+					new Notice('TTasks: converted to project');
+				},
 				duplicateTask: async (path) => {
 					const created = await this.taskStore.duplicate(path);
 					if (created) {

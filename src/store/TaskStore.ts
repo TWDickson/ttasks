@@ -548,6 +548,20 @@ export class TaskStore {
 		return this.create(input);
 	}
 
+	/**
+	 * Convert a task to a project by flipping its `type` field.
+	 * Clears `task_type` (a task-only field) as part of the conversion.
+	 */
+	async convertToProject(path: string): Promise<void> {
+		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
+		if (!(file instanceof TFile)) return;
+
+		await this.app.fileManager.processFrontMatter(file, (fm) => {
+			fm.type = 'project';
+			fm.task_type = null;
+		});
+	}
+
 	async openDetail(path: string): Promise<void> {
 		this.plugin.activeTaskPath.set(path);
 		await this.plugin.openBoard();

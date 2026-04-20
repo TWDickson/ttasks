@@ -4,6 +4,26 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
+## Progress Notes (2026-04-20)
+
+Phase 5 partial. 265 passing tests, zero TypeScript errors, build clean.
+
+### Convert Task to Project
+
+- `TaskStore.convertToProject(path)` — flips `type → project`, clears `task_type` via `processFrontMatter`
+- `TaskContextMenuDeps.convertToProject` added; "Convert to Project" menu item appears on tasks only (hidden for projects)
+- Wired in both `showTaskContextMenu` and `registerNativeContextMenus` (`addForTask`)
+- Tests: `contextMenu.test.ts` updated with new dep, callback assertion, and project-type exclusion case
+
+### Hierarchy utilities (deferred wiring)
+
+- `src/store/taskHierarchy.ts` — three pure utilities: `flattenWithDepth`, `buildVisibleItems`, `getParentPaths`
+- 16 new tests covering flat lists, nested depth, orphaned children, cycle breaking, collapse visibility
+- `TaskRow.svelte` — `indent`, `expandable`, `expanded`, `onExpand` props added (defaults are no-ops; zero visual change today)
+- Views NOT wired yet — status-based grouping splits parents and children into different groups, so per-group hierarchy is ineffective. Deferred to Phase 6 view architecture rework (filter → sort/group → view pipeline).
+
+---
+
 ## Progress Notes (2026-04-10)
 
 Phases 3A, 3B, and 3C are complete. Build, lint, and tests all passing (14 tests).
@@ -124,6 +144,21 @@ Phase 4B complete. TDD throughout — all features built red→green. 244 passin
 - Inline context menu on all row/card types (list, kanban, agenda, graph)
 - Actions: open detail, open in editor, duplicate, start, complete, block, defer, delete
 
+### Convert Task to Project (backlog)
+
+- Right-click option: "Convert to Project" — changes `type` frontmatter from `task` to `project`
+- Retain all existing fields; `task_type` can be cleared or left as-is
+- If the task has a `parent_task`, prompt: keep parent relationship or promote to top-level?
+- After conversion, navigate to the task (now project) in detail panel
+
+### Hierarchical list view (sub-task indentation)
+
+- In list view: tasks with a `parent_task` render visually indented under their parent
+- Parent row is collapsible; collapsed state persists per-view session
+- Same treatment in agenda view: grouped/indented under the parent heading when parent is also due/active
+- Orphaned tasks (parent not in current filter results) render flat as today
+- Depth limit: cap visual nesting at 2–3 levels to avoid runaway indentation on mobile
+
 ### "Open in editor" title fix
 - Task editor view title uses `name` frontmatter field, not the raw filename
 
@@ -139,6 +174,29 @@ Phase 4B complete. TDD throughout — all features built red→green. 244 passin
 ---
 
 ## Phase 6 — Views & Filtering
+
+### ⚠️ Architecture: Unified Query → View Pipeline
+
+**Rethink the view model before building more views.** Current state couples filter logic, grouping, and render format tightly per-view (list, kanban, graph each have their own wiring). This makes it hard to add new views or mix-and-match options.
+
+Target model (TickTick-style):
+
+```text
+Filter → Tasks → Sort & Group → View (List | Kanban | Graph | Agenda | Calendar)
+```
+
+- **Filter** — reusable filter spec: status, category, priority, date ranges, tags, parent, search. Composable AND/OR.
+- **Tasks** — filtered + derived task set (is_complete, is_inbox etc. already computed by store)
+- **Sort & Group** — sort key(s) + optional group-by field (status, category, priority, due date, parent). Independent of view format.
+- **View** — pure renderer; receives a sorted/grouped task list, renders it in its format. Swappable without changing filter/sort state.
+
+**Why this matters:**
+
+- Saved Smart Lists (Phase 6) become trivial: persist a filter+sort+groupBy config, let the user pick any view format
+- Adding a new view type (e.g. Calendar, Eisenhower Matrix) requires only a new renderer component
+- Filter/sort UI can be shared across all views rather than re-implemented per view
+
+**Migration path:** Refactor existing views to consume a shared `useTaskQuery(filterSpec, sortSpec)` hook before adding new view types.
 
 ### Custom saved views (Smart Lists)
 - Save a filter + sort + groupBy combo with a name and icon
