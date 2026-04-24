@@ -173,54 +173,92 @@ Phase 4B complete. TDD throughout — all features built red→green. 244 passin
 
 ---
 
-## Phase 6 — Views & Filtering
+## Phase 6 — Data Model + Views & Filtering
 
-### ⚠️ Architecture: Unified Query → View Pipeline
+### ⚠️ Step 0: Data Model Changes (prerequisite for everything below)
 
-**Rethink the view model before building more views.** Current state couples filter logic, grouping, and render format tightly per-view (list, kanban, graph each have their own wiring). This makes it hard to add new views or mix-and-match options.
+Agreed design decisions from 2026-04-24 session. These must land before the filter engine is built.
 
-Target model (TickTick-style):
+**Field renames and changes:**
+
+| Field | Before | After | Notes |
+| --- | --- | --- | --- |
+| `category` | `string \| null` | `area: string \| null` | Renamed — represents "line of work" (Database, General, Work, Home) |
+| `task_type` | `string \| null` | `labels: string[]` | Multi-value, user-configurable, pre-seeded with feature/bug/research/docs/action |
+| `is_inbox` | derived (`status === inboxStatus`) | derived (`area === null`) | Inbox = unclassified, not a workflow state |
+| `status` | includes "Inbox" value | pure workflow only | Inbox removed from status list entirely |
+| `inboxStatus` setting | system pointer | removed | No longer needed |
+
+**Rationale:**
+
+- **Area** matches how users think about it: a top-level line of work, equivalent to TickTick lists or Things 3 Areas. Applies to both tasks and projects.
+- **Inbox = area is null.** Tasks without an area haven't been triaged yet. Programmatic creates (agents, importers, quick capture) simply omit area — they land in inbox naturally. Triage = assign an area. No boolean flag needed, no ambiguity between "intentionally uncategorized" and "unclassified."
+- **Labels** replaces both `task_type` and the planned `tags` field. Cross-cutting, multi-value, user-defined. Pre-seeded with sensible defaults but fully configurable. A task can have multiple labels (e.g. `bug`, `urgent`). Consolidating two label systems into one.
+- **Status** is now a pure workflow axis. No special-cased system values.
+
+**Migration command needed:**
+
+- `category` → `area` frontmatter rename on all existing tasks
+- `task_type: "value"` → `labels: ["value"]` (null → `[]`)
+- Tasks with `status: Inbox` → `status` set to first non-completion status, `area` left null (they become inbox via the new model)
+- Remove `inboxStatus` from `data.json` settings
+
+---
+
+### ⚠️ Step 1: Unified Query → View Pipeline
+
+**Rethink the view model before building more views.** Current state couples filter logic, grouping, and render format tightly per-view (list, kanban, graph each have their own wiring). This makes it impossible to mix-and-match filter and view format, and blocks Smart Lists.
+
+Target model:
 
 ```text
-Filter → Tasks → Sort & Group → View (List | Kanban | Graph | Agenda | Calendar)
+FilterSpec + SortSpec + GroupBySpec → useTaskQuery() → View (List | Kanban | Graph | Agenda | Calendar)
 ```
 
-- **Filter** — reusable filter spec: status, category, priority, date ranges, tags, parent, search. Composable AND/OR.
-- **Tasks** — filtered + derived task set (is_complete, is_inbox etc. already computed by store)
-- **Sort & Group** — sort key(s) + optional group-by field (status, category, priority, due date, parent). Independent of view format.
-- **View** — pure renderer; receives a sorted/grouped task list, renders it in its format. Swappable without changing filter/sort state.
+- **FilterSpec** — serialisable filter tree: composable AND/OR groups, per-field operators (`is`, `is not`, `contains`, `before`, `after`, `is null`, `is not null`). Supports complex custom logic — users can build arbitrarily nested conditions.
+- **SortSpec** — primary + secondary sort key, direction
+- **GroupBySpec** — optional group-by field (area, status, priority, due date, parent, label)
+- **useTaskQuery()** — shared Svelte store/hook. Takes specs, returns sorted/grouped task set. All views consume this; none implement their own query logic.
+- **View** — pure renderer. Receives grouped task list, renders it. Swappable without touching filter/sort state.
 
 **Why this matters:**
 
-- Saved Smart Lists (Phase 6) become trivial: persist a filter+sort+groupBy config, let the user pick any view format
-- Adding a new view type (e.g. Calendar, Eisenhower Matrix) requires only a new renderer component
-- Filter/sort UI can be shared across all views rather than re-implemented per view
+- Smart Lists become trivial: persist a `FilterSpec + SortSpec + GroupBySpec` with a name, let user pick any view format
+- Hierarchy wiring (deferred from Phase 5) becomes clean: `groupBy: parent` produces the tree structure natively
+- Adding a new view type requires only a new renderer component
+- Filter UI is written once, shared across all views
 
-**Migration path:** Refactor existing views to consume a shared `useTaskQuery(filterSpec, sortSpec)` hook before adding new view types.
+**Implementation order:**
+
+1. **Data model + migration** (Step 0 above) — prerequisite
+2. **Filter engine** — `FilterSpec`, `SortSpec`, `GroupBySpec` TypeScript types + pure `applyFilter()`, `applySort()`, `applyGroup()` functions. TDD throughout. No UI yet.
+3. **Query layer** — `useTaskQuery(filter, sort, groupBy)` Svelte store. Replaces per-view internal logic.
+4. **View migration** — swap List, Agenda, Kanban one at a time to consume `useTaskQuery`. Hierarchy wiring lands here.
+5. **Filter/sort UI** — toolbar controls, persisted per view. Smart Lists fall out naturally.
+
+---
 
 ### Custom saved views (Smart Lists)
-- Save a filter + sort + groupBy combo with a name and icon
-- Complex filter logic: AND/OR, field comparisons, date ranges, tag intersections
-- Sidebar navigation to saved views
-- Default views (All, Today, Inbox, Blocked) remain but become instances of the same engine
 
-### Custom sort on default views
-- Per-view sort: by due date, priority, created, name, status, estimated_days
+- Save a `FilterSpec + SortSpec + GroupBySpec` with a name and icon
+- Complex filter logic: AND/OR groups, per-field operators, nested conditions
+- Sidebar navigation to saved views
+- Default views (All, Today, Inbox, Blocked) become named instances of the same engine — Inbox = `area is null`
+
+### Custom sort
+
+- Per-view sort: by due date, priority, created, name, status, estimated_days, area, label
 - Secondary sort key support
 
 ### Forecast / Calendar view
+
 - Monthly/weekly calendar grid with tasks overlaid by due date
-- Complements and extends the existing DAG timeline direction
 - Shows scheduling gaps and overload days
 
 ### Progress rollup on projects
+
 - Project nodes in list/graph show `X of N tasks complete` as a progress bar
 - Blocked and overdue counts surfaced at project level
-
-### Tags (freeform, multi-value)
-- `tags` frontmatter array field (separate from `category`)
-- Orthogonal axis: tag tasks `#waiting`, `#quick`, `#deep-work`
-- Tag filter in all views; tag cloud in sidebar
 
 ---
 
