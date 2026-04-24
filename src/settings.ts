@@ -188,21 +188,20 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		);
 	}
 
-	// Support legacy field names from before the Phase 6 rename
-	const areas = asStringArray(root.areas) ?? asStringArray(root.categories);
+	const areas = asStringArray(root.areas);
 	if (areas !== null) target.areas = areas;
 
-	const areaColors = asRecord(root.areaColors) ?? asRecord(root.categoryColors);
+	const areaColors = asRecord(root.areaColors);
 	if (areaColors !== null) {
 		target.areaColors = Object.fromEntries(
 			Object.entries(areaColors).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
 		);
 	}
 
-	const labelValues = asStringArray(root.labelValues) ?? asStringArray(root.taskTypes);
+	const labelValues = asStringArray(root.labelValues);
 	if (labelValues !== null) target.labelValues = labelValues;
 
-	const labelColors = asRecord(root.labelColors) ?? asRecord(root.taskTypeColors);
+	const labelColors = asRecord(root.labelColors);
 	if (labelColors !== null) {
 		target.labelColors = Object.fromEntries(
 			Object.entries(labelColors).filter((entry): entry is [string, string] => typeof entry[1] === 'string')

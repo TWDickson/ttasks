@@ -1096,15 +1096,11 @@ export class TaskStore {
 
 		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
 
-		// Support legacy field names (category → area, task_type → labels) for existing task files
-		const area: string | null = typeof fm.area === 'string' ? fm.area
-			: typeof fm.category === 'string' ? fm.category
-			: null;
+		const area: string | null = typeof fm.area === 'string' ? fm.area : null;
 
 		const labelsRaw = fm.labels;
 		const labels: string[] = Array.isArray(labelsRaw)
 			? labelsRaw.filter((v): v is string => typeof v === 'string')
-			: typeof fm.task_type === 'string' ? [fm.task_type]
 			: [];
 
 		return {
