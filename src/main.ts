@@ -87,6 +87,16 @@ export default class TTasksPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'migrate-phase6-data-model',
+			name: 'Migrate to Phase 6 data model (category→area, task_type→labels)',
+			callback: async () => {
+				const count = await this.taskStore.migrateToPhase6DataModel();
+				new Notice(`TTasks: migrated ${count} task file(s) to Phase 6 data model.`);
+				await this.taskStore.load();
+			},
+		});
+
+		this.addCommand({
 			id: 'duplicate-task',
 			name: 'Duplicate active task',
 			checkCallback: (checking) => {

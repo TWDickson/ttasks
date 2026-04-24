@@ -48,17 +48,16 @@ export interface TTasksSettings {
 	fabPosition: FabPosition;
 	statuses: string[];
 	completionStatus: string;
-	inboxStatus: string;
 	statusColors: Record<string, string>;
-	categories: string[];
-	categoryColors: Record<string, string>;
-	taskTypes: string[];
-	taskTypeColors: Record<string, string>;
+	areas: string[];
+	areaColors: Record<string, string>;
+	labelValues: string[];
+	labelColors: Record<string, string>;
 	quickActions: QuickActionsSettings;
 	reminders: RemindersSettings;
 }
 
-export const DEFAULT_STATUSES = ['Inbox', 'Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Done'];
+export const DEFAULT_STATUSES = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Done'];
 
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
 	enabled: true,
@@ -79,18 +78,16 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	fabPosition: 'right',
 	statuses: DEFAULT_STATUSES,
 	completionStatus: 'Done',
-	inboxStatus: 'Inbox',
 	statusColors: {
-		Inbox: '#64748b',
 		'In Progress': '#2563eb',
 		Blocked: '#dc2626',
 		Done: '#16a34a',
 		Cancelled: '#6b7280',
 	},
-	categories: ['database', 'general'],
-	categoryColors: {},
-	taskTypes: ['feature', 'bug', 'research', 'docs', 'action'],
-	taskTypeColors: {},
+	areas: ['database', 'general'],
+	areaColors: {},
+	labelValues: ['feature', 'bug', 'research', 'docs', 'action'],
+	labelColors: {},
 	quickActions: {
 		startStatus: 'In Progress',
 		blockStatus: 'Blocked',
@@ -138,12 +135,11 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		fabPosition: settings.fabPosition,
 		statuses: [...settings.statuses],
 		completionStatus: settings.completionStatus,
-		inboxStatus: settings.inboxStatus,
 		statusColors: { ...settings.statusColors },
-		categories: [...settings.categories],
-		categoryColors: { ...settings.categoryColors },
-		taskTypes: [...settings.taskTypes],
-		taskTypeColors: { ...settings.taskTypeColors },
+		areas: [...settings.areas],
+		areaColors: { ...settings.areaColors },
+		labelValues: [...settings.labelValues],
+		labelColors: { ...settings.labelColors },
 		quickActions: {
 			startStatus: settings.quickActions.startStatus,
 			blockStatus: settings.quickActions.blockStatus,
@@ -185,9 +181,6 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 	const completionStatus = asString(root.completionStatus);
 	if (completionStatus !== null) target.completionStatus = completionStatus;
 
-	const inboxStatus = asString(root.inboxStatus);
-	if (inboxStatus !== null) target.inboxStatus = inboxStatus;
-
 	const statusColors = asRecord(root.statusColors);
 	if (statusColors !== null) {
 		target.statusColors = Object.fromEntries(
@@ -195,23 +188,24 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		);
 	}
 
-	const categories = asStringArray(root.categories);
-	if (categories !== null) target.categories = categories;
+	// Support legacy field names from before the Phase 6 rename
+	const areas = asStringArray(root.areas) ?? asStringArray(root.categories);
+	if (areas !== null) target.areas = areas;
 
-	const categoryColors = asRecord(root.categoryColors);
-	if (categoryColors !== null) {
-		target.categoryColors = Object.fromEntries(
-			Object.entries(categoryColors).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+	const areaColors = asRecord(root.areaColors) ?? asRecord(root.categoryColors);
+	if (areaColors !== null) {
+		target.areaColors = Object.fromEntries(
+			Object.entries(areaColors).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
 		);
 	}
 
-	const taskTypes = asStringArray(root.taskTypes);
-	if (taskTypes !== null) target.taskTypes = taskTypes;
+	const labelValues = asStringArray(root.labelValues) ?? asStringArray(root.taskTypes);
+	if (labelValues !== null) target.labelValues = labelValues;
 
-	const taskTypeColors = asRecord(root.taskTypeColors);
-	if (taskTypeColors !== null) {
-		target.taskTypeColors = Object.fromEntries(
-			Object.entries(taskTypeColors).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+	const labelColors = asRecord(root.labelColors) ?? asRecord(root.taskTypeColors);
+	if (labelColors !== null) {
+		target.labelColors = Object.fromEntries(
+			Object.entries(labelColors).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
 		);
 	}
 
@@ -272,13 +266,12 @@ export function normalizeSettingsFromSources(sources: unknown[]): TTasksSettings
 	merged.editorSuggestTrigger = normalizeEditorSuggestTrigger(merged.editorSuggestTrigger);
 	merged.statuses = normalizeStatuses(merged.statuses);
 	merged.completionStatus = resolveCompletionStatus(merged.statuses, merged.completionStatus);
-	merged.inboxStatus = resolveInboxStatus(merged.statuses, merged.inboxStatus);
 	merged.quickActions.startStatus = resolveConfiguredStatus(merged.statuses, merged.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus);
 	merged.quickActions.blockStatus = resolveConfiguredStatus(merged.statuses, merged.quickActions.blockStatus, DEFAULT_SETTINGS.quickActions.blockStatus);
 	merged.quickActions.deferDays = clampInteger(merged.quickActions.deferDays, 1, 365);
 	merged.statusColors = normalizeColorMap(merged.statuses, merged.statusColors);
-	merged.categoryColors = normalizeColorMap(merged.categories ?? [], merged.categoryColors);
-	merged.taskTypeColors = normalizeColorMap(merged.taskTypes ?? [], merged.taskTypeColors);
+	merged.areaColors = normalizeColorMap(merged.areas ?? [], merged.areaColors);
+	merged.labelColors = normalizeColorMap(merged.labelValues ?? [], merged.labelColors);
 
 	merged.reminders.leadTimeDays = clampInteger(merged.reminders.leadTimeDays, 1, 30);
 	merged.reminders.staleThresholdDays = clampInteger(merged.reminders.staleThresholdDays, 1, 180);
@@ -288,7 +281,7 @@ export function normalizeSettingsFromSources(sources: unknown[]): TTasksSettings
 	return merged;
 }
 
-type ManagedListField = 'status' | 'category' | 'task_type';
+type ManagedListField = 'status' | 'area' | 'label';
 
 interface ManagedListItem {
 	id: number;
@@ -375,13 +368,6 @@ export function resolveCompletionStatus(statuses: string[] | null | undefined, c
 	return valid[0] ?? 'Active';
 }
 
-export function resolveInboxStatus(statuses: string[] | null | undefined, inboxStatus?: string | null): string {
-	const valid = statuses ?? [];
-	if (inboxStatus && valid.includes(inboxStatus)) return inboxStatus;
-	if (valid.includes('Inbox')) return 'Inbox';
-	return valid[0] ?? 'Inbox';
-}
-
 export function resolveConfiguredStatus(statuses: string[] | null | undefined, configured: string | null | undefined, preferred: string): string {
 	const valid = statuses ?? [];
 	if (configured && valid.includes(configured)) return configured;
@@ -399,8 +385,8 @@ export function resolveEmergencyStatus(statuses: string[] | null | undefined): s
  * not the hardcoded strings 'Done' / 'Inbox', but whatever the user has
  * configured those pointers to be right now.
  */
-export function isSystemStatus(status: string, completionStatus: string, inboxStatus: string): boolean {
-	return status === completionStatus || status === inboxStatus;
+export function isSystemStatus(status: string, completionStatus: string): boolean {
+	return status === completionStatus;
 }
 
 export function normalizeEditorSuggestTrigger(value: string | null | undefined): string {
@@ -628,19 +614,6 @@ export class TTasksSettingTab extends PluginSettingTab {
 				});
 			});
 
-		new Setting(containerEl)
-			.setName('Inbox status')
-			.setDesc('Tasks with this status are treated as inbox / triage items. Surfaced by is_inbox in views and future capture flow.')
-			.addDropdown(dd => {
-				for (const s of statuses) dd.addOption(s, s);
-				dd.setValue(statuses.includes(this.plugin.settings.inboxStatus) ? this.plugin.settings.inboxStatus : (statuses[0] ?? ''));
-				dd.onChange(async (v) => {
-					this.plugin.settings.inboxStatus = v;
-					await this.plugin.saveSettings();
-					await this.plugin.taskStore.load();
-				});
-			});
-
 		this.renderManagedListSetting(containerEl, {
 			name: 'Statuses',
 			description: 'Manage statuses as a draggable ordered list. Renames migrate existing tasks on save. The completion status can be renamed but not removed. Removing other statuses launches a remap.',
@@ -661,39 +634,39 @@ export class TTasksSettingTab extends PluginSettingTab {
 		});
 
 		this.renderManagedListSetting(containerEl, {
-			name: 'Categories',
-			description: 'Manage category options as a draggable ordered list. Renames migrate existing tasks. Removing a category opens a remap or lets you clear it.',
-			singularLabel: 'Category',
-			placeholder: 'Category name',
+			name: 'Areas',
+			description: 'Lines of work (e.g. Database, General, Work, Home). Tasks without an area are treated as inbox. Renames migrate existing tasks. Removing an area opens a remap or lets you clear it.',
+			singularLabel: 'Area',
+			placeholder: 'Area name',
 			allowClearMigration: true,
-			clearLabel: 'Clear category',
-			field: 'category',
-			getValues: () => this.plugin.settings.categories ?? [],
+			clearLabel: 'Clear area (move to inbox)',
+			field: 'area',
+			getValues: () => this.plugin.settings.areas ?? [],
 			applyValues: (values) => {
-				this.plugin.settings.categories = values;
+				this.plugin.settings.areas = values;
 			},
-			getColors: () => this.plugin.settings.categoryColors ?? {},
+			getColors: () => this.plugin.settings.areaColors ?? {},
 			applyColors: (colors) => {
-				this.plugin.settings.categoryColors = colors;
+				this.plugin.settings.areaColors = colors;
 			},
 			getDefaultMigrationTarget: () => null,
 		});
 
 		this.renderManagedListSetting(containerEl, {
-			name: 'Task types',
-			description: 'Manage task types as a draggable ordered list. Renames migrate existing tasks. Removing a task type opens a remap or lets you clear it.',
-			singularLabel: 'Task type',
-			placeholder: 'Task type name',
+			name: 'Labels',
+			description: 'Cross-cutting labels applied to tasks and projects (e.g. feature, bug, research). Multi-value — a task can have several. Pre-seeded with defaults but fully user-configurable.',
+			singularLabel: 'Label',
+			placeholder: 'Label name',
 			allowClearMigration: true,
-			clearLabel: 'Clear task type',
-			field: 'task_type',
-			getValues: () => this.plugin.settings.taskTypes ?? [],
+			clearLabel: 'Remove label',
+			field: 'label',
+			getValues: () => this.plugin.settings.labelValues ?? [],
 			applyValues: (values) => {
-				this.plugin.settings.taskTypes = values;
+				this.plugin.settings.labelValues = values;
 			},
-			getColors: () => this.plugin.settings.taskTypeColors ?? {},
+			getColors: () => this.plugin.settings.labelColors ?? {},
 			applyColors: (colors) => {
-				this.plugin.settings.taskTypeColors = colors;
+				this.plugin.settings.labelColors = colors;
 			},
 			getDefaultMigrationTarget: () => null,
 		});
@@ -1274,15 +1247,13 @@ export class TTasksSettingTab extends PluginSettingTab {
 					}
 					renderRows();
 				});
-				const inboxStatus = this.plugin.settings.inboxStatus;
 				const isProtectedSystem = config.field === 'status' && (
-					item.originalValue === completionStatus || item.value.trim() === completionStatus ||
-					item.originalValue === inboxStatus     || item.value.trim() === inboxStatus
+					item.originalValue === completionStatus || item.value.trim() === completionStatus
 				);
 				const removeButton = actionsRowEl.createEl('button', { text: 'Remove', cls: 'tt-managed-list-remove' });
 				if (isProtectedSystem) {
 					removeButton.disabled = true;
-					removeButton.title = 'System statuses (completion and inbox) can be renamed but not removed.';
+					removeButton.title = 'The completion status can be renamed but not removed.';
 				}
 				removeButton.addEventListener('click', () => {
 					if (isProtectedSystem) return;
@@ -1330,14 +1301,9 @@ export class TTasksSettingTab extends PluginSettingTab {
 			(value) => !nextValues.includes(value) && !Object.prototype.hasOwnProperty.call(renameMappings, value)
 		);
 
-		const currentInboxStatus = this.plugin.settings.inboxStatus;
 		if (config.field === 'status') {
 			if (removedValues.includes(currentCompletionStatus)) {
 				new Notice('TTasks: the completion status cannot be removed — rename it instead.');
-				return;
-			}
-			if (removedValues.includes(currentInboxStatus)) {
-				new Notice('TTasks: the inbox status cannot be removed — rename it instead.');
 				return;
 			}
 		}

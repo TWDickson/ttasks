@@ -49,7 +49,7 @@
 		displayTasks.set($tasks.filter(task => {
 			if (q && !task.name.toLowerCase().includes(q)) return false;
 			if (filterPriority && task.priority !== filterPriority) return false;
-			if (filterCategory && task.category !== filterCategory) return false;
+			if (filterCategory && task.area !== filterCategory) return false;
 			return true;
 		}));
 	}
@@ -71,8 +71,8 @@
 
 	$: configuredStatuses = plugin.settings.statuses ?? ['Active'];
 	$: configuredStatusColors = plugin.settings.statusColors ?? {};
-	$: configuredCategoryColors = plugin.settings.categoryColors ?? {};
-	$: configuredTaskTypeColors = plugin.settings.taskTypeColors ?? {};
+	$: configuredCategoryColors = plugin.settings.areaColors ?? {};
+	$: configuredTaskTypeColors = plugin.settings.labelColors ?? {};
 	$: configuredBlockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
 
 	function openNewTask()    { new CreateTaskModal(plugin.app, plugin).open(); }
@@ -189,8 +189,8 @@
 						{plugin}
 						tasks={displayTasks}
 						statuses={configuredStatuses}
-						categoryColors={configuredCategoryColors}
-						taskTypeColors={configuredTaskTypeColors}
+						areaColors={configuredCategoryColors}
+						labelColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
 						onContextMenu={openContextMenu}
@@ -203,8 +203,8 @@
 						statuses={configuredStatuses}
 						statusColors={configuredStatusColors}
 						blockStatus={configuredBlockStatus}
-						categoryColors={configuredCategoryColors}
-						taskTypeColors={configuredTaskTypeColors}
+						areaColors={configuredCategoryColors}
+						labelColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						store={plugin.taskStore}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
@@ -223,8 +223,8 @@
 					<TaskAgenda
 						{plugin}
 						tasks={displayTasks}
-						categoryColors={configuredCategoryColors}
-						taskTypeColors={configuredTaskTypeColors}
+						areaColors={configuredCategoryColors}
+						labelColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
 						onContextMenu={openContextMenu}

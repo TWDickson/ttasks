@@ -1,7 +1,7 @@
 import { App, Component, MarkdownRenderer, Modal, Notice } from 'obsidian';
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
-import type { TaskPriority, TaskRecordType, TaskStatus, TaskType } from '../types';
+import type { TaskPriority, TaskRecordType, TaskStatus } from '../types';
 import { resolveEmergencyStatus } from '../settings';
 import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 import { PRIORITY_COLORS } from '../constants';
@@ -19,8 +19,8 @@ export class CreateTaskModal extends Modal {
 	private type: TaskRecordType;
 	private status: TaskStatus;
 	private priority: TaskPriority     = 'None';
-	private category                   = '';
-	private task_type: TaskType | null = null;
+	private area                       = '';
+	private selectedLabels: string[]   = [];
 	private depends_on: string[]       = [];
 	private due_date                   = '';
 	private start_date                 = '';
@@ -41,11 +41,11 @@ export class CreateTaskModal extends Modal {
 	}
 
 	private get categories(): string[] {
-		return ['', ...(this.plugin.settings.categories ?? [])];
+		return ['', ...(this.plugin.settings.areas ?? [])];
 	}
 
 	private get taskTypes(): string[] {
-		return ['', ...(this.plugin.settings.taskTypes ?? [])];
+		return ['', ...(this.plugin.settings.labelValues ?? [])];
 	}
 
 	private get statuses(): TaskStatus[] {
@@ -56,12 +56,12 @@ export class CreateTaskModal extends Modal {
 		return this.plugin.settings.statusColors ?? {};
 	}
 
-	private get categoryColors(): Record<string, string> {
-		return this.plugin.settings.categoryColors ?? {};
+	private get areaColors(): Record<string, string> {
+		return this.plugin.settings.areaColors ?? {};
 	}
 
-	private get taskTypeColors(): Record<string, string> {
-		return this.plugin.settings.taskTypeColors ?? {};
+	private get labelColors(): Record<string, string> {
+		return this.plugin.settings.labelColors ?? {};
 	}
 
 	onOpen() {
@@ -208,7 +208,8 @@ export class CreateTaskModal extends Modal {
 			taskTypeSelect.createEl('option', { text: t || '— none —', value: t });
 		}
 		const applyTaskTypeTint = () => {
-			const color = this.task_type ? this.taskTypeColors[this.task_type] : undefined;
+			const selectedLabel = this.selectedLabels[0] ?? '';
+			const color = selectedLabel ? this.labelColors[selectedLabel] : undefined;
 			if (!color) {
 				taskTypeSelect.style.removeProperty('background');
 				taskTypeSelect.style.removeProperty('border-color');
@@ -221,7 +222,7 @@ export class CreateTaskModal extends Modal {
 		};
 		applyTaskTypeTint();
 		taskTypeSelect.addEventListener('change', () => {
-			this.task_type = (taskTypeSelect.value as TaskType) || null;
+			this.selectedLabels = taskTypeSelect.value ? [taskTypeSelect.value] : [];
 			applyTaskTypeTint();
 		});
 
@@ -449,13 +450,13 @@ export class CreateTaskModal extends Modal {
 			});
 		}
 
-		const categoryField = this.field(details, 'Category');
+		const categoryField = this.field(details, 'Area');
 		const categorySelect = categoryField.createEl('select', { cls: 'tt-modal-select' });
 		for (const c of this.categories) {
 			categorySelect.createEl('option', { text: c || '— none —', value: c });
 		}
 		const applyCategoryTint = () => {
-			const color = this.category ? this.categoryColors[this.category] : undefined;
+			const color = this.area ? this.areaColors[this.area] : undefined;
 			if (!color) {
 				categorySelect.style.removeProperty('background');
 				categorySelect.style.removeProperty('border-color');
@@ -468,7 +469,7 @@ export class CreateTaskModal extends Modal {
 		};
 		applyCategoryTint();
 		categorySelect.addEventListener('change', () => {
-			this.category = categorySelect.value;
+			this.area = categorySelect.value;
 			applyCategoryTint();
 		});
 
@@ -608,10 +609,10 @@ export class CreateTaskModal extends Modal {
 			const task = await this.plugin.taskStore.create({
 				type:           this.type,
 				name,
-				category:       this.category || null,
+				area:           this.area || null,
 				status:         this.status,
 				priority:       this.priority,
-				task_type:      this.task_type,
+				labels:         this.selectedLabels,
 				parent_task:    null,
 				depends_on:     this.depends_on,
 				blocked_reason: '',

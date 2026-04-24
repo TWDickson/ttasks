@@ -8,8 +8,8 @@
 	export let plugin: TTasksPlugin;
 	export let task: Task;
 	export let active = false;
-	export let categoryColors: Record<string, string>;
-	export let taskTypeColors: Record<string, string>;
+	export let areaColors: Record<string, string>;
+	export let labelColors: Record<string, string>;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 	/** Hierarchical indent level — each level adds 20px left padding. */
@@ -110,15 +110,15 @@
 			<span class="tt-task-name">{task.name}</span>
 		</div>
 		<div class="tt-task-meta">
-			{#if task.category}
-				<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!categoryColors?.[task.category]} style={getBadgeStyle(categoryColors?.[task.category])}>{task.category}</span>
+			{#if task.area}
+				<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!areaColors?.[task.area]} style={getBadgeStyle(areaColors?.[task.area])}>{task.area}</span>
 			{/if}
 			{#if task.due_date}
 				<span class="tt-badge" class:tt-badge-overdue={isOverdue(task.due_date)} title={task.due_date}>{relativeDate(task.due_date)}</span>
 			{/if}
-			{#if task.type === 'task' && task.task_type}
-				<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!taskTypeColors?.[task.task_type]} style={getBadgeStyle(taskTypeColors?.[task.task_type])}>{task.task_type}</span>
-			{/if}
+			{#each task.labels as label (label)}
+				<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!labelColors?.[label]} style={getBadgeStyle(labelColors?.[label])}>{label}</span>
+			{/each}
 		</div>
 	</button>
 </li>

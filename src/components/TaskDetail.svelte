@@ -3,7 +3,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
-	import type { Task, TaskStatus, TaskPriority, TaskType } from '../types';
+	import type { Task, TaskStatus, TaskPriority } from '../types';
 	import type { TaskStore } from '../store/TaskStore';
 	import { resolveCompletionStatus } from '../settings';
 	import { buildTaskGraph } from '../store/taskGraph';
@@ -25,8 +25,8 @@
 	let name = '';
 	let status: TaskStatus = 'Active';
 	let priority: TaskPriority = 'None';
-	let category = '';
-	let task_type: TaskType | null = null;
+	let area = '';
+	let selectedLabels: string[] = [];
 	let parent_task_path = '';
 	let due_date = '';
 	let start_date = '';
@@ -57,8 +57,8 @@
 		name          = task.name;
 		status        = task.status;
 		priority      = task.priority;
-		category      = task.category ?? '';
-		task_type     = task.task_type;
+		area          = task.area ?? '';
+		selectedLabels = task.labels;
 		parent_task_path = task.parent_task ?? '';
 		due_date      = task.due_date ?? '';
 		start_date    = task.start_date ?? '';
@@ -211,6 +211,12 @@
 		});
 	}
 
+	function onLabelChange(e: Event): void {
+		const val = (e.target as HTMLSelectElement).value;
+		selectedLabels = val ? [val] : [];
+		saveImmediate({ labels: selectedLabels });
+	}
+
 	async function onParentTaskChange() {
 		if (!task) return;
 		beginSave();
@@ -268,10 +274,10 @@
 	$: statusOptions = withCurrentOption(plugin.settings.statuses ?? [], status || null);
 	$: completionStatus = getCompletionStatus();
 	$: blockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
-	$: categoryOptions = ['', ...withCurrentOption(plugin.settings.categories ?? [], category || null)];
-	$: taskTypeOptions = ['', ...withCurrentOption(plugin.settings.taskTypes ?? [], task_type)];
-	$: categoryColors = plugin.settings.categoryColors ?? {};
-	$: taskTypeColors = plugin.settings.taskTypeColors ?? {};
+	$: categoryOptions = ['', ...withCurrentOption(plugin.settings.areas ?? [], area || null)];
+	$: taskTypeOptions = ['', ...withCurrentOption(plugin.settings.labelValues ?? [], selectedLabels[0] ?? null)];
+	$: areaColors = plugin.settings.areaColors ?? {};
+	$: labelColors = plugin.settings.labelColors ?? {};
 	$: statusColors = plugin.settings.statusColors ?? {};
 	$: parentProjectOptions = [
 		{ value: '', label: '— none —' },
@@ -439,12 +445,12 @@
 
 		<!-- Fields grid -->
 		<div class="tt-fields">
-			<label class="tt-label" for="tt-category">Category</label>
+			<label class="tt-label" for="tt-area">Area</label>
 			<select
-				id="tt-category"
-				bind:value={category}
-				style={getSelectTintStyle(category ? categoryColors[category] : undefined)}
-				on:change={() => saveImmediate({ category: category || null })}
+				id="tt-area"
+				bind:value={area}
+				style={getSelectTintStyle(area ? areaColors[area] : undefined)}
+				on:change={() => saveImmediate({ area: area || null })}
 			>
 				{#each categoryOptions as c}
 					<option value={c}>{c || '— none —'}</option>
@@ -463,12 +469,12 @@
 					{/each}
 				</select>
 
-				<label class="tt-label" for="tt-task-type">Task Type</label>
+				<label class="tt-label" for="tt-task-type">Labels</label>
 				<select
 					id="tt-task-type"
-					bind:value={task_type}
-					style={getSelectTintStyle(task_type ? taskTypeColors[task_type] : undefined)}
-					on:change={() => saveImmediate({ task_type: task_type || null })}
+					value={selectedLabels[0] ?? ''}
+					style={getSelectTintStyle(selectedLabels[0] ? labelColors[selectedLabels[0]] : undefined)}
+					on:change={onLabelChange}
 				>
 					{#each taskTypeOptions as t}
 						<option value={t}>{t || '— none —'}</option>

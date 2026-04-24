@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
 	normalizeStatuses,
 	resolveCompletionStatus,
-	resolveInboxStatus,
 	resolveConfiguredStatus,
 	normalizeEditorSuggestTrigger,
 	normalizeSettingsFromSources,
@@ -61,31 +60,6 @@ describe('resolveCompletionStatus', () => {
 	});
 });
 
-// ── resolveInboxStatus ───────────────────────────────────────────────────────
-
-describe('resolveInboxStatus', () => {
-	it('returns the configured value when it is in the list', () => {
-		expect(resolveInboxStatus(['Inbox', 'Active', 'Done'], 'Inbox')).toBe('Inbox');
-		expect(resolveInboxStatus(['Triage', 'Active', 'Done'], 'Triage')).toBe('Triage');
-	});
-
-	it("falls back to 'Inbox' when configured value is absent but 'Inbox' exists", () => {
-		expect(resolveInboxStatus(['Inbox', 'Active', 'Done'], 'Missing')).toBe('Inbox');
-		expect(resolveInboxStatus(['Inbox', 'Active', 'Done'], null)).toBe('Inbox');
-		expect(resolveInboxStatus(['Inbox', 'Active', 'Done'], undefined)).toBe('Inbox');
-	});
-
-	it("falls back to first status when 'Inbox' is also absent", () => {
-		expect(resolveInboxStatus(['Active', 'Done'], 'Missing')).toBe('Active');
-	});
-
-	it("falls back to 'Inbox' sentinel when statuses list is empty or null", () => {
-		expect(resolveInboxStatus([], 'Inbox')).toBe('Inbox');
-		expect(resolveInboxStatus(null, undefined)).toBe('Inbox');
-		expect(resolveInboxStatus(undefined, undefined)).toBe('Inbox');
-	});
-});
-
 // ── resolveConfiguredStatus ──────────────────────────────────────────────────
 
 describe('resolveConfiguredStatus', () => {
@@ -126,36 +100,22 @@ describe('normalizeEditorSuggestTrigger', () => {
 
 describe('isSystemStatus', () => {
 	it('returns true for the completion status', () => {
-		expect(isSystemStatus('Done', 'Done', 'Inbox')).toBe(true);
-	});
-
-	it('returns true for the inbox status', () => {
-		expect(isSystemStatus('Inbox', 'Done', 'Inbox')).toBe(true);
+		expect(isSystemStatus('Done', 'Done')).toBe(true);
 	});
 
 	it('returns false for any other status', () => {
-		expect(isSystemStatus('Active', 'Done', 'Inbox')).toBe(false);
-		expect(isSystemStatus('Blocked', 'Done', 'Inbox')).toBe(false);
-		expect(isSystemStatus('In Progress', 'Done', 'Inbox')).toBe(false);
+		expect(isSystemStatus('Active', 'Done')).toBe(false);
+		expect(isSystemStatus('Blocked', 'Done')).toBe(false);
+		expect(isSystemStatus('In Progress', 'Done')).toBe(false);
 	});
 
-	it('uses the actual configured names, not hardcoded strings', () => {
-		// If the user has renamed their completion status to 'Closed', that becomes protected
-		expect(isSystemStatus('Closed', 'Closed', 'Triage')).toBe(true);
-		expect(isSystemStatus('Triage', 'Closed', 'Triage')).toBe(true);
-		// The old names are no longer protected
-		expect(isSystemStatus('Done', 'Closed', 'Triage')).toBe(false);
-		expect(isSystemStatus('Inbox', 'Closed', 'Triage')).toBe(false);
+	it('uses the actual configured name, not the hardcoded string', () => {
+		expect(isSystemStatus('Closed', 'Closed')).toBe(true);
+		expect(isSystemStatus('Done', 'Closed')).toBe(false);
 	});
 
-	it('returns false when checking an empty string against named system statuses', () => {
-		expect(isSystemStatus('', 'Done', 'Inbox')).toBe(false);
-	});
-
-	it('handles the edge case where completionStatus and inboxStatus are the same', () => {
-		// Unusual config but should still work — that status is protected
-		expect(isSystemStatus('Done', 'Done', 'Done')).toBe(true);
-		expect(isSystemStatus('Active', 'Done', 'Done')).toBe(false);
+	it('returns false when checking an empty string', () => {
+		expect(isSystemStatus('', 'Done')).toBe(false);
 	});
 });
 

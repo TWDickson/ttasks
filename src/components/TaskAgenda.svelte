@@ -7,8 +7,8 @@
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
-	export let categoryColors: Record<string, string>;
-	export let taskTypeColors: Record<string, string>;
+	export let areaColors: Record<string, string>;
+	export let labelColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
@@ -134,8 +134,8 @@
 								{plugin}
 								{task}
 								active={$activeTaskPath === task.path}
-								{categoryColors}
-								{taskTypeColors}
+								{areaColors}
+								{labelColors}
 								{onOpen}
 								onContextMenu={onContextMenu}
 							/>

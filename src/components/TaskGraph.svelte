@@ -145,7 +145,7 @@
 			if (!dates) continue; // no resolvable dates, or task is in a cycle
 
 			const { start, end, isInferred } = dates;
-			const categoryName = task.category?.trim() || 'Uncategorized';
+			const categoryName = task.area?.trim() || 'Uncategorized';
 			const projectPath = normalizeTaskPath(task.parent_task);
 			const projectName = projectPath ? (projectMap.get(projectPath)?.name ?? projectPath.split('/').pop()?.replace(/\.md$/, '') ?? 'Unknown Project') : 'No Project';
 

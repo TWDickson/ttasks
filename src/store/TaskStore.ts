@@ -1,10 +1,10 @@
 import { Notice, TFile, normalizePath } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
-import type { Task, TaskCreateInput, TaskPriority, TaskType, TaskRecordType } from '../types';
+import type { Task, TaskCreateInput, TaskPriority, TaskRecordType } from '../types';
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 import { materializeChecklistChildren } from './checklistMaterializer';
-import { resolveCompletionStatus, resolveInboxStatus } from '../settings';
+import { resolveCompletionStatus } from '../settings';
 import { nextDueDate, nextStartDate } from './recurrence';
 import { computeStatusChanged } from './statusChanged';
 import { buildDuplicateInput } from './taskDuplicate';
@@ -15,7 +15,7 @@ import { localDateString, addDaysLocal } from '../utils/dateUtils';
 import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
 import { parseWikiLink, parseWikiLinks, extractChecklistLink } from '../utils/wikiLink';
 
-type MigratableField = 'status' | 'category' | 'task_type';
+type MigratableField = 'status' | 'area' | 'label';
 
 export class TaskStore {
 	readonly tasks: Writable<Task[]> = writable([]);
@@ -190,7 +190,6 @@ export class TaskStore {
 		);
 
 		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
-		const inboxStatus = resolveInboxStatus(this.plugin.settings.statuses, this.plugin.settings.inboxStatus);
 		const full: Task = {
 			...input,
 			depends_on: sanitizedDependsOn,
@@ -201,7 +200,7 @@ export class TaskStore {
 			created: today,
 			status_changed: today,
 			is_complete: input.status === completionStatus,
-			is_inbox:    input.status === inboxStatus,
+			is_inbox:    input.area === null,
 		};
 
 		const body = full.notes?.trim() ? '\n\n' + full.notes.trim() : '';
@@ -221,7 +220,7 @@ export class TaskStore {
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			const fields: (keyof Task)[] = [
-				'name', 'status', 'priority', 'category', 'task_type',
+				'name', 'status', 'priority', 'area', 'labels',
 				'blocked_reason', 'assigned_to', 'source',
 				'start_date', 'due_date', 'estimated_days', 'completed',
 				'recurrence', 'recurrence_type',
@@ -375,10 +374,10 @@ export class TaskStore {
 		return {
 			type: 'task',
 			name: title,
-			category: parent.category,
+			area: parent.area,
 			status: parent.status,
 			priority: parent.priority,
-			task_type: parent.task_type,
+			labels: [...parent.labels],
 			parent_task: parentPath.replace(/\.md$/, ''),
 			depends_on: [],
 			blocked_reason: '',
@@ -504,15 +503,15 @@ export class TaskStore {
 		const recurType = (task.recurrence_type ?? 'fixed') as import('./recurrence').RecurrenceType;
 		const nextDue   = nextDueDate(task.recurrence, recurType, task.due_date, today);
 		const nextStart = nextStartDate(task.recurrence, recurType, task.start_date, task.due_date, today);
-		const inboxStatus = resolveInboxStatus(this.plugin.settings.statuses, this.plugin.settings.inboxStatus);
+		const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
 
 		const nextInput: TaskCreateInput = {
 			type:            task.type,
 			name:            task.name,
-			category:        task.category,
-			status:          inboxStatus,
+			area:            task.area,
+			status:          firstStatus,
 			priority:        task.priority,
-			task_type:       task.task_type,
+			labels:          [...task.labels],
 			parent_task:     task.parent_task,
 			depends_on:      [],
 			blocked_reason:  '',
@@ -523,7 +522,7 @@ export class TaskStore {
 			estimated_days:  task.estimated_days,
 			created:         today,
 			completed:       null,
-			// status_changed not carried over — the new instance starts fresh at inboxStatus
+			// status_changed not carried over — the new instance starts fresh
 			notes:           resetChecklistCompletionInNotes(task.notes ?? ''),
 			recurrence:      task.recurrence,
 			recurrence_type: task.recurrence_type,
@@ -543,8 +542,8 @@ export class TaskStore {
 		if (!task) return null;
 
 		const today = localDateString();
-		const inboxStatus = resolveInboxStatus(this.plugin.settings.statuses, this.plugin.settings.inboxStatus);
-		const input = buildDuplicateInput(task, today, inboxStatus);
+		const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
+		const input = buildDuplicateInput(task, today, firstStatus);
 		return this.create(input);
 	}
 
@@ -558,7 +557,7 @@ export class TaskStore {
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			fm.type = 'project';
-			fm.task_type = null;
+			fm.labels = [];
 		});
 	}
 
@@ -780,6 +779,49 @@ export class TaskStore {
 		return patched;
 	}
 
+	/**
+	 * Phase 6 data model migration: renames `category`→`area` and converts
+	 * `task_type: string` → `labels: [string]` in every task file's frontmatter.
+	 * Safe to run multiple times — skips files that already use the new field names.
+	 * Returns the number of files patched.
+	 */
+	async migrateToPhase6DataModel(): Promise<number> {
+		const folder = this.app.vault.getFolderByPath(this.folderPath);
+		if (!folder) return 0;
+
+		const files = folder.children.filter(
+			(f): f is TFile => f instanceof TFile && f.extension === 'md'
+		);
+
+		let patched = 0;
+		for (const file of files) {
+			await this.app.fileManager.processFrontMatter(file, (fm) => {
+				let changed = false;
+
+				// category → area
+				if ('category' in fm && !('area' in fm)) {
+					fm.area = fm.category ?? null;
+					delete fm.category;
+					changed = true;
+				}
+
+				// task_type: string → labels: [string]
+				if ('task_type' in fm && !('labels' in fm)) {
+					fm.labels = typeof fm.task_type === 'string' && fm.task_type
+						? [fm.task_type]
+						: [];
+					delete fm.task_type;
+					changed = true;
+				}
+
+				if (changed) patched++;
+			});
+		}
+
+		this.plugin.log(`MigrateToPhase6DataModel: patched ${patched} of ${files.length} files`);
+		return patched;
+	}
+
 	async migrateStatuses(validStatuses: string[]): Promise<number> {
 		const folder = this.app.vault.getFolderByPath(this.folderPath);
 		if (!folder) return 0;
@@ -828,10 +870,10 @@ export class TaskStore {
 		const makeInput = (overrides: Partial<TaskCreateInput> & Pick<TaskCreateInput, 'name' | 'type'>): TaskCreateInput => ({
 			type: overrides.type,
 			name: overrides.name,
-			category: overrides.category ?? 'graph-sandbox',
+			area: overrides.area ?? 'graph-sandbox',
 			status: overrides.status ?? status('Active'),
 			priority: overrides.priority ?? 'Medium',
-			task_type: overrides.task_type ?? null,
+			labels: overrides.labels ?? [],
 			parent_task: overrides.parent_task ?? null,
 			depends_on: overrides.depends_on ?? [],
 			blocked_reason: overrides.blocked_reason ?? '',
@@ -852,7 +894,7 @@ export class TaskStore {
 		const platformProject = await this.create(makeInput({
 			type: 'project',
 			name: '[GS] Platform Revamp',
-			category: 'Product',
+			area: 'Product',
 			status: status('In Progress', 1),
 			priority: 'High',
 			start_date: iso(-8),
@@ -864,7 +906,7 @@ export class TaskStore {
 		const dataProject = await this.create(makeInput({
 			type: 'project',
 			name: '[GS] Data Reliability Program',
-			category: 'Data',
+			area: 'Data',
 			status: status('Active', 1),
 			priority: 'High',
 			start_date: iso(-6),
@@ -879,10 +921,10 @@ export class TaskStore {
 		const apiContract = await this.create(makeInput({
 			type: 'task',
 			name: '[GS] API Contract Baseline',
-			category: 'Product',
+			area: 'Product',
 			status: status('In Progress', 1),
 			priority: 'High',
-			task_type: 'feature',
+			labels: ['feature'],
 			parent_task: platformParent,
 			start_date: iso(-5),
 			due_date: iso(2),
@@ -893,10 +935,10 @@ export class TaskStore {
 		const detailPanel = await this.create(makeInput({
 			type: 'task',
 			name: '[GS] Detail Panel Integration',
-			category: 'Product',
+			area: 'Product',
 			status: status('Active', 1),
 			priority: 'High',
-			task_type: 'feature',
+			labels: ['feature'],
 			parent_task: platformParent,
 			depends_on: [apiContract.path.replace(/\.md$/, '')],
 			start_date: iso(1),
@@ -908,10 +950,10 @@ export class TaskStore {
 		const smokeTests = await this.create(makeInput({
 			type: 'task',
 			name: '[GS] Integration Smoke Tests',
-			category: 'QA',
+			area: 'QA',
 			status: status('Future', 2),
 			priority: 'Medium',
-			task_type: 'docs',
+			labels: ['docs'],
 			parent_task: platformParent,
 			depends_on: [detailPanel.path.replace(/\.md$/, '')],
 			start_date: iso(8),
@@ -923,10 +965,10 @@ export class TaskStore {
 		const releaseReadiness = await this.create(makeInput({
 			type: 'task',
 			name: '[GS] Release Readiness Review',
-			category: 'Product',
+			area: 'Product',
 			status: status('Future', 2),
 			priority: 'Medium',
-			task_type: 'action',
+			labels: ['action'],
 			parent_task: platformParent,
 			depends_on: [smokeTests.path.replace(/\.md$/, '')],
 			start_date: iso(12),
@@ -938,10 +980,10 @@ export class TaskStore {
 		const etlHardening = await this.create(makeInput({
 			type: 'task',
 			name: '[GS] ETL Pipeline Hardening',
-			category: 'Data',
+			area: 'Data',
 			status: status('In Progress', 1),
 			priority: 'High',
-			task_type: 'feature',
+			labels: ['feature'],
 			parent_task: dataParent,
 			start_date: iso(-4),
 			due_date: iso(4),
@@ -952,10 +994,10 @@ export class TaskStore {
 		const migrationDryRun = await this.create(makeInput({
 			type: 'task',
 			name: '[GS] Migration Dry Run',
-			category: 'Data',
+			area: 'Data',
 			status: status('Blocked', 1),
 			priority: 'High',
-			task_type: 'research',
+			labels: ['research'],
 			parent_task: dataParent,
 			depends_on: [etlHardening.path.replace(/\.md$/, '')],
 			blocked_reason: 'Waiting for ETL hardening sign-off.',
@@ -968,10 +1010,10 @@ export class TaskStore {
 		const backfillVerification = await this.create(makeInput({
 			type: 'task',
 			name: '[GS] Backfill Verification',
-			category: 'Data',
+			area: 'Data',
 			status: status('Future', 2),
 			priority: 'Medium',
-			task_type: 'action',
+			labels: ['action'],
 			parent_task: dataParent,
 			depends_on: [migrationDryRun.path.replace(/\.md$/, ''), detailPanel.path.replace(/\.md$/, '')],
 			start_date: iso(10),
@@ -983,10 +1025,10 @@ export class TaskStore {
 		const cycleA = await this.create(makeInput({
 			type: 'task',
 			name: '[GS] Incident Follow-up A',
-			category: 'Operations',
+			area: 'Operations',
 			status: status('Active', 1),
 			priority: 'Low',
-			task_type: 'action',
+			labels: ['action'],
 			parent_task: platformParent,
 			start_date: iso(-1),
 			due_date: iso(6),
@@ -997,10 +1039,10 @@ export class TaskStore {
 		const cycleB = await this.create(makeInput({
 			type: 'task',
 			name: '[GS] Incident Follow-up B',
-			category: 'Operations',
+			area: 'Operations',
 			status: status('Active', 1),
 			priority: 'Low',
-			task_type: 'action',
+			labels: ['action'],
 			parent_task: platformParent,
 			depends_on: [cycleA.path.replace(/\.md$/, '')],
 			start_date: iso(0),
@@ -1053,17 +1095,27 @@ export class TaskStore {
 			: fallbackStatus;
 
 		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
-		const inboxStatus = resolveInboxStatus(this.plugin.settings.statuses, this.plugin.settings.inboxStatus);
+
+		// Support legacy field names (category → area, task_type → labels) for existing task files
+		const area: string | null = typeof fm.area === 'string' ? fm.area
+			: typeof fm.category === 'string' ? fm.category
+			: null;
+
+		const labelsRaw = fm.labels;
+		const labels: string[] = Array.isArray(labelsRaw)
+			? labelsRaw.filter((v): v is string => typeof v === 'string')
+			: typeof fm.task_type === 'string' ? [fm.task_type]
+			: [];
 
 		return {
 			id, slug,
 			path: file.path,
 			type:           (fm.type as TaskRecordType)  ?? 'task',
 			name:           fm.name                       ?? '',
-			category:       fm.category                   ?? null,
+			area,
 			status:         normalizedStatus,
 			priority:       (fm.priority as TaskPriority) ?? 'None',
-			task_type:      (fm.task_type as TaskType)    ?? null,
+			labels,
 			parent_task:    parseWikiLink(fm.parent_task),
 			depends_on:     parseWikiLinks(fm.depends_on),
 			blocks:         parseWikiLinks(fm.blocks),
@@ -1080,7 +1132,7 @@ export class TaskStore {
 			recurrence:      typeof fm.recurrence === 'string' ? fm.recurrence : null,
 			recurrence_type: typeof fm.recurrence_type === 'string' ? fm.recurrence_type : null,
 			is_complete: normalizedStatus === completionStatus,
-			is_inbox:    normalizedStatus === inboxStatus,
+			is_inbox:    area === null,
 		};
 	}
 
@@ -1158,15 +1210,19 @@ export class TaskStore {
 			? `\n${task.depends_on.map(d => `  - ${link(d)}`).join('\n')}`
 			: ' []';
 
+		const labelsYaml = task.labels.length
+			? `\n${task.labels.map(l => `  - "${esc(l)}"`).join('\n')}`
+			: ' []';
+
 		return [
 			'---',
 			`type: ${task.type}`,
 			`name: "${esc(task.name)}"`,
 			`cssclasses: [ttask]`,
-			`category: ${strOrNull(task.category)}`,
+			`area: ${strOrNull(task.area)}`,
 			`status: "${esc(task.status)}"`,
 			`priority: "${esc(task.priority)}"`,
-			`task_type: ${strOrNull(task.task_type)}`,
+			`labels:${labelsYaml}`,
 			`parent_task: ${link(task.parent_task)}`,
 			`depends_on:${depsStr}`,
 			`blocks: []`,

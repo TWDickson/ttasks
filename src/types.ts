@@ -1,6 +1,5 @@
 export type TaskStatus = string;
 export type TaskPriority = 'High' | 'Medium' | 'Low' | 'None';
-export type TaskType = string;
 export type TaskRecordType = 'task' | 'project';
 
 export interface Task {
@@ -12,10 +11,12 @@ export interface Task {
 	// Core fields
 	type: TaskRecordType;
 	name: string;
-	category: string | null;
+	// Area = line of work (Database, General, Work, Home). null = unclassified / inbox.
+	area: string | null;
 	status: TaskStatus;
 	priority: TaskPriority;
-	task_type: TaskType | null;
+	// Multi-value cross-cutting labels (feature, bug, research, etc.). User-configurable.
+	labels: string[];
 
 	// Relationships (stored as vault paths, without extension)
 	parent_task: string | null;
@@ -44,9 +45,9 @@ export interface Task {
 	// Free-form body content (everything after frontmatter)
 	notes: string;
 
-	// Derived flags — computed at load time from status + settings, not stored in frontmatter
+	// Derived flags — computed at load time, not stored in frontmatter
 	is_complete: boolean;
-	is_inbox: boolean;
+	is_inbox: boolean;  // true when area is null (task hasn't been classified into a line of work)
 }
 
 export type TaskCreateInput = Omit<Task, 'id' | 'slug' | 'path' | 'blocks' | 'is_complete' | 'is_inbox' | 'status_changed'>;
