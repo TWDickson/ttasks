@@ -212,14 +212,12 @@ Agreed design decisions from 2026-04-24 session. These must land before the filt
 Target model:
 
 ```text
-FilterSpec + SortSpec + GroupBySpec → useTaskQuery() → View (List | Kanban | Graph | Agenda | Calendar)
+QuerySpec → useTaskQuery() → View (List | Kanban | Graph | Agenda | Calendar)
 ```
 
-- **FilterSpec** — serialisable filter tree: composable AND/OR groups, per-field operators (`is`, `is not`, `contains`, `before`, `after`, `is null`, `is not null`). Supports complex custom logic — users can build arbitrarily nested conditions.
-- **SortSpec** — primary + secondary sort key, direction
-- **GroupBySpec** — optional group-by field (area, status, priority, due date, parent, label)
-- **useTaskQuery()** — shared Svelte store/hook. Takes specs, returns sorted/grouped task set. All views consume this; none implement their own query logic.
-- **View** — pure renderer. Receives grouped task list, renders it. Swappable without touching filter/sort state.
+- **QuerySpec** — serialisable, plain JSON. Contains filter, sort, groupBy, limit, limitPerGroup, search. Can be hand-edited for complex logic beyond what the UI builder supports.
+- **useTaskQuery()** — shared Svelte store/hook. Takes a QuerySpec, returns sorted/grouped task set. All views consume this; none implement their own query logic.
+- **View** — pure renderer. Receives grouped task list, renders it in its format. Swappable without touching query state.
 
 **Why this matters:**
 
@@ -228,27 +226,112 @@ FilterSpec + SortSpec + GroupBySpec → useTaskQuery() → View (List | Kanban |
 - Adding a new view type requires only a new renderer component
 - Filter UI is written once, shared across all views
 
-**Implementation order:**
+---
 
-1. **Data model + migration** (Step 0 above) — prerequisite
-2. **Filter engine** — `FilterSpec`, `SortSpec`, `GroupBySpec` TypeScript types + pure `applyFilter()`, `applySort()`, `applyGroup()` functions. TDD throughout. No UI yet.
-3. **Query layer** — `useTaskQuery(filter, sort, groupBy)` Svelte store. Replaces per-view internal logic.
-4. **View migration** — swap List, Agenda, Kanban one at a time to consume `useTaskQuery`. Hierarchy wiring lands here.
-5. **Filter/sort UI** — toolbar controls, persisted per view. Smart Lists fall out naturally.
+### Filter Engine — Full Spec (agreed 2026-04-24)
+
+#### `FilterOperator`
+
+| Operator | Applies to | Notes |
+| --- | --- | --- |
+| `is` / `is_not` | string, boolean fields | Exact match |
+| `contains` / `not_contains` | string arrays (labels, depends_on, blocks) | Single value membership |
+| `contains_any` / `contains_all` | string arrays | Multi-value: any-of vs all-of |
+| `before` / `after` | date fields | Value: `YYYY-MM-DD`, or relative: `'today'`, `'+7d'`, `'-3d'` |
+| `within_days` | date fields | Value: integer N — date falls within next N days from today |
+| `is_null` / `is_not_null` | any nullable field | Presence check; no value needed |
+
+#### `FilterField`
+
+```text
+area | status | priority | labels | type
+due_date | due_time | start_date | created
+is_complete | is_inbox
+parent_task | depends_on | blocks
+assigned_to
+```
+
+**Relationship field operators:**
+
+- `parent_task` — `is`, `is_not`, `is_null` (no parent), `is_not_null` (has parent)
+- `depends_on` — `contains` (depends on task X), `is_null` (no deps), `is_not_null` (has deps)
+- `blocks` — `contains`, `is_null`, `is_not_null`
+
+**Known gap:** transitive/recursive queries ("all tasks under project X, including nested") are not supported by the flat filter engine. Requires the hierarchy utility (`taskHierarchy.ts`) wired separately.
+
+#### `FilterGroup` — AND/OR nesting
+
+```typescript
+type FilterCondition = {
+  field: FilterField
+  operator: FilterOperator
+  value?: string | number | boolean | string[]
+}
+
+type FilterGroup = {
+  logic: 'and' | 'or'
+  conditions: Array<FilterCondition | FilterGroup>  // recursive, unlimited depth
+}
+
+type FilterSpec = FilterGroup  // root is always a group
+```
+
+**UI:** filter builder caps nesting at 3 levels for usability. For deeper logic, `QuerySpec` is plain JSON and can be hand-edited directly.
+
+#### `SortSpec`
+
+```typescript
+type SortField = 'name' | 'due_date' | 'due_time' | 'start_date' | 'created'
+              | 'priority' | 'status' | 'area' | 'type'
+
+type SortSpec = Array<{ field: SortField; direction: 'asc' | 'desc' }>
+// Multiple entries = primary, secondary, tertiary sort
+```
+
+**Priority sort order:** High → Medium → Low → None (not alphabetical).
+
+#### `GroupByField`
+
+```typescript
+type GroupByField =
+  | 'status' | 'area' | 'priority' | 'type'
+  | 'due_date' | 'parent_task'
+  | null  // no grouping — flat sorted list
+```
+
+#### `QuerySpec` — the full query object
+
+```typescript
+type QuerySpec = {
+  filter: FilterSpec       // condition tree
+  sort: SortSpec           // ordered sort keys
+  groupBy: GroupByField    // optional grouping dimension
+  limit?: number           // cap total results after sort
+  limitPerGroup?: number   // cap per group after sort (e.g. top 1 per area)
+  search?: string          // pre-filter full-text match on name + notes
+}
+```
+
+`limitPerGroup` + `groupBy: 'area'` + `sort: priority asc` = "highest priority task per area" view.
+
+**Smart Lists** are named, persisted `QuerySpec` objects. Default views (All, Today, Inbox, Blocked) become instances of the same engine:
+
+- **Inbox** — `filter: { field: 'is_inbox', operator: 'is', value: true }`
+- **Today** — `filter: { field: 'due_date', operator: 'is', value: 'today' }`
+- **Blocked** — `filter: { field: 'status', operator: 'is', value: 'Blocked' }`
+
+#### Implementation order
+
+1. ~~Data model + migration~~ ✓ (Step 0 complete)
+2. **Filter engine** — types in `src/query/types.ts`, pure functions `applyFilter()`, `applySort()`, `applyGroup()`, `applyQuery()` in `src/query/engine.ts`. TDD throughout. No UI.
+3. **Query layer** — `useTaskQuery(spec: QuerySpec)` Svelte store in `src/query/useTaskQuery.ts`. Replaces per-view internal logic.
+4. **View migration** — swap List, Agenda, Kanban one at a time to consume `useTaskQuery`. Hierarchy wiring (`taskHierarchy.ts`) lands here via `groupBy: 'parent_task'`.
+5. **Filter/sort UI** — toolbar filter builder (3-level UI cap, raw JSON escape hatch), persisted per view in settings.
+6. **Smart Lists** — named, persisted `QuerySpec` objects with sidebar navigation.
 
 ---
 
-### Custom saved views (Smart Lists)
-
-- Save a `FilterSpec + SortSpec + GroupBySpec` with a name and icon
-- Complex filter logic: AND/OR groups, per-field operators, nested conditions
-- Sidebar navigation to saved views
-- Default views (All, Today, Inbox, Blocked) become named instances of the same engine — Inbox = `area is null`
-
 ### Custom sort
-
-- Per-view sort: by due date, priority, created, name, status, estimated_days, area, label
-- Secondary sort key support
 
 ### Forecast / Calendar view
 

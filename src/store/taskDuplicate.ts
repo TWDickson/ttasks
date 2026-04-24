@@ -39,6 +39,7 @@ export function buildDuplicateInput(
 		source:          task.source,
 		start_date:      null,
 		due_date:        task.due_date,
+		due_time:        task.due_time,
 		estimated_days:  task.estimated_days,
 		created:         today,
 		completed:       null,

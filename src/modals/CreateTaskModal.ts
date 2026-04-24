@@ -613,6 +613,7 @@ export class CreateTaskModal extends Modal {
 				status:         this.status,
 				priority:       this.priority,
 				labels:         this.selectedLabels,
+				due_time:       null,
 				parent_task:    null,
 				depends_on:     this.depends_on,
 				blocked_reason: '',

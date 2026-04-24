@@ -221,7 +221,7 @@ export class TaskStore {
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			const fields: (keyof Task)[] = [
 				'name', 'status', 'priority', 'area', 'labels',
-				'blocked_reason', 'assigned_to', 'source',
+				'blocked_reason', 'assigned_to', 'source', 'due_time',
 				'start_date', 'due_date', 'estimated_days', 'completed',
 				'recurrence', 'recurrence_type',
 			];
@@ -378,6 +378,7 @@ export class TaskStore {
 			status: parent.status,
 			priority: parent.priority,
 			labels: [...parent.labels],
+			due_time: null,
 			parent_task: parentPath.replace(/\.md$/, ''),
 			depends_on: [],
 			blocked_reason: '',
@@ -519,6 +520,7 @@ export class TaskStore {
 			source:          task.source,
 			start_date:      nextStart,
 			due_date:        nextDue,
+			due_time:        task.due_time,
 			estimated_days:  task.estimated_days,
 			created:         today,
 			completed:       null,
@@ -881,6 +883,7 @@ export class TaskStore {
 			source: overrides.source ?? 'GraphSandbox',
 			start_date: overrides.start_date ?? null,
 			due_date: overrides.due_date ?? null,
+			due_time: overrides.due_time ?? null,
 			estimated_days: overrides.estimated_days ?? null,
 			created: overrides.created ?? iso(-2),
 			completed: overrides.completed ?? null,
@@ -1120,6 +1123,7 @@ export class TaskStore {
 			source:         fm.source         ?? '',
 			start_date:     fm.start_date     ?? null,
 			due_date:       fm.due_date       ?? null,
+			due_time:       typeof fm.due_time === 'string' ? fm.due_time : null,
 			estimated_days: fm.estimated_days ?? null,
 			created:         fm.created         ?? null,
 			completed:       fm.completed       ?? null,
@@ -1227,6 +1231,7 @@ export class TaskStore {
 			`source: "${esc(task.source)}"`,
 			`start_date: ${task.start_date ? `'${task.start_date}'` : 'null'}`,
 			`due_date: ${task.due_date ? `'${task.due_date}'` : 'null'}`,
+			`due_time: ${task.due_time ? `'${task.due_time}'` : 'null'}`,
 			`estimated_days: ${task.estimated_days ?? 'null'}`,
 			`created: '${task.created}'`,
 			`completed: null`,

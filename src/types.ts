@@ -28,9 +28,10 @@ export interface Task {
 	assigned_to: string;
 	source: string;
 
-	// Dates (YYYY-MM-DD strings)
+	// Dates (YYYY-MM-DD strings) and optional time (HH:MM)
 	start_date: string | null;
 	due_date: string | null;
+	due_time: string | null;
 	estimated_days: number | null;
 	created: string | null;
 	completed: string | null;

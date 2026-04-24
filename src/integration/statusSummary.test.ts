@@ -21,6 +21,7 @@ function task(overrides: Partial<Task>): Task {
 		source: '',
 		start_date: null,
 		due_date: null,
+		due_time: null,
 		estimated_days: null,
 		created: '2026-04-16',
 		completed: null,

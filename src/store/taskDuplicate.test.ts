@@ -23,6 +23,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 		source: 'manual',
 		start_date: '2026-04-10',
 		due_date: '2026-04-30',
+		due_time: null,
 		estimated_days: 3,
 		created: '2026-04-01',
 		completed: null,
