@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { setIcon } from 'obsidian';
-	import { derived, writable } from 'svelte/store';
+	import { derived } from 'svelte/store';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
@@ -9,6 +9,8 @@
 	import TaskAgenda from './TaskAgenda.svelte';
 	import TaskGraph from './TaskGraph.svelte';
 	import TaskDetail from './TaskDetail.svelte';
+	import { createTaskQuery } from '../query/useTaskQuery';
+	import type { FilterCondition } from '../query/types';
 
 	export let plugin: TTasksPlugin;
 
@@ -32,32 +34,39 @@
 	let panelOpen = false;
 	$: if ($activeTaskPath !== null) panelOpen = true;
 
-	// ── Filter state ───────────────────────────────────────────────────────────
+	// ── Filter state (routed through the query engine) ────────────────────────
 	let searchQuery    = '';
 	let filterPriority = '';
-	let filterCategory = '';
+	let filterArea     = '';
 
-	$: categories = [...new Set(
-		$tasks.map(t => t.category).filter((c): c is string => !!c)
+	$: areas = [...new Set(
+		$tasks.map(t => t.area).filter((a): a is string => !!a)
 	)].sort();
 
-	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterCategory;
+	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterArea;
 
-	const displayTasks = writable($tasks);
+	const { result: groupedTasks, query } = createTaskQuery(tasks, {
+		filter:  { logic: 'and', conditions: [] },
+		sort:    [],
+		groupBy: null,
+	});
+
+	// Rebuild the filter spec whenever any filter control changes
 	$: {
-		const q = searchQuery.trim().toLowerCase();
-		displayTasks.set($tasks.filter(task => {
-			if (q && !task.name.toLowerCase().includes(q)) return false;
-			if (filterPriority && task.priority !== filterPriority) return false;
-			if (filterCategory && task.area !== filterCategory) return false;
-			return true;
-		}));
+		const conditions: FilterCondition[] = [];
+		if (filterPriority) conditions.push({ field: 'priority', operator: 'is', value: filterPriority });
+		if (filterArea)     conditions.push({ field: 'area',     operator: 'is', value: filterArea });
+		query.update(q => ({ ...q, filter: { logic: 'and', conditions }, search: searchQuery || undefined }));
 	}
+
+	// Flatten groups back to a task list — views still expect Readable<Task[]>
+	// until Step 4 migrates them to consume TaskGroup[] directly.
+	const displayTasks = derived(groupedTasks, groups => groups.flatMap(g => g.tasks));
 
 	function clearFilters() {
 		searchQuery    = '';
 		filterPriority = '';
-		filterCategory = '';
+		filterArea     = '';
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
@@ -168,11 +177,11 @@
 					<option value="None">None</option>
 				</select>
 
-				{#if categories.length > 0}
-					<select class="tt-filter-select" bind:value={filterCategory} aria-label="Filter by category">
-						<option value="">Category</option>
-						{#each categories as cat}
-							<option value={cat}>{cat}</option>
+				{#if areas.length > 0}
+					<select class="tt-filter-select" bind:value={filterArea} aria-label="Filter by area">
+						<option value="">Area</option>
+						{#each areas as a}
+							<option value={a}>{a}</option>
 						{/each}
 					</select>
 				{/if}
