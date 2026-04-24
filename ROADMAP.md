@@ -322,12 +322,12 @@ type QuerySpec = {
 
 #### Implementation order
 
-1. ~~Data model + migration~~ ✓ (Step 0 complete)
-2. **Filter engine** — types in `src/query/types.ts`, pure functions `applyFilter()`, `applySort()`, `applyGroup()`, `applyQuery()` in `src/query/engine.ts`. TDD throughout. No UI.
-3. **Query layer** — `useTaskQuery(spec: QuerySpec)` Svelte store in `src/query/useTaskQuery.ts`. Replaces per-view internal logic.
-4. **View migration** — swap List, Agenda, Kanban one at a time to consume `useTaskQuery`. Hierarchy wiring (`taskHierarchy.ts`) lands here via `groupBy: 'parent_task'`.
-5. **Filter/sort UI** — toolbar filter builder (3-level UI cap, raw JSON escape hatch), persisted per view in settings.
-6. **Smart Lists** — named, persisted `QuerySpec` objects with sidebar navigation.
+1. ~~Data model + migration~~ ✓ (Step 0 complete — 2026-04-24)
+2. ~~Filter engine~~ ✓ (Step 1 complete — 2026-04-24) — `src/query/types.ts`, `src/query/engine.ts`, 38 tests
+3. ~~Query layer~~ ✓ (Step 2 complete — 2026-04-24) — `src/query/useTaskQuery.ts` (`createTaskQuery`), 7 tests. Wired into `TaskBoard` filter bar. Views still receive flat `Task[]` via a flatten bridge.
+4. **View migration** — next up. Remove the flatten bridge in `TaskBoard`. Migrate `TaskList`, `TaskAgenda`, `TaskKanban` to accept `Readable<TaskGroup[]>` instead of `Readable<Task[]>`. Each view becomes a pure renderer — no internal filter/sort/group logic. Hierarchy wiring (`taskHierarchy.ts`) lands here via `groupBy: 'parent_task'`. `TaskGraph` last (more complex).
+5. **Filter/sort UI** — toolbar filter builder (3-level UI cap, raw JSON escape hatch for complex queries), persisted per view in settings.
+6. **Smart Lists** — named, persisted `QuerySpec` objects with sidebar navigation. Default views (Inbox, Today, Blocked) become Smart List instances.
 
 ---
 
