@@ -4,10 +4,11 @@
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
 	import type { TaskGroup } from '../query/types';
-	import { buildListRows, buildListSections } from './viewAdapters';
+	import { buildListRows, buildListSections, type ListHierarchyMode } from './viewAdapters';
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
 	export let statuses: string[];
+	export let hierarchy: ListHierarchyMode = 'tree';
 	export let areaColors: Record<string, string>;
 	export let labelColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
@@ -41,7 +42,7 @@
 		</div>
 	{:else}
 		{#each sections as section (section.key)}
-			{@const rows = buildListRows(section.tasks, collapsedPaths)}
+			{@const rows = buildListRows(section.tasks, collapsedPaths, hierarchy)}
 				<section class="tt-group">
 					<h3 class="tt-group-heading">
 						{section.label}

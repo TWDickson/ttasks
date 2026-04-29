@@ -15,7 +15,7 @@ import { buildAliasedLink } from './integration/relationshipLink';
 import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
 import { localDateString, addDaysLocal } from './utils/dateUtils';
 
-export type BoardViewMode = 'list' | 'kanban' | 'agenda' | 'graph';
+export type BoardViewMode = string;
 
 export default class TTasksPlugin extends Plugin {
 	settings!: TTasksSettings;

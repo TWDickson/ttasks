@@ -10,7 +10,12 @@
 	import TaskDetail from './TaskDetail.svelte';
 	import { createTaskQuery } from '../query/useTaskQuery';
 	import type { FilterCondition } from '../query/types';
-	import { resolveBoardQuery, type BoardViewMode as ViewMode } from './viewAdapters';
+	import {
+		getRegisteredTaskViews,
+		resolveTaskViewDefinition,
+		resolveTaskViewIcon,
+		resolveTaskViewId,
+	} from '../views/viewRegistry';
 
 	export let plugin: TTasksPlugin;
 
@@ -18,12 +23,17 @@
 	const activeTaskPath = plugin.activeTaskPath;
 	const tasks          = plugin.taskStore.tasks;
 
-	let currentView: ViewMode = 'list';
+	let registeredViews = getRegisteredTaskViews(plugin.settings);
+	let currentViewId = resolveTaskViewId(plugin.settings, null);
+	let currentView = resolveTaskViewDefinition(plugin.settings, currentViewId) ?? registeredViews[0];
+	$: registeredViews = getRegisteredTaskViews(plugin.settings);
+	$: currentViewId = resolveTaskViewId(plugin.settings, currentViewId);
+	$: currentView = resolveTaskViewDefinition(plugin.settings, currentViewId) ?? registeredViews[0];
 
 	// Allow external callers (e.g. ReminderService) to switch the active view.
 	plugin.activeViewMode.subscribe(mode => {
 		if (mode !== null) {
-			currentView = mode;
+			currentViewId = resolveTaskViewId(plugin.settings, mode);
 			plugin.activeViewMode.set(null);
 		}
 	});
@@ -44,25 +54,28 @@
 
 	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterArea;
 
-	const initialQuery = resolveBoardQuery(currentView);
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
-		filter:  { logic: 'and', conditions: [] },
-		sort:    initialQuery.sort,
-		group:   initialQuery.group,
+		filter: currentView.query.filter,
+		sort: currentView.query.sort,
+		group: currentView.query.group,
+		limit: currentView.query.limit,
+		limitPerGroup: currentView.query.limitPerGroup,
+		search: currentView.query.search,
 	});
 
 	// Rebuild the filter spec whenever any filter control changes
 	$: {
-		const viewQuery = resolveBoardQuery(currentView);
-		const conditions: FilterCondition[] = [...viewQuery.baseFilterConditions];
+		const conditions = [...currentView.query.filter.conditions];
 		if (filterPriority) conditions.push({ field: 'priority', operator: 'is', value: filterPriority });
 		if (filterArea)     conditions.push({ field: 'area',     operator: 'is', value: filterArea });
 		query.update(q => ({
 			...q,
-			filter: { logic: 'and', conditions },
-			search: searchQuery || undefined,
-			sort: viewQuery.sort,
-			group: viewQuery.group,
+			filter: { logic: currentView.query.filter.logic, conditions },
+			search: searchQuery || currentView.query.search || undefined,
+			sort: currentView.query.sort,
+			group: currentView.query.group,
+			limit: currentView.query.limit,
+			limitPerGroup: currentView.query.limitPerGroup,
 		}));
 	}
 
@@ -73,13 +86,6 @@
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
-
-	const VIEWS: { id: ViewMode; label: string; icon: string }[] = [
-		{ id: 'list',   label: 'List',   icon: 'list' },
-		{ id: 'kanban', label: 'Kanban', icon: 'columns-2' },
-		{ id: 'agenda', label: 'Agenda', icon: 'calendar' },
-		{ id: 'graph',  label: 'Graph',  icon: 'git-branch-plus' },
-	];
 
 	$: configuredStatuses = plugin.settings.statuses ?? ['Active'];
 	$: configuredStatusColors = plugin.settings.statusColors ?? {};
@@ -108,15 +114,15 @@
 	<!-- ── Desktop nav rail (hidden on mobile) ──────────────────────────────── -->
 	<nav class="tt-board-rail">
 		<div class="tt-rail-views">
-			{#each VIEWS as view}
+			{#each registeredViews as view}
 				<button
 					class="tt-rail-item"
-					class:is-active={currentView === view.id}
-					on:click={() => currentView = view.id}
-					aria-label={view.label}
+					class:is-active={currentViewId === view.id}
+					on:click={() => currentViewId = view.id}
+					aria-label={view.name}
 				>
-					<span class="tt-rail-icon" use:icon={view.icon}></span>
-					<span class="tt-rail-label">{view.label}</span>
+					<span class="tt-rail-icon" use:icon={resolveTaskViewIcon(view)}></span>
+					<span class="tt-rail-label">{view.name}</span>
 				</button>
 			{/each}
 		</div>
@@ -146,12 +152,12 @@
 
 			<!-- Mobile tab bar (hidden on desktop) -->
 			<div class="tt-board-tabs">
-				{#each VIEWS as view}
+				{#each registeredViews as view}
 					<button
 						class="tt-tab-btn"
-						class:is-active={currentView === view.id}
-						on:click={() => currentView = view.id}
-					>{view.label}</button>
+						class:is-active={currentViewId === view.id}
+						on:click={() => currentViewId = view.id}
+					>{view.name}</button>
 				{/each}
 			</div>
 
@@ -196,11 +202,12 @@
 
 			<!-- View content -->
 			<div class="tt-board-content">
-				{#if currentView === 'list'}
+				{#if currentView.renderer === 'list'}
 					<TaskList
 						{plugin}
 						groups={groupedTasks}
 						statuses={configuredStatuses}
+						hierarchy={currentView.presentation.hierarchy}
 						areaColors={configuredCategoryColors}
 						labelColors={configuredTaskTypeColors}
 						{activeTaskPath}
@@ -208,7 +215,7 @@
 						onContextMenu={openContextMenu}
 						onNewTask={openNewTask}
 					/>
-				{:else if currentView === 'kanban'}
+				{:else if currentView.renderer === 'kanban'}
 					<TaskKanban
 						{plugin}
 						groups={groupedTasks}
@@ -222,10 +229,11 @@
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
 						onContextMenu={openContextMenu}
 					/>
-				{:else if currentView === 'graph'}
+				{:else if currentView.renderer === 'graph'}
 					<TaskGraph
 						{plugin}
 						groups={groupedTasks}
+						defaultGraphMode={currentView.presentation.graphMode}
 						statusColors={configuredStatusColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}

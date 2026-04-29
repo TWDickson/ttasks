@@ -149,6 +149,17 @@ describe('buildListRows', () => {
 		expect(rows).toHaveLength(1);
 		expect(rows[0]).toMatchObject({ task: parent, depth: 0, expandable: true, expanded: false });
 	});
+
+	it('returns flat rows when hierarchy presentation is disabled', () => {
+		const parent = makeTask({ path: 'Tasks/parent.md', name: 'Parent' });
+		const child = makeTask({ path: 'Tasks/child.md', name: 'Child', parent_task: 'Tasks/parent' });
+
+		const rows = buildListRows([parent, child], new Set([parent.path]), 'flat');
+
+		expect(rows).toHaveLength(2);
+		expect(rows[0]).toMatchObject({ task: parent, depth: 0, expandable: false, expanded: true });
+		expect(rows[1]).toMatchObject({ task: child, depth: 0, expandable: false, expanded: true });
+	});
 });
 
 describe('flattenTaskGroups', () => {

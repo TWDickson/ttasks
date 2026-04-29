@@ -30,6 +30,8 @@ export interface ListRow {
 	expanded: boolean;
 }
 
+export type ListHierarchyMode = 'flat' | 'tree';
+
 export function flattenTaskGroups(groups: TaskGroup[]): Task[] {
 	return groups.flatMap((group) => group.tasks);
 }
@@ -119,7 +121,20 @@ export function buildListSections(groups: TaskGroup[], statuses: string[]): List
 	return sections;
 }
 
-export function buildListRows(tasks: Task[], collapsedPaths: Set<string>): ListRow[] {
+export function buildListRows(
+	tasks: Task[],
+	collapsedPaths: Set<string>,
+	hierarchy: ListHierarchyMode = 'tree',
+): ListRow[] {
+	if (hierarchy === 'flat') {
+		return tasks.map((task) => ({
+			task,
+			depth: 0,
+			expandable: false,
+			expanded: true,
+		}));
+	}
+
 	const flattened = flattenWithDepth(tasks);
 	const parentPaths = getParentPaths(flattened);
 	const visible = buildVisibleItems(flattened, collapsedPaths);

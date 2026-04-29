@@ -15,6 +15,7 @@
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 
 	type GraphMode = 'dependency' | 'overview';
+	export let defaultGraphMode: GraphMode = 'dependency';
 	type TimelineItem = {
 		task: Task;
 		projectName: string;
@@ -30,7 +31,13 @@
 	type TimelineCategory = { categoryName: string; lanes: TimelineLane[] };
 
 	const DAY_MS = 24 * 60 * 60 * 1000;
-	let graphMode: GraphMode = 'dependency';
+	let graphMode: GraphMode = defaultGraphMode;
+	let appliedGraphMode: GraphMode = defaultGraphMode;
+
+	$: if (defaultGraphMode !== appliedGraphMode) {
+		graphMode = defaultGraphMode;
+		appliedGraphMode = defaultGraphMode;
+	}
 
 	$: tasks = flattenTaskGroups($groups);
 

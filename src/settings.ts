@@ -11,6 +11,11 @@ import type {
 	SortField,
 	SortSpec,
 } from './query/types';
+import {
+	createCustomViewDefinition,
+	getRegisteredTaskViews,
+	resolveTaskViewIcon,
+} from './views/viewRegistry';
 
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
@@ -944,8 +949,179 @@ export class TTasksSettingTab extends PluginSettingTab {
 			getDefaultMigrationTarget: () => null,
 		});
 
+		this.renderViewsSettings(containerEl);
 		this.renderQuickActionsSettings(containerEl);
 		this.renderRemindersSettings(containerEl);
+	}
+
+	private renderViewsSettings(containerEl: HTMLElement): void {
+		containerEl.createEl('h2', { text: 'Views' });
+		containerEl.createEl('p', {
+			text: 'Built-in and saved custom views now flow through the same registry. This section manages the persisted custom view shell; filter and grouping editors land next.',
+			cls: 'setting-item-description',
+			attr: { style: 'margin-bottom: 12px;' },
+		});
+
+		const registeredViews = getRegisteredTaskViews(this.plugin.settings);
+		const builtinViews = registeredViews.filter((view) => view.source === 'builtin');
+		const customViews = this.plugin.settings.customViews;
+
+		containerEl.createEl('h3', { text: 'Built-in Views' });
+		for (const view of builtinViews) {
+			new Setting(containerEl)
+				.setName(view.name)
+				.setDesc(`${view.id} • ${view.renderer} • ${this.describeTaskView(view)}`)
+				.addExtraButton((button) => {
+					button.setIcon(resolveTaskViewIcon(view));
+					button.setTooltip('Built-in view');
+					button.setDisabled(true);
+				});
+		}
+
+		containerEl.createEl('h3', { text: 'Custom Views' });
+		if (customViews.length === 0) {
+			containerEl.createEl('p', {
+				text: 'No custom views yet. Add one to create another board tab backed by the persisted query model.',
+				cls: 'setting-item-description',
+			});
+		}
+
+		customViews.forEach((view, index) => {
+			new Setting(containerEl)
+				.setName(view.name)
+				.setDesc(`${view.id} • ${view.renderer} • ${this.describeTaskView(view)}`)
+				.addText((text) => text
+					.setPlaceholder('View name')
+					.setValue(view.name)
+					.onChange(async (value) => {
+						await this.updateCustomView(index, (current) => ({
+							...current,
+							name: value.trim() || current.name,
+						}));
+					})
+				)
+				.addExtraButton((button) => {
+					button.setIcon('trash');
+					button.setTooltip('Delete custom view');
+					button.onClick(async () => {
+						const nextViews = this.plugin.settings.customViews.filter((_, candidateIndex) => candidateIndex !== index);
+						await this.saveCustomViews(nextViews, true);
+					});
+				});
+
+			new Setting(containerEl)
+				.setName('Icon')
+				.setDesc('Optional icon override for the board rail and mobile tabs.')
+				.addText((text) => text
+					.setPlaceholder(resolveTaskViewIcon(view))
+					.setValue(view.icon ?? '')
+					.onChange(async (value) => {
+						await this.updateCustomView(index, (current) => ({
+							...current,
+							icon: value.trim() || null,
+						}));
+					})
+				)
+				.addExtraButton((button) => {
+					button.setIcon(resolveTaskViewIcon(view));
+					button.setTooltip('Resolved icon');
+					button.setDisabled(true);
+				});
+
+			new Setting(containerEl)
+				.setName('Renderer')
+				.setDesc('Choose how this saved query is rendered in the board.')
+				.addDropdown((dropdown) => {
+					dropdown.addOption('list', 'List');
+					dropdown.addOption('kanban', 'Kanban');
+					dropdown.addOption('agenda', 'Agenda');
+					dropdown.addOption('graph', 'Graph');
+					dropdown.setValue(view.renderer);
+					dropdown.onChange(async (value) => {
+						await this.updateCustomView(index, (current) => ({
+							...current,
+							renderer: value as TaskViewRenderer,
+						}));
+						this.display();
+					});
+				});
+
+			new Setting(containerEl)
+				.setName('List hierarchy')
+				.setDesc('Used by list-rendered views to show parent/child structure or a flat list.')
+				.addDropdown((dropdown) => {
+					dropdown.addOption('tree', 'Tree');
+					dropdown.addOption('flat', 'Flat');
+					dropdown.setValue(view.presentation.hierarchy);
+					dropdown.onChange(async (value) => {
+						await this.updateCustomView(index, (current) => ({
+							...current,
+							presentation: {
+								...current.presentation,
+								hierarchy: value as TaskViewPresentation['hierarchy'],
+							},
+						}));
+					});
+				});
+
+			new Setting(containerEl)
+				.setName('Graph default mode')
+				.setDesc('Used by graph-rendered views to choose the default graph tab when opened.')
+				.addDropdown((dropdown) => {
+					dropdown.addOption('dependency', 'Dependency');
+					dropdown.addOption('overview', 'Overview');
+					dropdown.setValue(view.presentation.graphMode);
+					dropdown.onChange(async (value) => {
+						await this.updateCustomView(index, (current) => ({
+							...current,
+							presentation: {
+								...current.presentation,
+								graphMode: value as TaskViewPresentation['graphMode'],
+							},
+						}));
+					});
+				});
+		});
+
+		new Setting(containerEl)
+			.setName('Add custom view')
+			.setDesc('Creates another saved board tab using the shared view registry model.')
+			.addButton((button) => {
+				button.setButtonText('Add view');
+				button.setCta();
+				button.onClick(async () => {
+					const nextViews = [...this.plugin.settings.customViews, createCustomViewDefinition(this.plugin.settings.customViews)];
+					await this.saveCustomViews(nextViews, true);
+				});
+			});
+	}
+
+	private describeTaskView(view: Pick<CustomTaskViewDefinition, 'renderer' | 'query' | 'presentation'>): string {
+		const filterCount = view.query.filter.conditions.length;
+		const sortCount = view.query.sort.length;
+		const groupLabel = view.query.group.kind === 'none'
+			? 'ungrouped'
+			: view.query.group.kind === 'field'
+				? `group ${view.query.group.field}`
+				: 'agenda buckets';
+		const searchLabel = view.query.search ? `search \"${view.query.search}\"` : 'no search';
+		return `${groupLabel} • ${filterCount} filter${filterCount === 1 ? '' : 's'} • ${sortCount} sort${sortCount === 1 ? '' : 's'} • ${searchLabel} • ${view.presentation.hierarchy}/${view.presentation.graphMode}`;
+	}
+
+	private async updateCustomView(
+		index: number,
+		updater: (view: CustomTaskViewDefinition) => CustomTaskViewDefinition,
+	): Promise<void> {
+		const nextViews = this.plugin.settings.customViews.map((view, candidateIndex) => (
+			candidateIndex === index ? updater(view) : view
+		));
+		await this.saveCustomViews(nextViews, false);
+	}
+
+	private async saveCustomViews(customViews: CustomTaskViewDefinition[], rerender: boolean): Promise<void> {
+		this.plugin.settings.customViews = customViews;
+		await this.plugin.saveSettings();
+		if (rerender) this.display();
 	}
 
 	private renderQuickActionsSettings(containerEl: HTMLElement): void {
