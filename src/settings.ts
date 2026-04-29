@@ -1034,6 +1034,10 @@ export class TTasksSettingTab extends PluginSettingTab {
 								}));
 								this.display();
 							},
+							async () => {
+								const nextViews = this.plugin.settings.customViews.filter((_, i) => i !== index);
+								await this.saveCustomViews(nextViews, true);
+							},
 						).open();
 					});
 				})

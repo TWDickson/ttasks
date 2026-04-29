@@ -58,10 +58,11 @@
 
 	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterArea;
 
-	// When the Agenda renderer is active but the stored group is 'none', force
-	// agenda date-bucket grouping so the view actually displays tasks.
+	// When the Agenda renderer is active, always use agenda date-bucket grouping
+	// regardless of what is stored in the query — any other group kind produces
+	// keys that TaskAgenda silently ignores.
 	function effectiveGroup(view: typeof currentView) {
-		if (view.renderer === 'agenda' && view.query.group.kind === 'none') {
+		if (view.renderer === 'agenda' && view.query.group.kind !== 'agenda') {
 			return { kind: 'agenda' as const };
 		}
 		return view.query.group;
@@ -172,6 +173,13 @@
 				await plugin.saveSettings();
 				registeredViews = getRegisteredTaskViews(plugin.settings);
 				currentViewId = viewId;
+			},
+			async () => {
+				plugin.settings.customViews = plugin.settings.customViews.filter((view) => view.id !== viewId);
+				await plugin.saveSettings();
+				registeredViews = getRegisteredTaskViews(plugin.settings);
+				currentViewId = resolveTaskViewId(plugin.settings, null);
+				new Notice('Smart List deleted.');
 			},
 		).open();
 	}

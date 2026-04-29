@@ -51,11 +51,14 @@ export class QueryEditorModal extends Modal {
 	private viewName: string;
 	private readonly settings: { statuses?: string[]; areas?: string[]; labelValues?: string[] };
 	private readonly onSave: (query: QuerySpec, renderer: TaskViewRenderer, viewName: string) => void | Promise<void>;
+	private readonly onDelete: (() => void | Promise<void>) | undefined;
 
 	/** Tracks which tab is active. */
 	private activeTab: 'builder' | 'json' = 'builder';
 	/** Raw JSON draft (only used while on JSON tab). */
 	private jsonDraft = '';
+	/** Waiting for delete confirmation. */
+	private confirmingDelete = false;
 
 	constructor(
 		app: App,
@@ -64,6 +67,7 @@ export class QueryEditorModal extends Modal {
 		renderer: TaskViewRenderer,
 		settings: { statuses?: string[]; areas?: string[]; labelValues?: string[] },
 		onSave: (query: QuerySpec, renderer: TaskViewRenderer, viewName: string) => void | Promise<void>,
+		onDelete?: () => void | Promise<void>,
 	) {
 		super(app);
 		this.viewName = viewName;
@@ -71,6 +75,7 @@ export class QueryEditorModal extends Modal {
 		this.renderer = renderer;
 		this.settings = settings;
 		this.onSave = onSave;
+		this.onDelete = onDelete;
 	}
 
 	onOpen() {
@@ -117,11 +122,39 @@ export class QueryEditorModal extends Modal {
 
 		// Footer
 		const footer = contentEl.createDiv({ cls: 'tt-qe-footer' });
-		const cancelBtn = footer.createEl('button', { text: 'Cancel', cls: 'tt-qe-cancel' });
-		cancelBtn.addEventListener('click', () => this.close());
 
-		const saveBtn = footer.createEl('button', { text: 'Save', cls: 'mod-cta tt-qe-save' });
-		saveBtn.addEventListener('click', () => this.save());
+		if (this.onDelete) {
+			if (this.confirmingDelete) {
+				footer.createSpan({ text: 'Delete this Smart List?', cls: 'tt-qe-delete-confirm-label' });
+				const confirmBtn = footer.createEl('button', { text: 'Yes, delete', cls: 'mod-warning tt-qe-delete-confirm' });
+				confirmBtn.addEventListener('click', async () => {
+					await this.onDelete!();
+					this.close();
+				});
+				const abortBtn = footer.createEl('button', { text: 'Cancel', cls: 'tt-qe-cancel' });
+				abortBtn.addEventListener('click', () => {
+					this.confirmingDelete = false;
+					this.render();
+				});
+			} else {
+				const deleteBtn = footer.createEl('button', { text: 'Delete', cls: 'tt-qe-delete' });
+				deleteBtn.addEventListener('click', () => {
+					this.confirmingDelete = true;
+					this.render();
+				});
+				const spacer = footer.createDiv({ cls: 'tt-qe-footer-spacer' });
+				void spacer;
+				const cancelBtn = footer.createEl('button', { text: 'Cancel', cls: 'tt-qe-cancel' });
+				cancelBtn.addEventListener('click', () => this.close());
+				const saveBtn = footer.createEl('button', { text: 'Save', cls: 'mod-cta tt-qe-save' });
+				saveBtn.addEventListener('click', () => this.save());
+			}
+		} else {
+			const cancelBtn = footer.createEl('button', { text: 'Cancel', cls: 'tt-qe-cancel' });
+			cancelBtn.addEventListener('click', () => this.close());
+			const saveBtn = footer.createEl('button', { text: 'Save', cls: 'mod-cta tt-qe-save' });
+			saveBtn.addEventListener('click', () => this.save());
+		}
 	}
 
 	// ── Builder tab ─────────────────────────────────────────────────────────

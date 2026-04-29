@@ -900,11 +900,39 @@
 
 	.tt-qe-footer {
 		display: flex;
+		align-items: center;
 		justify-content: flex-end;
 		gap: 8px;
 		margin-top: 16px;
 		padding-top: 12px;
 		border-top: 1px solid var(--background-modifier-border);
+	}
+
+	.tt-qe-footer-spacer {
+		flex: 1;
+	}
+
+	.tt-qe-delete {
+		background: transparent;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 4px;
+		padding: 6px 14px;
+		cursor: pointer;
+		color: var(--text-error);
+	}
+
+	.tt-qe-delete:hover {
+		background: var(--background-modifier-error);
+	}
+
+	.tt-qe-delete-confirm-label {
+		font-size: var(--font-ui-small);
+		color: var(--text-muted);
+		margin-right: auto;
+	}
+
+	.tt-qe-delete-confirm {
+		padding: 6px 14px;
 	}
 
 	.tt-qe-cancel {
