@@ -129,8 +129,8 @@ export class QueryEditorModal extends Modal {
 	private renderBuilder(container: HTMLElement) {
 		this.renderViewTypeSection(container);
 		this.renderFilterSection(container);
-		this.renderSortSection(container);
 		this.renderGroupSection(container);
+		this.renderSortSection(container);
 		this.renderLimitSection(container);
 	}
 
@@ -229,9 +229,23 @@ export class QueryEditorModal extends Modal {
 		container.empty();
 		group.conditions.forEach((item, index) => {
 			if ('logic' in item) {
-				// Sub-group
 				const subGroup = item as FilterGroup;
-				this.renderFilterGroup(container, subGroup, (updated) => {
+				const subGroupWrap = container.createDiv({ cls: 'tt-qe-subgroup-wrap' });
+				const subGroupActions = subGroupWrap.createDiv({ cls: 'tt-qe-subgroup-actions' });
+				const removeGroupBtn = subGroupActions.createEl('button', {
+					cls: 'tt-qe-del clickable-icon',
+					attr: { 'aria-label': 'Remove condition group' },
+				});
+				removeGroupBtn.innerHTML = '✕';
+				removeGroupBtn.addEventListener('click', () => {
+					const newConditions = group.conditions.filter((_, i) => i !== index);
+					const updatedGroup = { ...group, conditions: newConditions };
+					group.conditions = updatedGroup.conditions;
+					onChange(updatedGroup);
+					this.renderConditionsOnly(container, group, onChange, depth);
+				});
+
+				this.renderFilterGroup(subGroupWrap, subGroup, (updated) => {
 					const newConditions = [...group.conditions];
 					newConditions[index] = updated;
 					const updatedGroup = { ...group, conditions: newConditions };
@@ -295,11 +309,29 @@ export class QueryEditorModal extends Modal {
 			const input = valueArea.createEl('input', {
 				type: kind === 'number' ? 'number' : kind === 'date' ? 'date' : 'text',
 				cls: 'tt-qe-input',
-				value: current !== undefined && current !== null ? String(current) : '',
+				value: Array.isArray(current)
+					? current.join(', ')
+					: (current !== undefined && current !== null ? String(current) : ''),
 			});
-			input.placeholder = kind === 'date' ? 'YYYY-MM-DD or today, +7d …' : kind === 'number' ? 'Days' : '';
+			if (kind === 'date') {
+				input.placeholder = 'YYYY-MM-DD or today, +7d …';
+			} else if (kind === 'number') {
+				input.placeholder = 'Days';
+			} else if (field === 'labels' && (op === 'contains_any' || op === 'contains_all')) {
+				input.placeholder = 'Comma-separated labels: bug, feature';
+			}
 			input.addEventListener('input', () => {
-				const v = kind === 'number' ? Number(input.value) : input.value;
+				let v: unknown;
+				if (kind === 'number') {
+					v = Number(input.value);
+				} else if (field === 'labels' && (op === 'contains_any' || op === 'contains_all')) {
+					v = input.value
+						.split(',')
+						.map((part) => part.trim())
+						.filter((part) => part.length > 0);
+				} else {
+					v = input.value;
+				}
 				updateCondition(field, op, v);
 			});
 		};

@@ -90,6 +90,7 @@ export type ValueInputKind = 'text' | 'select' | 'none' | 'number' | 'date';
 export function valueInputKind(field: FilterField, operator: FilterOperator): ValueInputKind {
 	if (operator === 'is_null' || operator === 'is_not_null') return 'none';
 	if (operator === 'within_days') return 'number';
+	if (field === 'labels' && (operator === 'contains' || operator === 'not_contains')) return 'select';
 
 	const category = FIELD_CATEGORY[field];
 

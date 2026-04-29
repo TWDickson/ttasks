@@ -165,8 +165,9 @@ describe('valueInputKind', () => {
 		expect(valueInputKind('start_date', 'before')).toBe('date');
 	});
 
-	it('returns text for contains/not_contains on labels', () => {
-		expect(valueInputKind('labels', 'contains')).toBe('text');
+	it('returns select for single-label operators and text for multi-label operators', () => {
+		expect(valueInputKind('labels', 'contains')).toBe('select');
+		expect(valueInputKind('labels', 'not_contains')).toBe('select');
 		expect(valueInputKind('labels', 'contains_any')).toBe('text');
 		expect(valueInputKind('labels', 'contains_all')).toBe('text');
 	});
