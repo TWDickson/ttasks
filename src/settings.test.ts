@@ -4,6 +4,7 @@ import {
 	resolveCompletionStatus,
 	resolveConfiguredStatus,
 	normalizeEditorSuggestTrigger,
+	normalizeQuerySpec,
 	normalizeSettingsFromSources,
 	isSystemStatus,
 	DEFAULT_SETTINGS,
@@ -162,5 +163,116 @@ describe('normalizeSettingsFromSources', () => {
 		expect(merged.tasksFolder).toBe('Planner/Tasks');
 		expect(merged.editorSuggestTrigger).toBe('@todo');
 		expect(merged.reminders.enabled).toBe(false);
+	});
+
+	it('defaults customViews to an empty array', () => {
+		const merged = normalizeSettingsFromSources([DEFAULT_SETTINGS, {}]);
+
+		expect(merged.customViews).toEqual([]);
+	});
+
+	it('preserves valid custom view definitions', () => {
+		const merged = normalizeSettingsFromSources([
+			DEFAULT_SETTINGS,
+			{
+				customViews: [
+					{
+						id: 'today-list',
+						name: 'Today',
+						icon: 'calendar',
+						renderer: 'list',
+						query: {
+							filter: { logic: 'and', conditions: [{ field: 'due_date', operator: 'is', value: 'today' }] },
+							sort: [{ field: 'priority', direction: 'asc' }],
+							group: { kind: 'field', field: 'status' },
+							limit: 5,
+						},
+						presentation: {
+							hierarchy: 'tree',
+							graphMode: 'overview',
+						},
+					},
+				],
+			},
+		]);
+
+		expect(merged.customViews).toHaveLength(1);
+		expect(merged.customViews[0]).toMatchObject({
+			id: 'today-list',
+			name: 'Today',
+			icon: 'calendar',
+			renderer: 'list',
+			presentation: { hierarchy: 'tree', graphMode: 'overview' },
+		});
+		expect(merged.customViews[0].query.group).toEqual({ kind: 'field', field: 'status' });
+	});
+
+	it('drops invalid custom views and deduplicates by id', () => {
+		const merged = normalizeSettingsFromSources([
+			DEFAULT_SETTINGS,
+			{
+				customViews: [
+					{ id: '', name: 'Missing id', renderer: 'list', query: {}, presentation: {} },
+					{ id: 'dup', name: 'First', renderer: 'list', query: {}, presentation: {} },
+					{ id: 'dup', name: 'Second', renderer: 'kanban', query: {}, presentation: {} },
+					{ id: 'bad-renderer', name: 'Bad', renderer: 'table', query: {}, presentation: {} },
+				],
+			},
+		]);
+
+		expect(merged.customViews).toHaveLength(1);
+		expect(merged.customViews[0]).toMatchObject({ id: 'dup', name: 'First', renderer: 'list' });
+	});
+
+	it('normalizes legacy custom view query.groupBy into query.group', () => {
+		const merged = normalizeSettingsFromSources([
+			DEFAULT_SETTINGS,
+			{
+				customViews: [
+					{
+						id: 'legacy-board',
+						name: 'Legacy Board',
+						renderer: 'kanban',
+						query: {
+							filter: { logic: 'and', conditions: [] },
+							sort: [],
+							groupBy: 'status',
+						},
+					},
+				],
+			},
+		]);
+
+		expect(merged.customViews[0].query.group).toEqual({ kind: 'field', field: 'status' });
+	});
+});
+
+describe('normalizeQuerySpec', () => {
+	it('falls back to an empty query when invalid', () => {
+		expect(normalizeQuerySpec(null)).toEqual({
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			group: { kind: 'none' },
+		});
+	});
+
+	it('translates legacy groupBy values into the new group model', () => {
+		const query = normalizeQuerySpec({
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			groupBy: 'area',
+		});
+
+		expect(query.group).toEqual({ kind: 'field', field: 'area' });
+	});
+
+	it('normalizes date bucket group specs', () => {
+		const query = normalizeQuerySpec({
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			group: { kind: 'date_buckets', field: 'due_date', preset: 'agenda' },
+		});
+
+		expect(query.group).toEqual({ kind: 'date_buckets', field: 'due_date', preset: 'agenda' });
 	});
 });

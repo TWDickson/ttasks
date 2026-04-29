@@ -1,8 +1,34 @@
 import { AbstractInputSuggest, App, Modal, Notice, PluginSettingTab, Setting, TFolder, setIcon } from 'obsidian';
 import type TTasksPlugin from './main';
+import type {
+	FilterCondition,
+	FilterField,
+	FilterGroup,
+	FilterOperator,
+	GroupField,
+	GroupSpec,
+	QuerySpec,
+	SortField,
+	SortSpec,
+} from './query/types';
 
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
+export type TaskViewRenderer = 'list' | 'kanban' | 'agenda' | 'graph';
+
+export interface TaskViewPresentation {
+	hierarchy: 'flat' | 'tree';
+	graphMode: 'dependency' | 'overview';
+}
+
+export interface CustomTaskViewDefinition {
+	id: string;
+	name: string;
+	icon: string | null;
+	renderer: TaskViewRenderer;
+	query: QuerySpec;
+	presentation: TaskViewPresentation;
+}
 
 export const QUICK_ACTION_LABELS: Record<QuickActionId, string> = {
 	none: 'None',
@@ -46,6 +72,7 @@ export interface TTasksSettings {
 	tasksFolder: string;
 	editorSuggestTrigger: string;
 	fabPosition: FabPosition;
+	customViews: CustomTaskViewDefinition[];
 	statuses: string[];
 	completionStatus: string;
 	statusColors: Record<string, string>;
@@ -76,6 +103,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	tasksFolder: 'Tasks',
 	editorSuggestTrigger: '@task',
 	fabPosition: 'right',
+	customViews: [],
 	statuses: DEFAULT_STATUSES,
 	completionStatus: 'Done',
 	statusColors: {
@@ -94,6 +122,42 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		deferDays: 1,
 	},
 	reminders: DEFAULT_REMINDERS_SETTINGS,
+};
+
+const FILTER_OPERATORS = new Set<FilterOperator>([
+	'is', 'is_not',
+	'contains', 'not_contains',
+	'contains_any', 'contains_all',
+	'before', 'after',
+	'within_days',
+	'is_null', 'is_not_null',
+]);
+
+const FILTER_FIELDS = new Set<FilterField>([
+	'area', 'status', 'priority', 'labels', 'type',
+	'due_date', 'due_time', 'start_date', 'created',
+	'is_complete', 'is_inbox',
+	'parent_task', 'depends_on', 'blocks',
+	'assigned_to',
+]);
+
+const SORT_FIELDS = new Set<SortField>([
+	'name', 'due_date', 'due_time', 'start_date', 'created',
+	'priority', 'status', 'area', 'type',
+]);
+
+const GROUP_FIELDS = new Set<GroupField>([
+	'status', 'area', 'priority', 'type', 'due_date', 'parent_task',
+]);
+
+const TASK_VIEW_RENDERERS = new Set<TaskViewRenderer>(['list', 'kanban', 'agenda', 'graph']);
+
+const EMPTY_FILTER_SPEC: FilterGroup = { logic: 'and', conditions: [] };
+
+const EMPTY_QUERY_SPEC: QuerySpec = {
+	filter: EMPTY_FILTER_SPEC,
+	sort: [],
+	group: { kind: 'none' },
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -133,6 +197,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		tasksFolder: settings.tasksFolder,
 		editorSuggestTrigger: settings.editorSuggestTrigger,
 		fabPosition: settings.fabPosition,
+		customViews: settings.customViews.map(cloneCustomTaskViewDefinition),
 		statuses: [...settings.statuses],
 		completionStatus: settings.completionStatus,
 		statusColors: { ...settings.statusColors },
@@ -160,6 +225,211 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 	};
 }
 
+function cloneFilterSpec(spec: FilterGroup): FilterGroup {
+	return {
+		logic: spec.logic,
+		conditions: spec.conditions.map((condition) => {
+			if ('logic' in condition) {
+				return cloneFilterSpec(condition);
+			}
+			return {
+				field: condition.field,
+				operator: condition.operator,
+				value: Array.isArray(condition.value) ? [...condition.value] : condition.value,
+			};
+		}),
+	};
+}
+
+function cloneQuerySpec(query: QuerySpec): QuerySpec {
+	return {
+		filter: cloneFilterSpec(query.filter),
+		sort: query.sort.map((entry) => ({ ...entry })),
+		group: { ...query.group },
+		limit: query.limit,
+		limitPerGroup: query.limitPerGroup,
+		search: query.search,
+	};
+}
+
+function cloneTaskViewPresentation(presentation: TaskViewPresentation): TaskViewPresentation {
+	return {
+		hierarchy: presentation.hierarchy,
+		graphMode: presentation.graphMode,
+	};
+}
+
+function cloneCustomTaskViewDefinition(view: CustomTaskViewDefinition): CustomTaskViewDefinition {
+	return {
+		id: view.id,
+		name: view.name,
+		icon: view.icon,
+		renderer: view.renderer,
+		query: cloneQuerySpec(view.query),
+		presentation: cloneTaskViewPresentation(view.presentation),
+	};
+}
+
+function defaultTaskViewPresentation(): TaskViewPresentation {
+	return {
+		hierarchy: 'flat',
+		graphMode: 'dependency',
+	};
+}
+
+function normalizeFilterValue(value: unknown): FilterCondition['value'] | undefined {
+	if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+		return value;
+	}
+	if (Array.isArray(value)) {
+		const strings = value.filter((item): item is string => typeof item === 'string');
+		if (strings.length === value.length) return strings;
+	}
+	return undefined;
+}
+
+function normalizeFilterCondition(value: unknown): FilterCondition | null {
+	const root = asRecord(value);
+	if (!root) return null;
+	const field = asString(root.field);
+	const operator = asString(root.operator);
+	if (!field || !FILTER_FIELDS.has(field as FilterField)) return null;
+	if (!operator || !FILTER_OPERATORS.has(operator as FilterOperator)) return null;
+
+	return {
+		field: field as FilterField,
+		operator: operator as FilterOperator,
+		value: normalizeFilterValue(root.value),
+	};
+}
+
+function normalizeFilterGroup(value: unknown): FilterGroup | null {
+	const root = asRecord(value);
+	if (!root) return null;
+	const logic = asString(root.logic);
+	const conditionsRaw = Array.isArray(root.conditions) ? root.conditions : null;
+	if ((logic !== 'and' && logic !== 'or') || conditionsRaw === null) return null;
+
+	const conditions = conditionsRaw
+		.map((condition) => {
+			const maybeGroup = normalizeFilterGroup(condition);
+			if (maybeGroup) return maybeGroup;
+			return normalizeFilterCondition(condition);
+		})
+		.filter((condition): condition is FilterCondition | FilterGroup => condition !== null);
+
+	return { logic, conditions };
+}
+
+function normalizeSortSpec(value: unknown): SortSpec {
+	if (!Array.isArray(value)) return [];
+	return value
+		.map((entry) => {
+			const root = asRecord(entry);
+			if (!root) return null;
+			const field = asString(root.field);
+			const direction = asString(root.direction);
+			if (!field || !SORT_FIELDS.has(field as SortField)) return null;
+			if (direction !== 'asc' && direction !== 'desc') return null;
+			return { field: field as SortField, direction };
+		})
+		.filter((entry): entry is SortSpec[number] => entry !== null);
+}
+
+function normalizeGroupSpec(value: unknown): GroupSpec {
+	if (value === null) return { kind: 'none' };
+	if (typeof value === 'string') {
+		return GROUP_FIELDS.has(value as GroupField)
+			? { kind: 'field', field: value as GroupField }
+			: { kind: 'none' };
+	}
+
+	const root = asRecord(value);
+	if (!root) return { kind: 'none' };
+
+	const kind = asString(root.kind);
+	if (kind === 'none') return { kind: 'none' };
+	if (kind === 'field') {
+		const field = asString(root.field);
+		if (field && GROUP_FIELDS.has(field as GroupField)) {
+			return { kind: 'field', field: field as GroupField };
+		}
+		return { kind: 'none' };
+	}
+	if (kind === 'date_buckets') {
+		const field = asString(root.field);
+		const preset = asString(root.preset);
+		if (field === 'due_date' && preset === 'agenda') {
+			return { kind: 'date_buckets', field: 'due_date', preset: 'agenda' };
+		}
+	}
+
+	return { kind: 'none' };
+}
+
+export function normalizeQuerySpec(value: unknown): QuerySpec {
+	const root = asRecord(value);
+	if (!root) return cloneQuerySpec(EMPTY_QUERY_SPEC);
+
+	const filter = normalizeFilterGroup(root.filter) ?? cloneFilterSpec(EMPTY_FILTER_SPEC);
+	const sort = normalizeSortSpec(root.sort);
+	const group = root.group !== undefined ? normalizeGroupSpec(root.group) : normalizeGroupSpec(root.groupBy);
+	const limitRaw = asInteger(root.limit);
+	const limitPerGroupRaw = asInteger(root.limitPerGroup);
+	const searchRaw = asString(root.search)?.trim();
+
+	return {
+		filter,
+		sort,
+		group,
+		limit: limitRaw !== null && limitRaw > 0 ? limitRaw : undefined,
+		limitPerGroup: limitPerGroupRaw !== null && limitPerGroupRaw > 0 ? limitPerGroupRaw : undefined,
+		search: searchRaw ? searchRaw : undefined,
+	};
+}
+
+function normalizeTaskViewPresentation(value: unknown): TaskViewPresentation {
+	const defaults = defaultTaskViewPresentation();
+	const root = asRecord(value);
+	if (!root) return defaults;
+
+	const hierarchy = asString(root.hierarchy);
+	const graphMode = asString(root.graphMode);
+
+	return {
+		hierarchy: hierarchy === 'tree' ? 'tree' : defaults.hierarchy,
+		graphMode: graphMode === 'overview' ? 'overview' : defaults.graphMode,
+	};
+}
+
+function normalizeCustomTaskViews(value: unknown): CustomTaskViewDefinition[] {
+	if (!Array.isArray(value)) return [];
+	const views: CustomTaskViewDefinition[] = [];
+	const seenIds = new Set<string>();
+
+	for (const entry of value) {
+		const root = asRecord(entry);
+		if (!root) continue;
+		const id = asString(root.id)?.trim();
+		const name = asString(root.name)?.trim();
+		const renderer = asString(root.renderer);
+		if (!id || !name || !renderer || !TASK_VIEW_RENDERERS.has(renderer as TaskViewRenderer)) continue;
+		if (seenIds.has(id)) continue;
+		seenIds.add(id);
+		const icon = asString(root.icon)?.trim() || null;
+		views.push({
+			id,
+			name,
+			icon,
+			renderer: renderer as TaskViewRenderer,
+			query: normalizeQuerySpec(root.query),
+			presentation: normalizeTaskViewPresentation(root.presentation),
+		});
+	}
+
+	return views;
+}
+
 function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 	const root = asRecord(source);
 	if (!root) return;
@@ -173,6 +443,10 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 	const fabPosition = asString(root.fabPosition);
 	if (fabPosition === 'right' || fabPosition === 'left' || fabPosition === 'hidden') {
 		target.fabPosition = fabPosition;
+	}
+
+	if (root.customViews !== undefined) {
+		target.customViews = normalizeCustomTaskViews(root.customViews);
 	}
 
 	const statuses = asStringArray(root.statuses);

@@ -70,6 +70,7 @@ Recurrence foundation is now implemented and test-hardened.
 Phase 4B complete. TDD throughout — all features built red→green. 244 passing tests, zero TypeScript errors, build clean.
 
 ### status_changed field
+
 - `status_changed: string | null` added to `Task` (excluded from `TaskCreateInput` — store owns it)
 - `computeStatusChanged(currentStatus, nextStatus, today)` pure helper in `src/store/statusChanged.ts`
 - `resolveStaleDate(statusChanged, startDate)` picks best anchor for stale-in-progress rule
@@ -81,11 +82,13 @@ Phase 4B complete. TDD throughout — all features built red→green. 244 passin
 - `ReminderService` stale rule uses `resolveStaleDate(task.status_changed, task.start_date)` — graceful fallback for old tasks
 
 ### System status protection
+
 - `isSystemStatus(status, completionStatus, inboxStatus): boolean` exported from `settings.ts`
 - Both completion AND inbox statuses: remove button disabled, lock tooltip, hard guard in `saveManagedList()`
 - Config-driven — protects current pointer values, not hardcoded strings
 
 ### Task duplication
+
 - `buildDuplicateInput(task, today, inboxStatus): TaskCreateInput` pure helper in `src/store/taskDuplicate.ts`
 - Reset on duplicate: status → inboxStatus, completed → null, created → today, start_date → null, depends_on → [], blocked_reason → ''
 - Preserved: name, type, category, priority, task_type, parent_task, due_date, estimated_days, notes, recurrence, recurrence_type, assigned_to, source
@@ -344,8 +347,8 @@ type QuerySpec = {
 3. ~~Query layer~~ ✓ (Step 2 complete — 2026-04-24) — `src/query/useTaskQuery.ts` (`createTaskQuery`), 7 tests. Wired into `TaskBoard` filter bar.
 4. **View migration** — complete (2026-04-29). `TaskList`, `TaskKanban`, `TaskAgenda`, and `TaskGraph` now consume grouped query output. List hierarchy wiring landed here.
 5. **Query grouping upgrade** — complete (2026-04-29). Field grouping replaced with serialisable `GroupSpec`; semantic Agenda date buckets now live in the shared query engine.
-6. **Custom view model** — define persisted query + renderer objects, including presentation options needed per renderer.
-7. **Filter / sort / grouping UI** — toolbar builder (3-level UI cap, raw JSON escape hatch for complex queries), persisted per custom view definition.
+6. **Custom view model** — complete (2026-04-29). `customViews[]` now persists canonical query + renderer + presentation definitions in settings, with legacy `groupBy` translation and invalid-entry cleanup.
+7. **Filter / sort / grouping UI** — next. Toolbar builder (3-level UI cap, raw JSON escape hatch for complex queries), persisted per custom view definition.
 8. **Smart Lists / Custom Views** — named, persisted query + renderer definitions with sidebar navigation. Default views (Inbox, Today, Blocked, Agenda) become built-in instances of the same system.
 
 ---
