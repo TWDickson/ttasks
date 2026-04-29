@@ -252,7 +252,11 @@ describe('normalizeQuerySpec', () => {
 		expect(normalizeQuerySpec(null)).toEqual({
 			filter: { logic: 'and', conditions: [] },
 			sort: [],
+			sortScope: 'global',
 			group: { kind: 'none' },
+			limit: undefined,
+			limitPerGroup: undefined,
+			search: undefined,
 		});
 	});
 
@@ -264,6 +268,7 @@ describe('normalizeQuerySpec', () => {
 		});
 
 		expect(query.group).toEqual({ kind: 'field', field: 'area' });
+		expect(query.sortScope).toBe('within_groups');
 	});
 
 	it('normalizes date bucket group specs', () => {
@@ -274,5 +279,17 @@ describe('normalizeQuerySpec', () => {
 		});
 
 		expect(query.group).toEqual({ kind: 'date_buckets', field: 'due_date', preset: 'agenda' });
+		expect(query.sortScope).toBe('within_groups');
+	});
+
+	it('honors explicit sortScope values', () => {
+		const query = normalizeQuerySpec({
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			group: { kind: 'field', field: 'status' },
+			sortScope: 'global',
+		});
+
+		expect(query.sortScope).toBe('global');
 	});
 });

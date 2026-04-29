@@ -135,6 +135,10 @@ function isValidSortDirection(v: unknown): v is 'asc' | 'desc' {
 	return v === 'asc' || v === 'desc';
 }
 
+function isValidSortScope(v: unknown): v is 'global' | 'within_groups' {
+	return v === 'global' || v === 'within_groups';
+}
+
 function isFilterGroup(v: unknown): v is FilterGroup {
 	if (!v || typeof v !== 'object') return false;
 	const o = v as Record<string, unknown>;
@@ -172,6 +176,7 @@ export function validateQuerySpec(spec: unknown): spec is QuerySpec {
 	if ('limit' in o && o.limit !== undefined && typeof o.limit !== 'number') return false;
 	if ('limitPerGroup' in o && o.limitPerGroup !== undefined && typeof o.limitPerGroup !== 'number') return false;
 	if ('search' in o && o.search !== undefined && typeof o.search !== 'string') return false;
+	if ('sortScope' in o && o.sortScope !== undefined && !isValidSortScope(o.sortScope)) return false;
 
 	return true;
 }

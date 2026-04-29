@@ -41,6 +41,8 @@ export interface SortEntry {
 
 export type SortSpec = SortEntry[];
 
+export type SortScope = 'global' | 'within_groups';
+
 // ── Group ─────────────────────────────────────────────────────────────────────
 
 export type GroupField =
@@ -69,6 +71,8 @@ export type GroupSpec = NoGroupSpec | FieldGroupSpec | DateBucketGroupSpec;
 export interface QuerySpec {
 	filter: FilterSpec;
 	sort: SortSpec;
+	/** How sort is applied when grouping is active. */
+	sortScope?: SortScope;
 	group: GroupSpec;
 	/** Cap total results after sort. */
 	limit?: number;

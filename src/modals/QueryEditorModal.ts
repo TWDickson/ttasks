@@ -351,6 +351,18 @@ export class QueryEditorModal extends Modal {
 		const section = container.createDiv({ cls: 'tt-qe-section' });
 		section.createEl('h3', { text: 'Sort' });
 
+		new Setting(section)
+			.setName('Sort behavior')
+			.setDesc('Choose whether sort runs globally before grouping, or within each group after grouping.')
+			.addDropdown((dropdown) => {
+				dropdown.addOption('within_groups', 'Within groups');
+				dropdown.addOption('global', 'Global before grouping');
+				dropdown.setValue(this.query.sortScope ?? (this.query.group.kind === 'none' ? 'global' : 'within_groups'));
+				dropdown.onChange((value) => {
+					this.query = { ...this.query, sortScope: value as 'global' | 'within_groups' };
+				});
+			});
+
 		const list = section.createDiv({ cls: 'tt-qe-sort-list' });
 		const renderList = () => {
 			list.empty();

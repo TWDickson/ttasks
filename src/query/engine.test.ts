@@ -516,4 +516,44 @@ describe('applyQuery', () => {
 
 		expect(groups.map(group => group.key)).toEqual(['today', 'later']);
 	});
+
+	it('defaults grouped queries to sort within each group', () => {
+		const tasks = [
+			makeTask({ name: 'eng-low', area: 'engineering', priority: 'Low' }),
+			makeTask({ name: 'gen-high', area: 'general', priority: 'High' }),
+			makeTask({ name: 'eng-high', area: 'engineering', priority: 'High' }),
+			makeTask({ name: 'gen-low', area: 'general', priority: 'Low' }),
+		];
+
+		const query: QuerySpec = {
+			filter: { logic: 'and', conditions: [] },
+			sort: [{ field: 'priority', direction: 'asc' }],
+			group: { kind: 'field', field: 'area' },
+		};
+
+		const groups = applyQuery(tasks, query);
+		expect(groups.find((g) => g.key === 'engineering')?.tasks.map((t) => t.name)).toEqual(['eng-high', 'eng-low']);
+		expect(groups.find((g) => g.key === 'general')?.tasks.map((t) => t.name)).toEqual(['gen-high', 'gen-low']);
+	});
+
+	it('supports global sort scope for grouped queries', () => {
+		const tasks = [
+			makeTask({ name: 'eng-low', area: 'engineering', priority: 'Low' }),
+			makeTask({ name: 'gen-high', area: 'general', priority: 'High' }),
+			makeTask({ name: 'eng-high', area: 'engineering', priority: 'High' }),
+			makeTask({ name: 'gen-low', area: 'general', priority: 'Low' }),
+		];
+
+		const query: QuerySpec = {
+			filter: { logic: 'and', conditions: [] },
+			sort: [{ field: 'priority', direction: 'asc' }],
+			sortScope: 'global',
+			group: { kind: 'field', field: 'area' },
+			limit: 2,
+		};
+
+		const groups = applyQuery(tasks, query);
+		expect(groups.find((g) => g.key === 'engineering')?.tasks.map((t) => t.name)).toEqual(['eng-high']);
+		expect(groups.find((g) => g.key === 'general')?.tasks.map((t) => t.name)).toEqual(['gen-high']);
+	});
 });

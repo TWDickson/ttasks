@@ -8,6 +8,7 @@ import type {
 	GroupField,
 	GroupSpec,
 	QuerySpec,
+	SortScope,
 	SortField,
 	SortSpec,
 } from './query/types';
@@ -152,6 +153,8 @@ const SORT_FIELDS = new Set<SortField>([
 	'priority', 'status', 'area', 'type',
 ]);
 
+const SORT_SCOPES = new Set<SortScope>(['global', 'within_groups']);
+
 const GROUP_FIELDS = new Set<GroupField>([
 	'status', 'area', 'priority', 'type', 'due_date', 'parent_task',
 ]);
@@ -163,6 +166,7 @@ const EMPTY_FILTER_SPEC: FilterGroup = { logic: 'and', conditions: [] };
 const EMPTY_QUERY_SPEC: QuerySpec = {
 	filter: EMPTY_FILTER_SPEC,
 	sort: [],
+	sortScope: 'global',
 	group: { kind: 'none' },
 };
 
@@ -251,6 +255,7 @@ function cloneQuerySpec(query: QuerySpec): QuerySpec {
 	return {
 		filter: cloneFilterSpec(query.filter),
 		sort: query.sort.map((entry) => ({ ...entry })),
+		sortScope: query.sortScope,
 		group: { ...query.group },
 		limit: query.limit,
 		limitPerGroup: query.limitPerGroup,
@@ -380,6 +385,10 @@ export function normalizeQuerySpec(value: unknown): QuerySpec {
 	const filter = normalizeFilterGroup(root.filter) ?? cloneFilterSpec(EMPTY_FILTER_SPEC);
 	const sort = normalizeSortSpec(root.sort);
 	const group = root.group !== undefined ? normalizeGroupSpec(root.group) : normalizeGroupSpec(root.groupBy);
+	const sortScopeRaw = asString(root.sortScope);
+	const sortScope = (sortScopeRaw && SORT_SCOPES.has(sortScopeRaw as SortScope))
+		? (sortScopeRaw as SortScope)
+		: (group.kind === 'none' ? 'global' : 'within_groups');
 	const limitRaw = asInteger(root.limit);
 	const limitPerGroupRaw = asInteger(root.limitPerGroup);
 	const searchRaw = asString(root.search)?.trim();
@@ -387,6 +396,7 @@ export function normalizeQuerySpec(value: unknown): QuerySpec {
 	return {
 		filter,
 		sort,
+		sortScope,
 		group,
 		limit: limitRaw !== null && limitRaw > 0 ? limitRaw : undefined,
 		limitPerGroup: limitPerGroupRaw !== null && limitPerGroupRaw > 0 ? limitPerGroupRaw : undefined,

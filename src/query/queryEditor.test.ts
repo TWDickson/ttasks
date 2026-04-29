@@ -253,6 +253,11 @@ describe('validateQuerySpec', () => {
 		expect(validateQuerySpec(spec)).toBe(true);
 	});
 
+	it('accepts optional sortScope', () => {
+		const spec = { ...validSpec, sortScope: 'within_groups' };
+		expect(validateQuerySpec(spec)).toBe(true);
+	});
+
 	it('rejects null', () => {
 		expect(validateQuerySpec(null)).toBe(false);
 	});
@@ -273,6 +278,11 @@ describe('validateQuerySpec', () => {
 
 	it('rejects unknown group kind', () => {
 		const spec = { ...validSpec, group: { kind: 'random' } };
+		expect(validateQuerySpec(spec)).toBe(false);
+	});
+
+	it('rejects invalid sortScope', () => {
+		const spec = { ...validSpec, sortScope: 'weird' };
 		expect(validateQuerySpec(spec)).toBe(false);
 	});
 });
