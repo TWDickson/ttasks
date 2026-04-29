@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Notice, setIcon } from 'obsidian';
+	import { Menu, Notice, setIcon } from 'obsidian';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
@@ -161,6 +161,21 @@
 		).open();
 	}
 
+	function openSmartListMenu(viewId: string, event: MouseEvent) {
+		event.preventDefault();
+		const target = plugin.settings.customViews.find((view) => view.id === viewId);
+		if (!target) return;
+
+		const menu = new Menu();
+		menu.addItem((item) => {
+			item
+				.setTitle('Edit Smart List')
+				.setIcon('sliders-horizontal')
+				.onClick(() => editSmartList(viewId));
+		});
+		menu.showAtMouseEvent(event);
+	}
+
 	function icon(el: HTMLElement, name: string) {
 		setIcon(el, name);
 		return { update: (n: string) => setIcon(el, n) };
@@ -190,24 +205,17 @@
 				<div class="tt-rail-empty">No smart lists yet</div>
 			{/if}
 			{#each smartListViews as view}
-				<div class="tt-rail-smart-row" class:is-active={currentViewId === view.id}>
-					<button
-						class="tt-rail-item tt-rail-item--smart"
-						on:click={() => currentViewId = view.id}
-						aria-label={view.name}
-					>
-						<span class="tt-rail-icon" use:icon={resolveTaskViewIcon(view)}></span>
-						<span class="tt-rail-label">{view.name}</span>
-					</button>
-					<button
-						class="tt-rail-smart-edit"
-						on:click={() => editSmartList(view.id)}
-						aria-label={`Edit ${view.name}`}
-						title="Edit Smart List query"
-					>
-						<span use:icon={'sliders-horizontal'}></span>
-					</button>
-				</div>
+				<button
+					class="tt-rail-item tt-rail-item--smart"
+					class:is-active={currentViewId === view.id}
+					on:click={() => currentViewId = view.id}
+					on:contextmenu={(event) => openSmartListMenu(view.id, event)}
+					aria-label={view.name}
+					title="Right-click for Smart List options"
+				>
+					<span class="tt-rail-icon" use:icon={resolveTaskViewIcon(view)}></span>
+					<span class="tt-rail-label">{view.name}</span>
+				</button>
 			{/each}
 
 			<button class="tt-rail-add" on:click={addSmartList} aria-label="Add smart list">
@@ -286,6 +294,17 @@
 
 				{#if hasActiveFilters}
 					<button class="tt-filter-clear" on:click={clearFilters}>Clear</button>
+				{/if}
+
+				{#if currentView.source === 'custom'}
+					<button
+						class="tt-filter-edit-view"
+						on:click={() => editSmartList(currentView.id)}
+						aria-label="Edit current Smart List"
+					>
+						<span use:icon={'sliders-horizontal'}></span>
+						<span>Edit View</span>
+					</button>
 				{/if}
 			</div>
 
@@ -445,38 +464,10 @@
 		padding: 2px 10px 6px;
 	}
 
-	.tt-rail-smart-row {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.tt-rail-smart-row .tt-rail-item--smart {
-		flex: 1;
-	}
-
-	.tt-rail-smart-row.is-active .tt-rail-item--smart {
+	.tt-rail-item--smart.is-active {
 		background: var(--interactive-accent);
 		color: var(--text-on-accent, white);
 		font-weight: 600;
-	}
-
-	.tt-rail-smart-edit {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 28px;
-		height: 28px;
-		border: none;
-		border-radius: var(--tt-button-radius);
-		background: transparent;
-		color: var(--text-muted);
-		cursor: pointer;
-	}
-
-	.tt-rail-smart-edit:hover {
-		background: var(--background-modifier-hover);
-		color: var(--text-normal);
 	}
 
 	.tt-rail-item {
@@ -620,6 +611,27 @@
 		flex-shrink: 0;
 	}
 	.tt-filter-clear:hover {
+		color: var(--text-normal);
+		background: var(--interactive-hover, var(--background-modifier-hover));
+	}
+
+	.tt-filter-edit-view {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 0.8rem;
+		font-weight: 600;
+		padding: 4px 10px;
+		border: var(--border-width, 1px) solid var(--background-modifier-border);
+		border-radius: var(--tt-button-radius);
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.tt-filter-edit-view:hover {
 		color: var(--text-normal);
 		background: var(--interactive-hover, var(--background-modifier-hover));
 	}
