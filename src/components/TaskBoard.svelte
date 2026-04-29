@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { setIcon } from 'obsidian';
+	import { Notice, setIcon } from 'obsidian';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
@@ -11,6 +11,7 @@
 	import { createTaskQuery } from '../query/useTaskQuery';
 	import type { FilterCondition } from '../query/types';
 	import {
+		createCustomViewDefinition,
 		getRegisteredTaskViews,
 		resolveTaskViewDefinition,
 		resolveTaskViewIcon,
@@ -24,6 +25,8 @@
 	const tasks          = plugin.taskStore.tasks;
 
 	let registeredViews = getRegisteredTaskViews(plugin.settings);
+	$: builtinViews = registeredViews.filter((view) => view.source === 'builtin');
+	$: smartListViews = registeredViews.filter((view) => view.source === 'custom');
 	let currentViewId = resolveTaskViewId(plugin.settings, null);
 	let currentView = resolveTaskViewDefinition(plugin.settings, currentViewId) ?? registeredViews[0];
 	$: registeredViews = getRegisteredTaskViews(plugin.settings);
@@ -103,6 +106,15 @@
 		plugin.openPluginSettings();
 	}
 
+	async function addSmartList() {
+		const created = createCustomViewDefinition(plugin.settings.customViews);
+		plugin.settings.customViews = [...plugin.settings.customViews, created];
+		await plugin.saveSettings();
+		registeredViews = getRegisteredTaskViews(plugin.settings);
+		currentViewId = created.id;
+		new Notice(`Created Smart List: ${created.name}`);
+	}
+
 	function icon(el: HTMLElement, name: string) {
 		setIcon(el, name);
 		return { update: (n: string) => setIcon(el, n) };
@@ -114,7 +126,8 @@
 	<!-- ── Desktop nav rail (hidden on mobile) ──────────────────────────────── -->
 	<nav class="tt-board-rail">
 		<div class="tt-rail-views">
-			{#each registeredViews as view}
+			<div class="tt-rail-group-title">Default Views</div>
+			{#each builtinViews as view}
 				<button
 					class="tt-rail-item"
 					class:is-active={currentViewId === view.id}
@@ -125,6 +138,27 @@
 					<span class="tt-rail-label">{view.name}</span>
 				</button>
 			{/each}
+
+			<div class="tt-rail-group-title tt-rail-group-title--smart">Smart Lists</div>
+			{#if smartListViews.length === 0}
+				<div class="tt-rail-empty">No smart lists yet</div>
+			{/if}
+			{#each smartListViews as view}
+				<button
+					class="tt-rail-item"
+					class:is-active={currentViewId === view.id}
+					on:click={() => currentViewId = view.id}
+					aria-label={view.name}
+				>
+					<span class="tt-rail-icon" use:icon={resolveTaskViewIcon(view)}></span>
+					<span class="tt-rail-label">{view.name}</span>
+				</button>
+			{/each}
+
+			<button class="tt-rail-add" on:click={addSmartList} aria-label="Add smart list">
+				<span class="tt-rail-icon" use:icon={'plus'}></span>
+				<span class="tt-rail-label">Add Smart List</span>
+			</button>
 		</div>
 
 		<div class="tt-rail-actions">
@@ -337,6 +371,25 @@
 		padding: 0 8px;
 	}
 
+	.tt-rail-group-title {
+		font-size: 0.68rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-faint);
+		padding: 8px 10px 4px;
+	}
+
+	.tt-rail-group-title--smart {
+		margin-top: 10px;
+	}
+
+	.tt-rail-empty {
+		font-size: 0.76rem;
+		color: var(--text-faint);
+		padding: 2px 10px 6px;
+	}
+
 	.tt-rail-item {
 		display: flex;
 		align-items: center;
@@ -361,6 +414,26 @@
 		background: var(--background-modifier-hover);
 		color: var(--interactive-accent);
 		font-weight: 600;
+	}
+
+	.tt-rail-add {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 8px 10px;
+		border: 1px dashed var(--background-modifier-border);
+		border-radius: var(--tt-button-radius);
+		background: transparent;
+		color: var(--text-muted);
+		font-size: 0.82rem;
+		cursor: pointer;
+		margin-top: 4px;
+	}
+
+	.tt-rail-add:hover {
+		color: var(--interactive-accent);
+		border-color: var(--interactive-accent);
+		background: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
 	}
 
 	.tt-rail-divider {

@@ -958,7 +958,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 	private renderViewsSettings(containerEl: HTMLElement): void {
 		containerEl.createEl('h2', { text: 'Views' });
 		containerEl.createEl('p', {
-			text: 'Built-in and saved custom views now flow through the same registry. This section manages the persisted custom view shell; filter and grouping editors land next.',
+			text: 'Built-in views and Smart Lists now share one registry model. Smart Lists are saved query + renderer definitions with sidebar navigation.',
 			cls: 'setting-item-description',
 			attr: { style: 'margin-bottom: 12px;' },
 		});
@@ -979,10 +979,10 @@ export class TTasksSettingTab extends PluginSettingTab {
 				});
 		}
 
-		containerEl.createEl('h3', { text: 'Custom Views' });
+		containerEl.createEl('h3', { text: 'Smart Lists' });
 		if (customViews.length === 0) {
 			containerEl.createEl('p', {
-				text: 'No custom views yet. Add one to create another board tab backed by the persisted query model.',
+				text: 'No Smart Lists yet. Add one to create another board tab backed by the persisted query model.',
 				cls: 'setting-item-description',
 			});
 		}
@@ -1105,10 +1105,10 @@ export class TTasksSettingTab extends PluginSettingTab {
 		});
 
 		new Setting(containerEl)
-			.setName('Add custom view')
+			.setName('Add Smart List')
 			.setDesc('Creates another saved board tab using the shared view registry model.')
 			.addButton((button) => {
-				button.setButtonText('Add view');
+				button.setButtonText('Add Smart List');
 				button.setCta();
 				button.onClick(async () => {
 					const nextViews = [...this.plugin.settings.customViews, createCustomViewDefinition(this.plugin.settings.customViews)];

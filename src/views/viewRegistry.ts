@@ -13,7 +13,7 @@ export interface RegisteredTaskViewDefinition extends CustomTaskViewDefinition {
 const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 	{
 		id: 'list',
-		name: 'List',
+		name: 'All',
 		icon: 'list',
 		renderer: 'list',
 		query: {
@@ -22,6 +22,72 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 			group: { kind: 'field', field: 'status' },
 		},
 		presentation: { hierarchy: 'tree', graphMode: 'dependency' },
+		source: 'builtin',
+	},
+	{
+		id: 'inbox',
+		name: 'Inbox',
+		icon: 'inbox',
+		renderer: 'list',
+		query: {
+			filter: {
+				logic: 'and',
+				conditions: [
+					{ field: 'is_inbox', operator: 'is', value: true },
+					{ field: 'is_complete', operator: 'is', value: false },
+				],
+			},
+			sort: [
+				{ field: 'priority', direction: 'asc' },
+				{ field: 'created', direction: 'asc' },
+			],
+			group: { kind: 'none' },
+		},
+		presentation: { hierarchy: 'tree', graphMode: 'dependency' },
+		source: 'builtin',
+	},
+	{
+		id: 'today',
+		name: 'Today',
+		icon: 'calendar-check',
+		renderer: 'list',
+		query: {
+			filter: {
+				logic: 'and',
+				conditions: [
+					{ field: 'due_date', operator: 'is', value: 'today' },
+					{ field: 'is_complete', operator: 'is', value: false },
+				],
+			},
+			sort: [
+				{ field: 'priority', direction: 'asc' },
+				{ field: 'due_time', direction: 'asc' },
+			],
+			group: { kind: 'none' },
+		},
+		presentation: { hierarchy: 'flat', graphMode: 'dependency' },
+		source: 'builtin',
+	},
+	{
+		id: 'blocked',
+		name: 'Blocked',
+		icon: 'octagon-x',
+		renderer: 'list',
+		query: {
+			filter: {
+				logic: 'and',
+				conditions: [
+					{ field: 'status', operator: 'is', value: 'Blocked' },
+					{ field: 'is_complete', operator: 'is', value: false },
+				],
+			},
+			sort: [
+				{ field: 'priority', direction: 'asc' },
+				{ field: 'created', direction: 'asc' },
+			],
+			group: { kind: 'field', field: 'area' },
+		},
+		presentation: { hierarchy: 'flat', graphMode: 'dependency' },
 		source: 'builtin',
 	},
 	{

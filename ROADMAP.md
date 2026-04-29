@@ -349,7 +349,7 @@ type QuerySpec = {
 5. **Query grouping upgrade** — complete (2026-04-29). Field grouping replaced with serialisable `GroupSpec`; semantic Agenda date buckets now live in the shared query engine.
 6. **Custom view model** — complete (2026-04-29). `customViews[]` now persists canonical query + renderer + presentation definitions in settings, with legacy `groupBy` translation and invalid-entry cleanup. The board nav and settings screen now both read through a shared view registry, so built-ins and custom shells follow the same model.
 7. **Filter / sort / grouping UI** — complete (2026-04-29). `QueryEditorModal` opens from the "Edit query" button on each custom view in settings. Builder tab: filter condition rows (field/operator/value with dynamic input kinds), sort entries, group selector (none/field/agenda buckets), limit/search. JSON tab: raw QuerySpec escape hatch with parse validation. Pure logic helpers in `src/query/queryEditor.ts` (40 tests, 371 total).
-8. **Smart Lists / Custom Views** — named, persisted query + renderer definitions with sidebar navigation. Default views (Inbox, Today, Blocked, Agenda) become built-in instances of the same system.
+8. **Smart Lists / Custom Views** — complete (2026-04-29). Sidebar navigation now separates default built-in views from user Smart Lists, and Smart Lists remain named persisted query + renderer definitions. Default views (Inbox, Today, Blocked, Agenda) are now built-in registry entries in the same model as custom Smart Lists.
 
 ---
 
