@@ -12,6 +12,7 @@
 	import { createTaskQuery } from '../query/useTaskQuery';
 	import type { FilterCondition } from '../query/types';
 	import {
+		coerceQueryForRenderer,
 		createCustomViewDefinition,
 		getRegisteredTaskViews,
 		resolveTaskViewDefinition,
@@ -58,38 +59,35 @@
 
 	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterArea;
 
-	// When the Agenda renderer is active, always use agenda date-bucket grouping
-	// regardless of what is stored in the query — any other group kind produces
-	// keys that TaskAgenda silently ignores.
-	function effectiveGroup(view: typeof currentView) {
-		if (view.renderer === 'agenda' && view.query.group.kind !== 'agenda') {
-			return { kind: 'agenda' as const };
-		}
-		return view.query.group;
+	function effectiveQuery(view: typeof currentView) {
+		return coerceQueryForRenderer(view.renderer, view.query);
 	}
 
+	let currentBoardQuery = effectiveQuery(currentView);
+	$: currentBoardQuery = effectiveQuery(currentView);
+
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
-		filter: currentView.query.filter,
-		sort: currentView.query.sort,
-		group: effectiveGroup(currentView),
-		limit: currentView.query.limit,
-		limitPerGroup: currentView.query.limitPerGroup,
-		search: currentView.query.search,
+		filter: currentBoardQuery.filter,
+		sort: currentBoardQuery.sort,
+		group: currentBoardQuery.group,
+		limit: currentBoardQuery.limit,
+		limitPerGroup: currentBoardQuery.limitPerGroup,
+		search: currentBoardQuery.search,
 	});
 
 	// Rebuild the filter spec whenever any filter control changes
 	$: {
-		const conditions = [...currentView.query.filter.conditions];
+		const conditions = [...currentBoardQuery.filter.conditions];
 		if (filterPriority) conditions.push({ field: 'priority', operator: 'is', value: filterPriority });
 		if (filterArea)     conditions.push({ field: 'area',     operator: 'is', value: filterArea });
 		query.update(q => ({
 			...q,
-			filter: { logic: currentView.query.filter.logic, conditions },
-			search: searchQuery || currentView.query.search || undefined,
-			sort: currentView.query.sort,
-			group: effectiveGroup(currentView),
-			limit: currentView.query.limit,
-			limitPerGroup: currentView.query.limitPerGroup,
+			filter: { logic: currentBoardQuery.filter.logic, conditions },
+			search: searchQuery || currentBoardQuery.search || undefined,
+			sort: currentBoardQuery.sort,
+			group: currentBoardQuery.group,
+			limit: currentBoardQuery.limit,
+			limitPerGroup: currentBoardQuery.limitPerGroup,
 		}));
 	}
 

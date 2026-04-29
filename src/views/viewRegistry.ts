@@ -1,4 +1,4 @@
-import type { QuerySpec } from '../query/types';
+import type { GroupSpec, QuerySpec } from '../query/types';
 import type {
 	CustomTaskViewDefinition,
 	TaskViewPresentation,
@@ -9,6 +9,9 @@ import type {
 export interface RegisteredTaskViewDefinition extends CustomTaskViewDefinition {
 	source: 'builtin' | 'custom';
 }
+
+const KANBAN_REQUIRED_GROUP: GroupSpec = { kind: 'field', field: 'status' };
+const AGENDA_REQUIRED_GROUP: GroupSpec = { kind: 'date_buckets', field: 'due_date', preset: 'agenda' };
 
 const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 	{
@@ -156,6 +159,7 @@ function cloneQuerySpec(query: QuerySpec): QuerySpec {
 			}),
 		},
 		sort: query.sort.map((entry) => ({ ...entry })),
+		sortScope: query.sortScope,
 		group: { ...query.group },
 		limit: query.limit,
 		limitPerGroup: query.limitPerGroup,
@@ -196,6 +200,37 @@ function cloneCustomView(view: CustomTaskViewDefinition): CustomTaskViewDefiniti
 export function resolveTaskViewIcon(view: Pick<CustomTaskViewDefinition, 'icon' | 'renderer'>): string {
 	if (view.icon?.trim()) return view.icon.trim();
 	return iconForRenderer(view.renderer);
+}
+
+export function isGroupCompatibleWithRenderer(renderer: TaskViewRenderer, group: GroupSpec): boolean {
+	switch (renderer) {
+		case 'kanban':
+			return group.kind === 'field' && group.field === 'status';
+		case 'agenda':
+			return group.kind === 'date_buckets' && group.field === 'due_date' && group.preset === 'agenda';
+		case 'list':
+		case 'graph':
+		default:
+			return true;
+	}
+}
+
+export function coerceQueryForRenderer(renderer: TaskViewRenderer, query: QuerySpec): QuerySpec {
+	const next = cloneQuerySpec(query);
+	if (isGroupCompatibleWithRenderer(renderer, next.group)) {
+		return next;
+	}
+
+	switch (renderer) {
+		case 'kanban':
+			return { ...next, group: { ...KANBAN_REQUIRED_GROUP } };
+		case 'agenda':
+			return { ...next, group: { ...AGENDA_REQUIRED_GROUP } };
+		case 'list':
+		case 'graph':
+		default:
+			return next;
+	}
 }
 
 function iconForRenderer(renderer: TaskViewRenderer): string {

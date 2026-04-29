@@ -1,6 +1,7 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
 import type { FilterCondition, FilterField, FilterGroup, FilterOperator, QuerySpec, SortEntry, SortField } from '../query/types';
 import type { TaskViewRenderer } from '../settings';
+import { coerceQueryForRenderer, isGroupCompatibleWithRenderer } from '../views/viewRegistry';
 import {
 	FILTER_FIELDS,
 	GROUP_FIELDS,
@@ -71,7 +72,7 @@ export class QueryEditorModal extends Modal {
 	) {
 		super(app);
 		this.viewName = viewName;
-		this.query = JSON.parse(JSON.stringify(query)) as QuerySpec; // deep clone
+		this.query = coerceQueryForRenderer(renderer, JSON.parse(JSON.stringify(query)) as QuerySpec);
 		this.renderer = renderer;
 		this.settings = settings;
 		this.onSave = onSave;
@@ -193,6 +194,8 @@ export class QueryEditorModal extends Modal {
 				dropdown.setValue(this.renderer);
 				dropdown.onChange((value) => {
 					this.renderer = value as TaskViewRenderer;
+					this.query = coerceQueryForRenderer(this.renderer, this.query);
+					this.render();
 				});
 			});
 	}
@@ -509,19 +512,34 @@ export class QueryEditorModal extends Modal {
 	private renderGroupSection(container: HTMLElement) {
 		const section = container.createDiv({ cls: 'tt-qe-section' });
 		section.createEl('h3', { text: 'Group by' });
+		section.createEl('p', {
+			cls: 'setting-item-description',
+			text: this.renderer === 'agenda'
+				? 'Agenda requires date-bucket grouping.'
+				: this.renderer === 'kanban'
+					? 'Kanban requires grouping by status.'
+					: 'Choose how results are grouped.',
+		});
 
 		const renderGroupControls = () => {
 			groupBody.empty();
 
 			const typeSel = groupBody.createEl('select', { cls: 'dropdown' });
-			const opts: Array<{ value: string; label: string }> = [
-				{ value: 'none', label: 'None (no grouping)' },
-				...GROUP_FIELDS.map((f) => ({ value: `field:${f}`, label: GROUP_FIELD_LABELS[f] ?? f })),
-				{ value: 'date_buckets:agenda', label: 'Agenda date buckets' },
-			];
+			const opts: Array<{ value: string; label: string }> = this.renderer === 'agenda'
+				? [{ value: 'date_buckets:agenda', label: 'Agenda date buckets' }]
+				: this.renderer === 'kanban'
+					? [{ value: 'field:status', label: 'Status' }]
+					: [
+						{ value: 'none', label: 'None (no grouping)' },
+						...GROUP_FIELDS.map((f) => ({ value: `field:${f}`, label: GROUP_FIELD_LABELS[f] ?? f })),
+						{ value: 'date_buckets:agenda', label: 'Agenda date buckets' },
+					];
 			let currentValue = 'none';
 			if (this.query.group.kind === 'field') currentValue = `field:${this.query.group.field}`;
 			else if (this.query.group.kind === 'date_buckets') currentValue = 'date_buckets:agenda';
+			if (!isGroupCompatibleWithRenderer(this.renderer, this.query.group) && opts.length > 0) {
+				currentValue = opts[0].value;
+			}
 
 			for (const opt of opts) {
 				const o = typeSel.createEl('option', { text: opt.label, value: opt.value });
@@ -635,6 +653,7 @@ export class QueryEditorModal extends Modal {
 			}
 			this.query = result.value;
 		}
+		this.query = coerceQueryForRenderer(this.renderer, this.query);
 		await this.onSave(this.query, this.renderer, this.viewName.trim() || this.viewName);
 		this.close();
 	}

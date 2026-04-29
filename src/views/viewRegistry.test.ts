@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import type { QuerySpec } from '../query/types';
 import { DEFAULT_SETTINGS, type CustomTaskViewDefinition } from '../settings';
 import {
+	coerceQueryForRenderer,
 	createCustomViewDefinition,
 	getRegisteredTaskViews,
+	isGroupCompatibleWithRenderer,
 	resolveTaskViewDefinition,
 	resolveTaskViewId,
 	resolveTaskViewIcon,
@@ -91,5 +94,40 @@ describe('resolveTaskViewIcon', () => {
 
 		expect(resolveTaskViewIcon(custom)).toBe('git-branch-plus');
 		expect(resolveTaskViewIcon(customWithIcon)).toBe('flame');
+	});
+});
+
+describe('renderer query coercion', () => {
+	it('forces agenda views onto agenda date buckets while preserving other query fields', () => {
+		const query: QuerySpec = {
+			filter: { logic: 'and' as const, conditions: [{ field: 'priority', operator: 'is', value: 'High' }] },
+			sort: [{ field: 'due_date', direction: 'asc' as const }],
+			group: { kind: 'field' as const, field: 'status' as const },
+			search: 'focus',
+		};
+
+		const coerced = coerceQueryForRenderer('agenda', query);
+
+		expect(coerced.group).toEqual({ kind: 'date_buckets', field: 'due_date', preset: 'agenda' });
+		expect(coerced.filter).toEqual(query.filter);
+		expect(coerced.sort).toEqual(query.sort);
+		expect(coerced.search).toBe('focus');
+	});
+
+	it('forces kanban views onto status grouping', () => {
+		const coerced = coerceQueryForRenderer('kanban', {
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			group: { kind: 'none' },
+		});
+
+		expect(coerced.group).toEqual({ kind: 'field', field: 'status' });
+	});
+
+	it('reports compatibility correctly for constrained renderers', () => {
+		expect(isGroupCompatibleWithRenderer('agenda', { kind: 'date_buckets', field: 'due_date', preset: 'agenda' })).toBe(true);
+		expect(isGroupCompatibleWithRenderer('agenda', { kind: 'field', field: 'status' })).toBe(false);
+		expect(isGroupCompatibleWithRenderer('kanban', { kind: 'field', field: 'status' })).toBe(true);
+		expect(isGroupCompatibleWithRenderer('kanban', { kind: 'field', field: 'area' })).toBe(false);
 	});
 });
