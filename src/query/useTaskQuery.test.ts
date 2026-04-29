@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get, writable } from 'svelte/store';
 import { createTaskQuery } from './useTaskQuery';
 import type { Task } from '../types';
@@ -42,8 +42,16 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 const BASE_QUERY: QuerySpec = {
 	filter: { logic: 'and', conditions: [] },
 	sort: [],
-	groupBy: null,
+	group: { kind: 'none' },
 };
+
+beforeEach(() => {
+	vi.useRealTimers();
+});
+
+afterEach(() => {
+	vi.useRealTimers();
+});
 
 // ── createTaskQuery ───────────────────────────────────────────────────────────
 
@@ -52,7 +60,7 @@ describe('createTaskQuery', () => {
 		const tasks = writable([makeTask({ name: 'A' }), makeTask({ name: 'B' })]);
 		const { result } = createTaskQuery(tasks, BASE_QUERY);
 		const groups = get(result);
-		expect(groups).toHaveLength(1); // groupBy: null → single 'all' group
+		expect(groups).toHaveLength(1); // kind: none → single 'all' group
 		expect(groups[0].tasks).toHaveLength(2);
 	});
 
@@ -93,7 +101,7 @@ describe('createTaskQuery', () => {
 		expect(get(result)[0].tasks[0].name).toBe('Fix auth bug');
 	});
 
-	it('groups by status when groupBy is set', () => {
+	it('groups by status when a field grouping is set', () => {
 		const tasks = writable([
 			makeTask({ status: 'Active' }),
 			makeTask({ status: 'Blocked' }),
@@ -101,10 +109,23 @@ describe('createTaskQuery', () => {
 		]);
 		const { result, query } = createTaskQuery(tasks, BASE_QUERY);
 
-		query.update(q => ({ ...q, groupBy: 'status' }));
+		query.update(q => ({ ...q, group: { kind: 'field', field: 'status' } }));
 		const groups = get(result);
 		expect(groups.find(g => g.key === 'Active')?.tasks).toHaveLength(2);
 		expect(groups.find(g => g.key === 'Blocked')?.tasks).toHaveLength(1);
+	});
+
+	it('supports semantic date bucket grouping reactively', () => {
+		vi.setSystemTime(new Date('2026-04-29T12:00:00'));
+		const tasks = writable([
+			makeTask({ due_date: '2026-04-29' }),
+			makeTask({ due_date: '2026-05-20' }),
+		]);
+		const { result, query } = createTaskQuery(tasks, BASE_QUERY);
+
+		query.update(q => ({ ...q, group: { kind: 'date_buckets', field: 'due_date', preset: 'agenda' } }));
+		const groups = get(result);
+		expect(groups.map(group => group.key)).toEqual(['today', 'later']);
 	});
 
 	it('applies sort reactively', () => {

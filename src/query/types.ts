@@ -43,17 +43,33 @@ export type SortSpec = SortEntry[];
 
 // ── Group ─────────────────────────────────────────────────────────────────────
 
-export type GroupByField =
+export type GroupField =
 	| 'status' | 'area' | 'priority' | 'type'
-	| 'due_date' | 'parent_task'
-	| null;
+	| 'due_date' | 'parent_task';
+
+export interface NoGroupSpec {
+	kind: 'none';
+}
+
+export interface FieldGroupSpec {
+	kind: 'field';
+	field: GroupField;
+}
+
+export interface DateBucketGroupSpec {
+	kind: 'date_buckets';
+	field: 'due_date';
+	preset: 'agenda';
+}
+
+export type GroupSpec = NoGroupSpec | FieldGroupSpec | DateBucketGroupSpec;
 
 // ── QuerySpec — the full query object ─────────────────────────────────────────
 
 export interface QuerySpec {
 	filter: FilterSpec;
 	sort: SortSpec;
-	groupBy: GroupByField;
+	group: GroupSpec;
 	/** Cap total results after sort. */
 	limit?: number;
 	/** Cap results per group after sort (e.g. top 1 per area). */

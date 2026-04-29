@@ -3,10 +3,10 @@
 	import TaskRow from './TaskRow.svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
-	import { localDateString, addDaysLocal } from '../utils/dateUtils';
+	import type { TaskGroup } from '../query/types';
 
 	export let plugin: TTasksPlugin;
-	export let tasks: Readable<Task[]>;
+	export let groups: Readable<TaskGroup[]>;
 	export let areaColors: Record<string, string>;
 	export let labelColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
@@ -41,74 +41,10 @@
 		'no-date':   'var(--text-faint)',
 	};
 
-	// ── Priority sort order ───────────────────────────────────────────────────
+	$: totalCount = $groups.reduce((n, group) => n + group.tasks.length, 0);
 
-	const PRIORITY_ORDER: Record<string, number> = {
-		High: 0, Medium: 1, Low: 2, None: 3,
-	};
-
-	// ── Helpers ───────────────────────────────────────────────────────────────
-
-	function today(): string {
-		return localDateString();
-	}
-
-	function offsetDate(days: number): string {
-		return addDaysLocal(localDateString(), days);
-	}
-
-	function classifyDate(due: string | null): DateGroupKey {
-		if (!due) return 'no-date';
-		const t = today();
-		if (due < t)              return 'overdue';
-		if (due === t)            return 'today';
-		if (due === offsetDate(1)) return 'tomorrow';
-		if (due <= offsetDate(7)) return 'this-week';
-		if (due <= offsetDate(14)) return 'next-week';
-		return 'later';
-	}
-
-	function sortTasks(list: Task[]): Task[] {
-		return [...list].sort((a, b) => {
-			// Sort by due_date asc (null goes last within the group but
-			// the no-date group only contains nulls, so this is a no-op there)
-			const dateA = a.due_date ?? '9999-99-99';
-			const dateB = b.due_date ?? '9999-99-99';
-			if (dateA !== dateB) return dateA < dateB ? -1 : 1;
-			// Then by priority
-			const pa = PRIORITY_ORDER[a.priority] ?? 3;
-			const pb = PRIORITY_ORDER[b.priority] ?? 3;
-			return pa - pb;
-		});
-	}
-
-	// ── Reactive grouping ─────────────────────────────────────────────────────
-
-	$: grouped = groupTasks($tasks);
-	$: totalCount = [...grouped.values()].reduce((n, g) => n + g.length, 0);
-
-
-	function groupTasks(all: Task[]): Map<DateGroupKey, Task[]> {
-		const map = new Map<DateGroupKey, Task[]>();
-		for (const key of GROUP_ORDER) map.set(key, []);
-
-		for (const task of all) {
-			if (task.type === 'project') continue;
-			if (task.is_complete) continue;
-			const key = classifyDate(task.due_date);
-			map.get(key)!.push(task);
-		}
-
-		// Sort within each group and remove empty groups
-		for (const [key, list] of map) {
-			if (list.length === 0) {
-				map.delete(key);
-			} else {
-				map.set(key, sortTasks(list));
-			}
-		}
-
-		return map;
+	function isDateGroupKey(value: string): value is DateGroupKey {
+		return GROUP_ORDER.includes(value as DateGroupKey);
 	}
 
 </script>
@@ -117,19 +53,18 @@
 	{#if totalCount === 0}
 		<div class="tt-empty">No upcoming tasks.</div>
 	{:else}
-		{#each GROUP_ORDER as group}
-			{#if grouped.has(group)}
-				{@const groupTaskList = grouped.get(group) ?? []}
+		{#each $groups as group (group.key)}
+			{#if isDateGroupKey(group.key)}
 				<section class="tt-group">
 					<h3 class="tt-group-heading">
 						<span
 							class="tt-group-label"
-							style="color: {GROUP_COLORS[group]}"
-						>{GROUP_LABELS[group]}</span>
-						<span class="tt-count">{groupTaskList.length}</span>
+							style="color: {GROUP_COLORS[group.key]}"
+						>{GROUP_LABELS[group.key]}</span>
+						<span class="tt-count">{group.tasks.length}</span>
 					</h3>
 					<ul class="tt-task-list">
-						{#each groupTaskList as task (task.path)}
+						{#each group.tasks as task (task.path)}
 							<TaskRow
 								{plugin}
 								{task}

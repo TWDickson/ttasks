@@ -7,7 +7,7 @@ import { applyQuery } from './engine';
 export interface TaskQueryHandle {
 	/** Reactive filtered/sorted/grouped result. */
 	result: Readable<TaskGroup[]>;
-	/** Writable query spec — update this to change filter, sort, groupBy, etc. */
+	/** Writable query spec — update this to change filter, sort, grouping, etc. */
 	query: Writable<QuerySpec>;
 }
 
@@ -16,7 +16,7 @@ export interface TaskQueryHandle {
  *
  * The returned `result` store recomputes automatically whenever either the
  * task list or the query spec changes. The `query` store is writable — bind
- * to it from the UI to drive filter/sort/groupBy controls.
+	* to it from the UI to drive filter/sort/group controls.
  */
 export function createTaskQuery(
 	tasks: Readable<Task[]>,

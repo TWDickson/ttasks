@@ -215,16 +215,24 @@ Target model:
 QuerySpec → useTaskQuery() → View (List | Kanban | Graph | Agenda | Calendar)
 ```
 
-- **QuerySpec** — serialisable, plain JSON. Contains filter, sort, groupBy, limit, limitPerGroup, search. Can be hand-edited for complex logic beyond what the UI builder supports.
+- **QuerySpec** — serialisable, plain JSON. Contains filter, sort, grouping, limit, limitPerGroup, search. Can be hand-edited for complex logic beyond what the UI builder supports.
 - **useTaskQuery()** — shared Svelte store/hook. Takes a QuerySpec, returns sorted/grouped task set. All views consume this; none implement their own query logic.
 - **View** — pure renderer. Receives grouped task list, renders it in its format. Swappable without touching query state.
 
 **Why this matters:**
 
-- Smart Lists become trivial: persist a `FilterSpec + SortSpec + GroupBySpec` with a name, let user pick any view format
+- Smart Lists become trivial: persist a `FilterSpec + SortSpec + GroupSpec` with a name, let user pick any view format
 - Hierarchy wiring (deferred from Phase 5) becomes clean: `groupBy: parent` produces the tree structure natively
 - Adding a new view type requires only a new renderer component
 - Filter UI is written once, shared across all views
+
+### Architecture decision (2026-04-29)
+
+The product goal is **user-defined custom views with their own filters and logic**, not just a fixed set of built-in tabs.
+
+That has one important consequence: **semantic grouping logic cannot live inside individual view components**. If Agenda buckets such as Overdue / Today / This Week only exist in `TaskAgenda.svelte`, users can save filters but not the actual view behavior.
+
+So the query layer needs to evolve from a simple field-based `groupBy` to a richer serialisable grouping model.
 
 ---
 
@@ -290,14 +298,23 @@ type SortSpec = Array<{ field: SortField; direction: 'asc' | 'desc' }>
 
 **Priority sort order:** High → Medium → Low → None (not alphabetical).
 
-#### `GroupByField`
+#### `GroupSpec`
 
 ```typescript
-type GroupByField =
-  | 'status' | 'area' | 'priority' | 'type'
-  | 'due_date' | 'parent_task'
-  | null  // no grouping — flat sorted list
+type GroupSpec =
+  | { kind: 'none' }
+  | {
+      kind: 'field'
+      field: 'status' | 'area' | 'priority' | 'type' | 'due_date' | 'parent_task'
+    }
+  | {
+      kind: 'date_buckets'
+      field: 'due_date'
+      preset: 'agenda'
+    }
 ```
+
+This keeps grouping serialisable for settings/Smart Lists while allowing semantic presets such as Agenda buckets.
 
 #### `QuerySpec` — the full query object
 
@@ -305,16 +322,16 @@ type GroupByField =
 type QuerySpec = {
   filter: FilterSpec       // condition tree
   sort: SortSpec           // ordered sort keys
-  groupBy: GroupByField    // optional grouping dimension
+  group: GroupSpec         // optional grouping strategy
   limit?: number           // cap total results after sort
   limitPerGroup?: number   // cap per group after sort (e.g. top 1 per area)
   search?: string          // pre-filter full-text match on name + notes
 }
 ```
 
-`limitPerGroup` + `groupBy: 'area'` + `sort: priority asc` = "highest priority task per area" view.
+`limitPerGroup` + `group: { kind: 'field', field: 'area' }` + `sort: priority asc` = "highest priority task per area" view.
 
-**Smart Lists** are named, persisted `QuerySpec` objects. Default views (All, Today, Inbox, Blocked) become instances of the same engine:
+**Smart Lists / Custom Views** are named, persisted `QuerySpec` objects plus a renderer choice. Default views (All, Today, Inbox, Blocked, Agenda) become instances of the same engine:
 
 - **Inbox** — `filter: { field: 'is_inbox', operator: 'is', value: true }`
 - **Today** — `filter: { field: 'due_date', operator: 'is', value: 'today' }`
@@ -324,10 +341,12 @@ type QuerySpec = {
 
 1. ~~Data model + migration~~ ✓ (Step 0 complete — 2026-04-24)
 2. ~~Filter engine~~ ✓ (Step 1 complete — 2026-04-24) — `src/query/types.ts`, `src/query/engine.ts`, 38 tests
-3. ~~Query layer~~ ✓ (Step 2 complete — 2026-04-24) — `src/query/useTaskQuery.ts` (`createTaskQuery`), 7 tests. Wired into `TaskBoard` filter bar. Views still receive flat `Task[]` via a flatten bridge.
-4. **View migration** — next up. Remove the flatten bridge in `TaskBoard`. Migrate `TaskList`, `TaskAgenda`, `TaskKanban` to accept `Readable<TaskGroup[]>` instead of `Readable<Task[]>`. Each view becomes a pure renderer — no internal filter/sort/group logic. Hierarchy wiring (`taskHierarchy.ts`) lands here via `groupBy: 'parent_task'`. `TaskGraph` last (more complex).
-5. **Filter/sort UI** — toolbar filter builder (3-level UI cap, raw JSON escape hatch for complex queries), persisted per view in settings.
-6. **Smart Lists** — named, persisted `QuerySpec` objects with sidebar navigation. Default views (Inbox, Today, Blocked) become Smart List instances.
+3. ~~Query layer~~ ✓ (Step 2 complete — 2026-04-24) — `src/query/useTaskQuery.ts` (`createTaskQuery`), 7 tests. Wired into `TaskBoard` filter bar.
+4. **View migration** — complete (2026-04-29). `TaskList`, `TaskKanban`, `TaskAgenda`, and `TaskGraph` now consume grouped query output. List hierarchy wiring landed here.
+5. **Query grouping upgrade** — complete (2026-04-29). Field grouping replaced with serialisable `GroupSpec`; semantic Agenda date buckets now live in the shared query engine.
+6. **Custom view model** — define persisted query + renderer objects, including presentation options needed per renderer.
+7. **Filter / sort / grouping UI** — toolbar builder (3-level UI cap, raw JSON escape hatch for complex queries), persisted per custom view definition.
+8. **Smart Lists / Custom Views** — named, persisted query + renderer definitions with sidebar navigation. Default views (Inbox, Today, Blocked, Agenda) become built-in instances of the same system.
 
 ---
 

@@ -3,12 +3,14 @@
 	import { localDateString, daysBetweenLocal } from '../utils/dateUtils';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task, TaskStatus } from '../types';
+	import type { TaskGroup } from '../query/types';
 	import type TaskStore from '../store/TaskStore';
     import type TTasksPlugin from '../main';
 	import { PRIORITY_COLORS } from '../constants';
+	import { buildKanbanColumns } from './viewAdapters';
 
 	export let plugin: TTasksPlugin;
-	export let tasks: Readable<Task[]>;
+	export let groups: Readable<TaskGroup[]>;
 	export let statuses: string[];
 	export let statusColors: Record<string, string>;
 	export let areaColors: Record<string, string>;
@@ -25,28 +27,11 @@
 	let draggingPath: string | null = null;
 	let dragOverCol: TaskStatus | null = null;
 
-	$: statusAccents = statusColors ?? {};
-	$: COLUMNS = (statuses ?? []).map((status) => ({
-		id: status,
-		label: status === 'Hold' ? 'On Hold' : status,
-		accent: statusAccents[status],
-	}));
+	$: COLUMNS = buildKanbanColumns($groups, statuses ?? [], statusColors ?? {});
+	$: allTasks = COLUMNS.flatMap(column => column.tasks);
 
 	$: if (!COLUMNS.some(col => col.id === activeColumn)) {
 		activeColumn = COLUMNS[0]?.id ?? 'Active';
-	}
-
-	$: tasksByStatus = groupByStatus($tasks);
-
-	function groupByStatus(all: Task[]): Map<TaskStatus, Task[]> {
-		const map = new Map<TaskStatus, Task[]>();
-		for (const col of COLUMNS) map.set(col.id, []);
-		for (const task of all) {
-			if (task.type === 'project') continue;
-			const col = map.get(task.status);
-			if (col) col.push(task);
-		}
-		return map;
 	}
 
 	let cachedToday = localDateString();
@@ -110,7 +95,7 @@
 
 	function moveDraggingTaskTo(colId: TaskStatus) {
 		if (!draggingPath) return;
-		const task = $tasks.find(t => t.path === draggingPath);
+		const task = allTasks.find(t => t.path === draggingPath);
 		draggingPath = null;
 		if (!task || task.status === colId) return;
 		store.update(task.path, { status: colId });
@@ -152,7 +137,6 @@
 	<!-- Mobile: status tab strip -->
 	<div class="tt-kanban-tabs">
 		{#each COLUMNS as col}
-			{@const count = (tasksByStatus.get(col.id) ?? []).length}
 			<button
 				class="tt-kanban-tab"
 				class:is-active={activeColumn === col.id}
@@ -160,14 +144,14 @@
 				on:click={() => activeColumn = col.id}
 			>
 				{col.label}
-				{#if count > 0}<span class="tt-tab-count">{count}</span>{/if}
+				{#if col.tasks.length > 0}<span class="tt-tab-count">{col.tasks.length}</span>{/if}
 			</button>
 		{/each}
 	</div>
 
 	<div class="tt-kanban">
 		{#each COLUMNS as col}
-			{@const cards = tasksByStatus.get(col.id) ?? []}
+			{@const cards = col.tasks}
 			<div
 				class="tt-kanban-col"
 				class:is-active-col={activeColumn === col.id}
@@ -230,9 +214,9 @@
 											{relativeDate(task.due_date)}
 										</span>
 									{/if}
-									{#if task.labels}
-										<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!labelColors?.[task.labels]} style={getBadgeStyle(labelColors?.[task.labels])}>{task.labels}</span>
-									{/if}
+									{#each task.labels as label (label)}
+										<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!labelColors?.[label]} style={getBadgeStyle(labelColors?.[label])}>{label}</span>
+									{/each}
 									<!-- Mobile-only: inline status change -->
 									<select
 										class="tt-card-status-select"

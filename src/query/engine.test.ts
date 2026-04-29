@@ -1,7 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyFilter, applySort, applyGroup, applyQuery } from './engine';
 import type { Task } from '../types';
 import type { FilterSpec, QuerySpec, SortSpec } from './types';
+
+beforeEach(() => {
+	vi.useRealTimers();
+});
+
+afterEach(() => {
+	vi.useRealTimers();
+});
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
 
@@ -159,7 +167,7 @@ describe('applyFilter', () => {
 
 		it('resolves relative date "today"', () => {
 			const today = '2026-04-24';
-			vi.setSystemTime(new Date(today));
+			vi.setSystemTime(new Date('2026-04-24T12:00:00'));
 			const tasks = [makeTask({ due_date: '2026-04-23' }), makeTask({ due_date: '2026-04-25' })];
 			const spec: FilterSpec = { logic: 'and', conditions: [{ field: 'due_date', operator: 'before', value: 'today' }] };
 			expect(applyFilter(tasks, spec)).toHaveLength(1);
@@ -168,7 +176,7 @@ describe('applyFilter', () => {
 
 		it('resolves relative date "+7d"', () => {
 			const today = '2026-04-24';
-			vi.setSystemTime(new Date(today));
+			vi.setSystemTime(new Date('2026-04-24T12:00:00'));
 			const tasks = [
 				makeTask({ due_date: '2026-04-28' }), // +4d — within range
 				makeTask({ due_date: '2026-05-05' }), // +11d — outside
@@ -182,7 +190,7 @@ describe('applyFilter', () => {
 	describe('within_days', () => {
 		it('matches tasks due within N days from today', () => {
 			const today = '2026-04-24';
-			vi.setSystemTime(new Date(today));
+			vi.setSystemTime(new Date('2026-04-24T12:00:00'));
 			const tasks = [
 				makeTask({ due_date: '2026-04-26' }), // +2d — in range
 				makeTask({ due_date: '2026-05-10' }), // +16d — out of range
@@ -340,7 +348,7 @@ describe('applyGroup', () => {
 			makeTask({ status: 'Blocked' }),
 			makeTask({ status: 'Active' }),
 		];
-		const groups = applyGroup(tasks, 'status');
+		const groups = applyGroup(tasks, { kind: 'field', field: 'status' });
 		expect(groups).toHaveLength(2);
 		expect(groups.find(g => g.key === 'Active')?.tasks).toHaveLength(2);
 		expect(groups.find(g => g.key === 'Blocked')?.tasks).toHaveLength(1);
@@ -352,7 +360,7 @@ describe('applyGroup', () => {
 			makeTask({ area: null }),
 			makeTask({ area: 'engineering' }),
 		];
-		const groups = applyGroup(tasks, 'area');
+		const groups = applyGroup(tasks, { kind: 'field', field: 'area' });
 		expect(groups.find(g => g.key === 'engineering')?.tasks).toHaveLength(2);
 		expect(groups.find(g => g.key === 'No Area')?.tasks).toHaveLength(1);
 	});
@@ -363,13 +371,13 @@ describe('applyGroup', () => {
 			makeTask({ priority: 'High' }),
 			makeTask({ priority: 'Low' }),
 		];
-		const groups = applyGroup(tasks, 'priority');
+		const groups = applyGroup(tasks, { kind: 'field', field: 'priority' });
 		expect(groups.map(g => g.key)).toEqual(['High', 'Low', 'None']);
 	});
 
-	it('returns a single group when groupBy is null', () => {
+	it('returns a single group when grouping kind is none', () => {
 		const tasks = [makeTask(), makeTask()];
-		const groups = applyGroup(tasks, null);
+		const groups = applyGroup(tasks, { kind: 'none' });
 		expect(groups).toHaveLength(1);
 		expect(groups[0].key).toBe('all');
 		expect(groups[0].tasks).toHaveLength(2);
@@ -380,16 +388,55 @@ describe('applyGroup', () => {
 			makeTask({ parent_task: 'Tasks/proj.md' }),
 			makeTask({ parent_task: null }),
 		];
-		const groups = applyGroup(tasks, 'parent_task');
+		const groups = applyGroup(tasks, { kind: 'field', field: 'parent_task' });
 		expect(groups.find(g => g.key === 'Tasks/proj.md')).toBeDefined();
 		expect(groups.find(g => g.key === 'No Parent')).toBeDefined();
+	});
+
+	it('groups due dates into agenda buckets in semantic order', () => {
+		vi.setSystemTime(new Date('2026-04-29T12:00:00'));
+		const tasks = [
+			makeTask({ path: 'Tasks/overdue.md', due_date: '2026-04-28' }),
+			makeTask({ path: 'Tasks/today.md', due_date: '2026-04-29' }),
+			makeTask({ path: 'Tasks/tomorrow.md', due_date: '2026-04-30' }),
+			makeTask({ path: 'Tasks/this-week.md', due_date: '2026-05-03' }),
+			makeTask({ path: 'Tasks/next-week.md', due_date: '2026-05-08' }),
+			makeTask({ path: 'Tasks/later.md', due_date: '2026-05-20' }),
+			makeTask({ path: 'Tasks/no-date.md', due_date: null }),
+		];
+
+		const groups = applyGroup(tasks, { kind: 'date_buckets', field: 'due_date', preset: 'agenda' });
+
+		expect(groups.map(g => g.key)).toEqual([
+			'overdue',
+			'today',
+			'tomorrow',
+			'this-week',
+			'next-week',
+			'later',
+			'no-date',
+		]);
+	});
+
+	it('sorts tasks within agenda buckets by due_date then priority', () => {
+		vi.setSystemTime(new Date('2026-04-29T12:00:00'));
+		const tasks = [
+			makeTask({ path: 'Tasks/b.md', due_date: '2026-05-02', priority: 'Low', name: 'B' }),
+			makeTask({ path: 'Tasks/a.md', due_date: '2026-05-01', priority: 'None', name: 'A' }),
+			makeTask({ path: 'Tasks/c.md', due_date: '2026-05-01', priority: 'High', name: 'C' }),
+		];
+
+		const groups = applyGroup(tasks, { kind: 'date_buckets', field: 'due_date', preset: 'agenda' });
+		const thisWeek = groups.find(group => group.key === 'this-week');
+
+		expect(thisWeek?.tasks.map(task => task.name)).toEqual(['C', 'A', 'B']);
 	});
 });
 
 // ── applyQuery ────────────────────────────────────────────────────────────────
 
 describe('applyQuery', () => {
-	it('applies filter + sort + groupBy together', () => {
+	it('applies filter + sort + grouping together', () => {
 		const tasks = [
 			makeTask({ area: 'engineering', status: 'Active',  due_date: '2026-05-01' }),
 			makeTask({ area: 'engineering', status: 'Blocked', due_date: '2026-04-10' }),
@@ -398,7 +445,7 @@ describe('applyQuery', () => {
 		const query: QuerySpec = {
 			filter: { logic: 'and', conditions: [{ field: 'area', operator: 'is', value: 'engineering' }] },
 			sort:   [{ field: 'due_date', direction: 'asc' }],
-			groupBy: 'status',
+			group:  { kind: 'field', field: 'status' },
 		};
 		const groups = applyQuery(tasks, query);
 		// Only engineering tasks, grouped by status
@@ -412,7 +459,7 @@ describe('applyQuery', () => {
 		const query: QuerySpec = {
 			filter:  { logic: 'and', conditions: [] },
 			sort:    [],
-			groupBy: null,
+			group:   { kind: 'none' },
 			limit:   2,
 		};
 		const groups = applyQuery(tasks, query);
@@ -428,7 +475,7 @@ describe('applyQuery', () => {
 		const query: QuerySpec = {
 			filter:       { logic: 'and', conditions: [] },
 			sort:         [{ field: 'priority', direction: 'asc' }],
-			groupBy:      'area',
+			group:        { kind: 'field', field: 'area' },
 			limitPerGroup: 1,
 		};
 		const groups = applyQuery(tasks, query);
@@ -447,9 +494,26 @@ describe('applyQuery', () => {
 		const query: QuerySpec = {
 			filter:  { logic: 'and', conditions: [{ field: 'area', operator: 'is', value: 'engineering' }] },
 			sort:    [],
-			groupBy: null,
+			group:   { kind: 'none' },
 			search:  'auth',
 		};
 		expect(applyQuery(tasks, query)[0].tasks).toHaveLength(1);
+	});
+
+	it('supports agenda bucket grouping through QuerySpec', () => {
+		vi.setSystemTime(new Date('2026-04-29T12:00:00'));
+		const tasks = [
+			makeTask({ path: 'Tasks/today.md', due_date: '2026-04-29' }),
+			makeTask({ path: 'Tasks/later.md', due_date: '2026-05-20' }),
+		];
+		const query: QuerySpec = {
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			group: { kind: 'date_buckets', field: 'due_date', preset: 'agenda' },
+		};
+
+		const groups = applyQuery(tasks, query);
+
+		expect(groups.map(group => group.key)).toEqual(['today', 'later']);
 	});
 });

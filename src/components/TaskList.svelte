@@ -3,8 +3,10 @@
 	import TaskRow from './TaskRow.svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
+	import type { TaskGroup } from '../query/types';
+	import { buildListRows, buildListSections } from './viewAdapters';
 	export let plugin: TTasksPlugin;
-	export let tasks: Readable<Task[]>;
+	export let groups: Readable<TaskGroup[]>;
 	export let statuses: string[];
 	export let areaColors: Record<string, string>;
 	export let labelColors: Record<string, string>;
@@ -13,31 +15,23 @@
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 	export let onNewTask: (() => void) | undefined = undefined;
 
-	type GroupKey = string;
+	let collapsedPaths = new Set<string>();
 
-	$: statusOrder = [...(statuses ?? []), 'project'];
+	$: sections = buildListSections($groups, statuses ?? []);
 
-	function groupLabel(group: GroupKey): string {
-		if (group === 'project') return 'Projects';
-		if (group === 'Hold') return 'On Hold';
-		return group;
-	}
-
-	$: grouped = groupTasks($tasks);
-
-	function groupTasks(all: Task[]): Map<GroupKey, Task[]> {
-		const map = new Map<GroupKey, Task[]>();
-		for (const task of all) {
-			const key: GroupKey = task.type === 'project' ? 'project' : (task.status as GroupKey);
-			if (!map.has(key)) map.set(key, []);
-			map.get(key)?.push(task);
+	function toggleExpanded(path: string): void {
+		const next = new Set(collapsedPaths);
+		if (next.has(path)) {
+			next.delete(path);
+		} else {
+			next.add(path);
 		}
-		return map;
+		collapsedPaths = next;
 	}
 </script>
 
 <div class="tt-list">
-	{#if $tasks.length === 0}
+	{#if sections.length === 0}
 		<div class="tt-empty">
 			<p>No tasks yet.</p>
 			<p class="tt-empty-hint">Create your first task to get started.</p>
@@ -46,29 +40,31 @@
 			{/if}
 		</div>
 	{:else}
-		{#each statusOrder as group}
-			{#if grouped.has(group)}
-				{@const groupTaskList = grouped.get(group) ?? []}
+		{#each sections as section (section.key)}
+			{@const rows = buildListRows(section.tasks, collapsedPaths)}
 				<section class="tt-group">
 					<h3 class="tt-group-heading">
-						{groupLabel(group)}
-						<span class="tt-count">{groupTaskList.length}</span>
+						{section.label}
+						<span class="tt-count">{section.tasks.length}</span>
 					</h3>
 					<ul class="tt-task-list">
-						{#each groupTaskList as task (task.path)}
+						{#each rows as row (row.task.path)}
 							<TaskRow
 								{plugin}
-								{task}
-								active={$activeTaskPath === task.path}
+								task={row.task}
+								active={$activeTaskPath === row.task.path}
 								{areaColors}
 								{labelColors}
 								{onOpen}
+								indent={row.depth}
+								expandable={row.expandable}
+								expanded={row.expanded}
+								onExpand={() => toggleExpanded(row.task.path)}
 								onContextMenu={onContextMenu}
 							/>
 						{/each}
 					</ul>
 				</section>
-			{/if}
 		{/each}
 	{/if}
 </div>

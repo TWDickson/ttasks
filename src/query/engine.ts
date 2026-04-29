@@ -3,11 +3,13 @@ import type {
 	FilterCondition,
 	FilterGroup,
 	FilterSpec,
-	GroupByField,
+	FieldGroupSpec,
+	GroupSpec,
 	QuerySpec,
 	SortSpec,
 	TaskGroup,
 } from './types';
+import { addDaysLocal, localDateString } from '../utils/dateUtils';
 
 // ── Date resolution ───────────────────────────────────────────────────────────
 
@@ -19,21 +21,19 @@ const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2, Non
  */
 function resolveDate(value: string): string {
 	if (value === 'today') {
-		return new Date().toISOString().slice(0, 10);
+		return localDateString();
 	}
 	const relative = /^([+-])(\d+)d$/.exec(value);
 	if (relative) {
 		const sign = relative[1] === '+' ? 1 : -1;
 		const days = parseInt(relative[2], 10);
-		const d = new Date();
-		d.setDate(d.getDate() + sign * days);
-		return d.toISOString().slice(0, 10);
+		return addDaysLocal(localDateString(), sign * days);
 	}
 	return value;
 }
 
 function today(): string {
-	return new Date().toISOString().slice(0, 10);
+	return localDateString();
 }
 
 // ── Field extraction ──────────────────────────────────────────────────────────
@@ -175,15 +175,8 @@ export function applySort(tasks: Task[], sort: SortSpec): Task[] {
 	});
 }
 
-/**
- * Groups a task list by the specified field.
- * Returns an array of TaskGroup objects in a stable, meaningful order.
- * null groupBy returns a single group with key 'all'.
- */
-export function applyGroup(tasks: Task[], groupBy: GroupByField): TaskGroup[] {
-	if (groupBy === null) {
-		return [{ key: 'all', tasks }];
-	}
+function applyFieldGroup(tasks: Task[], group: FieldGroupSpec): TaskGroup[] {
+	const groupBy = group.field;
 
 	const map = new Map<string, Task[]>();
 
@@ -217,6 +210,66 @@ export function applyGroup(tasks: Task[], groupBy: GroupByField): TaskGroup[] {
 	return [...map.entries()].map(([key, tasks]) => ({ key, tasks }));
 }
 
+type AgendaBucketKey = 'overdue' | 'today' | 'tomorrow' | 'this-week' | 'next-week' | 'later' | 'no-date';
+
+const AGENDA_BUCKET_ORDER: AgendaBucketKey[] = [
+	'overdue', 'today', 'tomorrow', 'this-week', 'next-week', 'later', 'no-date',
+];
+
+function classifyAgendaBucket(dueDate: string | null): AgendaBucketKey {
+	if (!dueDate) return 'no-date';
+	const current = today();
+	if (dueDate < current) return 'overdue';
+	if (dueDate === current) return 'today';
+	if (dueDate === addDaysLocal(current, 1)) return 'tomorrow';
+	if (dueDate <= addDaysLocal(current, 7)) return 'this-week';
+	if (dueDate <= addDaysLocal(current, 14)) return 'next-week';
+	return 'later';
+}
+
+function applyAgendaDateBuckets(tasks: Task[]): TaskGroup[] {
+	const map = new Map<AgendaBucketKey, Task[]>();
+	for (const key of AGENDA_BUCKET_ORDER) {
+		map.set(key, []);
+	}
+
+	for (const task of tasks) {
+		const key = classifyAgendaBucket(task.due_date);
+		map.get(key)!.push(task);
+	}
+
+	const bucketSort: SortSpec = [
+		{ field: 'due_date', direction: 'asc' },
+		{ field: 'priority', direction: 'asc' },
+	];
+
+	const groups: TaskGroup[] = [];
+	for (const key of AGENDA_BUCKET_ORDER) {
+		const bucketTasks = map.get(key) ?? [];
+		if (bucketTasks.length > 0) {
+			groups.push({ key, tasks: applySort(bucketTasks, bucketSort) });
+		}
+	}
+
+	return groups;
+}
+
+/**
+ * Groups a task list according to the query grouping strategy.
+ * Returns an array of TaskGroup objects in a stable, meaningful order.
+ */
+export function applyGroup(tasks: Task[], group: GroupSpec): TaskGroup[] {
+	if (group.kind === 'none') {
+		return [{ key: 'all', tasks }];
+	}
+
+	if (group.kind === 'field') {
+		return applyFieldGroup(tasks, group);
+	}
+
+	return applyAgendaDateBuckets(tasks);
+}
+
 /**
  * Applies the full QuerySpec: search → filter → sort → group → limit.
  */
@@ -231,7 +284,7 @@ export function applyQuery(tasks: Task[], query: QuerySpec): TaskGroup[] {
 	const limited = query.limit != null ? sorted.slice(0, query.limit) : sorted;
 
 	// 4. Group
-	const groups = applyGroup(limited, query.groupBy);
+	const groups = applyGroup(limited, query.group);
 
 	// 5. Apply per-group limit
 	if (query.limitPerGroup != null) {

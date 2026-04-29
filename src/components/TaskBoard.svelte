@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { setIcon } from 'obsidian';
-	import { derived } from 'svelte/store';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
@@ -11,6 +10,7 @@
 	import TaskDetail from './TaskDetail.svelte';
 	import { createTaskQuery } from '../query/useTaskQuery';
 	import type { FilterCondition } from '../query/types';
+	import { resolveBoardQuery, type BoardViewMode as ViewMode } from './viewAdapters';
 
 	export let plugin: TTasksPlugin;
 
@@ -18,7 +18,6 @@
 	const activeTaskPath = plugin.activeTaskPath;
 	const tasks          = plugin.taskStore.tasks;
 
-	type ViewMode = 'list' | 'kanban' | 'agenda' | 'graph';
 	let currentView: ViewMode = 'list';
 
 	// Allow external callers (e.g. ReminderService) to switch the active view.
@@ -45,23 +44,27 @@
 
 	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterArea;
 
+	const initialQuery = resolveBoardQuery(currentView);
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
 		filter:  { logic: 'and', conditions: [] },
-		sort:    [],
-		groupBy: null,
+		sort:    initialQuery.sort,
+		group:   initialQuery.group,
 	});
 
 	// Rebuild the filter spec whenever any filter control changes
 	$: {
-		const conditions: FilterCondition[] = [];
+		const viewQuery = resolveBoardQuery(currentView);
+		const conditions: FilterCondition[] = [...viewQuery.baseFilterConditions];
 		if (filterPriority) conditions.push({ field: 'priority', operator: 'is', value: filterPriority });
 		if (filterArea)     conditions.push({ field: 'area',     operator: 'is', value: filterArea });
-		query.update(q => ({ ...q, filter: { logic: 'and', conditions }, search: searchQuery || undefined }));
+		query.update(q => ({
+			...q,
+			filter: { logic: 'and', conditions },
+			search: searchQuery || undefined,
+			sort: viewQuery.sort,
+			group: viewQuery.group,
+		}));
 	}
-
-	// Flatten groups back to a task list — views still expect Readable<Task[]>
-	// until Step 4 migrates them to consume TaskGroup[] directly.
-	const displayTasks = derived(groupedTasks, groups => groups.flatMap(g => g.tasks));
 
 	function clearFilters() {
 		searchQuery    = '';
@@ -196,7 +199,7 @@
 				{#if currentView === 'list'}
 					<TaskList
 						{plugin}
-						tasks={displayTasks}
+						groups={groupedTasks}
 						statuses={configuredStatuses}
 						areaColors={configuredCategoryColors}
 						labelColors={configuredTaskTypeColors}
@@ -208,7 +211,7 @@
 				{:else if currentView === 'kanban'}
 					<TaskKanban
 						{plugin}
-						tasks={displayTasks}
+						groups={groupedTasks}
 						statuses={configuredStatuses}
 						statusColors={configuredStatusColors}
 						blockStatus={configuredBlockStatus}
@@ -222,7 +225,7 @@
 				{:else if currentView === 'graph'}
 					<TaskGraph
 						{plugin}
-						tasks={displayTasks}
+						groups={groupedTasks}
 						statusColors={configuredStatusColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
@@ -231,7 +234,7 @@
 				{:else}
 					<TaskAgenda
 						{plugin}
-						tasks={displayTasks}
+						groups={groupedTasks}
 						areaColors={configuredCategoryColors}
 						labelColors={configuredTaskTypeColors}
 						{activeTaskPath}

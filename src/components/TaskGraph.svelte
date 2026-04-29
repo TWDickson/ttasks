@@ -1,12 +1,14 @@
 <script lang="ts">
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
+	import type { TaskGroup } from '../query/types';
 	import type TTasksPlugin from '../main';
 	import { buildTaskGraph, resolveTaskDates, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
 	import { PRIORITY_COLORS } from '../constants';
+	import { flattenTaskGroups } from './viewAdapters';
 
 	export let plugin: TTasksPlugin;
-	export let tasks: Readable<Task[]>;
+	export let groups: Readable<TaskGroup[]>;
 	export let statusColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
@@ -30,12 +32,14 @@
 	const DAY_MS = 24 * 60 * 60 * 1000;
 	let graphMode: GraphMode = 'dependency';
 
-	$: layout = buildTaskGraph($tasks, {});
+	$: tasks = flattenTaskGroups($groups);
+
+	$: layout = buildTaskGraph(tasks, {});
 	$: nodesByPath = new Map(layout.nodes.map((node) => [node.path, node]));
 	$: dependencyEmpty = layout.nodes.length === 0;
 
-	$: projectByPath = new Map($tasks.filter((task) => task.type === 'project').map((task) => [task.path, task]));
-	$: timelineRows = buildTimelineRows($tasks, projectByPath);
+	$: projectByPath = new Map(tasks.filter((task) => task.type === 'project').map((task) => [task.path, task]));
+	$: timelineRows = buildTimelineRows(tasks, projectByPath);
 	$: timelineCategoryCount = timelineRows.length;
 	$: timelineLaneCount = timelineRows.reduce((count, group) => count + group.lanes.length, 0);
 	$: timelineTaskCount = timelineRows.reduce((count, group) => count + group.lanes.reduce((inner, lane) => inner + lane.items.length, 0), 0);
