@@ -16,6 +16,7 @@ import {
 	getRegisteredTaskViews,
 	resolveTaskViewIcon,
 } from './views/viewRegistry';
+import { QueryEditorModal } from './modals/QueryEditorModal';
 
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
@@ -1000,6 +1001,26 @@ export class TTasksSettingTab extends PluginSettingTab {
 						}));
 					})
 				)
+				.addButton((button) => {
+					button.setButtonText('Edit query');
+					button.setTooltip('Open the filter / sort / group editor for this view');
+					button.onClick(() => {
+						new QueryEditorModal(
+							this.app,
+							view.name,
+							view.query,
+							{
+								statuses: this.plugin.settings.statuses,
+								areas: this.plugin.settings.areas,
+								labelValues: this.plugin.settings.labelValues,
+							},
+							async (updatedQuery) => {
+								await this.updateCustomView(index, (current) => ({ ...current, query: updatedQuery }));
+								this.display();
+							},
+						).open();
+					});
+				})
 				.addExtraButton((button) => {
 					button.setIcon('trash');
 					button.setTooltip('Delete custom view');
