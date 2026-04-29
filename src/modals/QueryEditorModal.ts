@@ -48,9 +48,9 @@ const GROUP_FIELD_LABELS: Record<string, string> = {
 export class QueryEditorModal extends Modal {
 	private query: QuerySpec;
 	private renderer: TaskViewRenderer;
-	private readonly viewName: string;
+	private viewName: string;
 	private readonly settings: { statuses?: string[]; areas?: string[]; labelValues?: string[] };
-	private readonly onSave: (query: QuerySpec, renderer: TaskViewRenderer) => void | Promise<void>;
+	private readonly onSave: (query: QuerySpec, renderer: TaskViewRenderer, viewName: string) => void | Promise<void>;
 
 	/** Tracks which tab is active. */
 	private activeTab: 'builder' | 'json' = 'builder';
@@ -63,7 +63,7 @@ export class QueryEditorModal extends Modal {
 		query: QuerySpec,
 		renderer: TaskViewRenderer,
 		settings: { statuses?: string[]; areas?: string[]; labelValues?: string[] },
-		onSave: (query: QuerySpec, renderer: TaskViewRenderer) => void | Promise<void>,
+		onSave: (query: QuerySpec, renderer: TaskViewRenderer, viewName: string) => void | Promise<void>,
 	) {
 		super(app);
 		this.viewName = viewName;
@@ -88,7 +88,7 @@ export class QueryEditorModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl('h2', { text: `Edit query: ${this.viewName}` });
+		contentEl.createEl('h2', { text: `Edit Smart List: ${this.viewName}` });
 
 		// Tab bar
 		const tabBar = contentEl.createDiv({ cls: 'tt-qe-tabs' });
@@ -137,6 +137,17 @@ export class QueryEditorModal extends Modal {
 	private renderViewTypeSection(container: HTMLElement) {
 		const section = container.createDiv({ cls: 'tt-qe-section' });
 		section.createEl('h3', { text: 'View Type' });
+
+		new Setting(section)
+			.setName('Smart List name')
+			.setDesc('Rename this Smart List.')
+			.addText((text) => {
+				text.setValue(this.viewName);
+				text.onChange((value) => {
+					const next = value.trim();
+					if (next) this.viewName = next;
+				});
+			});
 
 		new Setting(section)
 			.setName('Renderer')
@@ -300,8 +311,12 @@ export class QueryEditorModal extends Modal {
 					hint.setText('Label filter: pick one label from the dropdown.');
 					return;
 				}
-				if (op === 'contains_any' || op === 'contains_all') {
-					hint.setText('Label filter: enter comma-separated labels (example: bug, feature).');
+				if (op === 'contains_any') {
+					hint.setText('Label filter: check any labels that should match.');
+					return;
+				}
+				if (op === 'contains_all') {
+					hint.setText('Label filter: check labels that must all be present.');
 				}
 			};
 
@@ -319,32 +334,37 @@ export class QueryEditorModal extends Modal {
 				}
 			}
 
+			if (kind === 'checklist') {
+				const opts = selectOptionsForField(field, this.settings);
+				const selected = new Set(Array.isArray(current) ? current.filter((v): v is string => typeof v === 'string') : []);
+				const list = valueArea.createDiv({ cls: 'tt-qe-checklist' });
+				for (const opt of opts) {
+					const item = list.createEl('label', { cls: 'tt-qe-checklist-item' });
+					const checkbox = item.createEl('input', { type: 'checkbox' });
+					checkbox.checked = selected.has(opt);
+					checkbox.addEventListener('change', () => {
+						if (checkbox.checked) selected.add(opt);
+						else selected.delete(opt);
+						updateCondition(field, op, [...selected]);
+					});
+					item.createSpan({ text: opt });
+				}
+				appendLabelsHint();
+				return;
+			}
+
 			const input = valueArea.createEl('input', {
 				type: kind === 'number' ? 'number' : kind === 'date' ? 'date' : 'text',
 				cls: 'tt-qe-input',
-				value: Array.isArray(current)
-					? current.join(', ')
-					: (current !== undefined && current !== null ? String(current) : ''),
+				value: current !== undefined && current !== null ? String(current) : '',
 			});
 			if (kind === 'date') {
 				input.placeholder = 'YYYY-MM-DD or today, +7d …';
 			} else if (kind === 'number') {
 				input.placeholder = 'Days';
-			} else if (field === 'labels' && (op === 'contains_any' || op === 'contains_all')) {
-				input.placeholder = 'Comma-separated labels: bug, feature';
 			}
 			input.addEventListener('input', () => {
-				let v: unknown;
-				if (kind === 'number') {
-					v = Number(input.value);
-				} else if (field === 'labels' && (op === 'contains_any' || op === 'contains_all')) {
-					v = input.value
-						.split(',')
-						.map((part) => part.trim())
-						.filter((part) => part.length > 0);
-				} else {
-					v = input.value;
-				}
+				const v = kind === 'number' ? Number(input.value) : input.value;
 				updateCondition(field, op, v);
 			});
 
@@ -582,7 +602,7 @@ export class QueryEditorModal extends Modal {
 			}
 			this.query = result.value;
 		}
-		await this.onSave(this.query, this.renderer);
+		await this.onSave(this.query, this.renderer, this.viewName.trim() || this.viewName);
 		this.close();
 	}
 }

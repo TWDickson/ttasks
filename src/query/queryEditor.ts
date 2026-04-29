@@ -85,12 +85,13 @@ export function operatorsForField(field: FilterField): FilterOperator[] {
 
 // ── valueInputKind ────────────────────────────────────────────────────────────
 
-export type ValueInputKind = 'text' | 'select' | 'none' | 'number' | 'date';
+export type ValueInputKind = 'text' | 'select' | 'none' | 'number' | 'date' | 'checklist';
 
 export function valueInputKind(field: FilterField, operator: FilterOperator): ValueInputKind {
 	if (operator === 'is_null' || operator === 'is_not_null') return 'none';
 	if (operator === 'within_days') return 'number';
 	if (field === 'labels' && (operator === 'contains' || operator === 'not_contains')) return 'select';
+	if (field === 'labels' && (operator === 'contains_any' || operator === 'contains_all')) return 'checklist';
 
 	const category = FIELD_CATEGORY[field];
 

@@ -123,9 +123,11 @@
 				areas: plugin.settings.areas,
 				labelValues: plugin.settings.labelValues,
 			},
-			async (updatedQuery, updatedRenderer) => {
+			async (updatedQuery, updatedRenderer, updatedName) => {
 				plugin.settings.customViews = plugin.settings.customViews.map((view) => (
-					view.id === created.id ? { ...view, query: updatedQuery, renderer: updatedRenderer } : view
+					view.id === created.id
+						? { ...view, query: updatedQuery, renderer: updatedRenderer, name: updatedName }
+						: view
 				));
 				await plugin.saveSettings();
 				registeredViews = getRegisteredTaskViews(plugin.settings);
@@ -152,9 +154,11 @@
 				areas: plugin.settings.areas,
 				labelValues: plugin.settings.labelValues,
 			},
-			async (updatedQuery, updatedRenderer) => {
+			async (updatedQuery, updatedRenderer, updatedName) => {
 				plugin.settings.customViews = plugin.settings.customViews.map((view) => (
-					view.id === viewId ? { ...view, query: updatedQuery, renderer: updatedRenderer } : view
+					view.id === viewId
+						? { ...view, query: updatedQuery, renderer: updatedRenderer, name: updatedName }
+						: view
 				));
 				await plugin.saveSettings();
 				registeredViews = getRegisteredTaskViews(plugin.settings);

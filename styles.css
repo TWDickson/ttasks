@@ -753,7 +753,13 @@
 		gap: 4px;
 	}
 
-	.tt-qe-condition-row,
+	.tt-qe-condition-row {
+		display: grid;
+		grid-template-columns: minmax(130px, 1fr) minmax(140px, 1fr) minmax(220px, 1.2fr) auto;
+		align-items: start;
+		gap: 6px;
+	}
+
 	.tt-qe-sort-row {
 		display: flex;
 		align-items: center;
@@ -770,8 +776,7 @@
 	}
 
 	.tt-qe-value {
-		flex: 1;
-		min-width: 100px;
+		min-width: 180px;
 	}
 
 	.tt-qe-input {
@@ -849,6 +854,43 @@
 		font-size: var(--font-ui-smaller);
 		color: var(--text-faint);
 		line-height: 1.3;
+	}
+
+	.tt-qe-checklist {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		max-height: 120px;
+		overflow-y: auto;
+		padding: 6px 8px;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 6px;
+		background: var(--background-primary);
+	}
+
+	.tt-qe-checklist-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: var(--font-ui-small);
+		color: var(--text-normal);
+	}
+
+	.tt-qe-subgroup-wrap {
+		position: relative;
+		padding-top: 2px;
+	}
+
+	.tt-qe-subgroup-actions {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: 2px;
+	}
+
+	@media (max-width: 768px) {
+		.tt-qe-condition-row {
+			grid-template-columns: 1fr;
+		}
 	}
 
 	.tt-qe-footer {
