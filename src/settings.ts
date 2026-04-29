@@ -1009,13 +1009,18 @@ export class TTasksSettingTab extends PluginSettingTab {
 							this.app,
 							view.name,
 							view.query,
+							view.renderer,
 							{
 								statuses: this.plugin.settings.statuses,
 								areas: this.plugin.settings.areas,
 								labelValues: this.plugin.settings.labelValues,
 							},
-							async (updatedQuery) => {
-								await this.updateCustomView(index, (current) => ({ ...current, query: updatedQuery }));
+							async (updatedQuery, updatedRenderer) => {
+								await this.updateCustomView(index, (current) => ({
+									...current,
+									query: updatedQuery,
+									renderer: updatedRenderer,
+								}));
 								this.display();
 							},
 						).open();

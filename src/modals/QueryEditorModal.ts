@@ -1,5 +1,6 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
 import type { FilterCondition, FilterField, FilterGroup, FilterOperator, QuerySpec, SortEntry, SortField } from '../query/types';
+import type { TaskViewRenderer } from '../settings';
 import {
 	FILTER_FIELDS,
 	GROUP_FIELDS,
@@ -46,9 +47,10 @@ const GROUP_FIELD_LABELS: Record<string, string> = {
 
 export class QueryEditorModal extends Modal {
 	private query: QuerySpec;
+	private renderer: TaskViewRenderer;
 	private readonly viewName: string;
 	private readonly settings: { statuses?: string[]; areas?: string[]; labelValues?: string[] };
-	private readonly onSave: (query: QuerySpec) => void;
+	private readonly onSave: (query: QuerySpec, renderer: TaskViewRenderer) => void | Promise<void>;
 
 	/** Tracks which tab is active. */
 	private activeTab: 'builder' | 'json' = 'builder';
@@ -59,12 +61,14 @@ export class QueryEditorModal extends Modal {
 		app: App,
 		viewName: string,
 		query: QuerySpec,
+		renderer: TaskViewRenderer,
 		settings: { statuses?: string[]; areas?: string[]; labelValues?: string[] },
-		onSave: (query: QuerySpec) => void,
+		onSave: (query: QuerySpec, renderer: TaskViewRenderer) => void | Promise<void>,
 	) {
 		super(app);
 		this.viewName = viewName;
 		this.query = JSON.parse(JSON.stringify(query)) as QuerySpec; // deep clone
+		this.renderer = renderer;
 		this.settings = settings;
 		this.onSave = onSave;
 	}
@@ -123,10 +127,30 @@ export class QueryEditorModal extends Modal {
 	// ── Builder tab ─────────────────────────────────────────────────────────
 
 	private renderBuilder(container: HTMLElement) {
+		this.renderViewTypeSection(container);
 		this.renderFilterSection(container);
 		this.renderSortSection(container);
 		this.renderGroupSection(container);
 		this.renderLimitSection(container);
+	}
+
+	private renderViewTypeSection(container: HTMLElement) {
+		const section = container.createDiv({ cls: 'tt-qe-section' });
+		section.createEl('h3', { text: 'View Type' });
+
+		new Setting(section)
+			.setName('Renderer')
+			.setDesc('Choose how this Smart List is displayed in the board.')
+			.addDropdown((dropdown) => {
+				dropdown.addOption('list', 'List');
+				dropdown.addOption('kanban', 'Kanban');
+				dropdown.addOption('agenda', 'Agenda');
+				dropdown.addOption('graph', 'Graph');
+				dropdown.setValue(this.renderer);
+				dropdown.onChange((value) => {
+					this.renderer = value as TaskViewRenderer;
+				});
+			});
 	}
 
 	// ── Filter section ──────────────────────────────────────────────────────
@@ -490,7 +514,7 @@ export class QueryEditorModal extends Modal {
 
 	// ── Save ─────────────────────────────────────────────────────────────────
 
-	private save() {
+	private async save() {
 		if (this.activeTab === 'json') {
 			const result = parseQuerySpecFromJson(this.jsonDraft || JSON.stringify(this.query));
 			if (!result.ok) {
@@ -499,7 +523,7 @@ export class QueryEditorModal extends Modal {
 			}
 			this.query = result.value;
 		}
-		this.onSave(this.query);
+		await this.onSave(this.query, this.renderer);
 		this.close();
 	}
 }

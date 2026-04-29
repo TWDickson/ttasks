@@ -117,21 +117,22 @@
 			plugin.app,
 			created.name,
 			created.query,
+			created.renderer,
 			{
 				statuses: plugin.settings.statuses,
 				areas: plugin.settings.areas,
 				labelValues: plugin.settings.labelValues,
 			},
-			async (updatedQuery) => {
+			async (updatedQuery, updatedRenderer) => {
 				plugin.settings.customViews = plugin.settings.customViews.map((view) => (
-					view.id === created.id ? { ...view, query: updatedQuery } : view
+					view.id === created.id ? { ...view, query: updatedQuery, renderer: updatedRenderer } : view
 				));
 				await plugin.saveSettings();
 				registeredViews = getRegisteredTaskViews(plugin.settings);
 				currentViewId = created.id;
 			},
 		).open();
-		new Notice(`Created Smart List: ${created.name}. Use the edit icon to customize filters any time.`);
+		new Notice(`Created Smart List: ${created.name}. Use Edit View to customize query and type.`);
 	}
 
 	function editSmartList(viewId: string) {
@@ -145,14 +146,15 @@
 			plugin.app,
 			target.name,
 			target.query,
+			target.renderer,
 			{
 				statuses: plugin.settings.statuses,
 				areas: plugin.settings.areas,
 				labelValues: plugin.settings.labelValues,
 			},
-			async (updatedQuery) => {
+			async (updatedQuery, updatedRenderer) => {
 				plugin.settings.customViews = plugin.settings.customViews.map((view) => (
-					view.id === viewId ? { ...view, query: updatedQuery } : view
+					view.id === viewId ? { ...view, query: updatedQuery, renderer: updatedRenderer } : view
 				));
 				await plugin.saveSettings();
 				registeredViews = getRegisteredTaskViews(plugin.settings);
