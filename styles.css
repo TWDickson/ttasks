@@ -677,11 +677,15 @@
 
 	/* ── Query Editor Modal ──────────────────────────────────────────────────── */
 
+	.tt-query-editor-modal {
+		width: min(680px, 92vw);
+	}
+
 	.tt-query-editor-modal .modal-content {
 		padding: 16px 20px 20px;
-		max-width: 700px;
 		max-height: 80vh;
 		overflow-y: auto;
+		overflow-x: hidden;
 	}
 
 	.tt-qe-tabs {
@@ -755,9 +759,10 @@
 
 	.tt-qe-condition-row {
 		display: grid;
-		grid-template-columns: minmax(130px, 1fr) minmax(140px, 1fr) minmax(220px, 1.2fr) auto;
+		grid-template-columns: minmax(100px, 1fr) minmax(100px, 1fr) minmax(140px, 1.2fr) auto;
 		align-items: start;
 		gap: 6px;
+		min-width: 0;
 	}
 
 	.tt-qe-sort-row {
@@ -768,15 +773,15 @@
 	}
 
 	.tt-qe-field {
-		min-width: 120px;
+		min-width: 0;
 	}
 
 	.tt-qe-op {
-		min-width: 130px;
+		min-width: 0;
 	}
 
 	.tt-qe-value {
-		min-width: 180px;
+		min-width: 0;
 	}
 
 	.tt-qe-input {
