@@ -293,6 +293,18 @@ export class QueryEditorModal extends Modal {
 			const kind = valueInputKind(field, op);
 			if (kind === 'none') return;
 
+			const appendLabelsHint = () => {
+				if (field !== 'labels') return;
+				const hint = valueArea.createDiv({ cls: 'tt-qe-field-hint' });
+				if (op === 'contains' || op === 'not_contains') {
+					hint.setText('Label filter: pick one label from the dropdown.');
+					return;
+				}
+				if (op === 'contains_any' || op === 'contains_all') {
+					hint.setText('Label filter: enter comma-separated labels (example: bug, feature).');
+				}
+			};
+
 			if (kind === 'select') {
 				const opts = selectOptionsForField(field, this.settings);
 				if (opts.length > 0) {
@@ -302,6 +314,7 @@ export class QueryEditorModal extends Modal {
 						if (opt === String(current ?? '')) o.selected = true;
 					}
 					sel.addEventListener('change', () => updateCondition(field, op, sel.value));
+					appendLabelsHint();
 					return;
 				}
 			}
@@ -334,6 +347,8 @@ export class QueryEditorModal extends Modal {
 				}
 				updateCondition(field, op, v);
 			});
+
+			appendLabelsHint();
 		};
 
 		const updateCondition = (field: FilterField, op: FilterOperator, value: unknown) => {
