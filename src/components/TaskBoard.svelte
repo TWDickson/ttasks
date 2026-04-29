@@ -58,10 +58,19 @@
 
 	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterArea;
 
+	// When the Agenda renderer is active but the stored group is 'none', force
+	// agenda date-bucket grouping so the view actually displays tasks.
+	function effectiveGroup(view: typeof currentView) {
+		if (view.renderer === 'agenda' && view.query.group.kind === 'none') {
+			return { kind: 'agenda' as const };
+		}
+		return view.query.group;
+	}
+
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
 		filter: currentView.query.filter,
 		sort: currentView.query.sort,
-		group: currentView.query.group,
+		group: effectiveGroup(currentView),
 		limit: currentView.query.limit,
 		limitPerGroup: currentView.query.limitPerGroup,
 		search: currentView.query.search,
@@ -77,7 +86,7 @@
 			filter: { logic: currentView.query.filter.logic, conditions },
 			search: searchQuery || currentView.query.search || undefined,
 			sort: currentView.query.sort,
-			group: currentView.query.group,
+			group: effectiveGroup(currentView),
 			limit: currentView.query.limit,
 			limitPerGroup: currentView.query.limitPerGroup,
 		}));
