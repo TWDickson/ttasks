@@ -4,6 +4,28 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
+## Progress Notes (2026-04-29)
+
+Phase 6 Smart Lists slice is now functional and hardened. Build clean, zero TypeScript errors, 379 tests passing.
+
+### Step 7 — Query editor complete
+
+- `src/query/queryEditor.ts` — pure filter/sort/group builder helpers plus raw JSON validation.
+- `src/modals/QueryEditorModal.ts` — Builder + JSON tabs, renderer selector, in-modal rename, labels checklist UX, inline field hints, and delete-with-confirm flow.
+- `sortScope` added to `QuerySpec` so grouped views can sort globally-first or within each group.
+- Modal CSS hardened for width/overflow regressions.
+
+### Step 8 — Smart Lists complete
+
+- Shared view registry now drives built-in + custom views through the same model.
+- Board rail groups built-ins and Smart Lists; users can add, edit, rename, and delete Smart Lists.
+- Built-in Smart Lists now include Inbox, Today, and Blocked.
+- Renderer/query contract is centralized: Agenda forces agenda date buckets, Kanban forces status grouping.
+- Query editor now constrains grouping options by renderer and coerces incompatible JSON before save.
+- Regression tests cover renderer-query coercion to prevent empty-view bugs from incompatible grouping.
+
+---
+
 ## Progress Notes (2026-04-20)
 
 Phase 5 partial. 265 passing tests, zero TypeScript errors, build clean.
