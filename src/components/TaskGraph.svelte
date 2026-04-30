@@ -719,6 +719,7 @@
 
 	.tt-graph-node {
 		position: absolute;
+		box-sizing: border-box;
 		display: flex;
 		flex-direction: column;
 		justify-content: space-between;
