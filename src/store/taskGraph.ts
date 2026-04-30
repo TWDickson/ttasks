@@ -197,17 +197,54 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	let maxRow = -1;
 	const nodes: TaskGraphNode[] = [];
 
+	// Tracks the starting row of each component so downstream columns can align to it.
+	const componentStartRow = new Map<number, number>();
+
+	/** Minimum starting row of any already-placed predecessor component. */
+	function minPredRow(comp: ComponentInfo): number {
+		let min = Infinity;
+		for (const predId of comp.incoming) {
+			const row = componentStartRow.get(predId);
+			if (row !== undefined) min = Math.min(min, row);
+		}
+		return min;
+	}
+
 	for (const level of sortedLevels) {
 		const levelComponents = componentsByLevel.get(level) ?? [];
+
+		// Round 1 — Chain sort: isolated nodes (no edges at all) go last; within each
+		// group sort by predecessor start-row so chains align across columns, then by
+		// chain-group rank for siblings, then alphabetically.
 		levelComponents.sort((left, right) => {
+			const lIso = left.incoming.size === 0 && left.outgoing.size === 0;
+			const rIso = right.incoming.size === 0 && right.outgoing.size === 0;
+			if (lIso !== rIso) return lIso ? 1 : -1; // isolated → end
+
+			const lRow = minPredRow(left);
+			const rRow = minPredRow(right);
+			if (lRow !== rRow) return lRow - rRow;
+
+			// Round 2 — Interchain sort: tie-break by shared chain group rank so
+			// siblings of the same ancestor cluster together.
 			const lChain = chainGroupOrder.get(chainGroups.get(left.id) ?? left.id) ?? Infinity;
 			const rChain = chainGroupOrder.get(chainGroups.get(right.id) ?? right.id) ?? Infinity;
 			if (lChain !== rChain) return lChain - rChain;
+
 			return left.label.localeCompare(right.label) || left.id - right.id;
 		});
+
 		let rowCursor = 0;
 
 		for (const component of levelComponents) {
+			// Align this component's start row with its earliest predecessor.
+			// Never move backward (rowCursor only advances).
+			const pRow = minPredRow(component);
+			if (pRow !== Infinity) {
+				rowCursor = Math.max(rowCursor, pRow);
+			}
+			componentStartRow.set(component.id, rowCursor);
+
 			const orderedPaths = [...component.paths].sort((left, right) => {
 				const leftTask = taskByPath.get(left);
 				const rightTask = taskByPath.get(right);

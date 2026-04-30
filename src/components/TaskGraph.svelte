@@ -816,6 +816,9 @@
 		font-weight: 700;
 		color: var(--text-normal);
 		line-height: 1.2;
+		min-width: 0;
+		word-break: break-word;
+		overflow-wrap: break-word;
 		max-height: 3.6em;
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
