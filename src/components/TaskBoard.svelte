@@ -10,6 +10,7 @@
 	import TaskGraph from './TaskGraph.svelte';
 	import TaskDetail from './TaskDetail.svelte';
 	import { createTaskQuery } from '../query/useTaskQuery';
+	import { applyBuiltinCompletedVisibility, canToggleBuiltinCompleted } from './builtinViewCompletionToggle';
 	import type { FilterCondition } from '../query/types';
 	import {
 		coerceQueryForRenderer,
@@ -52,15 +53,19 @@
 	let searchQuery    = '';
 	let filterPriority = '';
 	let filterArea     = '';
+	let showCompletedByViewId: Record<string, boolean> = {};
 
 	$: areas = [...new Set(
 		$tasks.map(t => t.area).filter((a): a is string => !!a)
 	)].sort();
 
 	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterArea;
+	$: canToggleCompletedForCurrentView = canToggleBuiltinCompleted(currentView);
+	$: showCompleted = showCompletedByViewId[currentView.id] ?? false;
 
 	function effectiveQuery(view: typeof currentView) {
-		return coerceQueryForRenderer(view.renderer, view.query);
+		const query = coerceQueryForRenderer(view.renderer, view.query);
+		return applyBuiltinCompletedVisibility(view, query, showCompletedByViewId[view.id] ?? false);
 	}
 
 	let currentBoardQuery = effectiveQuery(currentView);
@@ -95,6 +100,13 @@
 		searchQuery    = '';
 		filterPriority = '';
 		filterArea     = '';
+	}
+
+	function toggleCompletedVisibility(viewId: string) {
+		showCompletedByViewId = {
+			...showCompletedByViewId,
+			[viewId]: !(showCompletedByViewId[viewId] ?? false),
+		};
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
@@ -315,6 +327,12 @@
 
 				{#if hasActiveFilters}
 					<button class="tt-filter-clear" on:click={clearFilters}>Clear</button>
+				{/if}
+
+				{#if canToggleCompletedForCurrentView}
+					<button class="tt-filter-toggle-completed" on:click={() => toggleCompletedVisibility(currentView.id)}>
+						{showCompleted ? 'Hide Completed' : 'Show Completed'}
+					</button>
 				{/if}
 
 				{#if currentView.source === 'custom'}
@@ -636,7 +654,8 @@
 		background: var(--interactive-hover, var(--background-modifier-hover));
 	}
 
-	.tt-filter-edit-view {
+	.tt-filter-edit-view,
+	.tt-filter-toggle-completed {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
@@ -652,7 +671,8 @@
 		flex-shrink: 0;
 	}
 
-	.tt-filter-edit-view:hover {
+	.tt-filter-edit-view:hover,
+	.tt-filter-toggle-completed:hover {
 		color: var(--text-normal);
 		background: var(--interactive-hover, var(--background-modifier-hover));
 	}

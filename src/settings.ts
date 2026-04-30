@@ -149,7 +149,7 @@ const FILTER_FIELDS = new Set<FilterField>([
 ]);
 
 const SORT_FIELDS = new Set<SortField>([
-	'name', 'due_date', 'due_time', 'start_date', 'created',
+	'name', 'due_date', 'due_time', 'start_date', 'created', 'completed',
 	'priority', 'status', 'area', 'type',
 ]);
 

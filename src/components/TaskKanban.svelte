@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { localDateString, daysBetweenLocal } from '../utils/dateUtils';
+	import { localDateString } from '../utils/dateUtils';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task, TaskStatus } from '../types';
 	import type { TaskGroup } from '../query/types';
 	import type TaskStore from '../store/TaskStore';
-    import type TTasksPlugin from '../main';
+	import type TTasksPlugin from '../main';
 	import { PRIORITY_COLORS } from '../constants';
 	import { buildKanbanColumns } from './viewAdapters';
+	import { getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
@@ -50,20 +51,12 @@
 		return () => window.clearTimeout(midnightTimer);
 	});
 
-	function isOverdue(due: string | null): boolean {
-		if (!due) return false;
-		return due < cachedToday;
+	function isOverdue(task: Task): boolean {
+		return isTaskOverdue(task, cachedToday);
 	}
 
-	function relativeDate(due: string): string {
-		const t = cachedToday;
-		if (due === t) return 'Today';
-		const diff = daysBetweenLocal(t, due);
-		if (diff === 1) return 'Tomorrow';
-		if (diff === -1) return 'Yesterday';
-		if (diff < -1) return `${Math.abs(diff)}d overdue`;
-		if (diff <= 7) return `In ${diff}d`;
-		return due;
+	function getDateBadge(task: Task) {
+		return getTaskDateBadge(task, cachedToday);
 	}
 
 	function onDragStart(e: DragEvent, path: string) {
@@ -209,9 +202,14 @@
 									{#if task.area}
 										<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!areaColors?.[task.area]} style={getBadgeStyle(areaColors?.[task.area])}>{task.area}</span>
 									{/if}
-									{#if task.due_date}
-										<span class="tt-badge" class:tt-badge-overdue={isOverdue(task.due_date)} title={task.due_date}>
-											{relativeDate(task.due_date)}
+									{#if getDateBadge(task)}
+										<span
+											class="tt-badge"
+											class:tt-badge-overdue={getDateBadge(task)?.isOverdue}
+											class:tt-badge-completed={getDateBadge(task)?.kind === 'completed'}
+											title={getDateBadge(task)?.title}
+										>
+											{getDateBadge(task)?.label}
 										</span>
 									{/if}
 									{#each task.labels as label (label)}
@@ -451,6 +449,11 @@
 
 	.tt-badge-overdue {
 		background: var(--color-red);
+		color: var(--text-on-accent);
+	}
+
+	.tt-badge-completed {
+		background: color-mix(in srgb, var(--color-green) 88%, var(--background-primary));
 		color: var(--text-on-accent);
 	}
 

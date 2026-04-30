@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { localDateString, daysBetweenLocal } from '../utils/dateUtils';
+	import { localDateString } from '../utils/dateUtils';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import { PRIORITY_COLORS } from '../constants';
+	import { getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
 
 	export let plugin: TTasksPlugin;
 	export let task: Task;
@@ -42,21 +43,11 @@
 		return () => window.clearTimeout(midnightTimer);
 	});
 
-	function isOverdue(due: string | null): boolean {
-		if (!due) return false;
-		return due < today();
+	function isOverdue(task: Task): boolean {
+		return isTaskOverdue(task, today());
 	}
 
-	function relativeDate(due: string): string {
-		const t = today();
-		if (due === t) return 'Today';
-		const diff = daysBetweenLocal(t, due);
-		if (diff === 1) return 'Tomorrow';
-		if (diff === -1) return 'Yesterday';
-		if (diff < -1) return `${Math.abs(diff)}d overdue`;
-		if (diff <= 7) return `In ${diff}d`;
-		return due;
-	}
+	$: dateBadge = getTaskDateBadge(task, today());
 
 	function getBadgeStyle(color: string | undefined): string {
 		return color ? `--tt-badge-color:${color};` : '';
@@ -79,7 +70,7 @@
 
 <li
 	class="tt-task"
-	class:is-overdue={isOverdue(task.due_date)}
+	class:is-overdue={isOverdue(task)}
 	class:is-active={active}
 	style:padding-left={indent > 0 ? `${indent * 20}px` : undefined}
 >
@@ -113,8 +104,13 @@
 			{#if task.area}
 				<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!areaColors?.[task.area]} style={getBadgeStyle(areaColors?.[task.area])}>{task.area}</span>
 			{/if}
-			{#if task.due_date}
-				<span class="tt-badge" class:tt-badge-overdue={isOverdue(task.due_date)} title={task.due_date}>{relativeDate(task.due_date)}</span>
+			{#if dateBadge}
+				<span
+					class="tt-badge"
+					class:tt-badge-overdue={dateBadge.isOverdue}
+					class:tt-badge-completed={dateBadge.kind === 'completed'}
+					title={dateBadge.title}
+				>{dateBadge.label}</span>
 			{/if}
 			{#each task.labels as label (label)}
 				<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!labelColors?.[label]} style={getBadgeStyle(labelColors?.[label])}>{label}</span>
@@ -261,6 +257,11 @@
 
 	.tt-badge-overdue {
 		background: var(--color-red);
+		color: var(--text-on-accent);
+	}
+
+	.tt-badge-completed {
+		background: color-mix(in srgb, var(--color-green) 88%, var(--background-primary));
 		color: var(--text-on-accent);
 	}
 
