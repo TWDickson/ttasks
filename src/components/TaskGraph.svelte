@@ -41,8 +41,8 @@
 	$: hiddenIndependentCount = Math.max(0, tasks.filter((task) => task.type === 'task').length - connectedDependencyPaths.size);
 
 	$: layout = buildTaskGraph(dependencyGraphTasks, {
-		nodeWidth: 220,
-		nodeHeight: 118,
+		nodeWidth: 226,
+		nodeHeight: 122,
 		horizontalGap: 52,
 		verticalGap: 12,
 		padding: 20,
@@ -754,8 +754,8 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: space-between;
-		gap: 8px;
-		padding: 12px 14px;
+		gap: 6px;
+		padding: 10px 12px;
 		border-radius: var(--radius-xl, 16px);
 		border: var(--border-width, 1px) solid color-mix(in srgb, var(--tt-node-accent) 42%, var(--background-modifier-border));
 		background: linear-gradient(180deg, color-mix(in srgb, var(--tt-node-accent) 12%, var(--background-primary)), var(--background-primary));
@@ -789,7 +789,7 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 0.72rem;
+		font-size: 0.68rem;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--text-muted);
@@ -812,17 +812,17 @@
 	}
 
 	.tt-graph-name {
-		font-size: 0.95rem;
+		font-size: 0.92rem;
 		font-weight: 700;
 		color: var(--text-normal);
-		line-height: 1.2;
+		line-height: 1.18;
 		min-width: 0;
 		word-break: break-word;
 		overflow-wrap: break-word;
-		max-height: 3.6em;
+		max-height: 4.72em;
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
-		-webkit-line-clamp: 3;
+		-webkit-line-clamp: 4;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
@@ -831,7 +831,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 6px 10px;
-		font-size: 0.76rem;
+		font-size: 0.72rem;
 		color: var(--text-muted);
 	}
 

@@ -278,6 +278,24 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		}
 	}
 
+	// Lane compaction pass: remove empty row indices while preserving relative
+	// ordering/alignment produced by the chain + interchain sort.
+	if (nodes.length > 0) {
+		const usedRows = [...new Set(nodes.map((node) => node.row))].sort((left, right) => left - right);
+		const rowMap = new Map<number, number>();
+		for (const [index, row] of usedRows.entries()) {
+			rowMap.set(row, index);
+		}
+
+		for (const node of nodes) {
+			const compactRow = rowMap.get(node.row) ?? node.row;
+			node.row = compactRow;
+			node.y = padding + compactRow * (nodeHeight + verticalGap);
+		}
+
+		maxRow = usedRows.length - 1;
+	}
+
 	nodes.sort((left, right) => left.column - right.column || left.row - right.row || left.path.localeCompare(right.path));
 
 	const rows = Math.max(0, maxRow + 1);
