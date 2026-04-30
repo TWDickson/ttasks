@@ -4,7 +4,7 @@
 	import type { Task } from '../types';
 	import type { TaskGroup } from '../query/types';
 	import type TTasksPlugin from '../main';
-	import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
+	import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, type HybridTimelineGrouping, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
 	import { PRIORITY_COLORS } from '../constants';
 	import { flattenTaskGroups } from './viewAdapters';
 	import { formatHumanDate } from './taskDateMeta';
@@ -31,7 +31,10 @@
 	let dependencyViewportWidth = 0;
 	let overviewScrollEl: HTMLDivElement | null = null;
 	let overviewViewportWidth = 0;
+	let overviewScrollLeft = 0;
 	let shouldAutoFocusOverview = defaultGraphMode === 'overview';
+	let showCompletedInOverview = false;
+	let overviewGrouping: HybridTimelineGrouping = 'project';
 
 	$: if (defaultGraphMode !== appliedGraphMode) {
 		graphMode = defaultGraphMode;
@@ -111,12 +114,23 @@
 		};
 	});
 
-	$: hybridTimeline = buildHybridTimeline(tasks);
+	$: overviewTasks = showCompletedInOverview
+		? tasks
+		: tasks.filter((task) => task.type !== 'task' || !task.is_complete);
+	$: hybridTimeline = buildHybridTimeline(overviewTasks, { grouping: overviewGrouping });
 	$: timelineTaskCount = hybridTimeline.defined.length + hybridTimeline.underdefined.length;
+	$: hiddenCompletedCount = Math.max(0, tasks.filter((task) => task.type === 'task' && task.is_complete).length - overviewTasks.filter((task) => task.type === 'task' && task.is_complete).length);
 	$: timelineEmpty = timelineTaskCount === 0;
 	$: overviewSpanDays = Math.max(1, diffDays(hybridTimeline.rangeStart, hybridTimeline.rangeEnd) + 1);
 	$: overviewCanvasWidth = Math.max(overviewViewportWidth, Math.round(overviewSpanDays * OVERVIEW_PIXELS_PER_DAY));
 	$: todayPercent = percentAtDate(startOfToday(), hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
+	$: visibleStartPercent = overviewCanvasWidth > 0 ? (overviewScrollLeft / overviewCanvasWidth) * 100 : 0;
+	$: visibleEndPercent = overviewCanvasWidth > 0 ? ((overviewScrollLeft + overviewViewportWidth) / overviewCanvasWidth) * 100 : 100;
+	$: virtualStartPercent = Math.max(0, visibleStartPercent - 8);
+	$: virtualEndPercent = Math.min(100, visibleEndPercent + 8);
+	$: visibleDefined = hybridTimeline.defined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
+	$: visibleUnderdefined = hybridTimeline.underdefined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
+	$: visibleLinks = hybridTimeline.links.filter((link) => intersectsViewport(Math.min(link.fromPercent, link.toPercent), Math.abs(link.toPercent - link.fromPercent), virtualStartPercent, virtualEndPercent));
 	$: timelineTicks = buildTimelineTicks(hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
 	$: definedTrackHeightPx = Math.max(42, hybridTimeline.definedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.definedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
 	$: underdefinedTrackHeightPx = Math.max(42, hybridTimeline.underdefinedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.underdefinedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
@@ -127,6 +141,10 @@
 	$: if (graphMode !== lastGraphMode) {
 		shouldAutoFocusOverview = graphMode === 'overview';
 		lastGraphMode = graphMode;
+	}
+
+	$: if (graphMode === 'overview' && overviewScrollEl) {
+		overviewViewportWidth = overviewScrollEl.clientWidth;
 	}
 
 	$: if (graphMode === 'overview' && shouldAutoFocusOverview && overviewScrollEl && overviewCanvasWidth > 0) {
@@ -210,6 +228,34 @@
 		const todayX = (todayPercent / 100) * overviewCanvasWidth;
 		const target = Math.max(0, Math.min(overviewCanvasWidth - viewportWidth, todayX - viewportWidth * 0.25));
 		overviewScrollEl.scrollLeft = target;
+		overviewScrollLeft = target;
+	}
+
+	function onOverviewScroll(event: Event): void {
+		const target = event.currentTarget as HTMLDivElement | null;
+		overviewScrollLeft = target?.scrollLeft ?? 0;
+	}
+
+	function intersectsViewport(left: number, width: number, min: number, max: number): boolean {
+		const right = left + width;
+		return right >= min && left <= max;
+	}
+
+	function groupBandStyle(band: { startRow: number; endRow: number }): string {
+		const top = HYBRID_TRACK_PADDING + band.startRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
+		const height = (band.endRow - band.startRow + 1) * HYBRID_ROW_HEIGHT + Math.max(0, band.endRow - band.startRow) * HYBRID_ROW_GAP;
+		return `top:${top}px;height:${height}px;`;
+	}
+
+	function groupLabelStyle(band: { startRow: number }): string {
+		const top = HYBRID_TRACK_PADDING + band.startRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
+		return `top:${top}px;`;
+	}
+
+	function groupingLabel(mode: HybridTimelineGrouping): string {
+		if (mode === 'project') return 'Project';
+		if (mode === 'dependency') return 'Dependency';
+		return 'None';
 	}
 
 	function definedBarStyle(item: { leftPercent: number; widthPercent: number; row: number; task: Task }): string {
@@ -326,13 +372,21 @@
 					<span class="tt-graph-pill-label">Flow Links</span>
 					<strong>{hybridTimeline.links.length}</strong>
 				</div>
+				<button type="button" class="tt-graph-pill tt-graph-pill-toggle" on:click={() => showCompletedInOverview = !showCompletedInOverview}>
+					<span class="tt-graph-pill-label">Completed</span>
+					<strong>{showCompletedInOverview ? 'Shown' : `${hiddenCompletedCount} hidden`}</strong>
+				</button>
+				<button type="button" class="tt-graph-pill tt-graph-pill-toggle" on:click={() => overviewGrouping = overviewGrouping === 'project' ? 'dependency' : overviewGrouping === 'dependency' ? 'none' : 'project'}>
+					<span class="tt-graph-pill-label">Grouping</span>
+					<strong>{groupingLabel(overviewGrouping)}</strong>
+				</button>
 			{/if}
 		</div>
 		<p class="tt-graph-note">
 			{#if graphMode === 'dependency'}
 				Graph respects current filters. Amber paths have unfinished upstream dependencies. Red rings mark cycles. Independent tasks are hidden by default to keep the dependency map readable.
 			{:else}
-				Defined track shows dated/inferred windows. Underdefined track shows no-estimate tasks that anchor after resolved upstream work.
+				Defined track shows dated/inferred windows. Underdefined track shows no-estimate tasks that anchor after resolved upstream work. Timeline opens focused around today; drag horizontally for history/future.
 			{/if}
 		</p>
 	</div>
@@ -398,7 +452,7 @@
 		{#if timelineEmpty}
 			<div class="tt-graph-empty">No scheduled tasks. Add a start or due date, or chain tasks with dependencies and estimated durations to see them here.</div>
 		{:else}
-			<div class="tt-overview-scroll" bind:this={overviewScrollEl}>
+			<div class="tt-overview-scroll" bind:this={overviewScrollEl} on:scroll={onOverviewScroll}>
 				<div class="tt-overview-axis" style={`width:${overviewCanvasWidth}px;`}>
 					{#each timelineTicks as tick}
 						<div class="tt-overview-tick" style={`left:${tick.leftPercent.toFixed(3)}%;`}>
@@ -416,7 +470,7 @@
 								<path d="M 0 0 L 8 4 L 0 8 z" fill="currentColor"></path>
 							</marker>
 						</defs>
-						{#each hybridTimeline.links as link (link.id)}
+						{#each visibleLinks as link (link.id)}
 							<path class="tt-hybrid-link" d={hybridLinkPath(link)} marker-end="url(#ttasks-hybrid-arrow)"></path>
 						{/each}
 					</svg>
@@ -433,7 +487,11 @@
 							</div>
 						</div>
 						<div class="tt-hybrid-track-canvas" style={`height:${definedTrackHeightPx}px;`}>
-							{#each hybridTimeline.defined as item (item.path)}
+							{#each hybridTimeline.definedGroups as group (group.key)}
+								<div class="tt-hybrid-group-band" style={groupBandStyle(group)}></div>
+								<div class="tt-hybrid-group-label" style={groupLabelStyle(group)}>{group.label}</div>
+							{/each}
+							{#each visibleDefined as item (item.path)}
 								<button
 									type="button"
 									class="tt-overview-bar tt-hybrid-defined-item"
@@ -464,7 +522,11 @@
 							</div>
 						</div>
 						<div class="tt-hybrid-track-canvas" style={`height:${underdefinedTrackHeightPx}px;`}>
-							{#each hybridTimeline.underdefined as item (item.path)}
+							{#each hybridTimeline.underdefinedGroups as group (group.key)}
+								<div class="tt-hybrid-group-band" style={groupBandStyle(group)}></div>
+								<div class="tt-hybrid-group-label" style={groupLabelStyle(group)}>{group.label}</div>
+							{/each}
+							{#each visibleUnderdefined as item (item.path)}
 								<button
 									type="button"
 									class="tt-overview-bar tt-hybrid-underdefined-item"
@@ -664,6 +726,33 @@
 		overflow: hidden;
 	}
 
+	.tt-hybrid-group-band {
+		position: absolute;
+		left: 0;
+		right: 0;
+		border-top: 1px dashed color-mix(in srgb, var(--background-modifier-border) 80%, transparent);
+		background: linear-gradient(180deg, color-mix(in srgb, var(--background-secondary) 35%, transparent), transparent 40%);
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	.tt-hybrid-group-label {
+		position: absolute;
+		left: 8px;
+		transform: translateY(-50%);
+		font-size: 0.62rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		font-weight: 700;
+		padding: 1px 5px;
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--background-primary) 88%, transparent);
+		color: var(--text-faint);
+		border: 1px solid color-mix(in srgb, var(--background-modifier-border) 75%, transparent);
+		pointer-events: none;
+		z-index: 1;
+	}
+
 	.tt-hybrid-underdefined-item {
 		border-style: dashed;
 		height: 28px;
@@ -776,6 +865,7 @@
 		text-overflow: ellipsis;
 		cursor: pointer;
 		transition: border-color 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
+		z-index: 3;
 	}
 
 	.tt-overview-bar:hover {

@@ -590,6 +590,8 @@ export interface HybridTimelineDefinedItem {
 	widthPercent: number;
 	row: number;
 	isInferred: boolean;
+	groupKey: string;
+	groupLabel: string;
 }
 
 export interface HybridTimelineUnderdefinedItem {
@@ -599,6 +601,16 @@ export interface HybridTimelineUnderdefinedItem {
 	leftPercent: number;
 	widthPercent: number;
 	row: number;
+	groupKey: string;
+	groupLabel: string;
+}
+
+export interface HybridTimelineGroupBand {
+	key: string;
+	label: string;
+	startRow: number;
+	endRow: number;
+	count: number;
 }
 
 export interface HybridTimelineLink {
@@ -617,19 +629,29 @@ export interface HybridTimelineModel {
 	defined: HybridTimelineDefinedItem[];
 	underdefined: HybridTimelineUnderdefinedItem[];
 	links: HybridTimelineLink[];
+	definedGroups: HybridTimelineGroupBand[];
+	underdefinedGroups: HybridTimelineGroupBand[];
 	definedRowCount: number;
 	underdefinedRowCount: number;
 }
 
-export function buildHybridTimeline(tasks: Task[]): HybridTimelineModel {
+export type HybridTimelineGrouping = 'none' | 'project' | 'dependency';
+
+export interface BuildHybridTimelineOptions {
+	grouping?: HybridTimelineGrouping;
+}
+
+export function buildHybridTimeline(tasks: Task[], options: BuildHybridTimelineOptions = {}): HybridTimelineModel {
 	const today = new Date();
 	today.setHours(0, 0, 0, 0);
 	const fallbackStart = inferAddDays(today, -7);
 	const fallbackEnd = inferAddDays(today, 21);
+	const grouping = options.grouping ?? 'none';
 
 	const visibleTasks = tasks.filter((task) => task.type === 'task');
 	const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
 	const resolved = resolveTaskDates(visibleTasks);
+	const resolveGroup = createTimelineGroupingResolver(grouping, visibleTasks);
 
 	const resolvedEntries = [...resolved.entries()]
 		.map(([path, dates]) => ({ path, task: taskByPath.get(path), dates }))
@@ -647,21 +669,32 @@ export function buildHybridTimeline(tasks: Task[]): HybridTimelineModel {
 	const rangeEnd = ends.length > 0 ? new Date(Math.max(...ends)) : fallbackEnd;
 	const spanDays = Math.max(1, Math.round((rangeEnd.getTime() - rangeStart.getTime()) / INFER_DAY_MS) + 1);
 
-	const definedRowEnds: number[] = [];
+	const definedRowEndsByGroup = new Map<string, number[]>();
+	const definedGroupOrder: string[] = [];
+	const definedGroupLabels = new Map<string, string>();
 	const defined: HybridTimelineDefinedItem[] = [];
 	const definedByPath = new Map<string, HybridTimelineDefinedItem>();
 
 	for (const entry of resolvedEntries) {
+		const group = resolveGroup(entry.task);
+		if (!definedRowEndsByGroup.has(group.key)) {
+			definedRowEndsByGroup.set(group.key, []);
+			definedGroupOrder.push(group.key);
+			definedGroupLabels.set(group.key, group.label);
+		}
+		const groupRows = definedRowEndsByGroup.get(group.key) ?? [];
+
 		const leftDays = Math.max(0, Math.round((entry.dates.start.getTime() - rangeStart.getTime()) / INFER_DAY_MS));
 		const durationDays = Math.max(1, Math.round((entry.dates.end.getTime() - entry.dates.start.getTime()) / INFER_DAY_MS) + 1);
 		const leftPercent = (leftDays / spanDays) * 100;
 		const widthPercent = Math.max(2.4, (durationDays / spanDays) * 100);
 
-		let row = 0;
-		while (row < definedRowEnds.length && leftDays <= definedRowEnds[row]) {
-			row += 1;
+		let localRow = 0;
+		while (localRow < groupRows.length && leftDays <= groupRows[localRow]) {
+			localRow += 1;
 		}
-		definedRowEnds[row] = leftDays + durationDays;
+		groupRows[localRow] = leftDays + durationDays;
+		definedRowEndsByGroup.set(group.key, groupRows);
 
 		const item: HybridTimelineDefinedItem = {
 			path: entry.path,
@@ -670,14 +703,24 @@ export function buildHybridTimeline(tasks: Task[]): HybridTimelineModel {
 			end: entry.dates.end,
 			leftPercent,
 			widthPercent,
-			row,
+			row: localRow,
 			isInferred: entry.dates.isInferred,
+			groupKey: group.key,
+			groupLabel: group.label,
 		};
 		defined.push(item);
 		definedByPath.set(entry.path, item);
 	}
 
-	const underRowEnds: number[] = [];
+	const definedGroupBands = buildGroupBands(definedGroupOrder, definedGroupLabels, definedRowEndsByGroup);
+	for (const item of defined) {
+		const band = definedGroupBands.find((candidate) => candidate.key === item.groupKey);
+		item.row = (band?.startRow ?? 0) + item.row;
+	}
+
+	const underRowEndsByGroup = new Map<string, number[]>();
+	const underGroupOrder: string[] = [];
+	const underGroupLabels = new Map<string, string>();
 	const underdefined: HybridTimelineUnderdefinedItem[] = [];
 	const links: HybridTimelineLink[] = [];
 
@@ -710,11 +753,20 @@ export function buildHybridTimeline(tasks: Task[]): HybridTimelineModel {
 		const leftPercent = Math.min(98, (leftDays / spanDays) * 100);
 		const widthPercent = resolveUnderdefinedWidthPercent(task);
 
-		let row = 0;
-		while (row < underRowEnds.length && leftPercent <= underRowEnds[row]) {
-			row += 1;
+		const group = resolveGroup(task);
+		if (!underRowEndsByGroup.has(group.key)) {
+			underRowEndsByGroup.set(group.key, []);
+			underGroupOrder.push(group.key);
+			underGroupLabels.set(group.key, group.label);
 		}
-		underRowEnds[row] = leftPercent + widthPercent + 1.25;
+		const groupRows = underRowEndsByGroup.get(group.key) ?? [];
+
+		let localRow = 0;
+		while (localRow < groupRows.length && leftPercent <= groupRows[localRow]) {
+			localRow += 1;
+		}
+		groupRows[localRow] = leftPercent + widthPercent + 1.25;
+		underRowEndsByGroup.set(group.key, groupRows);
 
 		const item: HybridTimelineUnderdefinedItem = {
 			path: task.path,
@@ -722,25 +774,35 @@ export function buildHybridTimeline(tasks: Task[]): HybridTimelineModel {
 			anchorPath,
 			leftPercent,
 			widthPercent,
-			row,
+			row: localRow,
+			groupKey: group.key,
+			groupLabel: group.label,
 		};
 		underdefined.push(item);
+	}
 
-		const anchorResolved = definedByPath.get(anchorPath);
+	const underGroupBands = buildGroupBands(underGroupOrder, underGroupLabels, underRowEndsByGroup);
+	for (const item of underdefined) {
+		const band = underGroupBands.find((candidate) => candidate.key === item.groupKey);
+		item.row = (band?.startRow ?? 0) + item.row;
+
+		const anchorResolved = definedByPath.get(item.anchorPath);
 		if (anchorResolved) {
 			links.push({
-				id: `${anchorPath}->${task.path}`,
-				fromPath: anchorPath,
-				toPath: task.path,
+				id: `${item.anchorPath}->${item.path}`,
+				fromPath: item.anchorPath,
+				toPath: item.path,
 				fromPercent: Math.min(99, anchorResolved.leftPercent + anchorResolved.widthPercent),
-				toPercent: leftPercent,
+				toPercent: item.leftPercent,
 				fromRow: anchorResolved.row,
-				toRow: row,
+				toRow: item.row,
 			});
 		}
 	}
 
 	underdefined.sort((left, right) => left.leftPercent - right.leftPercent || left.task.name.localeCompare(right.task.name));
+	const definedRowCount = Math.max(1, definedGroupBands.length > 0 ? definedGroupBands[definedGroupBands.length - 1].endRow + 1 : 0);
+	const underdefinedRowCount = Math.max(1, underGroupBands.length > 0 ? underGroupBands[underGroupBands.length - 1].endRow + 1 : 0);
 
 	return {
 		rangeStart,
@@ -748,8 +810,10 @@ export function buildHybridTimeline(tasks: Task[]): HybridTimelineModel {
 		defined,
 		underdefined,
 		links,
-		definedRowCount: Math.max(1, definedRowEnds.length),
-		underdefinedRowCount: Math.max(1, underRowEnds.length),
+		definedGroups: definedGroupBands,
+		underdefinedGroups: underGroupBands,
+		definedRowCount,
+		underdefinedRowCount,
 	};
 }
 
@@ -759,6 +823,105 @@ function resolveUnderdefinedWidthPercent(task: Task): number {
 	const titleLength = task.name.trim().length;
 	const width = 9 + Math.min(44, titleLength) * 0.23;
 	return Math.min(20, Math.max(10, width));
+}
+
+function createTimelineGroupingResolver(
+	mode: HybridTimelineGrouping,
+	visibleTasks: Task[],
+): (task: Task) => { key: string; label: string } {
+	if (mode === 'none') {
+		return () => ({ key: '__all__', label: 'All tasks' });
+	}
+
+	if (mode === 'project') {
+		const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
+		return (task) => {
+			const parent = normalizeTaskPath(task.parent_task ?? null);
+			if (!parent) return { key: '__no_project__', label: 'No project' };
+			const project = taskByPath.get(parent);
+			return {
+				key: `project:${parent}`,
+				label: project?.name ?? pathLeaf(parent),
+			};
+		};
+	}
+
+	const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
+	const neighbors = new Map<string, Set<string>>();
+	for (const task of visibleTasks) {
+		neighbors.set(task.path, new Set<string>());
+	}
+	for (const task of visibleTasks) {
+		const deps = dedupePaths(
+			(task.depends_on ?? [])
+				.map((path) => normalizeTaskPath(path))
+				.filter((path): path is string => !!path && taskByPath.has(path) && path !== task.path)
+		);
+		for (const dep of deps) {
+			neighbors.get(task.path)?.add(dep);
+			neighbors.get(dep)?.add(task.path);
+		}
+	}
+
+	const componentByPath = new Map<string, string>();
+	const labelByComponent = new Map<string, string>();
+	let componentIndex = 0;
+	for (const task of visibleTasks) {
+		if (componentByPath.has(task.path)) continue;
+		const stack = [task.path];
+		const componentTasks: Task[] = [];
+		while (stack.length > 0) {
+			const current = stack.pop();
+			if (!current || componentByPath.has(current)) continue;
+			componentByPath.set(current, `dependency:${componentIndex}`);
+			const currentTask = taskByPath.get(current);
+			if (currentTask) componentTasks.push(currentTask);
+			for (const next of neighbors.get(current) ?? []) {
+				if (!componentByPath.has(next)) stack.push(next);
+			}
+		}
+		componentTasks.sort((left, right) => left.name.localeCompare(right.name) || left.path.localeCompare(right.path));
+		labelByComponent.set(`dependency:${componentIndex}`, componentTasks[0]?.name ?? `Chain ${componentIndex + 1}`);
+		componentIndex += 1;
+	}
+
+	return (task) => {
+		const key = componentByPath.get(task.path) ?? 'dependency:unassigned';
+		return {
+			key,
+			label: labelByComponent.get(key) ?? task.name,
+		};
+	};
+}
+
+function buildGroupBands(
+	order: string[],
+	labels: Map<string, string>,
+	rowsByGroup: Map<string, number[]>,
+): HybridTimelineGroupBand[] {
+	const bands: HybridTimelineGroupBand[] = [];
+	let cursor = 0;
+	for (const key of order) {
+		const rows = rowsByGroup.get(key) ?? [];
+		const rowCount = Math.max(1, rows.length);
+		bands.push({
+			key,
+			label: labels.get(key) ?? key,
+			startRow: cursor,
+			endRow: cursor + rowCount - 1,
+			count: rowCount,
+		});
+		cursor += rowCount + 1;
+	}
+	if (bands.length > 0) {
+		bands[bands.length - 1].endRow = Math.max(bands[bands.length - 1].startRow, bands[bands.length - 1].endRow);
+	}
+	return bands;
+}
+
+function pathLeaf(path: string): string {
+	const leaf = path.split('/').pop() ?? path;
+	return leaf.replace(/\.md$/, '').replace(/^[a-f0-9]+-/, '');
 }
 
 export function resolveConnectedDependencyPaths(tasks: Task[]): Set<string> {
