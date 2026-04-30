@@ -697,10 +697,11 @@ export class TaskStore {
 			const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
 			if (!fm) continue;
 			const name: string = fm.name ?? file.basename;
-			const deps = parseWikiLinks(fm.depends_on);
+			const deps = this.resolveWikiLinkPaths(fm.depends_on, file.path);
 			for (const dep of deps) {
-				if (!reverseMap.has(dep)) reverseMap.set(dep, []);
-				reverseMap.get(dep)!.push({ path: file.path.replace(/\.md$/, ''), name });
+				const depClean = dep.replace(/\.md$/, '');
+				if (!reverseMap.has(depClean)) reverseMap.set(depClean, []);
+				reverseMap.get(depClean)!.push({ path: file.path.replace(/\.md$/, ''), name });
 			}
 		}
 
@@ -1128,9 +1129,9 @@ export class TaskStore {
 			status:         normalizedStatus,
 			priority:       (fm.priority as TaskPriority) ?? 'None',
 			labels,
-			parent_task:    parseWikiLink(fm.parent_task),
-			depends_on:     parseWikiLinks(fm.depends_on),
-			blocks:         parseWikiLinks(fm.blocks),
+			parent_task:    this.resolveWikiLinkPath(fm.parent_task, file.path),
+			depends_on:     this.resolveWikiLinkPaths(fm.depends_on, file.path),
+			blocks:         this.resolveWikiLinkPaths(fm.blocks, file.path),
 			blocked_reason: fm.blocked_reason ?? '',
 			assigned_to:    fm.assigned_to    ?? '',
 			source:         fm.source         ?? '',
@@ -1158,6 +1159,20 @@ export class TaskStore {
 		const fmEnd = content.indexOf('\n---', 3);
 		if (fmEnd < 0) return '';
 		return content.substring(fmEnd + 4).trim();
+	}
+
+	private resolveWikiLinkPath(raw: unknown, sourcePath: string): string | null {
+		const linkpath = parseWikiLink(raw);
+		if (!linkpath) return null;
+		const resolved = this.app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath);
+		return resolved ? resolved.path : ensureMdExt(linkpath);
+	}
+
+	private resolveWikiLinkPaths(raw: unknown, sourcePath: string): string[] {
+		if (!Array.isArray(raw)) return [];
+		return (raw as unknown[])
+			.map(v => this.resolveWikiLinkPath(v, sourcePath))
+			.filter((v): v is string => v !== null);
 	}
 
 	private buildAliasedTaskLink(pathWithoutExt: string, alias: string, sourcePath: string): string {
