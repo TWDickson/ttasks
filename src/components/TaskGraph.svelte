@@ -19,14 +19,19 @@
 	type GraphMode = 'dependency' | 'overview';
 	export let defaultGraphMode: GraphMode = 'dependency';
 	const DAY_MS = 24 * 60 * 60 * 1000;
+	const OVERVIEW_PIXELS_PER_DAY = 54;
 	const HYBRID_ROW_HEIGHT = 34;
 	const HYBRID_ROW_GAP = 8;
 	const HYBRID_TRACK_PADDING = 8;
 	let graphMode: GraphMode = defaultGraphMode;
 	let appliedGraphMode: GraphMode = defaultGraphMode;
+	let lastGraphMode: GraphMode = defaultGraphMode;
 	let showIndependentInDependency = false;
 	let dependencyScrollEl: HTMLDivElement | null = null;
 	let dependencyViewportWidth = 0;
+	let overviewScrollEl: HTMLDivElement | null = null;
+	let overviewViewportWidth = 0;
+	let shouldAutoFocusOverview = defaultGraphMode === 'overview';
 
 	$: if (defaultGraphMode !== appliedGraphMode) {
 		graphMode = defaultGraphMode;
@@ -87,6 +92,7 @@
 	onMount(() => {
 		const updateViewport = () => {
 			dependencyViewportWidth = dependencyScrollEl?.clientWidth ?? 0;
+			overviewViewportWidth = overviewScrollEl?.clientWidth ?? 0;
 		};
 
 		updateViewport();
@@ -95,6 +101,7 @@
 		if (dependencyScrollEl && typeof ResizeObserver !== 'undefined') {
 			observer = new ResizeObserver(() => updateViewport());
 			observer.observe(dependencyScrollEl);
+			if (overviewScrollEl) observer.observe(overviewScrollEl);
 		}
 
 		window.addEventListener('resize', updateViewport);
@@ -107,12 +114,25 @@
 	$: hybridTimeline = buildHybridTimeline(tasks);
 	$: timelineTaskCount = hybridTimeline.defined.length + hybridTimeline.underdefined.length;
 	$: timelineEmpty = timelineTaskCount === 0;
+	$: overviewSpanDays = Math.max(1, diffDays(hybridTimeline.rangeStart, hybridTimeline.rangeEnd) + 1);
+	$: overviewCanvasWidth = Math.max(overviewViewportWidth, Math.round(overviewSpanDays * OVERVIEW_PIXELS_PER_DAY));
+	$: todayPercent = percentAtDate(startOfToday(), hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
 	$: timelineTicks = buildTimelineTicks(hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
 	$: definedTrackHeightPx = Math.max(42, hybridTimeline.definedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.definedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
 	$: underdefinedTrackHeightPx = Math.max(42, hybridTimeline.underdefinedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.underdefinedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
 	$: linkCanvasHeightPx = definedTrackHeightPx + underdefinedTrackHeightPx + 78;
 	$: definedStatusSummary = summarizeByStatus(hybridTimeline.defined.map((item) => item.task));
 	$: underdefinedStatusSummary = summarizeByStatus(hybridTimeline.underdefined.map((item) => item.task));
+
+	$: if (graphMode !== lastGraphMode) {
+		shouldAutoFocusOverview = graphMode === 'overview';
+		lastGraphMode = graphMode;
+	}
+
+	$: if (graphMode === 'overview' && shouldAutoFocusOverview && overviewScrollEl && overviewCanvasWidth > 0) {
+		requestAnimationFrame(() => focusOverviewAroundToday());
+		shouldAutoFocusOverview = false;
+	}
 
 	function edgePath(edge: TaskGraphEdge): string {
 		const from = nodesByPath.get(edge.from);
@@ -177,6 +197,21 @@
 		return date.toISOString().slice(0, 10);
 	}
 
+	function percentAtDate(date: Date, rangeStart: Date, rangeEnd: Date): number {
+		const spanDays = Math.max(1, diffDays(rangeStart, rangeEnd) + 1);
+		const offsetDays = diffDays(rangeStart, date);
+		return Math.max(0, Math.min(100, (offsetDays / spanDays) * 100));
+	}
+
+	function focusOverviewAroundToday(): void {
+		if (!overviewScrollEl) return;
+		const viewportWidth = overviewScrollEl.clientWidth;
+		if (viewportWidth <= 0) return;
+		const todayX = (todayPercent / 100) * overviewCanvasWidth;
+		const target = Math.max(0, Math.min(overviewCanvasWidth - viewportWidth, todayX - viewportWidth * 0.25));
+		overviewScrollEl.scrollLeft = target;
+	}
+
 	function definedBarStyle(item: { leftPercent: number; widthPercent: number; row: number; task: Task }): string {
 		const accent = statusColors?.[item.task.status] ?? 'var(--interactive-accent)';
 		const rowTop = HYBRID_TRACK_PADDING + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
@@ -222,15 +257,21 @@
 
 	function buildTimelineTicks(start: Date, end: Date): Array<{ date: Date; label: string; leftPercent: number }> {
 		const span = Math.max(1, diffDays(start, end) + 1);
-		const steps = 5;
+		const stepDays = span > 180 ? 30 : span > 90 ? 14 : 7;
 		const ticks: Array<{ date: Date; label: string; leftPercent: number }> = [];
-		for (let i = 0; i <= steps; i++) {
-			const offset = Math.round(((span - 1) * i) / steps);
+		for (let offset = 0; offset <= span - 1; offset += stepDays) {
 			const tickDate = addDays(start, offset);
 			ticks.push({
 				date: tickDate,
 				label: formatDate(tickDate),
 				leftPercent: (offset / span) * 100,
+			});
+		}
+		if (ticks.length === 0 || ticks[ticks.length - 1].leftPercent < 99.5) {
+			ticks.push({
+				date: end,
+				label: formatDate(end),
+				leftPercent: 100,
 			});
 		}
 		return ticks;
@@ -357,16 +398,18 @@
 		{#if timelineEmpty}
 			<div class="tt-graph-empty">No scheduled tasks. Add a start or due date, or chain tasks with dependencies and estimated durations to see them here.</div>
 		{:else}
-			<div class="tt-overview-scroll">
-				<div class="tt-overview-axis">
+			<div class="tt-overview-scroll" bind:this={overviewScrollEl}>
+				<div class="tt-overview-axis" style={`width:${overviewCanvasWidth}px;`}>
 					{#each timelineTicks as tick}
 						<div class="tt-overview-tick" style={`left:${tick.leftPercent.toFixed(3)}%;`}>
 							<span>{tick.label}</span>
 						</div>
 					{/each}
+					<div class="tt-overview-today" style={`left:${todayPercent.toFixed(3)}%;`}><span>Today</span></div>
 				</div>
 
-				<div class="tt-hybrid-shell" style={`--tt-link-canvas-height:${linkCanvasHeightPx}px;`}>
+				<div class="tt-hybrid-shell" style={`width:${overviewCanvasWidth}px;--tt-link-canvas-height:${linkCanvasHeightPx}px;`}>
+					<div class="tt-hybrid-today-line" style={`left:${todayPercent.toFixed(3)}%;`}></div>
 					<svg class="tt-hybrid-links" viewBox={`0 0 100 ${linkCanvasHeightPx}`} preserveAspectRatio="none" aria-hidden="true">
 						<defs>
 							<marker id="ttasks-hybrid-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
@@ -403,7 +446,7 @@
 									on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
 									on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
 								>
-									<span>{item.task.name}</span>
+									<span class="tt-overview-title">{item.task.name}</span>
 								</button>
 							{/each}
 						</div>
@@ -425,6 +468,7 @@
 								<button
 									type="button"
 									class="tt-overview-bar tt-hybrid-underdefined-item"
+									class:is-done={item.task.is_complete}
 									class:is-active={$activeTaskPath === item.path}
 									style={underdefinedCardStyle(item)}
 									title={`${item.task.name} | follows ${item.anchorPath.replace(/\.md$/, '')}`}
@@ -631,6 +675,11 @@
 
 	.tt-hybrid-underdefined-name {
 		line-height: 1.05;
+		display: block;
+		width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.tt-hybrid-underdefined-anchor {
@@ -643,9 +692,40 @@
 	.tt-overview-axis {
 		position: sticky;
 		top: 0;
+		min-width: 100%;
 		height: 26px;
 		background: linear-gradient(180deg, var(--background-primary), color-mix(in srgb, var(--background-primary) 82%, transparent));
 		border-bottom: 1px solid var(--background-modifier-border);
+		z-index: 2;
+	}
+
+	.tt-overview-today {
+		position: absolute;
+		top: 0;
+		bottom: -10px;
+		border-left: 2px dashed color-mix(in srgb, var(--color-red) 80%, var(--interactive-accent));
+		transform: translateX(-50%);
+		pointer-events: none;
+	}
+
+	.tt-overview-today > span {
+		position: absolute;
+		top: -1px;
+		left: 8px;
+		font-size: 0.66rem;
+		font-weight: 700;
+		color: color-mix(in srgb, var(--color-red) 80%, var(--text-normal));
+		white-space: nowrap;
+	}
+
+	.tt-hybrid-today-line {
+		position: absolute;
+		top: 34px;
+		bottom: 8px;
+		border-left: 2px dashed color-mix(in srgb, var(--color-red) 80%, var(--interactive-accent));
+		transform: translateX(-50%);
+		pointer-events: none;
+		opacity: 0.92;
 		z-index: 2;
 	}
 
@@ -695,10 +775,32 @@
 		white-space: nowrap;
 		text-overflow: ellipsis;
 		cursor: pointer;
+		transition: border-color 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
+	}
+
+	.tt-overview-bar:hover {
+		transform: none;
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 38%, transparent), 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	}
+
+	.tt-overview-title {
+		display: block;
+		width: 100%;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.tt-overview-bar.is-done {
-		opacity: 0.62;
+		opacity: 0.46;
+		filter: saturate(0.56) contrast(0.92);
+	}
+
+	.tt-overview-bar.is-done .tt-overview-title,
+	.tt-overview-bar.is-done .tt-hybrid-underdefined-name {
+		text-decoration: line-through;
+		text-decoration-color: color-mix(in srgb, var(--text-muted) 72%, transparent);
 	}
 
 	.tt-overview-bar.is-inferred {
