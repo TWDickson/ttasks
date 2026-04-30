@@ -12,7 +12,7 @@ class FakeElement {
 	rows = 0;
 	innerHTML = '';
 	classNames = new Set<string>();
-	listeners = new Map<string, Array<() => void>>();
+	listeners = new Map<string, Array<() => void | Promise<void>>>();
 
 	constructor(tag: string, cls?: string) {
 		this.tag = tag;
@@ -34,15 +34,19 @@ class FakeElement {
 		return this.createEl('div', { cls: options?.cls });
 	}
 
-	addEventListener(type: string, handler: () => void): void {
+	createSpan(options?: { text?: string; cls?: string }): FakeElement {
+		return this.createEl('span', { text: options?.text, cls: options?.cls });
+	}
+
+	addEventListener(type: string, handler: () => void | Promise<void>): void {
 		const existing = this.listeners.get(type) ?? [];
 		existing.push(handler);
 		this.listeners.set(type, existing);
 	}
 
-	trigger(type: string): void {
+	async trigger(type: string): Promise<void> {
 		for (const handler of this.listeners.get(type) ?? []) {
-			handler();
+			await handler();
 		}
 	}
 
@@ -137,7 +141,7 @@ describe('QueryEditorModal JSON tab', () => {
 			sort: [],
 			group: { kind: 'none' },
 		});
-		formatButton!.trigger('click');
+		void formatButton!.trigger('click');
 
 		expect(textarea!.hasClass('is-invalid')).toBe(true);
 		expect(container.allText()).toContain('This operator does not work with the selected field.');
@@ -161,10 +165,64 @@ describe('QueryEditorModal JSON tab', () => {
 			group: { kind: 'field', field: 'status' },
 		}, null, 2);
 
-		repairButton!.trigger('click');
+		void repairButton!.trigger('click');
 
 		const repaired = JSON.parse(textarea!.value) as QuerySpec;
 		expect(repaired.group).toEqual({ kind: 'date_buckets', field: 'due_date', preset: 'agenda' });
 		expect(textarea!.hasClass('is-invalid')).toBe(false);
+	});
+
+	it('coerces grouping when renderer changes in builder logic', () => {
+		const modal = createModal('list') as any;
+		modal.query = {
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			group: { kind: 'none' },
+		};
+
+		modal.applyRenderer('kanban', false);
+		expect(modal.query.group).toEqual({ kind: 'field', field: 'status' });
+
+		modal.query = {
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			group: { kind: 'field', field: 'status' },
+		};
+		modal.applyRenderer('agenda', false);
+		expect(modal.query.group).toEqual({ kind: 'date_buckets', field: 'due_date', preset: 'agenda' });
+	});
+
+	it('requires explicit confirmation before deleting and then calls onDelete', async () => {
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+		const modal = new QueryEditorModal(
+			new App(),
+			'Test View',
+			BASE_QUERY,
+			'list',
+			{ statuses: ['Active'], areas: ['Work'], labelValues: ['bug'] },
+			vi.fn(),
+			onDelete,
+		) as any;
+		const content = new FakeElement('div');
+		modal.contentEl = content;
+		modal.close = vi.fn();
+		modal.renderBuilder = () => {};
+
+		modal.render();
+		expect(content.findByText('Delete this Smart List?')).toBeNull();
+
+		const deleteBtn = content.findByText('Delete');
+		expect(deleteBtn).not.toBeNull();
+		await deleteBtn!.trigger('click');
+
+		expect(content.findByText('Delete this Smart List?')).not.toBeNull();
+		expect(onDelete).not.toHaveBeenCalled();
+
+		const confirmBtn = content.findByText('Yes, delete');
+		expect(confirmBtn).not.toBeNull();
+		await confirmBtn!.trigger('click');
+
+		expect(onDelete).toHaveBeenCalledTimes(1);
+		expect(modal.close).toHaveBeenCalledTimes(1);
 	});
 });

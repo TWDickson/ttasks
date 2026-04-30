@@ -168,6 +168,12 @@ export class QueryEditorModal extends Modal {
 		this.renderLimitSection(container);
 	}
 
+	private applyRenderer(renderer: TaskViewRenderer, shouldRender = false) {
+		this.renderer = renderer;
+		this.query = coerceQueryForRenderer(this.renderer, this.query);
+		if (shouldRender) this.render();
+	}
+
 	private renderViewTypeSection(container: HTMLElement) {
 		const section = container.createDiv({ cls: 'tt-qe-section' });
 		section.createEl('h3', { text: 'View Type' });
@@ -193,9 +199,7 @@ export class QueryEditorModal extends Modal {
 				dropdown.addOption('graph', 'Graph');
 				dropdown.setValue(this.renderer);
 				dropdown.onChange((value) => {
-					this.renderer = value as TaskViewRenderer;
-					this.query = coerceQueryForRenderer(this.renderer, this.query);
-					this.render();
+					this.applyRenderer(value as TaskViewRenderer, true);
 				});
 			});
 	}
