@@ -11,6 +11,7 @@
 	import TaskDetail from './TaskDetail.svelte';
 	import { createTaskQuery } from '../query/useTaskQuery';
 	import { applyBuiltinCompletedVisibility, canToggleBuiltinCompleted } from './builtinViewCompletionToggle';
+	import { canToggleLogbookRenderer, resolveViewRenderer, toggleLogbookRendererMode } from './logbookViewMode';
 	import type { FilterCondition } from '../query/types';
 	import {
 		coerceQueryForRenderer,
@@ -54,6 +55,7 @@
 	let filterPriority = '';
 	let filterArea     = '';
 	let showCompletedByViewId: Record<string, boolean> = {};
+	let logbookRendererModeByViewId: Record<string, 'list' | 'kanban'> = {};
 
 	$: areas = [...new Set(
 		$tasks.map(t => t.area).filter((a): a is string => !!a)
@@ -62,14 +64,15 @@
 	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterArea;
 	$: canToggleCompletedForCurrentView = canToggleBuiltinCompleted(currentView);
 	$: showCompleted = showCompletedByViewId[currentView.id] ?? false;
+	$: currentRenderer = resolveViewRenderer(currentView.id, currentView.renderer, logbookRendererModeByViewId);
 
-	function effectiveQuery(view: typeof currentView) {
-		const query = coerceQueryForRenderer(view.renderer, view.query);
+	function effectiveQuery(view: typeof currentView, renderer: typeof currentRenderer) {
+		const query = coerceQueryForRenderer(renderer, view.query);
 		return applyBuiltinCompletedVisibility(view, query, showCompletedByViewId[view.id] ?? false);
 	}
 
-	let currentBoardQuery = effectiveQuery(currentView);
-	$: currentBoardQuery = effectiveQuery(currentView);
+	let currentBoardQuery = effectiveQuery(currentView, currentRenderer);
+	$: currentBoardQuery = effectiveQuery(currentView, currentRenderer);
 
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
 		filter: currentBoardQuery.filter,
@@ -107,6 +110,10 @@
 			...showCompletedByViewId,
 			[viewId]: !(showCompletedByViewId[viewId] ?? false),
 		};
+	}
+
+	function toggleLogbookRenderer(viewId: string) {
+		logbookRendererModeByViewId = toggleLogbookRendererMode(viewId, logbookRendererModeByViewId);
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
@@ -335,6 +342,12 @@
 					</button>
 				{/if}
 
+				{#if canToggleLogbookRenderer(currentView.id)}
+					<button class="tt-filter-toggle-completed" on:click={() => toggleLogbookRenderer(currentView.id)}>
+						{currentRenderer === 'kanban' ? 'Archive List' : 'Archive Board'}
+					</button>
+				{/if}
+
 				{#if currentView.source === 'custom'}
 					<button
 						class="tt-filter-edit-view"
@@ -349,7 +362,7 @@
 
 			<!-- View content -->
 			<div class="tt-board-content">
-				{#if currentView.renderer === 'list'}
+				{#if currentRenderer === 'list'}
 					<TaskList
 						{plugin}
 						groups={groupedTasks}
@@ -362,7 +375,7 @@
 						onContextMenu={openContextMenu}
 						onNewTask={openNewTask}
 					/>
-				{:else if currentView.renderer === 'kanban'}
+				{:else if currentRenderer === 'kanban'}
 					<TaskKanban
 						{plugin}
 						groups={groupedTasks}
@@ -376,7 +389,7 @@
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
 						onContextMenu={openContextMenu}
 					/>
-				{:else if currentView.renderer === 'graph'}
+				{:else if currentRenderer === 'graph'}
 					<TaskGraph
 						{plugin}
 						groups={groupedTasks}
