@@ -356,6 +356,95 @@
 		...(openDependencies.length > 0 ? [`Blocked by ${openDependencies.length} unfinished dependency task(s).`] : []),
 	];
 
+	type RelationshipDirection = 'upstream' | 'downstream';
+
+	interface RelationshipTreeNode {
+		key: string;
+		path: string;
+		label: string;
+		depth: number;
+		direction: RelationshipDirection;
+		task: Task | null;
+		isMissing: boolean;
+		isBlocked: boolean;
+	}
+
+	interface RelationshipTreeLevel {
+		depth: number;
+		nodes: RelationshipTreeNode[];
+	}
+
+	const MAX_REL_TREE_DEPTH = 5;
+	const MAX_REL_TREE_NODES = 60;
+
+	function normalizeTaskPaths(paths: string[]): string[] {
+		const seen = new Set<string>();
+		const normalized: string[] = [];
+		for (const path of paths) {
+			const next = normalizeTaskPath(path);
+			if (!next || seen.has(next)) continue;
+			seen.add(next);
+			normalized.push(next);
+		}
+		return normalized;
+	}
+
+	function buildRelationshipTree(startPaths: string[], direction: RelationshipDirection): RelationshipTreeNode[] {
+		const queue = normalizeTaskPaths(startPaths).map((path) => ({ path, depth: 1 }));
+		const visited = new Set<string>();
+		const result: RelationshipTreeNode[] = [];
+
+		while (queue.length > 0 && result.length < MAX_REL_TREE_NODES) {
+			const current = queue.shift();
+			if (!current || visited.has(current.path)) continue;
+			visited.add(current.path);
+
+			const linked = linkedTask(current.path);
+			result.push({
+				key: `${direction}:${current.path}`,
+				path: current.path,
+				label: taskLabelFromPath(current.path),
+				depth: current.depth,
+				direction,
+				task: linked,
+				isMissing: !linked,
+				isBlocked: direction === 'upstream' && !!linked && !linked.is_complete,
+			});
+
+			if (!linked || current.depth >= MAX_REL_TREE_DEPTH) continue;
+
+			const nextPaths = normalizeTaskPaths(direction === 'upstream' ? linked.depends_on : linked.blocks)
+				.sort((a, b) => taskLabelFromPath(a).localeCompare(taskLabelFromPath(b)));
+			for (const nextPath of nextPaths) {
+				if (!visited.has(nextPath)) {
+					queue.push({ path: nextPath, depth: current.depth + 1 });
+				}
+			}
+		}
+
+		return result;
+	}
+
+	function groupTreeLevels(nodes: RelationshipTreeNode[], descending: boolean): RelationshipTreeLevel[] {
+		const grouped = new Map<number, RelationshipTreeNode[]>();
+		for (const node of nodes) {
+			const levelNodes = grouped.get(node.depth) ?? [];
+			levelNodes.push(node);
+			grouped.set(node.depth, levelNodes);
+		}
+
+		const depths = [...grouped.keys()].sort((a, b) => (descending ? b - a : a - b));
+		return depths.map((depth) => ({
+			depth,
+			nodes: (grouped.get(depth) ?? []).sort((a, b) => a.label.localeCompare(b.label) || a.path.localeCompare(b.path)),
+		}));
+	}
+
+	$: upstreamTree = task ? buildRelationshipTree(task.depends_on, 'upstream') : [];
+	$: downstreamTree = task ? buildRelationshipTree(task.blocks, 'downstream') : [];
+	$: upstreamTreeLevels = groupTreeLevels(upstreamTree, true);
+	$: downstreamTreeLevels = groupTreeLevels(downstreamTree, false);
+
 
 	function getSelectTintStyle(color: string | undefined): string {
 		return color
@@ -580,7 +669,57 @@
 						{/if}
 					</div>
 
-					<div class="tt-rel-lanes">
+					<div class="tt-rel-tree">
+						<div class="tt-rel-heading">Dependency Tree</div>
+						{#if upstreamTreeLevels.length === 0 && downstreamTreeLevels.length === 0}
+							<div class="tt-rel-empty">No linked tasks</div>
+						{:else}
+							<div class="tt-rel-tree-stack">
+								{#each upstreamTreeLevels as level}
+									<div class="tt-rel-tree-level" style={`--tt-tree-depth:${level.depth};`}>
+										<span class="tt-rel-tree-label">↑ Upstream</span>
+										<div class="tt-chips">
+											{#each level.nodes as node (node.key)}
+												<button
+													class="tt-chip tt-chip-rel tt-rel-tree-chip"
+													class:tt-chip-warning={node.isMissing}
+													class:tt-chip-blocking={node.isBlocked}
+													on:click={() => openLinkedPath(node.path)}
+													on:mouseenter={(event) => showLinkedHoverPreview(event, node.path)}
+												>
+													{node.label}
+												</button>
+											{/each}
+										</div>
+									</div>
+								{/each}
+
+								<div class="tt-rel-center tt-rel-center-selected">
+									<span class="tt-rel-center-tag">Selected</span>
+									<span class="tt-rel-center-name">{task.name}</span>
+								</div>
+
+								{#each downstreamTreeLevels as level}
+									<div class="tt-rel-tree-level" style={`--tt-tree-depth:${level.depth};`}>
+										<span class="tt-rel-tree-label">↓ Downstream</span>
+										<div class="tt-chips">
+											{#each level.nodes as node (node.key)}
+												<button
+													class="tt-chip tt-chip-rel tt-rel-tree-chip"
+													on:click={() => openLinkedPath(node.path)}
+													on:mouseenter={(event) => showLinkedHoverPreview(event, node.path)}
+												>
+													{node.label}
+												</button>
+											{/each}
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<div class="tt-rel-editors">
 						<div class="tt-rel-lane">
 							<div class="tt-rel-heading">Depends On</div>
 							{#if task.depends_on.length === 0}
@@ -605,11 +744,6 @@
 									{/each}
 								</select>
 							{/if}
-						</div>
-
-						<div class="tt-rel-center">
-							<span class="tt-rel-center-tag">Selected</span>
-							<span class="tt-rel-center-name">{task.name}</span>
 						</div>
 
 						<div class="tt-rel-lane">
@@ -938,9 +1072,52 @@
 		color: var(--color-red);
 	}
 
-	.tt-rel-lanes {
+	.tt-rel-tree {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.tt-rel-tree-stack {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.tt-rel-tree-level {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding-left: calc((var(--tt-tree-depth, 1) - 1) * 14px + 10px);
+	}
+
+	.tt-rel-tree-level::before {
+		content: '';
+		position: absolute;
+		left: calc((var(--tt-tree-depth, 1) - 1) * 14px + 2px);
+		top: 2px;
+		bottom: 2px;
+		width: 1px;
+		background: color-mix(in srgb, var(--interactive-accent) 30%, var(--background-modifier-border));
+	}
+
+	.tt-rel-tree-label {
+		font-size: 0.65rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		color: var(--text-faint);
+	}
+
+	.tt-rel-tree-chip {
+		justify-content: flex-start;
+		text-align: left;
+	}
+
+	.tt-rel-editors {
 		display: grid;
-		grid-template-columns: 1fr auto 1fr;
+		grid-template-columns: 1fr 1fr;
 		gap: 10px;
 		align-items: start;
 	}
@@ -976,6 +1153,11 @@
 		border-radius: var(--radius-m, 8px);
 		min-width: 120px;
 		background: var(--background-primary-alt, var(--background-secondary));
+	}
+
+	.tt-rel-center-selected {
+		border-style: solid;
+		border-color: color-mix(in srgb, var(--interactive-accent) 38%, var(--background-modifier-border));
 	}
 
 	.tt-rel-center-tag {
@@ -1125,7 +1307,7 @@
 	}
 
 	@media (max-width: 700px) {
-		.tt-rel-lanes {
+		.tt-rel-editors {
 			grid-template-columns: 1fr;
 		}
 
