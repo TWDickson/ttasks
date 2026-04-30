@@ -442,6 +442,41 @@ describe('applyGroup', () => {
 
 		expect(thisWeek?.tasks.map(task => task.name)).toEqual(['C', 'A', 'B']);
 	});
+
+	it('groups completed tasks by completion date buckets', () => {
+		vi.setSystemTime(new Date('2026-04-30T12:00:00'));
+		const tasks = [
+			makeTask({ path: 'Tasks/completed-today.md', is_complete: true, completed: '2026-04-30' }),
+			makeTask({ path: 'Tasks/completed-yesterday.md', is_complete: true, completed: '2026-04-29' }),
+			makeTask({ path: 'Tasks/completed-week.md', is_complete: true, completed: '2026-04-28' }),
+			makeTask({ path: 'Tasks/completed-earlier.md', is_complete: true, completed: '2026-04-10' }),
+			makeTask({ path: 'Tasks/no-completed.md', is_complete: true, completed: null }),
+		];
+
+		const groups = applyGroup(tasks, { kind: 'date_buckets', field: 'completed', preset: 'logbook' });
+
+		expect(groups.map(g => g.key)).toEqual([
+			'today',
+			'yesterday',
+			'this-week',
+			'earlier',
+			'no-date',
+		]);
+	});
+
+	it('sorts tasks within logbook buckets by completed_date desc then priority', () => {
+		vi.setSystemTime(new Date('2026-04-30T12:00:00'));
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', is_complete: true, completed: '2026-04-28', priority: 'Low', name: 'A' }),
+			makeTask({ path: 'Tasks/b.md', is_complete: true, completed: '2026-04-28', priority: 'High', name: 'B' }),
+			makeTask({ path: 'Tasks/c.md', is_complete: true, completed: '2026-04-28', priority: 'None', name: 'C' }),
+		];
+
+		const groups = applyGroup(tasks, { kind: 'date_buckets', field: 'completed', preset: 'logbook' });
+		const thisWeek = groups.find(group => group.key === 'this-week');
+
+		expect(thisWeek?.tasks.map(task => task.name)).toEqual(['B', 'A', 'C']);
+	});
 });
 
 // ── applyQuery ────────────────────────────────────────────────────────────────

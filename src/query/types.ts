@@ -60,8 +60,8 @@ export interface FieldGroupSpec {
 
 export interface DateBucketGroupSpec {
 	kind: 'date_buckets';
-	field: 'due_date';
-	preset: 'agenda';
+	field: 'due_date' | 'completed';
+	preset: 'agenda' | 'logbook';
 }
 
 export type GroupSpec = NoGroupSpec | FieldGroupSpec | DateBucketGroupSpec;

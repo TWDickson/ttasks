@@ -255,6 +255,48 @@ function applyAgendaDateBuckets(tasks: Task[]): TaskGroup[] {
 	return groups;
 }
 
+type LogbookBucketKey = 'today' | 'yesterday' | 'this-week' | 'earlier' | 'no-date';
+
+const LOGBOOK_BUCKET_ORDER: LogbookBucketKey[] = [
+	'today', 'yesterday', 'this-week', 'earlier', 'no-date',
+];
+
+function classifyLogbookBucket(completedDate: string | null): LogbookBucketKey {
+	if (!completedDate) return 'no-date';
+	const current = today();
+	if (completedDate === current) return 'today';
+	if (completedDate === addDaysLocal(current, -1)) return 'yesterday';
+	if (completedDate > addDaysLocal(current, -7)) return 'this-week';
+	return 'earlier';
+}
+
+function applyLogbookDateBuckets(tasks: Task[]): TaskGroup[] {
+	const map = new Map<LogbookBucketKey, Task[]>();
+	for (const key of LOGBOOK_BUCKET_ORDER) {
+		map.set(key, []);
+	}
+
+	for (const task of tasks) {
+		const key = classifyLogbookBucket(task.completed);
+		map.get(key)!.push(task);
+	}
+
+	const bucketSort: SortSpec = [
+		{ field: 'completed', direction: 'desc' },
+		{ field: 'priority', direction: 'asc' },
+	];
+
+	const groups: TaskGroup[] = [];
+	for (const key of LOGBOOK_BUCKET_ORDER) {
+		const bucketTasks = map.get(key) ?? [];
+		if (bucketTasks.length > 0) {
+			groups.push({ key, tasks: applySort(bucketTasks, bucketSort) });
+		}
+	}
+
+	return groups;
+}
+
 /**
  * Groups a task list according to the query grouping strategy.
  * Returns an array of TaskGroup objects in a stable, meaningful order.
@@ -266,6 +308,13 @@ export function applyGroup(tasks: Task[], group: GroupSpec): TaskGroup[] {
 
 	if (group.kind === 'field') {
 		return applyFieldGroup(tasks, group);
+	}
+
+	if (group.kind === 'date_buckets') {
+		if (group.preset === 'logbook') {
+			return applyLogbookDateBuckets(tasks);
+		}
+		return applyAgendaDateBuckets(tasks);
 	}
 
 	return applyAgendaDateBuckets(tasks);

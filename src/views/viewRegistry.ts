@@ -161,7 +161,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 			sort: [
 				{ field: 'completed', direction: 'desc' },
 			],
-			group: { kind: 'none' },
+			group: { kind: 'date_buckets', field: 'completed', preset: 'logbook' },
 		},
 		presentation: { hierarchy: 'flat', graphMode: 'dependency' },
 		source: 'builtin',
