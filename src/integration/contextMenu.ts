@@ -7,6 +7,7 @@ export interface TaskContextMenuDeps {
 	runQuickAction: (action: Exclude<QuickActionId, 'none'>, path: string) => Promise<boolean>;
 	convertToProject: (path: string) => Promise<void>;
 	duplicateTask: (path: string) => Promise<void>;
+	restoreTask: (path: string) => Promise<void>;
 	deleteTask: (path: string) => Promise<void>;
 }
 
@@ -50,6 +51,11 @@ export function addTaskContextMenuItems(
 	}
 
 	menu.addSeparator();
+	if (task.is_complete) {
+		addMenuItem(menu, 'Reopen', 'undo-2', () => {
+			void deps.restoreTask(task.path);
+		});
+	}
 	addMenuItem(menu, 'Duplicate', 'copy', () => {
 		void deps.duplicateTask(task.path);
 	});

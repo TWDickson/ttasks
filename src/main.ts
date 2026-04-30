@@ -217,6 +217,10 @@ export default class TTasksPlugin extends Plugin {
 				}
 			},
 			deleteTask: (path) => this.taskStore.delete(path, { prompt: true }),
+			restoreTask: async (path) => {
+				await this.taskStore.restore(path);
+				new Notice('TTasks: task reopened');
+			},
 		});
 		menu.showAtMouseEvent(event);
 	}
@@ -295,6 +299,10 @@ export default class TTasksPlugin extends Plugin {
 						this.activeTaskPath.set(created.path);
 						new Notice(`TTasks: duplicated as "${created.name}"`);
 					}
+				},
+				restoreTask: async (path) => {
+					await this.taskStore.restore(path);
+					new Notice('TTasks: task reopened');
 				},
 				deleteTask: (path) => this.taskStore.delete(path, { prompt: true }),
 			});

@@ -14,6 +14,7 @@ import { buildAliasedLink } from '../integration/relationshipLink';
 import { localDateString, addDaysLocal } from '../utils/dateUtils';
 import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
 import { parseWikiLink, parseWikiLinks, extractChecklistLink } from '../utils/wikiLink';
+import { buildRestoreInput } from './taskRestore';
 
 type MigratableField = 'status' | 'area' | 'label';
 
@@ -547,6 +548,18 @@ export class TaskStore {
 		const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
 		const input = buildDuplicateInput(task, today, firstStatus);
 		return this.create(input);
+	}
+
+	/**
+	 * Reopen a completed task, reverting it to Active status and clearing completion data.
+	 */
+	async restore(path: string): Promise<void> {
+		const all = get(this.tasks);
+		const task = all.find(t => t.path === normalizePath(path));
+		if (!task) return;
+
+		const restoreInput = buildRestoreInput(task);
+		await this.update(path, restoreInput);
 	}
 
 	/**

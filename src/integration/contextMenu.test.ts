@@ -58,6 +58,7 @@ describe('addTaskContextMenuItems', () => {
 			runQuickAction: vi.fn(async () => true),
 			convertToProject: vi.fn(async () => {}),
 			duplicateTask: vi.fn(async () => {}),
+			restoreTask: vi.fn(async () => {}),
 			deleteTask: vi.fn(async () => {}),
 		};
 
@@ -88,6 +89,7 @@ describe('addTaskContextMenuItems', () => {
 			runQuickAction: vi.fn(async () => true),
 			convertToProject: vi.fn(async () => {}),
 			duplicateTask: vi.fn(async () => {}),
+			restoreTask: vi.fn(async () => {}),
 			deleteTask: vi.fn(async () => {}),
 		};
 
@@ -104,6 +106,7 @@ describe('addTaskContextMenuItems', () => {
 			runQuickAction: vi.fn(async () => true),
 			convertToProject: vi.fn(async () => {}),
 			duplicateTask: vi.fn(async () => {}),
+			restoreTask: vi.fn(async () => {}),
 			deleteTask: vi.fn(async () => {}),
 		};
 
