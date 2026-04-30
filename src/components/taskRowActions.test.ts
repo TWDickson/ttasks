@@ -36,11 +36,16 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 }
 
 describe('canShowInlineReopen', () => {
-	it('returns true for completed tasks', () => {
-		expect(canShowInlineReopen(makeTask({ is_complete: true, completed: '2026-04-30' }))).toBe(true);
+	it('returns true only for completed tasks in logbook view', () => {
+		expect(canShowInlineReopen('logbook', makeTask({ is_complete: true, completed: '2026-04-30' }))).toBe(true);
+	});
+
+	it('returns false for completed tasks outside logbook view', () => {
+		expect(canShowInlineReopen('list', makeTask({ is_complete: true, completed: '2026-04-30' }))).toBe(false);
+		expect(canShowInlineReopen('kanban', makeTask({ is_complete: true, completed: '2026-04-30' }))).toBe(false);
 	});
 
 	it('returns false for active/incomplete tasks', () => {
-		expect(canShowInlineReopen(makeTask({ is_complete: false, completed: null }))).toBe(false);
+		expect(canShowInlineReopen('logbook', makeTask({ is_complete: false, completed: null }))).toBe(false);
 	});
 });

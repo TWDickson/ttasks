@@ -6,6 +6,7 @@
 	import type { TaskGroup } from '../query/types';
 	import { buildListRows, buildListSections, type ListHierarchyMode } from './viewAdapters';
 	export let plugin: TTasksPlugin;
+	export let viewId = '';
 	export let groups: Readable<TaskGroup[]>;
 	export let statuses: string[];
 	export let hierarchy: ListHierarchyMode = 'tree';
@@ -53,6 +54,7 @@
 						{#each rows as row (row.task.path)}
 							<TaskRow
 								{plugin}
+								{viewId}
 								task={row.task}
 								active={$activeTaskPath === row.task.path}
 								{areaColors}

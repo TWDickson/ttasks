@@ -10,11 +10,11 @@
 	import TaskGraph from './TaskGraph.svelte';
 	import TaskDetail from './TaskDetail.svelte';
 	import { createTaskQuery } from '../query/useTaskQuery';
-	import { applyBuiltinCompletedVisibility, canToggleBuiltinCompleted } from './builtinViewCompletionToggle';
+	import { canToggleBuiltinCompleted } from './builtinViewCompletionToggle';
 	import { canToggleLogbookRenderer, resolveViewRenderer, toggleLogbookRendererMode } from './logbookViewMode';
+	import { buildBoardQuery } from './boardQuery';
 	import type { FilterCondition } from '../query/types';
 	import {
-		coerceQueryForRenderer,
 		createCustomViewDefinition,
 		getRegisteredTaskViews,
 		resolveTaskViewDefinition,
@@ -66,13 +66,16 @@
 	$: showCompleted = showCompletedByViewId[currentView.id] ?? false;
 	$: currentRenderer = resolveViewRenderer(currentView.id, currentView.renderer, logbookRendererModeByViewId);
 
-	function effectiveQuery(view: typeof currentView, renderer: typeof currentRenderer) {
-		const query = coerceQueryForRenderer(renderer, view.query);
-		return applyBuiltinCompletedVisibility(view, query, showCompletedByViewId[view.id] ?? false);
+	function effectiveQuery(
+		view: typeof currentView,
+		renderer: typeof currentRenderer,
+		showCompletedForView: boolean,
+	) {
+		return buildBoardQuery(view, renderer, showCompletedForView);
 	}
 
-	let currentBoardQuery = effectiveQuery(currentView, currentRenderer);
-	$: currentBoardQuery = effectiveQuery(currentView, currentRenderer);
+	let currentBoardQuery = effectiveQuery(currentView, currentRenderer, showCompleted);
+	$: currentBoardQuery = effectiveQuery(currentView, currentRenderer, showCompleted);
 
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
 		filter: currentBoardQuery.filter,
@@ -365,6 +368,7 @@
 				{#if currentRenderer === 'list'}
 					<TaskList
 						{plugin}
+						viewId={currentView.id}
 						groups={groupedTasks}
 						statuses={configuredStatuses}
 						hierarchy={currentView.presentation.hierarchy}
@@ -372,7 +376,7 @@
 						labelColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
-						onRestore={(path) => plugin.taskStore.restore(path)}
+						onRestore={currentView.id === 'logbook' ? ((path) => plugin.taskStore.restore(path)) : undefined}
 						onContextMenu={openContextMenu}
 						onNewTask={openNewTask}
 					/>

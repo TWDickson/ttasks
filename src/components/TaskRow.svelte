@@ -9,6 +9,7 @@
 
 	export let plugin: TTasksPlugin;
 	export let task: Task;
+	export let viewId = '';
 	export let active = false;
 	export let areaColors: Record<string, string>;
 	export let labelColors: Record<string, string>;
@@ -76,7 +77,7 @@
 		await onRestore(task.path);
 	}
 
-	$: showInlineReopen = canShowInlineReopen(task) && !!onRestore;
+	$: showInlineReopen = canShowInlineReopen(viewId, task) && !!onRestore;
 </script>
 
 <li
