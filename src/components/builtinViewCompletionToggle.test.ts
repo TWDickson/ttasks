@@ -9,9 +9,9 @@ const BASE_QUERY: QuerySpec = {
 };
 
 describe('canToggleBuiltinCompleted', () => {
-	it('allows builtin views except logbook', () => {
+	it('allows builtin views except logbook and kanban', () => {
 		expect(canToggleBuiltinCompleted({ id: 'list', source: 'builtin' })).toBe(true);
-		expect(canToggleBuiltinCompleted({ id: 'kanban', source: 'builtin' })).toBe(true);
+		expect(canToggleBuiltinCompleted({ id: 'kanban', source: 'builtin' })).toBe(false);
 		expect(canToggleBuiltinCompleted({ id: 'logbook', source: 'builtin' })).toBe(false);
 		expect(canToggleBuiltinCompleted({ id: 'custom-focus', source: 'custom' })).toBe(false);
 	});
@@ -51,7 +51,7 @@ describe('applyBuiltinCompletedVisibility', () => {
 		]);
 	});
 
-	it('leaves custom and logbook views unchanged', () => {
+	it('leaves custom, logbook, and kanban views unchanged', () => {
 		const customQuery = applyBuiltinCompletedVisibility(
 			{ id: 'custom-focus', source: 'custom' },
 			BASE_QUERY,
@@ -65,10 +65,16 @@ describe('applyBuiltinCompletedVisibility', () => {
 			},
 			false,
 		);
+		const kanbanQuery = applyBuiltinCompletedVisibility(
+			{ id: 'kanban', source: 'builtin' },
+			BASE_QUERY,
+			false,
+		);
 
 		expect(customQuery).toEqual(BASE_QUERY);
 		expect(logbookQuery.filter.conditions).toEqual([
 			{ field: 'is_complete', operator: 'is', value: true },
 		]);
+		expect(kanbanQuery).toEqual(BASE_QUERY);
 	});
 });

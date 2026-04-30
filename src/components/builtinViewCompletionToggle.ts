@@ -8,7 +8,7 @@ const INCOMPLETE_ONLY_CONDITION: FilterCondition = {
 };
 
 export function canToggleBuiltinCompleted(view: Pick<RegisteredTaskViewDefinition, 'id' | 'source'>): boolean {
-	return view.source === 'builtin' && view.id !== 'logbook';
+	return view.source === 'builtin' && view.id !== 'logbook' && view.id !== 'kanban';
 }
 
 export function applyBuiltinCompletedVisibility(
