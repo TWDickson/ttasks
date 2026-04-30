@@ -131,3 +131,138 @@ describe('renderer query coercion', () => {
 		expect(isGroupCompatibleWithRenderer('kanban', { kind: 'field', field: 'area' })).toBe(false);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Smart List lifecycle integration
+// These tests mirror the add / edit / delete flows in TaskBoard.svelte, using
+// plain settings mutations and registry helpers (no Svelte rendering needed).
+// ---------------------------------------------------------------------------
+describe('Smart List lifecycle', () => {
+	function baseSettings() {
+		return { ...DEFAULT_SETTINGS, customViews: [] as ReturnType<typeof makeCustomView>[] };
+	}
+
+	// ── Add ──────────────────────────────────────────────────────────────────
+	it('add: newly created view appears in getRegisteredTaskViews and is resolvable', () => {
+		const settings = baseSettings();
+
+		const created = createCustomViewDefinition(settings.customViews);
+		settings.customViews = [...settings.customViews, created];
+
+		const views = getRegisteredTaskViews(settings);
+		const ids = views.map((v) => v.id);
+
+		expect(ids).toContain(created.id);
+		expect(resolveTaskViewDefinition(settings, created.id)).toMatchObject({
+			id: created.id,
+			source: 'custom',
+			renderer: 'list',
+		});
+	});
+
+	it('add: multiple views receive unique ids', () => {
+		const settings = baseSettings();
+
+		const first  = createCustomViewDefinition(settings.customViews);
+		settings.customViews = [...settings.customViews, first];
+
+		const second = createCustomViewDefinition(settings.customViews);
+		settings.customViews = [...settings.customViews, second];
+
+		expect(first.id).not.toBe(second.id);
+		expect(getRegisteredTaskViews(settings).filter((v) => v.source === 'custom')).toHaveLength(2);
+	});
+
+	// ── Edit ─────────────────────────────────────────────────────────────────
+	it('edit: updating name/query/renderer is reflected in resolveTaskViewDefinition', () => {
+		const settings = baseSettings();
+		const created = createCustomViewDefinition(settings.customViews);
+		settings.customViews = [created];
+
+		// Simulate the onSave callback from QueryEditorModal
+		const updatedQuery: typeof created.query = {
+			filter: { logic: 'and', conditions: [{ field: 'priority', operator: 'is', value: 'High' }] },
+			sort: [{ field: 'due_date', direction: 'asc' }],
+			group: { kind: 'none' },
+		};
+		settings.customViews = settings.customViews.map((v) =>
+			v.id === created.id
+				? { ...v, name: 'High Priority', renderer: 'list' as const, query: updatedQuery }
+				: v,
+		);
+
+		const resolved = resolveTaskViewDefinition(settings, created.id);
+		expect(resolved).toMatchObject({ name: 'High Priority', renderer: 'list' });
+		expect(resolved?.query.filter.conditions[0]).toMatchObject({ field: 'priority', value: 'High' });
+	});
+
+	it('edit: changing renderer to kanban makes coerceQueryForRenderer return status group', () => {
+		const settings = baseSettings();
+		const created = createCustomViewDefinition(settings.customViews);
+		settings.customViews = [created];
+
+		// Renderer switch to kanban (as QueryEditorModal.applyRenderer() would do)
+		settings.customViews = settings.customViews.map((v) =>
+			v.id === created.id ? { ...v, renderer: 'kanban' as const } : v,
+		);
+
+		const updated = resolveTaskViewDefinition(settings, created.id)!;
+		const coerced = coerceQueryForRenderer(updated.renderer, updated.query);
+
+		expect(coerced.group).toEqual({ kind: 'field', field: 'status' });
+	});
+
+	// ── Delete ───────────────────────────────────────────────────────────────
+	it('delete: removed view is absent from getRegisteredTaskViews', () => {
+		const settings = baseSettings();
+		const a = createCustomViewDefinition(settings.customViews);
+		settings.customViews = [a];
+		const b = createCustomViewDefinition(settings.customViews);
+		settings.customViews = [a, b];
+
+		// Simulate onDelete callback for 'a'
+		settings.customViews = settings.customViews.filter((v) => v.id !== a.id);
+
+		const ids = getRegisteredTaskViews(settings).map((v) => v.id);
+		expect(ids).not.toContain(a.id);
+		expect(ids).toContain(b.id);
+	});
+
+	it('delete: resolveTaskViewId falls back to default when current view is deleted', () => {
+		const settings = baseSettings();
+		const created = createCustomViewDefinition(settings.customViews);
+		settings.customViews = [created];
+
+		// Confirm view is reachable before deletion
+		expect(resolveTaskViewId(settings, created.id)).toBe(created.id);
+
+		// Delete
+		settings.customViews = settings.customViews.filter((v) => v.id !== created.id);
+
+		// As in TaskBoard.svelte: currentViewId = resolveTaskViewId(settings, null)
+		expect(resolveTaskViewId(settings, created.id)).toBe('list');
+		expect(resolveTaskViewId(settings, null)).toBe('list');
+	});
+
+	// ── Round-trip ───────────────────────────────────────────────────────────
+	it('round-trip add → edit → delete leaves settings clean', () => {
+		const settings = baseSettings();
+
+		// Add
+		const created = createCustomViewDefinition(settings.customViews);
+		settings.customViews = [...settings.customViews, created];
+		expect(settings.customViews).toHaveLength(1);
+
+		// Edit
+		settings.customViews = settings.customViews.map((v) =>
+			v.id === created.id ? { ...v, name: 'Edited Name' } : v,
+		);
+		expect(resolveTaskViewDefinition(settings, created.id)?.name).toBe('Edited Name');
+
+		// Delete
+		settings.customViews = settings.customViews.filter((v) => v.id !== created.id);
+		expect(settings.customViews).toHaveLength(0);
+		expect(resolveTaskViewDefinition(settings, created.id)).toBeNull();
+		expect(getRegisteredTaskViews(settings).filter((v) => v.source === 'custom')).toHaveLength(0);
+	});
+});
