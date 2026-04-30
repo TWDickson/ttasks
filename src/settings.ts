@@ -22,6 +22,7 @@ import { QueryEditorModal } from './modals/QueryEditorModal';
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
 export type TaskViewRenderer = 'list' | 'kanban' | 'agenda' | 'graph';
+export type LogbookRendererMode = 'list' | 'kanban';
 
 export interface TaskViewPresentation {
 	hierarchy: 'flat' | 'tree';
@@ -79,6 +80,7 @@ export interface TTasksSettings {
 	tasksFolder: string;
 	editorSuggestTrigger: string;
 	fabPosition: FabPosition;
+	logbookRendererMode: LogbookRendererMode;
 	customViews: CustomTaskViewDefinition[];
 	statuses: string[];
 	completionStatus: string;
@@ -110,6 +112,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	tasksFolder: 'Tasks',
 	editorSuggestTrigger: '@task',
 	fabPosition: 'right',
+	logbookRendererMode: 'list',
 	customViews: [],
 	statuses: DEFAULT_STATUSES,
 	completionStatus: 'Completed',
@@ -207,6 +210,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		tasksFolder: settings.tasksFolder,
 		editorSuggestTrigger: settings.editorSuggestTrigger,
 		fabPosition: settings.fabPosition,
+		logbookRendererMode: settings.logbookRendererMode,
 		customViews: settings.customViews.map(cloneCustomTaskViewDefinition),
 		statuses: [...settings.statuses],
 		completionStatus: settings.completionStatus,
@@ -459,6 +463,11 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 	const fabPosition = asString(root.fabPosition);
 	if (fabPosition === 'right' || fabPosition === 'left' || fabPosition === 'hidden') {
 		target.fabPosition = fabPosition;
+	}
+
+	const logbookRendererMode = asString(root.logbookRendererMode);
+	if (logbookRendererMode === 'list' || logbookRendererMode === 'kanban') {
+		target.logbookRendererMode = logbookRendererMode;
 	}
 
 	if (root.customViews !== undefined) {

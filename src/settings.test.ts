@@ -171,6 +171,26 @@ describe('normalizeSettingsFromSources', () => {
 		expect(merged.customViews).toEqual([]);
 	});
 
+	it('defaults logbookRendererMode to list', () => {
+		const merged = normalizeSettingsFromSources([DEFAULT_SETTINGS, {}]);
+
+		expect(merged.logbookRendererMode).toBe('list');
+	});
+
+	it('preserves valid persisted logbookRendererMode and ignores invalid values', () => {
+		const withKanban = normalizeSettingsFromSources([
+			DEFAULT_SETTINGS,
+			{ logbookRendererMode: 'kanban' },
+		]);
+		expect(withKanban.logbookRendererMode).toBe('kanban');
+
+		const withInvalid = normalizeSettingsFromSources([
+			DEFAULT_SETTINGS,
+			{ logbookRendererMode: 'table' },
+		]);
+		expect(withInvalid.logbookRendererMode).toBe('list');
+	});
+
 	it('preserves valid custom view definitions', () => {
 		const merged = normalizeSettingsFromSources([
 			DEFAULT_SETTINGS,

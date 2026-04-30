@@ -55,7 +55,9 @@
 	let filterPriority = '';
 	let filterArea     = '';
 	let showCompletedByViewId: Record<string, boolean> = {};
-	let logbookRendererModeByViewId: Record<string, 'list' | 'kanban'> = {};
+	let logbookRendererModeByViewId: Record<string, 'list' | 'kanban'> = {
+		logbook: plugin.settings.logbookRendererMode,
+	};
 
 	$: areas = [...new Set(
 		$tasks.map(t => t.area).filter((a): a is string => !!a)
@@ -115,8 +117,13 @@
 		};
 	}
 
-	function toggleLogbookRenderer(viewId: string) {
-		logbookRendererModeByViewId = toggleLogbookRendererMode(viewId, logbookRendererModeByViewId);
+	async function toggleLogbookRenderer(viewId: string) {
+		const nextModes = toggleLogbookRendererMode(viewId, logbookRendererModeByViewId);
+		logbookRendererModeByViewId = nextModes;
+		const nextMode = nextModes.logbook ?? 'list';
+		if (plugin.settings.logbookRendererMode === nextMode) return;
+		plugin.settings.logbookRendererMode = nextMode;
+		await plugin.saveSettings();
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
@@ -346,7 +353,7 @@
 				{/if}
 
 				{#if canToggleLogbookRenderer(currentView.id)}
-					<button class="tt-filter-toggle-completed" on:click={() => toggleLogbookRenderer(currentView.id)}>
+					<button class="tt-filter-toggle-completed" on:click={() => void toggleLogbookRenderer(currentView.id)}>
 						{currentRenderer === 'kanban' ? 'Archive List' : 'Archive Board'}
 					</button>
 				{/if}
