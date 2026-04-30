@@ -297,7 +297,19 @@
 	function linkedTask(pathLike: string | null | undefined): Task | null {
 		const normalized = normalizeTaskPath(pathLike);
 		if (!normalized) return null;
-		return $tasks.find((item) => item.path === normalized) ?? null;
+		// Exact match first (full vault path)
+		const exact = $tasks.find((item) => item.path === normalized);
+		if (exact) return exact;
+		// Fallback: match by filename only, for tasks stored without folder prefix
+		return $tasks.find((item) => item.path.endsWith('/' + normalized)) ?? null;
+	}
+
+	/** Resolve a possibly-short pathLike to the full vault path stored in the task store. */
+	function resolveTaskPath(pathLike: string | null | undefined): string | null {
+		const normalized = normalizeTaskPath(pathLike);
+		if (!normalized) return null;
+		const found = linkedTask(normalized);
+		return found ? found.path : normalized;
 	}
 
 	function taskLabelFromPath(pathLike: string | null | undefined): string {
@@ -309,15 +321,15 @@
 	}
 
 	function openLinkedPath(pathLike: string): void {
-		const normalized = normalizeTaskPath(pathLike);
-		if (!normalized) return;
-		activeTaskPath.set(normalized);
+		const resolved = resolveTaskPath(pathLike);
+		if (!resolved) return;
+		activeTaskPath.set(resolved);
 	}
 
 	function showLinkedHoverPreview(event: MouseEvent, pathLike: string): void {
-		const normalized = normalizeTaskPath(pathLike);
-		if (!normalized) return;
-		plugin.triggerTaskHoverPreview(normalized, event);
+		const resolved = resolveTaskPath(pathLike);
+		if (!resolved) return;
+		plugin.triggerTaskHoverPreview(resolved, event);
 	}
 
 	$: availableDependencies = task ? $tasks
@@ -381,7 +393,8 @@
 		const seen = new Set<string>();
 		const normalized: string[] = [];
 		for (const path of paths) {
-			const next = normalizeTaskPath(path);
+			// Resolve to full vault path (handles tasks stored with bare filename)
+			const next = resolveTaskPath(path);
 			if (!next || seen.has(next)) continue;
 			seen.add(next);
 			normalized.push(next);
