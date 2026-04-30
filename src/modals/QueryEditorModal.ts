@@ -621,10 +621,33 @@ export class QueryEditorModal extends Modal {
 		ta.value = this.jsonDraft || JSON.stringify(this.query, null, 2);
 		ta.rows = 20;
 
+		const clearJsonError = () => {
+			errEl.empty();
+			errEl.style.display = 'none';
+			ta.removeClass('is-invalid');
+		};
+
+		const showJsonError = (message: string) => {
+			const formatted = this.formatJsonError(message);
+			errEl.empty();
+			errEl.style.display = 'block';
+			ta.addClass('is-invalid');
+
+			const summary = errEl.createDiv({ cls: 'tt-qe-json-error-summary' });
+			summary.setText(formatted.summary);
+
+			if (formatted.path) {
+				const pathEl = errEl.createDiv({ cls: 'tt-qe-json-error-path' });
+				pathEl.setText(`Fix this field: ${formatted.path}`);
+			}
+
+			const detail = errEl.createDiv({ cls: 'tt-qe-json-error-detail' });
+			detail.setText(formatted.detail);
+		};
+
 		ta.addEventListener('input', () => {
 			this.jsonDraft = ta.value;
-			errEl.style.display = 'none';
-			errEl.textContent = '';
+			clearJsonError();
 		});
 
 		const formatBtn = container.createEl('button', { text: 'Format JSON', cls: 'tt-qe-add-btn' });
@@ -634,12 +657,63 @@ export class QueryEditorModal extends Modal {
 			if (result.ok) {
 				ta.value = JSON.stringify(result.value, null, 2);
 				this.jsonDraft = ta.value;
-				errEl.style.display = 'none';
+				clearJsonError();
 			} else {
-				errEl.textContent = result.error;
-				errEl.style.display = 'block';
+				showJsonError(result.error);
 			}
 		});
+	}
+
+	private formatJsonError(message: string): { summary: string; path: string | null; detail: string } {
+		if (message.startsWith('Invalid JSON:')) {
+			return {
+				summary: 'The JSON syntax is invalid.',
+				path: null,
+				detail: message.replace(/^Invalid JSON:\s*/, ''),
+			};
+		}
+
+		const detail = message.replace(/^Invalid QuerySpec:\s*/, '');
+		const pathMatch = detail.match(/^(filter(?:\.conditions\[\d+\])*(?:\.(?:field|operator|value|logic|conditions))?|sort\[\d+\]\.(?:field|direction)|group(?:\.kind|\.field)?|limitPerGroup|limit|search|sortScope)\b/);
+		const path = pathMatch?.[1] ?? null;
+
+		if (detail.startsWith('group must be { kind: \'date_buckets\'')) {
+			return {
+				summary: 'Choose a valid grouping for this renderer.',
+				path: 'group',
+				detail: 'Agenda views require agenda date buckets.',
+			};
+		}
+
+		if (detail.startsWith('group.field must be one of:')) {
+			return {
+				summary: 'Choose a valid grouping field.',
+				path: 'group.field',
+				detail,
+			};
+		}
+
+		if (detail.includes('operator') && detail.includes('is not valid for field')) {
+			return {
+				summary: 'This operator does not work with the selected field.',
+				path,
+				detail,
+			};
+		}
+
+		if (detail.startsWith('sort[') && detail.includes('.field')) {
+			return {
+				summary: 'One of the sort rules uses an unsupported field.',
+				path,
+				detail,
+			};
+		}
+
+		return {
+			summary: 'The QuerySpec is invalid.',
+			path,
+			detail,
+		};
 	}
 
 	// ── Save ─────────────────────────────────────────────────────────────────
