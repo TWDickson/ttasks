@@ -755,7 +755,7 @@
 		flex-direction: column;
 		justify-content: space-between;
 		gap: 6px;
-		padding: 10px 12px;
+		padding: 10px 12px 10px 16px;
 		border-radius: var(--radius-xl, 16px);
 		border: var(--border-width, 1px) solid color-mix(in srgb, var(--tt-node-accent) 42%, var(--background-modifier-border));
 		background: linear-gradient(180deg, color-mix(in srgb, var(--tt-node-accent) 12%, var(--background-primary)), var(--background-primary));
@@ -769,8 +769,15 @@
 		position: absolute;
 		inset: 0 auto 0 0;
 		width: 5px;
+		z-index: 0;
+		pointer-events: none;
 		border-radius: var(--radius-xl, 16px) 0 0 var(--radius-xl, 16px);
 		background: var(--tt-node-accent);
+	}
+
+	.tt-graph-node > * {
+		position: relative;
+		z-index: 1;
 	}
 
 	.tt-graph-node.is-active {
@@ -816,6 +823,7 @@
 		font-weight: 700;
 		color: var(--text-normal);
 		line-height: 1.18;
+		width: 100%;
 		min-width: 0;
 		word-break: break-word;
 		overflow-wrap: break-word;
