@@ -149,7 +149,8 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 
 	assignComponentLevels(components);
 
-	// Compute chain groups so that nodes sharing an ancestor cluster vertically.
+	// Compute chain groups from weakly-connected components so converging
+	// dependencies remain in the same visual chain cluster.
 	const chainGroups = computeChainGroups(components);
 	// Stable sequential rank for each group (walk topo-order so roots come first).
 	const chainGroupOrder = new Map<number, number>();
@@ -273,7 +274,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 				});
 			}
 
-			rowCursor += orderedPaths.length + 1;
+			rowCursor += orderedPaths.length;
 		}
 	}
 
@@ -386,27 +387,42 @@ function assignComponentLevels(components: ComponentInfo[]): void {
 }
 
 /**
- * Assigns each component a "chain group" — the minimum root-component ID
- * that can reach it. Nodes sharing a common ancestor end up in the same group
- * and will be sorted adjacent to each other within their column.
+ * Assigns each component to a weakly-connected chain group (ignoring edge
+ * direction). This keeps merged chains together, e.g. multiple predecessors
+ * feeding one task are treated as a single chain cluster.
  */
 function computeChainGroups(components: ComponentInfo[]): Map<number, number> {
 	const chainGroup = new Map<number, number>();
-	// Process in topological (level ascending) order so predecessors are resolved first.
-	const sorted = [...components].sort((a, b) => a.level - b.level || a.id - b.id);
-	for (const comp of sorted) {
-		if (comp.incoming.size === 0) {
-			// Root component — owns its own chain group.
-			chainGroup.set(comp.id, comp.id);
-		} else {
-			// Inherit the minimum (earliest) chain group from all predecessors.
-			let minGroup = Infinity;
-			for (const inId of comp.incoming) {
-				minGroup = Math.min(minGroup, chainGroup.get(inId) ?? inId);
+	const visited = new Set<number>();
+
+	for (const comp of components) {
+		if (visited.has(comp.id)) continue;
+
+		const stack = [comp.id];
+		const members: number[] = [];
+		let minId = comp.id;
+
+		while (stack.length > 0) {
+			const currentId = stack.pop();
+			if (currentId === undefined || visited.has(currentId)) continue;
+			visited.add(currentId);
+			members.push(currentId);
+			minId = Math.min(minId, currentId);
+
+			const current = components[currentId];
+			for (const nextId of current.outgoing) {
+				if (!visited.has(nextId)) stack.push(nextId);
 			}
-			chainGroup.set(comp.id, isFinite(minGroup) ? minGroup : comp.id);
+			for (const prevId of current.incoming) {
+				if (!visited.has(prevId)) stack.push(prevId);
+			}
+		}
+
+		for (const memberId of members) {
+			chainGroup.set(memberId, minId);
 		}
 	}
+
 	return chainGroup;
 }
 

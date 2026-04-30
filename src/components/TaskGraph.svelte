@@ -42,9 +42,9 @@
 
 	$: layout = buildTaskGraph(dependencyGraphTasks, {
 		nodeWidth: 220,
-		nodeHeight: 128,
+		nodeHeight: 118,
 		horizontalGap: 52,
-		verticalGap: 28,
+		verticalGap: 12,
 		padding: 20,
 	});
 	$: dependencyScale = dependencyViewportWidth > 0 && layout.width > 0
