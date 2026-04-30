@@ -141,6 +141,10 @@ function isValidSortScope(v: unknown): v is 'global' | 'within_groups' {
 	return v === 'global' || v === 'within_groups';
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+	return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
 function isKnownFilterField(v: unknown): v is FilterField {
 	return typeof v === 'string' && FILTER_FIELDS.includes(v as FilterField);
 }
@@ -160,70 +164,104 @@ function isValidFilterValue(v: unknown): v is FilterCondition['value'] {
 	return false;
 }
 
-function isFilterCondition(v: unknown): v is FilterCondition {
-	if (!v || typeof v !== 'object') return false;
-	const o = v as Record<string, unknown>;
-	if (!isKnownFilterField(o.field)) return false;
-	if (typeof o.operator !== 'string') return false;
-	const validOperators = operatorsForField(o.field);
-	if (!validOperators.includes(o.operator as FilterOperator)) return false;
-	if (!isValidFilterValue(o.value)) return false;
-
-	if ((o.operator === 'contains_any' || o.operator === 'contains_all') && !Array.isArray(o.value)) {
-		return false;
+function validateFilterCondition(v: unknown, path: string): string | null {
+	if (!isRecord(v)) return `${path} must be an object`;
+	if (!isKnownFilterField(v.field)) return `${path}.field must be one of: ${FILTER_FIELDS.join(', ')}`;
+	if (typeof v.operator !== 'string') return `${path}.operator must be a string`;
+	const validOperators = operatorsForField(v.field);
+	if (!validOperators.includes(v.operator as FilterOperator)) {
+		return `${path}.operator '${String(v.operator)}' is not valid for field '${v.field}'`;
 	}
-	if (o.operator === 'within_days' && typeof o.value !== 'number') {
-		return false;
+	if (!isValidFilterValue(v.value)) {
+		return `${path}.value must be string, number, boolean, string[] or undefined`;
 	}
-
-	return true;
+	if ((v.operator === 'contains_any' || v.operator === 'contains_all') && !Array.isArray(v.value)) {
+		return `${path}.value must be a string[] for operator '${v.operator}'`;
+	}
+	if (v.operator === 'within_days' && typeof v.value !== 'number') {
+		return `${path}.value must be a number for operator 'within_days'`;
+	}
+	return null;
 }
 
-function isFilterGroup(v: unknown): v is FilterGroup {
-	if (!v || typeof v !== 'object') return false;
-	const o = v as Record<string, unknown>;
-	if (!isValidLogic(o.logic)) return false;
-	if (!Array.isArray(o.conditions)) return false;
-	for (const condition of o.conditions) {
-		if (!isFilterGroup(condition) && !isFilterCondition(condition)) return false;
+function validateFilterNode(v: unknown, path: string): string | null {
+	if (!isRecord(v)) return `${path} must be an object`;
+	if ('logic' in v && 'conditions' in v) {
+		if (!isValidLogic(v.logic)) return `${path}.logic must be 'and' or 'or'`;
+		if (!Array.isArray(v.conditions)) return `${path}.conditions must be an array`;
+		for (let i = 0; i < v.conditions.length; i += 1) {
+			const err = validateFilterNode(v.conditions[i], `${path}.conditions[${i}]`);
+			if (err) return err;
+		}
+		return null;
 	}
-	return true;
+	return validateFilterCondition(v, path);
 }
 
-function isValidGroupSpec(v: unknown): v is GroupSpec {
-	if (!v || typeof v !== 'object') return false;
-	const o = v as Record<string, unknown>;
-	if (!isValidGroupKind(o.kind)) return false;
-	if (o.kind === 'none') return true;
-	if (o.kind === 'field') return isKnownGroupField(o.field);
-	return o.field === 'due_date' && o.preset === 'agenda';
+function validateGroupSpec(v: unknown): string | null {
+	if (!isRecord(v)) return `group must be an object`;
+	if (!isValidGroupKind(v.kind)) return `group.kind must be one of: none, field, date_buckets`;
+	if (v.kind === 'none') return null;
+	if (v.kind === 'field') {
+		if (!isKnownGroupField(v.field)) {
+			return `group.field must be one of: ${GROUP_FIELDS.join(', ')} when group.kind is 'field'`;
+		}
+		return null;
+	}
+	if (v.field !== 'due_date' || v.preset !== 'agenda') {
+		return `group must be { kind: 'date_buckets', field: 'due_date', preset: 'agenda' }`;
+	}
+	return null;
 }
 
-function isValidSortSpec(v: unknown): v is SortSpec {
-	if (!Array.isArray(v)) return false;
-	for (const entry of v) {
-		if (!entry || typeof entry !== 'object') return false;
-		const e = entry as Record<string, unknown>;
-		if (!isKnownSortField(e.field)) return false;
-		if (!isValidSortDirection(e.direction)) return false;
+function validateSortSpec(v: unknown): string | null {
+	if (!Array.isArray(v)) return `sort must be an array`;
+	for (let i = 0; i < v.length; i += 1) {
+		const entry = v[i];
+		if (!isRecord(entry)) return `sort[${i}] must be an object`;
+		if (!isKnownSortField(entry.field)) {
+			return `sort[${i}].field must be one of: ${SORT_FIELDS.join(', ')}`;
+		}
+		if (!isValidSortDirection(entry.direction)) {
+			return `sort[${i}].direction must be 'asc' or 'desc'`;
+		}
 	}
-	return true;
+	return null;
+}
+
+function validateQuerySpecError(spec: unknown): string | null {
+	if (!isRecord(spec)) return `QuerySpec must be an object`;
+	if (!('filter' in spec)) return `Missing required field: filter`;
+	if (!('sort' in spec)) return `Missing required field: sort`;
+	if (!('group' in spec)) return `Missing required field: group`;
+
+	const filterError = validateFilterNode(spec.filter, 'filter');
+	if (filterError) return filterError;
+
+	const sortError = validateSortSpec(spec.sort);
+	if (sortError) return sortError;
+
+	const groupError = validateGroupSpec(spec.group);
+	if (groupError) return groupError;
+
+	if ('limit' in spec && spec.limit !== undefined && typeof spec.limit !== 'number') {
+		return `limit must be a number when provided`;
+	}
+	if ('limitPerGroup' in spec && spec.limitPerGroup !== undefined && typeof spec.limitPerGroup !== 'number') {
+		return `limitPerGroup must be a number when provided`;
+	}
+	if ('search' in spec && spec.search !== undefined && typeof spec.search !== 'string') {
+		return `search must be a string when provided`;
+	}
+	if ('sortScope' in spec && spec.sortScope !== undefined && !isValidSortScope(spec.sortScope)) {
+		return `sortScope must be 'global' or 'within_groups'`;
+	}
+
+	return null;
 }
 
 export function validateQuerySpec(spec: unknown): spec is QuerySpec {
-	if (!spec || typeof spec !== 'object') return false;
-	const o = spec as Record<string, unknown>;
-
-	if (!isFilterGroup(o.filter)) return false;
-	if (!isValidSortSpec(o.sort)) return false;
-	if (!isValidGroupSpec(o.group)) return false;
-
-	if ('limit' in o && o.limit !== undefined && typeof o.limit !== 'number') return false;
-	if ('limitPerGroup' in o && o.limitPerGroup !== undefined && typeof o.limitPerGroup !== 'number') return false;
-	if ('search' in o && o.search !== undefined && typeof o.search !== 'string') return false;
-	if ('sortScope' in o && o.sortScope !== undefined && !isValidSortScope(o.sortScope)) return false;
-
-	return true;
+	return validateQuerySpecError(spec) === null;
 }
 
 // ── parseQuerySpecFromJson ────────────────────────────────────────────────────
@@ -241,7 +279,8 @@ export function parseQuerySpecFromJson(text: string): ParseResult<QuerySpec> {
 	}
 
 	if (!validateQuerySpec(parsed)) {
-		return { ok: false, error: 'Invalid QuerySpec: missing or malformed filter, sort, or group field.' };
+		const reason = validateQuerySpecError(parsed) ?? 'Unknown QuerySpec validation error';
+		return { ok: false, error: `Invalid QuerySpec: ${reason}` };
 	}
 
 	return { ok: true, value: parsed };

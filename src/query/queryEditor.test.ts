@@ -379,6 +379,45 @@ describe('parseQuerySpecFromJson', () => {
 			expect(result.error).toMatch(/invalid/i);
 		}
 	});
+
+	it('returns a specific error for malformed group payload', () => {
+		const result = parseQuerySpecFromJson(JSON.stringify({
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			group: { kind: 'field' },
+		}));
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain('group.field');
+		}
+	});
+
+	it('returns a specific error for invalid operator/field combination', () => {
+		const result = parseQuerySpecFromJson(JSON.stringify({
+			filter: {
+				logic: 'and',
+				conditions: [{ field: 'is_complete', operator: 'contains', value: 'true' }],
+			},
+			sort: [],
+			group: { kind: 'none' },
+		}));
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain(`filter.conditions[0].operator`);
+		}
+	});
+
+	it('returns a specific error for invalid sort field', () => {
+		const result = parseQuerySpecFromJson(JSON.stringify({
+			filter: { logic: 'and', conditions: [] },
+			sort: [{ field: 'wat', direction: 'asc' }],
+			group: { kind: 'none' },
+		}));
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain('sort[0].field');
+		}
+	});
 });
 
 // ── emptyFilterGroup / emptyFilterCondition ───────────────────────────────────
