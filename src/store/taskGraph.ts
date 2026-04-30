@@ -149,6 +149,20 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 
 	assignComponentLevels(components);
 
+	// Compute chain groups so that nodes sharing an ancestor cluster vertically.
+	const chainGroups = computeChainGroups(components);
+	// Stable sequential rank for each group (walk topo-order so roots come first).
+	const chainGroupOrder = new Map<number, number>();
+	const topoSortedForChain = [...components].sort(
+		(a, b) => a.level - b.level || a.label.localeCompare(b.label) || a.id - b.id
+	);
+	for (const comp of topoSortedForChain) {
+		const group = chainGroups.get(comp.id) ?? comp.id;
+		if (!chainGroupOrder.has(group)) {
+			chainGroupOrder.set(group, chainGroupOrder.size);
+		}
+	}
+
 	const blockedPaths = new Set<string>();
 	for (const edge of edges) {
 		const dependencyTask = taskByPath.get(edge.from);
@@ -185,7 +199,12 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 
 	for (const level of sortedLevels) {
 		const levelComponents = componentsByLevel.get(level) ?? [];
-		levelComponents.sort((left, right) => left.label.localeCompare(right.label) || left.id - right.id);
+		levelComponents.sort((left, right) => {
+			const lChain = chainGroupOrder.get(chainGroups.get(left.id) ?? left.id) ?? Infinity;
+			const rChain = chainGroupOrder.get(chainGroups.get(right.id) ?? right.id) ?? Infinity;
+			if (lChain !== rChain) return lChain - rChain;
+			return left.label.localeCompare(right.label) || left.id - right.id;
+		});
 		let rowCursor = 0;
 
 		for (const component of levelComponents) {
@@ -327,6 +346,31 @@ function assignComponentLevels(components: ComponentInfo[]): void {
 			}
 		}
 	}
+}
+
+/**
+ * Assigns each component a "chain group" — the minimum root-component ID
+ * that can reach it. Nodes sharing a common ancestor end up in the same group
+ * and will be sorted adjacent to each other within their column.
+ */
+function computeChainGroups(components: ComponentInfo[]): Map<number, number> {
+	const chainGroup = new Map<number, number>();
+	// Process in topological (level ascending) order so predecessors are resolved first.
+	const sorted = [...components].sort((a, b) => a.level - b.level || a.id - b.id);
+	for (const comp of sorted) {
+		if (comp.incoming.size === 0) {
+			// Root component — owns its own chain group.
+			chainGroup.set(comp.id, comp.id);
+		} else {
+			// Inherit the minimum (earliest) chain group from all predecessors.
+			let minGroup = Infinity;
+			for (const inId of comp.incoming) {
+				minGroup = Math.min(minGroup, chainGroup.get(inId) ?? inId);
+			}
+			chainGroup.set(comp.id, isFinite(minGroup) ? minGroup : comp.id);
+		}
+	}
+	return chainGroup;
 }
 
 function normalizeTaskPath(path: string | null | undefined): string | null {

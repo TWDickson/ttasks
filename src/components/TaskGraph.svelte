@@ -42,7 +42,7 @@
 
 	$: layout = buildTaskGraph(dependencyGraphTasks, {
 		nodeWidth: 220,
-		nodeHeight: 112,
+		nodeHeight: 128,
 		horizontalGap: 52,
 		verticalGap: 28,
 		padding: 20,
@@ -54,6 +54,35 @@
 	$: fittedDependencyHeight = Math.max(1, Math.round(layout.height * dependencyScale));
 	$: nodesByPath = new Map(layout.nodes.map((node) => [node.path, node]));
 	$: dependencyEmpty = layout.nodes.length === 0;
+
+	// For each node spread outgoing and incoming edge attachment points so
+	// multiple edges don't draw on top of each other.
+	$: edgeYOffsets = (() => {
+		const offsets = new Map<string, { startY: number; endY: number }>();
+		for (const node of layout.nodes) {
+			const out = layout.edges
+				.filter((e) => e.from === node.path)
+				.sort((a, b) => (nodesByPath.get(a.to)?.y ?? 0) - (nodesByPath.get(b.to)?.y ?? 0));
+			const nOut = out.length;
+			for (const [i, edge] of out.entries()) {
+				const startY = node.y + node.height * (i + 1) / (nOut + 1);
+				const existing = offsets.get(edge.id);
+				offsets.set(edge.id, { startY, endY: existing?.endY ?? (node.y + node.height / 2) });
+			}
+		}
+		for (const node of layout.nodes) {
+			const inc = layout.edges
+				.filter((e) => e.to === node.path)
+				.sort((a, b) => (nodesByPath.get(a.from)?.y ?? 0) - (nodesByPath.get(b.from)?.y ?? 0));
+			const nInc = inc.length;
+			for (const [i, edge] of inc.entries()) {
+				const endY = node.y + node.height * (i + 1) / (nInc + 1);
+				const existing = offsets.get(edge.id);
+				offsets.set(edge.id, { startY: existing?.startY ?? (node.y + node.height / 2), endY });
+			}
+		}
+		return offsets;
+	})();
 
 	onMount(() => {
 		const updateViewport = () => {
@@ -90,10 +119,11 @@
 		const to = nodesByPath.get(edge.to);
 		if (!from || !to) return '';
 
+		const offset = edgeYOffsets.get(edge.id);
 		const startX = from.x + from.width;
-		const startY = from.y + from.height / 2;
+		const startY = offset?.startY ?? (from.y + from.height / 2);
 		const endX = to.x;
-		const endY = to.y + to.height / 2;
+		const endY = offset?.endY ?? (to.y + to.height / 2);
 		const deltaX = endX - startX;
 		const curve = Math.max(42, Math.abs(deltaX) * 0.45);
 
@@ -786,10 +816,10 @@
 		font-weight: 700;
 		color: var(--text-normal);
 		line-height: 1.2;
-		max-height: 2.4em;
+		max-height: 3.6em;
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
-		-webkit-line-clamp: 2;
+		-webkit-line-clamp: 3;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
