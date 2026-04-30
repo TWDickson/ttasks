@@ -3,7 +3,7 @@
 	import type { Task } from '../types';
 	import type { TaskGroup } from '../query/types';
 	import type TTasksPlugin from '../main';
-	import { buildTaskGraph, resolveTaskDates, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
+	import { buildHybridTimeline, buildTaskGraph, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
 	import { PRIORITY_COLORS } from '../constants';
 	import { flattenTaskGroups } from './viewAdapters';
 	import { formatHumanDate } from './taskDateMeta';
@@ -17,22 +17,11 @@
 
 	type GraphMode = 'dependency' | 'overview';
 	export let defaultGraphMode: GraphMode = 'dependency';
-	type TimelineItem = {
-		task: Task;
-		projectName: string;
-		categoryName: string;
-		start: Date;
-		end: Date;
-		leftPercent: number;
-		widthPercent: number;
-		isLate: boolean;
-		isInferred: boolean;
-		completedLabel: string | null;
-	};
-	type TimelineLane = { projectName: string; items: TimelineItem[] };
-	type TimelineCategory = { categoryName: string; lanes: TimelineLane[] };
-
 	const DAY_MS = 24 * 60 * 60 * 1000;
+	const HYBRID_ROW_HEIGHT = 34;
+	const HYBRID_ROW_GAP = 8;
+	const HYBRID_TRACK_PADDING = 8;
+	const HYBRID_UNDER_WIDTH = 14;
 	let graphMode: GraphMode = defaultGraphMode;
 	let appliedGraphMode: GraphMode = defaultGraphMode;
 
@@ -47,14 +36,13 @@
 	$: nodesByPath = new Map(layout.nodes.map((node) => [node.path, node]));
 	$: dependencyEmpty = layout.nodes.length === 0;
 
-	$: projectByPath = new Map(tasks.filter((task) => task.type === 'project').map((task) => [task.path, task]));
-	$: timelineRows = buildTimelineRows(tasks, projectByPath);
-	$: timelineCategoryCount = timelineRows.length;
-	$: timelineLaneCount = timelineRows.reduce((count, group) => count + group.lanes.length, 0);
-	$: timelineTaskCount = timelineRows.reduce((count, group) => count + group.lanes.reduce((inner, lane) => inner + lane.items.length, 0), 0);
+	$: hybridTimeline = buildHybridTimeline(tasks);
+	$: timelineTaskCount = hybridTimeline.defined.length + hybridTimeline.underdefined.length;
 	$: timelineEmpty = timelineTaskCount === 0;
-	$: timelineBounds = getTimelineBounds(timelineRows);
-	$: timelineTicks = buildTimelineTicks(timelineBounds.start, timelineBounds.end);
+	$: timelineTicks = buildTimelineTicks(hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
+	$: definedTrackHeightPx = Math.max(42, hybridTimeline.definedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.definedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
+	$: underdefinedTrackHeightPx = Math.max(42, hybridTimeline.underdefinedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.underdefinedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
+	$: linkCanvasHeightPx = definedTrackHeightPx + underdefinedTrackHeightPx + 78;
 
 	function edgePath(edge: TaskGraphEdge): string {
 		const from = nodesByPath.get(edge.from);
@@ -132,6 +120,25 @@
 	function timelineBarStyle(item: TimelineItem): string {
 		const accent = statusColors?.[item.task.status] ?? 'var(--interactive-accent)';
 		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;--tt-bar-accent:${accent};`;
+	}
+
+	function definedBarStyle(item: { leftPercent: number; widthPercent: number; row: number; task: Task }): string {
+		const accent = statusColors?.[item.task.status] ?? 'var(--interactive-accent)';
+		const rowTop = HYBRID_TRACK_PADDING + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
+		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;top:${rowTop}px;--tt-bar-accent:${accent};`;
+	}
+
+	function underdefinedCardStyle(item: { leftPercent: number; row: number; task: Task }): string {
+		const accent = statusColors?.[item.task.status] ?? 'var(--interactive-accent)';
+		const rowTop = HYBRID_TRACK_PADDING + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
+		return `left:${item.leftPercent.toFixed(3)}%;width:${HYBRID_UNDER_WIDTH}%;top:${rowTop}px;--tt-bar-accent:${accent};`;
+	}
+
+	function hybridLinkPath(link: { fromPercent: number; toPercent: number; fromRow: number; toRow: number }): string {
+		const startY = HYBRID_TRACK_PADDING + link.fromRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP) + HYBRID_ROW_HEIGHT;
+		const endY = definedTrackHeightPx + 54 + HYBRID_TRACK_PADDING + link.toRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
+		const controlY = Math.round((startY + endY) / 2);
+		return `M ${link.fromPercent.toFixed(3)} ${startY.toFixed(2)} C ${link.fromPercent.toFixed(3)} ${controlY.toFixed(2)}, ${link.toPercent.toFixed(3)} ${(controlY + 12).toFixed(2)}, ${link.toPercent.toFixed(3)} ${endY.toFixed(2)}`;
 	}
 
 	function showTaskHoverPreview(event: MouseEvent, task: Task): void {
@@ -265,20 +272,20 @@
 				</div>
 			{:else}
 				<div class="tt-graph-pill">
-					<span class="tt-graph-pill-label">Categories</span>
-					<strong>{timelineCategoryCount}</strong>
+					<span class="tt-graph-pill-label">Defined Track</span>
+					<strong>{hybridTimeline.defined.length}</strong>
 				</div>
 				<div class="tt-graph-pill">
-					<span class="tt-graph-pill-label">Project Lanes</span>
-					<strong>{timelineLaneCount}</strong>
+					<span class="tt-graph-pill-label">Underdefined Track</span>
+					<strong>{hybridTimeline.underdefined.length}</strong>
 				</div>
 				<div class="tt-graph-pill">
-					<span class="tt-graph-pill-label">Scheduled Tasks</span>
+					<span class="tt-graph-pill-label">Total Tasks</span>
 					<strong>{timelineTaskCount}</strong>
 				</div>
 				<div class="tt-graph-pill">
-					<span class="tt-graph-pill-label">Range</span>
-					<strong>{formatDate(timelineBounds.start)} - {formatDate(timelineBounds.end)}</strong>
+					<span class="tt-graph-pill-label">Flow Links</span>
+					<strong>{hybridTimeline.links.length}</strong>
 				</div>
 			{/if}
 		</div>
@@ -286,7 +293,7 @@
 			{#if graphMode === 'dependency'}
 				Graph respects current filters. Amber paths have unfinished upstream dependencies. Red rings mark cycles.
 			{:else}
-				Overview is grouped by Category then Project. Bars represent start-to-due windows for project items.
+				Defined track shows dated/inferred windows. Underdefined track shows no-estimate tasks that anchor after resolved upstream work.
 			{/if}
 		</p>
 	</div>
@@ -359,37 +366,60 @@
 					{/each}
 				</div>
 
-				{#each timelineRows as category}
-					<section class="tt-overview-category">
-						<h4 class="tt-overview-category-title">{category.categoryName}</h4>
-						{#each category.lanes as lane}
-							<div class="tt-overview-lane">
-								<div class="tt-overview-lane-label">{lane.projectName}</div>
-								<div class="tt-overview-lane-track">
-									{#each lane.items as item (item.task.path)}
-										<button
-											type="button"
-											class="tt-overview-bar"
-											class:is-late={item.isLate}
-											class:is-done={item.task.is_complete}
-											class:is-active={$activeTaskPath === item.task.path}
-											class:is-inferred={item.isInferred}
-											style={timelineBarStyle(item)}
-											title={item.completedLabel
-										? `${item.task.name} | ${formatDate(item.start)} → ${formatDate(item.end)} | ✓ ${item.completedLabel}${item.isInferred ? ' (inferred)' : ''}`
-										: `${item.task.name} | ${formatDate(item.start)} → ${formatDate(item.end)}${item.isInferred ? ' (inferred)' : ''}`}
-											on:click={() => onOpen(item.task.path)}
-											on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
-											on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
-										>
-											<span>{item.task.name}</span>
-										</button>
-									{/each}
-								</div>
-							</div>
+				<div class="tt-hybrid-shell" style={`--tt-link-canvas-height:${linkCanvasHeightPx}px;`}>
+					<svg class="tt-hybrid-links" viewBox={`0 0 100 ${linkCanvasHeightPx}`} preserveAspectRatio="none" aria-hidden="true">
+						<defs>
+							<marker id="ttasks-hybrid-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+								<path d="M 0 0 L 8 4 L 0 8 z" fill="currentColor"></path>
+							</marker>
+						</defs>
+						{#each hybridTimeline.links as link (link.id)}
+							<path class="tt-hybrid-link" d={hybridLinkPath(link)} marker-end="url(#ttasks-hybrid-arrow)"></path>
 						{/each}
+					</svg>
+
+					<section class="tt-hybrid-track tt-hybrid-track-defined">
+						<h4 class="tt-overview-category-title">Defined Track</h4>
+						<div class="tt-hybrid-track-canvas" style={`height:${definedTrackHeightPx}px;`}>
+							{#each hybridTimeline.defined as item (item.path)}
+								<button
+									type="button"
+									class="tt-overview-bar tt-hybrid-defined-item"
+									class:is-done={item.task.is_complete}
+									class:is-active={$activeTaskPath === item.path}
+									class:is-inferred={item.isInferred}
+									style={definedBarStyle(item)}
+									title={`${item.task.name} | ${formatDate(item.start)} → ${formatDate(item.end)}${item.isInferred ? ' (inferred)' : ''}`}
+									on:click={() => onOpen(item.path)}
+									on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
+									on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
+								>
+									<span>{item.task.name}</span>
+								</button>
+							{/each}
+						</div>
 					</section>
-				{/each}
+
+					<section class="tt-hybrid-track tt-hybrid-track-underdefined">
+						<h4 class="tt-overview-category-title">Underdefined Track</h4>
+						<div class="tt-hybrid-track-canvas" style={`height:${underdefinedTrackHeightPx}px;`}>
+							{#each hybridTimeline.underdefined as item (item.path)}
+								<button
+									type="button"
+									class="tt-overview-bar tt-hybrid-underdefined-item"
+									class:is-active={$activeTaskPath === item.path}
+									style={underdefinedCardStyle(item)}
+									title={`${item.task.name} | follows ${item.anchorPath.replace(/\.md$/, '')}`}
+									on:click={() => onOpen(item.path)}
+									on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
+									on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
+								>
+									<span>{item.task.name}</span>
+								</button>
+							{/each}
+						</div>
+					</section>
+				</div>
 			</div>
 		{/if}
 	{/if}
@@ -491,6 +521,62 @@
 		gap: 14px;
 	}
 
+	.tt-hybrid-shell {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		padding-bottom: 8px;
+	}
+
+	.tt-hybrid-links {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 30px;
+		height: var(--tt-link-canvas-height);
+		width: 100%;
+		pointer-events: none;
+		overflow: visible;
+		z-index: 1;
+	}
+
+	.tt-hybrid-link {
+		fill: none;
+		stroke: color-mix(in srgb, var(--color-orange) 78%, var(--text-faint));
+		color: color-mix(in srgb, var(--color-orange) 78%, var(--text-faint));
+		stroke-width: 2;
+		stroke-dasharray: 8 6;
+		opacity: 0.9;
+	}
+
+	.tt-hybrid-track {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		z-index: 2;
+	}
+
+	.tt-hybrid-track-canvas {
+		position: relative;
+		border-radius: var(--radius-m, 8px);
+		border: var(--border-width, 1px) solid var(--background-modifier-border);
+		background: repeating-linear-gradient(
+			90deg,
+			color-mix(in srgb, var(--background-secondary) 76%, transparent),
+			color-mix(in srgb, var(--background-secondary) 76%, transparent) 24px,
+			var(--background-primary) 24px,
+			var(--background-primary) 48px
+		);
+		overflow: hidden;
+	}
+
+	.tt-hybrid-underdefined-item {
+		border-style: dashed;
+		font-style: italic;
+	}
+
 	.tt-overview-axis {
 		position: sticky;
 		top: 0;
@@ -520,12 +606,6 @@
 		transform: translateX(-50%);
 	}
 
-	.tt-overview-category {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
 	.tt-overview-category-title {
 		margin: 0;
 		font-size: 0.78rem;
@@ -533,34 +613,6 @@
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: var(--text-muted);
-	}
-
-	.tt-overview-lane {
-		display: grid;
-		grid-template-columns: minmax(140px, 220px) 1fr;
-		gap: 10px;
-		align-items: center;
-	}
-
-	.tt-overview-lane-label {
-		font-size: 0.78rem;
-		font-weight: 600;
-		color: var(--text-normal);
-	}
-
-	.tt-overview-lane-track {
-		position: relative;
-		height: 34px;
-		border-radius: var(--radius-m, 8px);
-		border: var(--border-width, 1px) solid var(--background-modifier-border);
-		background: repeating-linear-gradient(
-			90deg,
-			color-mix(in srgb, var(--background-secondary) 76%, transparent),
-			color-mix(in srgb, var(--background-secondary) 76%, transparent) 24px,
-			var(--background-primary) 24px,
-			var(--background-primary) 48px
-		);
-		overflow: hidden;
 	}
 
 	.tt-overview-bar {
@@ -580,11 +632,6 @@
 		white-space: nowrap;
 		text-overflow: ellipsis;
 		cursor: pointer;
-	}
-
-	.tt-overview-bar.is-late {
-		border-color: color-mix(in srgb, var(--color-red) 58%, var(--background-modifier-border));
-		box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-red) 32%, transparent) inset;
 	}
 
 	.tt-overview-bar.is-done {
@@ -733,13 +780,5 @@
 			padding-inline: 8px;
 		}
 
-		.tt-overview-lane {
-			grid-template-columns: 1fr;
-			gap: 6px;
-		}
-
-		.tt-overview-lane-label {
-			font-size: 0.73rem;
-		}
 	}
 </style>

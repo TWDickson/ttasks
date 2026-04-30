@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
-import { buildTaskGraph, resolveTaskDates } from './taskGraph';
+import { buildHybridTimeline, buildTaskGraph, resolveTaskDates } from './taskGraph';
 
 function makeTask(overrides: Partial<Task> & Pick<Task, 'path' | 'name'>): Task {
 	const { path, name, ...rest } = overrides;
@@ -156,5 +156,36 @@ describe('resolveTaskDates', () => {
 		// start = day after latest dep end (2026-04-10) = 2026-04-11
 		expect(c!.start.toISOString().slice(0, 10)).toBe('2026-04-11');
 		expect(c!.end.toISOString().slice(0, 10)).toBe('2026-04-12');
+	});
+});
+
+describe('buildHybridTimeline', () => {
+	it('splits dated or inferred tasks into defined track and no-estimate dependents into underdefined track', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', due_date: '2026-04-05' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'], estimated_days: 2 }),
+			makeTask({ path: 'Tasks/c.md', name: 'C', depends_on: ['Tasks/b'] }),
+			makeTask({ path: 'Tasks/d.md', name: 'D' }),
+		];
+
+		const model = buildHybridTimeline(tasks);
+
+		expect(model.defined.map((item) => item.path).sort()).toEqual(['Tasks/a.md', 'Tasks/b.md']);
+		expect(model.underdefined.map((item) => item.path)).toEqual(['Tasks/c.md']);
+		expect(model.links).toHaveLength(1);
+		expect(model.links[0]).toMatchObject({ fromPath: 'Tasks/b.md', toPath: 'Tasks/c.md' });
+	});
+
+	it('does not include underdefined tasks that are not anchored to a resolved dependency', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'] }),
+		];
+
+		const model = buildHybridTimeline(tasks);
+
+		expect(model.defined).toHaveLength(0);
+		expect(model.underdefined).toHaveLength(0);
+		expect(model.links).toHaveLength(0);
 	});
 });

@@ -465,3 +465,175 @@ export function resolveTaskDates(tasks: Task[]): Map<string, ResolvedTaskDate> {
 	// Any task still with inDegree > 0 is in a cycle — not included in result
 	return resolved;
 }
+
+export interface HybridTimelineDefinedItem {
+	path: string;
+	task: Task;
+	start: Date;
+	end: Date;
+	leftPercent: number;
+	widthPercent: number;
+	row: number;
+	isInferred: boolean;
+}
+
+export interface HybridTimelineUnderdefinedItem {
+	path: string;
+	task: Task;
+	anchorPath: string;
+	leftPercent: number;
+	widthPercent: number;
+	row: number;
+}
+
+export interface HybridTimelineLink {
+	id: string;
+	fromPath: string;
+	toPath: string;
+	fromPercent: number;
+	toPercent: number;
+	fromRow: number;
+	toRow: number;
+}
+
+export interface HybridTimelineModel {
+	rangeStart: Date;
+	rangeEnd: Date;
+	defined: HybridTimelineDefinedItem[];
+	underdefined: HybridTimelineUnderdefinedItem[];
+	links: HybridTimelineLink[];
+	definedRowCount: number;
+	underdefinedRowCount: number;
+}
+
+export function buildHybridTimeline(tasks: Task[]): HybridTimelineModel {
+	const today = new Date();
+	today.setHours(0, 0, 0, 0);
+	const fallbackStart = inferAddDays(today, -7);
+	const fallbackEnd = inferAddDays(today, 21);
+
+	const visibleTasks = tasks.filter((task) => task.type === 'task');
+	const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
+	const resolved = resolveTaskDates(visibleTasks);
+
+	const resolvedEntries = [...resolved.entries()]
+		.map(([path, dates]) => ({ path, task: taskByPath.get(path), dates }))
+		.filter((entry): entry is { path: string; task: Task; dates: ResolvedTaskDate } => {
+			if (!entry.task) return false;
+			const hasExplicitDate = !!inferParseDate(entry.task.start_date) || !!inferParseDate(entry.task.due_date);
+			const hasEstimate = typeof entry.task.estimated_days === 'number' && entry.task.estimated_days > 0;
+			return hasExplicitDate || hasEstimate;
+		})
+		.sort((left, right) => left.dates.start.getTime() - right.dates.start.getTime() || left.task.name.localeCompare(right.task.name));
+
+	const starts = resolvedEntries.map((entry) => entry.dates.start.getTime());
+	const ends = resolvedEntries.map((entry) => entry.dates.end.getTime());
+	const rangeStart = starts.length > 0 ? new Date(Math.min(...starts)) : fallbackStart;
+	const rangeEnd = ends.length > 0 ? new Date(Math.max(...ends)) : fallbackEnd;
+	const spanDays = Math.max(1, Math.round((rangeEnd.getTime() - rangeStart.getTime()) / INFER_DAY_MS) + 1);
+
+	const definedRowEnds: number[] = [];
+	const defined: HybridTimelineDefinedItem[] = [];
+	const definedByPath = new Map<string, HybridTimelineDefinedItem>();
+
+	for (const entry of resolvedEntries) {
+		const leftDays = Math.max(0, Math.round((entry.dates.start.getTime() - rangeStart.getTime()) / INFER_DAY_MS));
+		const durationDays = Math.max(1, Math.round((entry.dates.end.getTime() - entry.dates.start.getTime()) / INFER_DAY_MS) + 1);
+		const leftPercent = (leftDays / spanDays) * 100;
+		const widthPercent = Math.max(2.4, (durationDays / spanDays) * 100);
+
+		let row = 0;
+		while (row < definedRowEnds.length && leftDays <= definedRowEnds[row]) {
+			row += 1;
+		}
+		definedRowEnds[row] = leftDays + durationDays;
+
+		const item: HybridTimelineDefinedItem = {
+			path: entry.path,
+			task: entry.task,
+			start: entry.dates.start,
+			end: entry.dates.end,
+			leftPercent,
+			widthPercent,
+			row,
+			isInferred: entry.dates.isInferred,
+		};
+		defined.push(item);
+		definedByPath.set(entry.path, item);
+	}
+
+	const underWidthPercent = 14;
+	const underRowEnds: number[] = [];
+	const underdefined: HybridTimelineUnderdefinedItem[] = [];
+	const links: HybridTimelineLink[] = [];
+
+	for (const task of visibleTasks) {
+		if (definedByPath.has(task.path)) continue;
+		if (inferParseDate(task.start_date) || inferParseDate(task.due_date)) continue;
+		if (typeof task.estimated_days === 'number' && task.estimated_days > 0) continue;
+
+		const deps = dedupePaths(
+			(task.depends_on ?? [])
+				.map((path) => normalizeTaskPath(path))
+				.filter((path): path is string => !!path && taskByPath.has(path))
+		);
+
+		let anchorPath: string | null = null;
+		let anchorEndMs = Number.NEGATIVE_INFINITY;
+		for (const depPath of deps) {
+			const depDates = resolved.get(depPath);
+			if (!depDates) continue;
+			const depEndMs = depDates.end.getTime();
+			if (depEndMs > anchorEndMs) {
+				anchorEndMs = depEndMs;
+				anchorPath = depPath;
+			}
+		}
+
+		if (!anchorPath || !Number.isFinite(anchorEndMs)) continue;
+		const anchorDate = new Date(anchorEndMs + INFER_DAY_MS);
+		const leftDays = Math.max(0, Math.round((anchorDate.getTime() - rangeStart.getTime()) / INFER_DAY_MS));
+		const leftPercent = Math.min(98, (leftDays / spanDays) * 100);
+
+		let row = 0;
+		while (row < underRowEnds.length && leftPercent <= underRowEnds[row]) {
+			row += 1;
+		}
+		underRowEnds[row] = leftPercent + underWidthPercent + 1.5;
+
+		const item: HybridTimelineUnderdefinedItem = {
+			path: task.path,
+			task,
+			anchorPath,
+			leftPercent,
+			widthPercent: underWidthPercent,
+			row,
+		};
+		underdefined.push(item);
+
+		const anchorResolved = definedByPath.get(anchorPath);
+		if (anchorResolved) {
+			links.push({
+				id: `${anchorPath}->${task.path}`,
+				fromPath: anchorPath,
+				toPath: task.path,
+				fromPercent: Math.min(99, anchorResolved.leftPercent + anchorResolved.widthPercent),
+				toPercent: leftPercent,
+				fromRow: anchorResolved.row,
+				toRow: row,
+			});
+		}
+	}
+
+	underdefined.sort((left, right) => left.leftPercent - right.leftPercent || left.task.name.localeCompare(right.task.name));
+
+	return {
+		rangeStart,
+		rangeEnd,
+		defined,
+		underdefined,
+		links,
+		definedRowCount: Math.max(1, definedRowEnds.length),
+		underdefinedRowCount: Math.max(1, underRowEnds.length),
+	};
+}
