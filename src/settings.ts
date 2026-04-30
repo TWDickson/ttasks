@@ -91,7 +91,7 @@ export interface TTasksSettings {
 	reminders: RemindersSettings;
 }
 
-export const DEFAULT_STATUSES = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Done'];
+export const DEFAULT_STATUSES = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Completed'];
 
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
 	enabled: true,
@@ -112,11 +112,11 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	fabPosition: 'right',
 	customViews: [],
 	statuses: DEFAULT_STATUSES,
-	completionStatus: 'Done',
+	completionStatus: 'Completed',
 	statusColors: {
 		'In Progress': '#2563eb',
 		Blocked: '#dc2626',
-		Done: '#16a34a',
+		Completed: '#16a34a',
 		Cancelled: '#6b7280',
 	},
 	areas: ['database', 'general'],
@@ -653,7 +653,7 @@ export function normalizeColorMap(values: string[], colors: Record<string, strin
 export function resolveCompletionStatus(statuses: string[] | null | undefined, completionStatus?: string | null): string {
 	const valid = statuses ?? [];
 	if (completionStatus && valid.includes(completionStatus)) return completionStatus;
-	if (valid.includes('Done')) return 'Done';
+	if (valid.includes('Completed')) return 'Completed';
 	return valid[0] ?? 'Active';
 }
 
@@ -671,7 +671,7 @@ export function resolveEmergencyStatus(statuses: string[] | null | undefined): s
 /**
  * Returns true when `status` is a system-protected status that must not be
  * deleted. System statuses are the current completion status and inbox status —
- * not the hardcoded strings 'Done' / 'Inbox', but whatever the user has
+ * not the hardcoded strings 'Completed' / 'Inbox', but whatever the user has
  * configured those pointers to be right now.
  */
 export function isSystemStatus(status: string, completionStatus: string): boolean {

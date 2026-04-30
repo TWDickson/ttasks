@@ -15,7 +15,7 @@ import {
 
 describe('normalizeStatuses', () => {
 	it('returns the input when valid', () => {
-		expect(normalizeStatuses(['Active', 'Done'])).toEqual(['Active', 'Done']);
+		expect(normalizeStatuses(['Active', 'Completed'])).toEqual(['Active', 'Completed']);
 	});
 
 	it('falls back to DEFAULT_STATUSES for null/undefined/empty', () => {
@@ -25,15 +25,15 @@ describe('normalizeStatuses', () => {
 	});
 
 	it('deduplicates values', () => {
-		expect(normalizeStatuses(['Active', 'Active', 'Done'])).toEqual(['Active', 'Done']);
+		expect(normalizeStatuses(['Active', 'Active', 'Completed'])).toEqual(['Active', 'Completed']);
 	});
 
 	it('trims whitespace from entries', () => {
-		expect(normalizeStatuses(['  Active  ', ' Done '])).toEqual(['Active', 'Done']);
+		expect(normalizeStatuses(['  Active  ', ' Completed '])).toEqual(['Active', 'Completed']);
 	});
 
 	it('filters blank entries', () => {
-		expect(normalizeStatuses(['Active', '', '  ', 'Done'])).toEqual(['Active', 'Done']);
+		expect(normalizeStatuses(['Active', '', '  ', 'Completed'])).toEqual(['Active', 'Completed']);
 	});
 });
 
@@ -41,23 +41,23 @@ describe('normalizeStatuses', () => {
 
 describe('resolveCompletionStatus', () => {
 	it('returns the configured value when it is in the list', () => {
-		expect(resolveCompletionStatus(['Active', 'Done', 'Closed'], 'Closed')).toBe('Closed');
+		expect(resolveCompletionStatus(['Active', 'Completed', 'Closed'], 'Closed')).toBe('Closed');
 	});
 
-	it("falls back to 'Done' when configured value is absent but 'Done' exists", () => {
-		expect(resolveCompletionStatus(['Active', 'Done'], 'Missing')).toBe('Done');
-		expect(resolveCompletionStatus(['Active', 'Done'], null)).toBe('Done');
-		expect(resolveCompletionStatus(['Active', 'Done'], undefined)).toBe('Done');
+	it("falls back to 'Completed' when configured value is absent but 'Completed' exists", () => {
+		expect(resolveCompletionStatus(['Active', 'Completed'], 'Missing')).toBe('Completed');
+		expect(resolveCompletionStatus(['Active', 'Completed'], null)).toBe('Completed');
+		expect(resolveCompletionStatus(['Active', 'Completed'], undefined)).toBe('Completed');
 	});
 
-	it("falls back to first status when 'Done' is also absent", () => {
+	it("falls back to first status when 'Completed' is also absent", () => {
 		expect(resolveCompletionStatus(['Active', 'Closed'], 'Missing')).toBe('Active');
 	});
 
 	it("falls back to 'Active' when statuses list is empty or null", () => {
-		expect(resolveCompletionStatus([], 'Done')).toBe('Active');
-		expect(resolveCompletionStatus(null, 'Done')).toBe('Active');
-		expect(resolveCompletionStatus(undefined, 'Done')).toBe('Active');
+		expect(resolveCompletionStatus([], 'Completed')).toBe('Active');
+		expect(resolveCompletionStatus(null, 'Completed')).toBe('Active');
+		expect(resolveCompletionStatus(undefined, 'Completed')).toBe('Active');
 	});
 });
 
@@ -65,7 +65,7 @@ describe('resolveCompletionStatus', () => {
 
 describe('resolveConfiguredStatus', () => {
 	it('returns the configured value when valid', () => {
-		expect(resolveConfiguredStatus(['Active', 'In Progress', 'Done'], 'In Progress', 'Active')).toBe('In Progress');
+		expect(resolveConfiguredStatus(['Active', 'In Progress', 'Completed'], 'In Progress', 'Active')).toBe('In Progress');
 	});
 
 	it('falls back to the preferred value when configured is absent', () => {
@@ -101,22 +101,22 @@ describe('normalizeEditorSuggestTrigger', () => {
 
 describe('isSystemStatus', () => {
 	it('returns true for the completion status', () => {
-		expect(isSystemStatus('Done', 'Done')).toBe(true);
+		expect(isSystemStatus('Completed', 'Completed')).toBe(true);
 	});
 
 	it('returns false for any other status', () => {
-		expect(isSystemStatus('Active', 'Done')).toBe(false);
-		expect(isSystemStatus('Blocked', 'Done')).toBe(false);
-		expect(isSystemStatus('In Progress', 'Done')).toBe(false);
+		expect(isSystemStatus('Active', 'Completed')).toBe(false);
+		expect(isSystemStatus('Blocked', 'Completed')).toBe(false);
+		expect(isSystemStatus('In Progress', 'Completed')).toBe(false);
 	});
 
 	it('uses the actual configured name, not the hardcoded string', () => {
 		expect(isSystemStatus('Closed', 'Closed')).toBe(true);
-		expect(isSystemStatus('Done', 'Closed')).toBe(false);
+		expect(isSystemStatus('Completed', 'Closed')).toBe(false);
 	});
 
 	it('returns false when checking an empty string', () => {
-		expect(isSystemStatus('', 'Done')).toBe(false);
+		expect(isSystemStatus('', 'Completed')).toBe(false);
 	});
 });
 
