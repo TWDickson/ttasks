@@ -172,7 +172,7 @@
 							<div
 								class="tt-kanban-card"
 								class:is-active={$activeTaskPath === task.path}
-								class:is-overdue={isOverdue(task.due_date)}
+								class:is-overdue={isOverdue(task)}
 								class:is-dragging={draggingPath === task.path}
 								draggable="true"
 								role="button"
