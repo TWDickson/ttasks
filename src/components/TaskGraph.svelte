@@ -42,9 +42,9 @@
 
 	$: layout = buildTaskGraph(dependencyGraphTasks, {
 		nodeWidth: 220,
-		nodeHeight: 88,
-		horizontalGap: 36,
-		verticalGap: 22,
+		nodeHeight: 112,
+		horizontalGap: 52,
+		verticalGap: 28,
 		padding: 20,
 	});
 	$: dependencyScale = dependencyViewportWidth > 0 && layout.width > 0
@@ -111,7 +111,7 @@
 
 	function nodeStyle(node: TaskGraphNode): string {
 		const accent = statusColors?.[node.task.status] ?? 'var(--interactive-accent)';
-		return `left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px;--tt-node-accent:${accent};--tt-priority-accent:${PRIORITY_COLORS[node.task.priority] ?? PRIORITY_COLORS.None};`;
+		return `left:${node.x}px;top:${node.y}px;width:${node.width}px;min-height:${node.height}px;--tt-node-accent:${accent};--tt-priority-accent:${PRIORITY_COLORS[node.task.priority] ?? PRIORITY_COLORS.None};`;
 	}
 
 	function subtitle(node: TaskGraphNode): string {
@@ -720,6 +720,7 @@
 	.tt-graph-node {
 		position: absolute;
 		box-sizing: border-box;
+		overflow: hidden;
 		display: flex;
 		flex-direction: column;
 		justify-content: space-between;
