@@ -21,7 +21,6 @@
 	const HYBRID_ROW_HEIGHT = 34;
 	const HYBRID_ROW_GAP = 8;
 	const HYBRID_TRACK_PADDING = 8;
-	const HYBRID_UNDER_WIDTH = 14;
 	let graphMode: GraphMode = defaultGraphMode;
 	let appliedGraphMode: GraphMode = defaultGraphMode;
 
@@ -43,6 +42,8 @@
 	$: definedTrackHeightPx = Math.max(42, hybridTimeline.definedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.definedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
 	$: underdefinedTrackHeightPx = Math.max(42, hybridTimeline.underdefinedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.underdefinedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
 	$: linkCanvasHeightPx = definedTrackHeightPx + underdefinedTrackHeightPx + 78;
+	$: definedStatusSummary = summarizeByStatus(hybridTimeline.defined.map((item) => item.task));
+	$: underdefinedStatusSummary = summarizeByStatus(hybridTimeline.underdefined.map((item) => item.task));
 
 	function edgePath(edge: TaskGraphEdge): string {
 		const from = nodesByPath.get(edge.from);
@@ -82,21 +83,6 @@
 		return 'independent';
 	}
 
-	function normalizeTaskPath(pathLike: string | null | undefined): string | null {
-		if (!pathLike) return null;
-		const clean = pathLike.trim();
-		if (!clean) return null;
-		return clean.endsWith('.md') ? clean : `${clean}.md`;
-	}
-
-	function parseDate(value: string | null | undefined): Date | null {
-		if (!value) return null;
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-		const parsed = new Date(`${value}T00:00:00`);
-		if (Number.isNaN(parsed.getTime())) return null;
-		return parsed;
-	}
-
 	function addDays(date: Date, days: number): Date {
 		const next = new Date(date.getTime());
 		next.setDate(next.getDate() + days);
@@ -117,28 +103,27 @@
 		return date.toISOString().slice(0, 10);
 	}
 
-	function timelineBarStyle(item: TimelineItem): string {
-		const accent = statusColors?.[item.task.status] ?? 'var(--interactive-accent)';
-		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;--tt-bar-accent:${accent};`;
-	}
-
 	function definedBarStyle(item: { leftPercent: number; widthPercent: number; row: number; task: Task }): string {
 		const accent = statusColors?.[item.task.status] ?? 'var(--interactive-accent)';
 		const rowTop = HYBRID_TRACK_PADDING + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
 		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;top:${rowTop}px;--tt-bar-accent:${accent};`;
 	}
 
-	function underdefinedCardStyle(item: { leftPercent: number; row: number; task: Task }): string {
+	function underdefinedCardStyle(item: { leftPercent: number; widthPercent: number; row: number; task: Task }): string {
 		const accent = statusColors?.[item.task.status] ?? 'var(--interactive-accent)';
 		const rowTop = HYBRID_TRACK_PADDING + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
-		return `left:${item.leftPercent.toFixed(3)}%;width:${HYBRID_UNDER_WIDTH}%;top:${rowTop}px;--tt-bar-accent:${accent};`;
+		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;top:${rowTop}px;--tt-bar-accent:${accent};`;
 	}
 
 	function hybridLinkPath(link: { fromPercent: number; toPercent: number; fromRow: number; toRow: number }): string {
 		const startY = HYBRID_TRACK_PADDING + link.fromRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP) + HYBRID_ROW_HEIGHT;
 		const endY = definedTrackHeightPx + 54 + HYBRID_TRACK_PADDING + link.toRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
+		const deltaX = Math.abs(link.toPercent - link.fromPercent);
+		const controlX = Math.max(4, deltaX * 0.35);
 		const controlY = Math.round((startY + endY) / 2);
-		return `M ${link.fromPercent.toFixed(3)} ${startY.toFixed(2)} C ${link.fromPercent.toFixed(3)} ${controlY.toFixed(2)}, ${link.toPercent.toFixed(3)} ${(controlY + 12).toFixed(2)}, ${link.toPercent.toFixed(3)} ${endY.toFixed(2)}`;
+		const leftControlX = Math.min(100, link.fromPercent + controlX);
+		const rightControlX = Math.max(0, link.toPercent - controlX);
+		return `M ${link.fromPercent.toFixed(3)} ${startY.toFixed(2)} C ${leftControlX.toFixed(3)} ${controlY.toFixed(2)}, ${rightControlX.toFixed(3)} ${controlY.toFixed(2)}, ${link.toPercent.toFixed(3)} ${endY.toFixed(2)}`;
 	}
 
 	function showTaskHoverPreview(event: MouseEvent, task: Task): void {
@@ -151,81 +136,14 @@
 		onContextMenu(task, event);
 	}
 
-	function buildTimelineRows(allTasks: Task[], projectMap: Map<string, Task>): TimelineCategory[] {
-		const today = startOfToday();
-		// Resolve dates for all tasks via topological sort over the dependency
-		// graph. This handles arbitrary-depth chains: task C depends on B which
-		// depends on A — if A has a due date, B and C get inferred positions.
-		const resolvedDates = resolveTaskDates(allTasks);
-		const groups = new Map<string, Map<string, TimelineItem[]>>();
-
-		for (const task of allTasks) {
-			if (task.type !== 'task') continue;
-			const dates = resolvedDates.get(task.path);
-			if (!dates) continue; // no resolvable dates, or task is in a cycle
-
-			const { start, end, isInferred } = dates;
-			const categoryName = task.area?.trim() || 'Uncategorized';
-			const projectPath = normalizeTaskPath(task.parent_task);
-			const projectName = projectPath ? (projectMap.get(projectPath)?.name ?? projectPath.split('/').pop()?.replace(/\.md$/, '') ?? 'Unknown Project') : 'No Project';
-
-			if (!groups.has(categoryName)) groups.set(categoryName, new Map<string, TimelineItem[]>());
-			const lanes = groups.get(categoryName)!;
-			if (!lanes.has(projectName)) lanes.set(projectName, []);
-			lanes.get(projectName)!.push({
-				task,
-				projectName,
-				categoryName,
-				start,
-				end,
-				leftPercent: 0,
-				widthPercent: 0,
-				isLate: !!task.due_date && parseDate(task.due_date) !== null && parseDate(task.due_date)!.getTime() < today.getTime() && !task.is_complete,
-				isInferred,
-				completedLabel: task.completed ? formatHumanDate(task.completed, formatDate(today)) : null,
-			});
+	function summarizeByStatus(items: Task[]): Array<{ status: string; count: number }> {
+		const counts = new Map<string, number>();
+		for (const item of items) {
+			counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
 		}
-
-		const flattened = [...groups.entries()]
-			.sort((left, right) => left[0].localeCompare(right[0]))
-			.map(([categoryName, lanes]) => ({
-				categoryName,
-				lanes: [...lanes.entries()]
-					.sort((left, right) => left[0].localeCompare(right[0]))
-					.map(([projectName, items]) => ({ projectName, items: [...items].sort((left, right) => left.start.getTime() - right.start.getTime() || left.task.name.localeCompare(right.task.name)) })),
-			}));
-
-		if (flattened.length === 0) return [];
-
-		const starts = flattened.flatMap((category) => category.lanes.flatMap((lane) => lane.items.map((item) => item.start.getTime())));
-		const ends = flattened.flatMap((category) => category.lanes.flatMap((lane) => lane.items.map((item) => item.end.getTime())));
-		const rangeStart = new Date(Math.min(...starts));
-		const rangeEnd = new Date(Math.max(...ends));
-		const spanDays = Math.max(1, diffDays(rangeStart, rangeEnd) + 1);
-
-		for (const category of flattened) {
-			for (const lane of category.lanes) {
-				for (const item of lane.items) {
-					const leftDays = diffDays(rangeStart, item.start);
-					const durationDays = Math.max(1, diffDays(item.start, item.end) + 1);
-					item.leftPercent = (leftDays / spanDays) * 100;
-					item.widthPercent = Math.max(2.4, (durationDays / spanDays) * 100);
-				}
-			}
-		}
-
-		return flattened;
-	}
-
-	function getTimelineBounds(rows: TimelineCategory[]): { start: Date; end: Date } {
-		if (rows.length === 0) {
-			const base = startOfToday();
-			return { start: addDays(base, -7), end: addDays(base, 21) };
-		}
-
-		const starts = rows.flatMap((category) => category.lanes.flatMap((lane) => lane.items.map((item) => item.start.getTime())));
-		const ends = rows.flatMap((category) => category.lanes.flatMap((lane) => lane.items.map((item) => item.end.getTime())));
-		return { start: new Date(Math.min(...starts)), end: new Date(Math.max(...ends)) };
+		return [...counts.entries()]
+			.map(([status, count]) => ({ status, count }))
+			.sort((left, right) => right.count - left.count || left.status.localeCompare(right.status));
 	}
 
 	function buildTimelineTicks(start: Date, end: Date): Array<{ date: Date; label: string; leftPercent: number }> {
@@ -379,7 +297,16 @@
 					</svg>
 
 					<section class="tt-hybrid-track tt-hybrid-track-defined">
-						<h4 class="tt-overview-category-title">Defined Track</h4>
+						<div class="tt-hybrid-track-header">
+							<h4 class="tt-overview-category-title">Defined Track</h4>
+							<div class="tt-track-status-summary">
+								{#each definedStatusSummary as summary (summary.status)}
+									<span class="tt-track-status-chip" style={`--tt-chip-accent:${statusColors?.[summary.status] ?? 'var(--interactive-accent)'};`}>
+										{summary.status} {summary.count}
+									</span>
+								{/each}
+							</div>
+						</div>
 						<div class="tt-hybrid-track-canvas" style={`height:${definedTrackHeightPx}px;`}>
 							{#each hybridTimeline.defined as item (item.path)}
 								<button
@@ -401,7 +328,16 @@
 					</section>
 
 					<section class="tt-hybrid-track tt-hybrid-track-underdefined">
-						<h4 class="tt-overview-category-title">Underdefined Track</h4>
+						<div class="tt-hybrid-track-header">
+							<h4 class="tt-overview-category-title">Underdefined Track</h4>
+							<div class="tt-track-status-summary">
+								{#each underdefinedStatusSummary as summary (summary.status)}
+									<span class="tt-track-status-chip" style={`--tt-chip-accent:${statusColors?.[summary.status] ?? 'var(--interactive-accent)'};`}>
+										{summary.status} {summary.count}
+									</span>
+								{/each}
+							</div>
+						</div>
 						<div class="tt-hybrid-track-canvas" style={`height:${underdefinedTrackHeightPx}px;`}>
 							{#each hybridTimeline.underdefined as item (item.path)}
 								<button
@@ -414,7 +350,8 @@
 									on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
 									on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
 								>
-									<span>{item.task.name}</span>
+									<span class="tt-hybrid-underdefined-name">{item.task.name}</span>
+									<span class="tt-hybrid-underdefined-anchor">after {item.anchorPath.replace(/\.md$/, '').split('/').pop()}</span>
 								</button>
 							{/each}
 						</div>
@@ -546,8 +483,8 @@
 		stroke: color-mix(in srgb, var(--color-orange) 78%, var(--text-faint));
 		color: color-mix(in srgb, var(--color-orange) 78%, var(--text-faint));
 		stroke-width: 2;
-		stroke-dasharray: 8 6;
-		opacity: 0.9;
+		stroke-dasharray: 6 6;
+		opacity: 0.78;
 	}
 
 	.tt-hybrid-track {
@@ -556,6 +493,31 @@
 		flex-direction: column;
 		gap: 6px;
 		z-index: 2;
+	}
+
+	.tt-hybrid-track-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		flex-wrap: wrap;
+	}
+
+	.tt-track-status-summary {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.tt-track-status-chip {
+		padding: 2px 7px;
+		border-radius: 999px;
+		font-size: 0.66rem;
+		font-weight: 700;
+		letter-spacing: 0.03em;
+		color: var(--text-muted);
+		background: color-mix(in srgb, var(--tt-chip-accent) 14%, var(--background-primary));
+		border: 1px solid color-mix(in srgb, var(--tt-chip-accent) 40%, var(--background-modifier-border));
 	}
 
 	.tt-hybrid-track-canvas {
@@ -574,7 +536,22 @@
 
 	.tt-hybrid-underdefined-item {
 		border-style: dashed;
-		font-style: italic;
+		height: 28px;
+		padding: 3px 8px;
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.tt-hybrid-underdefined-name {
+		line-height: 1.05;
+	}
+
+	.tt-hybrid-underdefined-anchor {
+		font-size: 0.62rem;
+		font-weight: 600;
+		color: var(--text-faint);
+		line-height: 1.05;
 	}
 
 	.tt-overview-axis {

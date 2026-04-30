@@ -562,7 +562,6 @@ export function buildHybridTimeline(tasks: Task[]): HybridTimelineModel {
 		definedByPath.set(entry.path, item);
 	}
 
-	const underWidthPercent = 14;
 	const underRowEnds: number[] = [];
 	const underdefined: HybridTimelineUnderdefinedItem[] = [];
 	const links: HybridTimelineLink[] = [];
@@ -594,19 +593,20 @@ export function buildHybridTimeline(tasks: Task[]): HybridTimelineModel {
 		const anchorDate = new Date(anchorEndMs + INFER_DAY_MS);
 		const leftDays = Math.max(0, Math.round((anchorDate.getTime() - rangeStart.getTime()) / INFER_DAY_MS));
 		const leftPercent = Math.min(98, (leftDays / spanDays) * 100);
+		const widthPercent = resolveUnderdefinedWidthPercent(task);
 
 		let row = 0;
 		while (row < underRowEnds.length && leftPercent <= underRowEnds[row]) {
 			row += 1;
 		}
-		underRowEnds[row] = leftPercent + underWidthPercent + 1.5;
+		underRowEnds[row] = leftPercent + widthPercent + 1.25;
 
 		const item: HybridTimelineUnderdefinedItem = {
 			path: task.path,
 			task,
 			anchorPath,
 			leftPercent,
-			widthPercent: underWidthPercent,
+			widthPercent,
 			row,
 		};
 		underdefined.push(item);
@@ -636,4 +636,12 @@ export function buildHybridTimeline(tasks: Task[]): HybridTimelineModel {
 		definedRowCount: Math.max(1, definedRowEnds.length),
 		underdefinedRowCount: Math.max(1, underRowEnds.length),
 	};
+}
+
+function resolveUnderdefinedWidthPercent(task: Task): number {
+	// Wider cards for longer titles improve scanability while still allowing
+	// dense tracks on large boards.
+	const titleLength = task.name.trim().length;
+	const width = 9 + Math.min(44, titleLength) * 0.23;
+	return Math.min(20, Math.max(10, width));
 }

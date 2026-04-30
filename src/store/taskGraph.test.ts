@@ -188,4 +188,16 @@ describe('buildHybridTimeline', () => {
 		expect(model.underdefined).toHaveLength(0);
 		expect(model.links).toHaveLength(0);
 	});
+
+	it('keeps underdefined card widths within readability bounds', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', due_date: '2026-04-05' }),
+			makeTask({ path: 'Tasks/b.md', name: 'Very long task name that should produce a wider underdefined card', depends_on: ['Tasks/a'] }),
+		];
+
+		const model = buildHybridTimeline(tasks);
+		expect(model.underdefined).toHaveLength(1);
+		expect(model.underdefined[0].widthPercent).toBeGreaterThanOrEqual(10);
+		expect(model.underdefined[0].widthPercent).toBeLessThanOrEqual(20);
+	});
 });
