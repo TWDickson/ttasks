@@ -481,7 +481,11 @@
 
 {#if !task}
 	<div class="tt-detail-empty">
-		<p>No task selected.</p>
+		{#if $activeTaskPath}
+			<p>Task not found — it may still be loading or is outside the tasks folder.</p>
+		{:else}
+			<p>No task selected.</p>
+		{/if}
 	</div>
 {:else}
 	<div class="tt-detail">
@@ -548,15 +552,25 @@
 
 			{#if task.type === 'task'}
 				<label class="tt-label" for="tt-parent-task">Project</label>
-				<select
-					id="tt-parent-task"
-					bind:value={parent_task_path}
-					on:change={onParentTaskChange}
-				>
-					{#each parentProjectOptions as opt}
-						<option value={opt.value}>{opt.label}</option>
-					{/each}
-				</select>
+				<div class="tt-parent-task-row">
+					<select
+						id="tt-parent-task"
+						bind:value={parent_task_path}
+						on:change={onParentTaskChange}
+					>
+						{#each parentProjectOptions as opt}
+							<option value={opt.value}>{opt.label}</option>
+						{/each}
+					</select>
+					{#if parent_task_path}
+						<button
+							class="tt-parent-task-open"
+							title="Open parent project"
+							on:click={() => openLinkedPath(parent_task_path)}
+							aria-label="Open parent project"
+						>↗</button>
+					{/if}
+				</div>
 
 				<label class="tt-label" for="tt-task-type">Labels</label>
 				<select
@@ -868,6 +882,34 @@
 	.tt-detail-name:focus {
 		outline: none;
 		border-bottom-color: var(--interactive-accent);
+	}
+
+	.tt-parent-task-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.tt-parent-task-row select {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.tt-parent-task-open {
+		flex-shrink: 0;
+		background: transparent;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 4px;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: 0.85rem;
+		padding: 2px 6px;
+		line-height: 1.4;
+	}
+
+	.tt-parent-task-open:hover {
+		color: var(--text-normal);
+		border-color: var(--color-accent);
 	}
 
 	.tt-saving {
