@@ -643,6 +643,11 @@ export class QueryEditorModal extends Modal {
 
 			const detail = errEl.createDiv({ cls: 'tt-qe-json-error-detail' });
 			detail.setText(formatted.detail);
+
+			if (formatted.hint) {
+				const hint = errEl.createDiv({ cls: 'tt-qe-json-error-hint' });
+				hint.setText(formatted.hint);
+			}
 		};
 
 		ta.addEventListener('input', () => {
@@ -650,8 +655,16 @@ export class QueryEditorModal extends Modal {
 			clearJsonError();
 		});
 
-		const formatBtn = container.createEl('button', { text: 'Format JSON', cls: 'tt-qe-add-btn' });
-		formatBtn.style.marginTop = '8px';
+		const actions = container.createDiv({ cls: 'tt-qe-json-actions' });
+		const formatBtn = actions.createEl('button', { text: 'Format JSON', cls: 'tt-qe-add-btn' });
+		const repairBtn = actions.createEl('button', {
+			text: this.renderer === 'agenda'
+				? 'Repair For Agenda'
+				: this.renderer === 'kanban'
+					? 'Repair For Kanban'
+					: 'Repair For Renderer',
+			cls: 'tt-qe-add-btn',
+		});
 		formatBtn.addEventListener('click', () => {
 			const result = parseQuerySpecFromJson(ta.value);
 			if (result.ok) {
@@ -662,14 +675,23 @@ export class QueryEditorModal extends Modal {
 				showJsonError(result.error);
 			}
 		});
+
+		repairBtn.addEventListener('click', () => {
+			const parsed = parseQuerySpecFromJson(ta.value);
+			const repaired = coerceQueryForRenderer(this.renderer, parsed.ok ? parsed.value : this.query);
+			ta.value = JSON.stringify(repaired, null, 2);
+			this.jsonDraft = ta.value;
+			clearJsonError();
+		});
 	}
 
-	private formatJsonError(message: string): { summary: string; path: string | null; detail: string } {
+	private formatJsonError(message: string): { summary: string; path: string | null; detail: string; hint?: string } {
 		if (message.startsWith('Invalid JSON:')) {
 			return {
 				summary: 'The JSON syntax is invalid.',
 				path: null,
 				detail: message.replace(/^Invalid JSON:\s*/, ''),
+				hint: 'Fix the JSON syntax first, then try Format JSON again.',
 			};
 		}
 
@@ -682,14 +704,19 @@ export class QueryEditorModal extends Modal {
 				summary: 'Choose a valid grouping for this renderer.',
 				path: 'group',
 				detail: 'Agenda views require agenda date buckets.',
+				hint: 'Use Repair For Agenda to restore the required grouping automatically.',
 			};
 		}
 
 		if (detail.startsWith('group.field must be one of:')) {
+			const hint = this.renderer === 'kanban'
+				? 'Kanban requires grouping by status. Use Repair For Kanban to fix it automatically.'
+				: undefined;
 			return {
 				summary: 'Choose a valid grouping field.',
 				path: 'group.field',
 				detail,
+				hint,
 			};
 		}
 
@@ -713,6 +740,11 @@ export class QueryEditorModal extends Modal {
 			summary: 'The QuerySpec is invalid.',
 			path,
 			detail,
+			hint: this.renderer === 'agenda'
+				? 'Agenda views require agenda date buckets.'
+				: this.renderer === 'kanban'
+					? 'Kanban views require grouping by status.'
+					: undefined,
 		};
 	}
 
