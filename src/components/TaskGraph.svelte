@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
 	import type { TaskGroup } from '../query/types';
@@ -24,6 +25,8 @@
 	let graphMode: GraphMode = defaultGraphMode;
 	let appliedGraphMode: GraphMode = defaultGraphMode;
 	let showIndependentInDependency = false;
+	let dependencyScrollEl: HTMLDivElement | null = null;
+	let dependencyViewportWidth = 0;
 
 	$: if (defaultGraphMode !== appliedGraphMode) {
 		graphMode = defaultGraphMode;
@@ -44,8 +47,33 @@
 		verticalGap: 22,
 		padding: 20,
 	});
+	$: dependencyScale = dependencyViewportWidth > 0 && layout.width > 0
+		? Math.min(1, dependencyViewportWidth / layout.width)
+		: 1;
+	$: fittedDependencyWidth = Math.max(1, Math.round(layout.width * dependencyScale));
+	$: fittedDependencyHeight = Math.max(1, Math.round(layout.height * dependencyScale));
 	$: nodesByPath = new Map(layout.nodes.map((node) => [node.path, node]));
 	$: dependencyEmpty = layout.nodes.length === 0;
+
+	onMount(() => {
+		const updateViewport = () => {
+			dependencyViewportWidth = dependencyScrollEl?.clientWidth ?? 0;
+		};
+
+		updateViewport();
+
+		let observer: ResizeObserver | null = null;
+		if (dependencyScrollEl && typeof ResizeObserver !== 'undefined') {
+			observer = new ResizeObserver(() => updateViewport());
+			observer.observe(dependencyScrollEl);
+		}
+
+		window.addEventListener('resize', updateViewport);
+		return () => {
+			window.removeEventListener('resize', updateViewport);
+			observer?.disconnect();
+		};
+	});
 
 	$: hybridTimeline = buildHybridTimeline(tasks);
 	$: timelineTaskCount = hybridTimeline.defined.length + hybridTimeline.underdefined.length;
@@ -242,8 +270,9 @@
 		{#if dependencyEmpty}
 			<div class="tt-graph-empty">No dependency relationships found. Add depends_on links between tasks to see the graph.</div>
 		{:else}
-			<div class="tt-graph-scroll">
-				<div class="tt-graph-stage" style={`width:${layout.width}px;height:${layout.height}px;`}>
+			<div class="tt-graph-scroll" bind:this={dependencyScrollEl}>
+				<div class="tt-graph-fit" style={`width:${fittedDependencyWidth}px;height:${fittedDependencyHeight}px;`}>
+				<div class="tt-graph-stage" style={`width:${layout.width}px;height:${layout.height}px;transform:scale(${dependencyScale});`}>
 					<svg class="tt-graph-svg" viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="xMinYMin meet" aria-hidden="true">
 						<defs>
 							<marker id="ttasks-graph-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
@@ -290,6 +319,7 @@
 							</div>
 						</button>
 					{/each}
+				</div>
 				</div>
 			</div>
 		{/if}
@@ -653,6 +683,12 @@
 	.tt-graph-stage {
 		position: relative;
 		min-width: 100%;
+		transform-origin: top left;
+	}
+
+	.tt-graph-fit {
+		position: relative;
+		min-width: 1px;
 	}
 
 	.tt-graph-svg {
