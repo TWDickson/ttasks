@@ -5,6 +5,7 @@
 	import type { Task } from '../types';
 	import { PRIORITY_COLORS } from '../constants';
 	import { getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
+	import { canShowInlineReopen } from './taskRowActions';
 
 	export let plugin: TTasksPlugin;
 	export let task: Task;
@@ -13,6 +14,7 @@
 	export let labelColors: Record<string, string>;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
+	export let onRestore: ((path: string) => Promise<void>) | undefined = undefined;
 	/** Hierarchical indent level — each level adds 20px left padding. */
 	export let indent = 0;
 	/** Show a collapse/expand chevron on this row. */
@@ -66,6 +68,15 @@
 	function handleHoverPreview(event: MouseEvent): void {
 		plugin.triggerTaskHoverPreview(task.path, event);
 	}
+
+	async function handleRestore(event: MouseEvent): Promise<void> {
+		event.preventDefault();
+		event.stopPropagation();
+		if (!onRestore) return;
+		await onRestore(task.path);
+	}
+
+	$: showInlineReopen = canShowInlineReopen(task) && !!onRestore;
 </script>
 
 <li
@@ -117,6 +128,9 @@
 			{/each}
 		</div>
 	</button>
+	{#if showInlineReopen}
+		<button type="button" class="tt-inline-reopen" on:click={handleRestore} aria-label="Reopen task">Reopen</button>
+	{/if}
 </li>
 
 <style>
@@ -158,6 +172,7 @@
 	}
 
 	.tt-task-btn {
+		flex: 1;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -178,6 +193,25 @@
 		touch-action: pan-y;
 		position: relative;
 		z-index: 1;
+	}
+
+	.tt-inline-reopen {
+		align-self: center;
+		margin-left: var(--tt-space-1);
+		padding: 4px 8px;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: var(--button-radius, var(--radius-m, 8px));
+		background: transparent;
+		color: var(--text-muted);
+		font-size: 0.72rem;
+		font-weight: 600;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.tt-inline-reopen:hover {
+		color: var(--text-normal);
+		background: var(--interactive-hover, var(--background-modifier-hover));
 	}
 
 	.tt-task-btn:hover {

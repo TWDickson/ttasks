@@ -14,6 +14,7 @@
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
+	export let onRestore: ((path: string) => Promise<void>) | undefined = undefined;
 	export let onNewTask: (() => void) | undefined = undefined;
 
 	let collapsedPaths = new Set<string>();
@@ -62,6 +63,7 @@
 								expanded={row.expanded}
 								onExpand={() => toggleExpanded(row.task.path)}
 								onContextMenu={onContextMenu}
+								onRestore={onRestore}
 							/>
 						{/each}
 					</ul>

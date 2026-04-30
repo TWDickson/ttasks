@@ -372,6 +372,7 @@
 						labelColors={configuredTaskTypeColors}
 						{activeTaskPath}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
+						onRestore={(path) => plugin.taskStore.restore(path)}
 						onContextMenu={openContextMenu}
 						onNewTask={openNewTask}
 					/>
