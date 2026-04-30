@@ -645,3 +645,23 @@ function resolveUnderdefinedWidthPercent(task: Task): number {
 	const width = 9 + Math.min(44, titleLength) * 0.23;
 	return Math.min(20, Math.max(10, width));
 }
+
+export function resolveConnectedDependencyPaths(tasks: Task[]): Set<string> {
+	const taskPaths = new Set(tasks.map((task) => task.path));
+	const connected = new Set<string>();
+
+	for (const task of tasks) {
+		const deps = dedupePaths(
+			(task.depends_on ?? [])
+				.map((path) => normalizeTaskPath(path))
+				.filter((path): path is string => !!path && taskPaths.has(path))
+		);
+		if (deps.length === 0) continue;
+		connected.add(task.path);
+		for (const dep of deps) {
+			connected.add(dep);
+		}
+	}
+
+	return connected;
+}

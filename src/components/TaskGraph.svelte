@@ -3,7 +3,7 @@
 	import type { Task } from '../types';
 	import type { TaskGroup } from '../query/types';
 	import type TTasksPlugin from '../main';
-	import { buildHybridTimeline, buildTaskGraph, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
+	import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
 	import { PRIORITY_COLORS } from '../constants';
 	import { flattenTaskGroups } from './viewAdapters';
 	import { formatHumanDate } from './taskDateMeta';
@@ -23,6 +23,7 @@
 	const HYBRID_TRACK_PADDING = 8;
 	let graphMode: GraphMode = defaultGraphMode;
 	let appliedGraphMode: GraphMode = defaultGraphMode;
+	let showIndependentInDependency = false;
 
 	$: if (defaultGraphMode !== appliedGraphMode) {
 		graphMode = defaultGraphMode;
@@ -30,8 +31,13 @@
 	}
 
 	$: tasks = flattenTaskGroups($groups);
+	$: connectedDependencyPaths = resolveConnectedDependencyPaths(tasks);
+	$: dependencyGraphTasks = showIndependentInDependency || connectedDependencyPaths.size === 0
+		? tasks
+		: tasks.filter((task) => task.type === 'project' || connectedDependencyPaths.has(task.path));
+	$: hiddenIndependentCount = Math.max(0, tasks.filter((task) => task.type === 'task').length - connectedDependencyPaths.size);
 
-	$: layout = buildTaskGraph(tasks, {});
+	$: layout = buildTaskGraph(dependencyGraphTasks, {});
 	$: nodesByPath = new Map(layout.nodes.map((node) => [node.path, node]));
 	$: dependencyEmpty = layout.nodes.length === 0;
 
@@ -63,6 +69,10 @@
 
 		const midY = Math.min(startY, endY) - 48;
 		return `M ${startX} ${startY} C ${startX + 64} ${startY}, ${startX + 64} ${midY}, ${startX + 22} ${midY} S ${endX - 64} ${midY}, ${endX} ${endY}`;
+	}
+
+	function toggleIndependentVisibility(): void {
+		showIndependentInDependency = !showIndependentInDependency;
 	}
 
 	function nodeStyle(node: TaskGraphNode): string {
@@ -188,6 +198,12 @@
 					<span class="tt-graph-pill-label">Cycle nodes</span>
 					<strong>{layout.cycleCount}</strong>
 				</div>
+				{#if hiddenIndependentCount > 0}
+					<button type="button" class="tt-graph-pill tt-graph-pill-toggle" on:click={toggleIndependentVisibility}>
+						<span class="tt-graph-pill-label">Independent</span>
+						<strong>{showIndependentInDependency ? 'Shown' : `${hiddenIndependentCount} hidden`}</strong>
+					</button>
+				{/if}
 			{:else}
 				<div class="tt-graph-pill">
 					<span class="tt-graph-pill-label">Defined Track</span>
@@ -209,7 +225,7 @@
 		</div>
 		<p class="tt-graph-note">
 			{#if graphMode === 'dependency'}
-				Graph respects current filters. Amber paths have unfinished upstream dependencies. Red rings mark cycles.
+				Graph respects current filters. Amber paths have unfinished upstream dependencies. Red rings mark cycles. Independent tasks are hidden by default to keep the dependency map readable.
 			{:else}
 				Defined track shows dated/inferred windows. Underdefined track shows no-estimate tasks that anchor after resolved upstream work.
 			{/if}
@@ -224,8 +240,8 @@
 				<div class="tt-graph-stage" style={`width:${layout.width}px;height:${layout.height}px;`}>
 					<svg class="tt-graph-svg" viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="xMinYMin meet" aria-hidden="true">
 						<defs>
-							<marker id="ttasks-graph-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
-								<path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+							<marker id="ttasks-graph-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+								<path d="M 0 0 L 8 4 L 0 8 z" fill="currentColor"></path>
 							</marker>
 						</defs>
 						{#each layout.edges as edge (edge.id)}
@@ -435,6 +451,10 @@
 		background: color-mix(in srgb, var(--color-orange) 12%, var(--background-primary));
 	}
 
+	.tt-graph-pill-toggle {
+		cursor: pointer;
+	}
+
 	.tt-graph-note {
 		margin: 0;
 		color: var(--text-muted);
@@ -638,9 +658,9 @@
 	.tt-graph-edge {
 		fill: none;
 		stroke: color-mix(in srgb, var(--text-faint) 72%, transparent);
-		stroke-width: 2;
+		stroke-width: 1.75;
 		color: color-mix(in srgb, var(--text-faint) 72%, transparent);
-		opacity: 0.9;
+		opacity: 0.78;
 	}
 
 	.tt-graph-edge.is-blocked {

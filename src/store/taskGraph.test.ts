@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
-import { buildHybridTimeline, buildTaskGraph, resolveTaskDates } from './taskGraph';
+import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, resolveTaskDates } from './taskGraph';
 
 function makeTask(overrides: Partial<Task> & Pick<Task, 'path' | 'name'>): Task {
 	const { path, name, ...rest } = overrides;
@@ -85,6 +85,29 @@ describe('buildTaskGraph', () => {
 
 		expect(blockedNodes).toEqual([]);
 		expect(layout.blockedEdgeCount).toBe(0);
+	});
+});
+
+describe('resolveConnectedDependencyPaths', () => {
+	it('returns only nodes that participate in dependency edges', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'] }),
+			makeTask({ path: 'Tasks/c.md', name: 'C' }),
+		];
+
+		const connected = resolveConnectedDependencyPaths(tasks);
+
+		expect([...connected].sort()).toEqual(['Tasks/a.md', 'Tasks/b.md']);
+	});
+
+	it('ignores dependency paths outside the current task set', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', depends_on: ['Tasks/missing'] }),
+		];
+
+		const connected = resolveConnectedDependencyPaths(tasks);
+		expect(connected.size).toBe(0);
 	});
 });
 
