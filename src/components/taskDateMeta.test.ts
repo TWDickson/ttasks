@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
+import { formatHumanDate, getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
 
 const TODAY = '2026-04-30';
+
+describe('formatHumanDate', () => {
+	it('omits year when same as today', () => {
+		expect(formatHumanDate('2026-04-25', TODAY)).toBe('Apr 25');
+	});
+
+	it('includes year when different from today', () => {
+		expect(formatHumanDate('2025-12-01', TODAY)).toBe('Dec 1, 2025');
+	});
+});
 
 describe('isTaskOverdue', () => {
 	it('treats incomplete past-due tasks as overdue', () => {
@@ -18,7 +28,7 @@ describe('getTaskDateBadge', () => {
 		const badge = getTaskDateBadge({ due_date: '2026-04-20', completed: '2026-04-25', is_complete: true }, TODAY);
 		expect(badge).toEqual({
 			kind: 'completed',
-			label: 'Completed 2026-04-25',
+			label: 'Completed Apr 25',
 			title: '2026-04-25',
 			isOverdue: false,
 		});

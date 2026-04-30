@@ -6,6 +6,7 @@
 	import { buildTaskGraph, resolveTaskDates, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
 	import { PRIORITY_COLORS } from '../constants';
 	import { flattenTaskGroups } from './viewAdapters';
+	import { formatHumanDate } from './taskDateMeta';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
@@ -26,6 +27,7 @@
 		widthPercent: number;
 		isLate: boolean;
 		isInferred: boolean;
+		completedLabel: string | null;
 	};
 	type TimelineLane = { projectName: string; items: TimelineItem[] };
 	type TimelineCategory = { categoryName: string; lanes: TimelineLane[] };
@@ -173,6 +175,7 @@
 				widthPercent: 0,
 				isLate: !!task.due_date && parseDate(task.due_date) !== null && parseDate(task.due_date)!.getTime() < today.getTime() && !task.is_complete,
 				isInferred,
+				completedLabel: task.completed ? formatHumanDate(task.completed, formatDate(today)) : null,
 			});
 		}
 
@@ -332,8 +335,10 @@
 							<div class="tt-graph-name">{node.task.name}</div>
 							<div class="tt-graph-meta">
 								<span>{subtitle(node)}</span>
-								{#if node.task.due_date}
-									<span>Due {node.task.due_date}</span>
+							{#if node.task.is_complete && node.task.completed}
+								<span>Done {formatHumanDate(node.task.completed, formatDate(startOfToday()))}</span>
+							{:else if node.task.due_date}
+								<span>Due {formatHumanDate(node.task.due_date, formatDate(startOfToday()))}</span>
 								{/if}
 							</div>
 						</button>
@@ -370,7 +375,9 @@
 											class:is-active={$activeTaskPath === item.task.path}
 											class:is-inferred={item.isInferred}
 											style={timelineBarStyle(item)}
-											title={`${item.task.name} | ${formatDate(item.start)} → ${formatDate(item.end)}${item.isInferred ? ' (inferred)' : ''}`}
+											title={item.completedLabel
+										? `${item.task.name} | ${formatDate(item.start)} → ${formatDate(item.end)} | ✓ ${item.completedLabel}${item.isInferred ? ' (inferred)' : ''}`
+										: `${item.task.name} | ${formatDate(item.start)} → ${formatDate(item.end)}${item.isInferred ? ' (inferred)' : ''}`}
 											on:click={() => onOpen(item.task.path)}
 											on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
 											on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
