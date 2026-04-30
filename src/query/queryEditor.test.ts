@@ -277,13 +277,72 @@ describe('validateQuerySpec', () => {
 		expect(validateQuerySpec(spec)).toBe(false);
 	});
 
+	it('rejects sort with unknown field', () => {
+		const spec = { ...validSpec, sort: [{ field: 'random', direction: 'asc' }] };
+		expect(validateQuerySpec(spec)).toBe(false);
+	});
+
 	it('rejects unknown group kind', () => {
 		const spec = { ...validSpec, group: { kind: 'random' } };
 		expect(validateQuerySpec(spec)).toBe(false);
 	});
 
+	it('rejects malformed field group payload', () => {
+		const spec = { ...validSpec, group: { kind: 'field' } };
+		expect(validateQuerySpec(spec)).toBe(false);
+	});
+
+	it('rejects malformed date bucket payload', () => {
+		const spec = { ...validSpec, group: { kind: 'date_buckets', field: 'start_date', preset: 'agenda' } };
+		expect(validateQuerySpec(spec)).toBe(false);
+	});
+
 	it('rejects invalid sortScope', () => {
 		const spec = { ...validSpec, sortScope: 'weird' };
+		expect(validateQuerySpec(spec)).toBe(false);
+	});
+
+	it('rejects unknown filter condition field', () => {
+		const spec = {
+			...validSpec,
+			filter: {
+				logic: 'and',
+				conditions: [{ field: 'random', operator: 'is', value: 'x' }],
+			},
+		};
+		expect(validateQuerySpec(spec)).toBe(false);
+	});
+
+	it('rejects operator not valid for field', () => {
+		const spec = {
+			...validSpec,
+			filter: {
+				logic: 'and',
+				conditions: [{ field: 'is_complete', operator: 'contains', value: 'true' }],
+			},
+		};
+		expect(validateQuerySpec(spec)).toBe(false);
+	});
+
+	it('rejects contains_any with non-array value', () => {
+		const spec = {
+			...validSpec,
+			filter: {
+				logic: 'and',
+				conditions: [{ field: 'labels', operator: 'contains_any', value: 'bug' }],
+			},
+		};
+		expect(validateQuerySpec(spec)).toBe(false);
+	});
+
+	it('rejects malformed nested filter groups', () => {
+		const spec = {
+			...validSpec,
+			filter: {
+				logic: 'and',
+				conditions: [{ logic: 'and', conditions: [{ foo: 'bar' }] }],
+			},
+		};
 		expect(validateQuerySpec(spec)).toBe(false);
 	});
 });

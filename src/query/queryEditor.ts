@@ -141,11 +141,52 @@ function isValidSortScope(v: unknown): v is 'global' | 'within_groups' {
 	return v === 'global' || v === 'within_groups';
 }
 
+function isKnownFilterField(v: unknown): v is FilterField {
+	return typeof v === 'string' && FILTER_FIELDS.includes(v as FilterField);
+}
+
+function isKnownSortField(v: unknown): v is SortField {
+	return typeof v === 'string' && SORT_FIELDS.includes(v as SortField);
+}
+
+function isKnownGroupField(v: unknown): v is GroupField {
+	return typeof v === 'string' && GROUP_FIELDS.includes(v as GroupField);
+}
+
+function isValidFilterValue(v: unknown): v is FilterCondition['value'] {
+	if (v === undefined) return true;
+	if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return true;
+	if (Array.isArray(v)) return v.every((item) => typeof item === 'string');
+	return false;
+}
+
+function isFilterCondition(v: unknown): v is FilterCondition {
+	if (!v || typeof v !== 'object') return false;
+	const o = v as Record<string, unknown>;
+	if (!isKnownFilterField(o.field)) return false;
+	if (typeof o.operator !== 'string') return false;
+	const validOperators = operatorsForField(o.field);
+	if (!validOperators.includes(o.operator as FilterOperator)) return false;
+	if (!isValidFilterValue(o.value)) return false;
+
+	if ((o.operator === 'contains_any' || o.operator === 'contains_all') && !Array.isArray(o.value)) {
+		return false;
+	}
+	if (o.operator === 'within_days' && typeof o.value !== 'number') {
+		return false;
+	}
+
+	return true;
+}
+
 function isFilterGroup(v: unknown): v is FilterGroup {
 	if (!v || typeof v !== 'object') return false;
 	const o = v as Record<string, unknown>;
 	if (!isValidLogic(o.logic)) return false;
 	if (!Array.isArray(o.conditions)) return false;
+	for (const condition of o.conditions) {
+		if (!isFilterGroup(condition) && !isFilterCondition(condition)) return false;
+	}
 	return true;
 }
 
@@ -153,7 +194,9 @@ function isValidGroupSpec(v: unknown): v is GroupSpec {
 	if (!v || typeof v !== 'object') return false;
 	const o = v as Record<string, unknown>;
 	if (!isValidGroupKind(o.kind)) return false;
-	return true;
+	if (o.kind === 'none') return true;
+	if (o.kind === 'field') return isKnownGroupField(o.field);
+	return o.field === 'due_date' && o.preset === 'agenda';
 }
 
 function isValidSortSpec(v: unknown): v is SortSpec {
@@ -161,7 +204,7 @@ function isValidSortSpec(v: unknown): v is SortSpec {
 	for (const entry of v) {
 		if (!entry || typeof entry !== 'object') return false;
 		const e = entry as Record<string, unknown>;
-		if (typeof e.field !== 'string') return false;
+		if (!isKnownSortField(e.field)) return false;
 		if (!isValidSortDirection(e.direction)) return false;
 	}
 	return true;
