@@ -37,7 +37,13 @@
 		: tasks.filter((task) => task.type === 'project' || connectedDependencyPaths.has(task.path));
 	$: hiddenIndependentCount = Math.max(0, tasks.filter((task) => task.type === 'task').length - connectedDependencyPaths.size);
 
-	$: layout = buildTaskGraph(dependencyGraphTasks, {});
+	$: layout = buildTaskGraph(dependencyGraphTasks, {
+		nodeWidth: 220,
+		nodeHeight: 88,
+		horizontalGap: 36,
+		verticalGap: 22,
+		padding: 20,
+	});
 	$: nodesByPath = new Map(layout.nodes.map((node) => [node.path, node]));
 	$: dependencyEmpty = layout.nodes.length === 0;
 
@@ -741,10 +747,13 @@
 		font-size: 0.95rem;
 		font-weight: 700;
 		color: var(--text-normal);
+		line-height: 1.2;
+		max-height: 2.4em;
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
 		-webkit-line-clamp: 2;
 		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.tt-graph-meta {

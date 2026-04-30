@@ -11,6 +11,10 @@ export function canToggleBuiltinCompleted(view: Pick<RegisteredTaskViewDefinitio
 	return view.source === 'builtin' && view.id !== 'logbook' && view.id !== 'kanban';
 }
 
+export function defaultCompletedVisibility(view: Pick<RegisteredTaskViewDefinition, 'id' | 'source'>): boolean {
+	return view.source === 'builtin' && view.id === 'graph';
+}
+
 export function applyBuiltinCompletedVisibility(
 	view: Pick<RegisteredTaskViewDefinition, 'id' | 'source'>,
 	query: QuerySpec,

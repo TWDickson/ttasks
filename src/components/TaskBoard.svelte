@@ -10,7 +10,7 @@
 	import TaskGraph from './TaskGraph.svelte';
 	import TaskDetail from './TaskDetail.svelte';
 	import { createTaskQuery } from '../query/useTaskQuery';
-	import { canToggleBuiltinCompleted } from './builtinViewCompletionToggle';
+	import { canToggleBuiltinCompleted, defaultCompletedVisibility } from './builtinViewCompletionToggle';
 	import { canToggleLogbookRenderer, resolveViewRenderer, toggleLogbookRendererMode } from './logbookViewMode';
 	import { buildBoardQuery } from './boardQuery';
 	import type { FilterCondition } from '../query/types';
@@ -65,7 +65,7 @@
 
 	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterArea;
 	$: canToggleCompletedForCurrentView = canToggleBuiltinCompleted(currentView);
-	$: showCompleted = showCompletedByViewId[currentView.id] ?? false;
+	$: showCompleted = showCompletedByViewId[currentView.id] ?? defaultCompletedVisibility(currentView);
 	$: currentRenderer = resolveViewRenderer(currentView.id, currentView.renderer, logbookRendererModeByViewId);
 
 	function effectiveQuery(
@@ -110,10 +110,11 @@
 		filterArea     = '';
 	}
 
-	function toggleCompletedVisibility(viewId: string) {
+	function toggleCompletedVisibility(view: typeof currentView) {
+		const current = showCompletedByViewId[view.id] ?? defaultCompletedVisibility(view);
 		showCompletedByViewId = {
 			...showCompletedByViewId,
-			[viewId]: !(showCompletedByViewId[viewId] ?? false),
+			[view.id]: !current,
 		};
 	}
 
@@ -347,7 +348,7 @@
 				{/if}
 
 				{#if canToggleCompletedForCurrentView}
-					<button class="tt-filter-toggle-completed" on:click={() => toggleCompletedVisibility(currentView.id)}>
+					<button class="tt-filter-toggle-completed" on:click={() => toggleCompletedVisibility(currentView)}>
 						{showCompleted ? 'Hide Completed' : 'Show Completed'}
 					</button>
 				{/if}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { QuerySpec } from '../query/types';
-import { applyBuiltinCompletedVisibility, canToggleBuiltinCompleted } from './builtinViewCompletionToggle';
+import { applyBuiltinCompletedVisibility, canToggleBuiltinCompleted, defaultCompletedVisibility } from './builtinViewCompletionToggle';
 
 const BASE_QUERY: QuerySpec = {
 	filter: { logic: 'and', conditions: [] },
@@ -14,6 +14,14 @@ describe('canToggleBuiltinCompleted', () => {
 		expect(canToggleBuiltinCompleted({ id: 'kanban', source: 'builtin' })).toBe(false);
 		expect(canToggleBuiltinCompleted({ id: 'logbook', source: 'builtin' })).toBe(false);
 		expect(canToggleBuiltinCompleted({ id: 'custom-focus', source: 'custom' })).toBe(false);
+	});
+});
+
+describe('defaultCompletedVisibility', () => {
+	it('defaults graph view to show completed and others to false', () => {
+		expect(defaultCompletedVisibility({ id: 'graph', source: 'builtin' })).toBe(true);
+		expect(defaultCompletedVisibility({ id: 'list', source: 'builtin' })).toBe(false);
+		expect(defaultCompletedVisibility({ id: 'custom-focus', source: 'custom' })).toBe(false);
 	});
 });
 
