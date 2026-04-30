@@ -670,7 +670,6 @@
 					</div>
 
 					<div class="tt-rel-tree">
-						<div class="tt-rel-heading">Dependency Tree</div>
 						{#if upstreamTreeLevels.length === 0 && downstreamTreeLevels.length === 0}
 							<div class="tt-rel-empty">No linked tasks</div>
 						{:else}
@@ -720,7 +719,7 @@
 					</div>
 
 					<div class="tt-rel-editors">
-						<div class="tt-rel-lane">
+						<div class="tt-rel-lane tt-rel-lane-full">
 							<div class="tt-rel-heading">Depends On</div>
 							{#if task.depends_on.length === 0}
 								<div class="tt-rel-empty">None</div>
@@ -746,7 +745,7 @@
 							{/if}
 						</div>
 
-						<div class="tt-rel-lane">
+						<div class="tt-rel-lane tt-rel-lane-full">
 							<div class="tt-rel-heading">Blocks</div>
 							{#if task.blocks.length === 0}
 								<div class="tt-rel-empty">None</div>
@@ -852,6 +851,7 @@
 
 	.tt-detail-name {
 		flex: 1;
+		min-width: 0;
 		font-size: 1.3rem;
 		font-weight: 600;
 		border: none;
@@ -860,6 +860,9 @@
 		padding: 4px 0;
 		border-bottom: 2px solid transparent;
 		transition: border-color 0.15s;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.tt-detail-name:focus {
@@ -1116,10 +1119,14 @@
 	}
 
 	.tt-rel-editors {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
+		display: flex;
+		flex-direction: column;
 		gap: 10px;
-		align-items: start;
+	}
+
+	.tt-rel-lane-full {
+		min-width: 0;
+		width: 100%;
 	}
 
 	.tt-rel-lane {
