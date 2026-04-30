@@ -31,7 +31,7 @@ export const FILTER_FIELDS: FilterField[] = [
 ];
 
 export const SORT_FIELDS: SortField[] = [
-	'name', 'due_date', 'due_time', 'start_date', 'created',
+	'name', 'due_date', 'due_time', 'start_date', 'created', 'completed',
 	'priority', 'status', 'area', 'type',
 ];
 

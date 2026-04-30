@@ -16,11 +16,16 @@ const AGENDA_REQUIRED_GROUP: GroupSpec = { kind: 'date_buckets', field: 'due_dat
 const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 	{
 		id: 'list',
-		name: 'All',
+		name: 'Active',
 		icon: 'list',
 		renderer: 'list',
 		query: {
-			filter: { logic: 'and', conditions: [] },
+			filter: {
+				logic: 'and',
+				conditions: [
+					{ field: 'is_complete', operator: 'is', value: false },
+				],
+			},
 			sort: [],
 			group: { kind: 'field', field: 'status' },
 		},
@@ -136,6 +141,26 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 		query: {
 			filter: { logic: 'and', conditions: [] },
 			sort: [],
+			group: { kind: 'none' },
+		},
+		presentation: { hierarchy: 'flat', graphMode: 'dependency' },
+		source: 'builtin',
+	},
+	{
+		id: 'logbook',
+		name: 'Logbook',
+		icon: 'archive',
+		renderer: 'list',
+		query: {
+			filter: {
+				logic: 'and',
+				conditions: [
+					{ field: 'is_complete', operator: 'is', value: true },
+				],
+			},
+			sort: [
+				{ field: 'completed', direction: 'desc' },
+			],
 			group: { kind: 'none' },
 		},
 		presentation: { hierarchy: 'flat', graphMode: 'dependency' },

@@ -28,7 +28,7 @@ const FILTER_FIELD_LABELS: Record<FilterField, string> = {
 
 const SORT_FIELD_LABELS: Record<SortField, string> = {
 	name: 'Name', due_date: 'Due date', due_time: 'Due time', start_date: 'Start date',
-	created: 'Created', priority: 'Priority', status: 'Status', area: 'Area', type: 'Type',
+	created: 'Created', completed: 'Completed date', priority: 'Priority', status: 'Status', area: 'Area', type: 'Type',
 };
 
 const OPERATOR_LABELS: Record<FilterOperator, string> = {

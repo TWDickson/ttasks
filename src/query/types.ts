@@ -31,7 +31,7 @@ export type FilterSpec = FilterGroup;
 // ── Sort ──────────────────────────────────────────────────────────────────────
 
 export type SortField =
-	| 'name' | 'due_date' | 'due_time' | 'start_date' | 'created'
+	| 'name' | 'due_date' | 'due_time' | 'start_date' | 'created' | 'completed'
 	| 'priority' | 'status' | 'area' | 'type';
 
 export interface SortEntry {

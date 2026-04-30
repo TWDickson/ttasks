@@ -333,6 +333,17 @@ describe('applySort', () => {
 		expect(applySort(tasks, sort)[0].name).toBe('Apple');
 	});
 
+	it('sorts by completed date descending — most recently completed first, nulls last', () => {
+		const tasks = [
+			makeTask({ completed: '2026-04-10', is_complete: true }),
+			makeTask({ completed: null,         is_complete: false }),
+			makeTask({ completed: '2026-04-28', is_complete: true }),
+		];
+		const sort: SortSpec = [{ field: 'completed', direction: 'desc' }];
+		const result = applySort(tasks, sort).map(t => t.completed);
+		expect(result).toEqual(['2026-04-28', '2026-04-10', null]);
+	});
+
 	it('returns original order when sort spec is empty', () => {
 		const tasks = [makeTask({ name: 'B' }), makeTask({ name: 'A' })];
 		expect(applySort(tasks, []).map(t => t.name)).toEqual(['B', 'A']);

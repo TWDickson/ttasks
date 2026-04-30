@@ -37,10 +37,27 @@ describe('getRegisteredTaskViews', () => {
 			customViews: [makeCustomView()],
 		});
 
-		expect(views.map((view) => view.id)).toEqual(['list', 'inbox', 'today', 'blocked', 'kanban', 'agenda', 'graph', 'custom-focus']);
-		expect(views[0]).toMatchObject({ source: 'builtin', renderer: 'list', name: 'All' });
-		expect(views[7]).toMatchObject({ source: 'custom', renderer: 'list', name: 'Focus' });
-		expect(views[7].query.group).toEqual({ kind: 'field', field: 'status' });
+		expect(views.map((view) => view.id)).toEqual(['list', 'inbox', 'today', 'blocked', 'kanban', 'agenda', 'graph', 'logbook', 'custom-focus']);
+		expect(views[0]).toMatchObject({ source: 'builtin', renderer: 'list', name: 'Active' });
+		expect(views[8]).toMatchObject({ source: 'custom', renderer: 'list', name: 'Focus' });
+		expect(views[8].query.group).toEqual({ kind: 'field', field: 'status' });
+	});
+});
+
+describe('logbook builtin view', () => {
+	it('is registered as a builtin with is_complete:true filter and completed:desc sort', () => {
+		const views = getRegisteredTaskViews(DEFAULT_SETTINGS);
+		const logbook = views.find((v) => v.id === 'logbook');
+
+		expect(logbook).toBeDefined();
+		expect(logbook?.source).toBe('builtin');
+		expect(logbook?.renderer).toBe('list');
+		expect(logbook?.query.filter.conditions[0]).toMatchObject({
+			field: 'is_complete',
+			operator: 'is',
+			value: true,
+		});
+		expect(logbook?.query.sort[0]).toMatchObject({ field: 'completed', direction: 'desc' });
 	});
 });
 
