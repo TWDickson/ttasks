@@ -757,5 +757,44 @@
 			padding-inline: 8px;
 		}
 
+		.tt-overview-category-title {
+			font-size: 0.72rem;
+		}
+
+		.tt-hybrid-track-header {
+			align-items: flex-start;
+			gap: 5px;
+		}
+
+		.tt-track-status-summary {
+			max-width: 100%;
+			overflow-x: auto;
+			padding-bottom: 2px;
+			-webkit-overflow-scrolling: touch;
+		}
+
+		.tt-track-status-chip {
+			font-size: 0.62rem;
+			white-space: nowrap;
+		}
+
+		.tt-hybrid-track-canvas {
+			border-radius: var(--radius-s, 6px);
+		}
+
+		.tt-overview-bar {
+			font-size: 0.68rem;
+			padding-inline: 6px;
+		}
+
+		.tt-hybrid-underdefined-item {
+			height: 24px;
+			padding: 2px 6px;
+		}
+
+		.tt-hybrid-underdefined-anchor {
+			display: none;
+		}
+
 	}
 </style>
