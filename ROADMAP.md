@@ -26,6 +26,38 @@ Phase 6 Smart Lists slice is now functional and hardened. Build clean, zero Type
 
 ---
 
+## Progress Notes (2026-05-01)
+
+Overview graph UX and performance slice completed. Build clean, tests passing (440).
+
+### Overview timeline improvements
+
+- Overview now scrolls horizontally with a fixed-width timeline canvas.
+- Initial camera focus opens near "today" (with context before and after), not at far historical start.
+- Added a red/dashed "today" marker in the axis and track body.
+- Adaptive timeline tick density for long ranges.
+
+### Readability + interaction polish
+
+- Completed items are clearly muted and marked distinct from active work.
+- Title rendering hardened (safer truncation on overview bars and underdefined cards).
+- Hover behavior toned down to avoid boundary distortion against date-aligned bars.
+
+### Scale/performance hardening
+
+- Added viewport virtualization for Overview bars and link paths.
+- Added lane grouping modes: `project`, `dependency`, `none`.
+- Added grouped band/label rendering for clearer long-range scanning.
+
+### Persistence + navigation reliability
+
+- Overview preferences now persist in plugin settings:
+  - `overviewGraphGrouping`
+  - `overviewGraphShowCompleted`
+- Detail pane relationship navigation now resolves short wikilinks via Obsidian metadata cache (`getFirstLinkpathDest`), eliminating "not found" loops for existing linked tasks.
+
+---
+
 ## Progress Notes (2026-04-20)
 
 Phase 5 partial. 265 passing tests, zero TypeScript errors, build clean.

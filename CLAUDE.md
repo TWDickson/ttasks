@@ -109,10 +109,22 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 ## Current Priorities
 
-1. Phase 6 follow-through: tighten Smart List JSON validation and remaining UX polish
-2. Phase 7 planning: completed-task handling / Logbook and next board UX slice
+1. Phase 7 execution: completed-task handling / Logbook and archive workflows
+2. Graph + overview UX hardening follow-through (lane polish, readability, accessibility)
 3. Reminder + quick-action refinements based on real-world usage
 4. Continued hardening around custom views and renderer/query compatibility
+
+## Recent Updates (2026-05-01)
+
+- Overview graph mode now uses true horizontal timeline scrolling with initial focus around today.
+- Added a red/dashed "today" marker across the axis and tracks.
+- Overview bars now use safer title truncation and less disruptive hover behavior.
+- Completed tasks are visually muted in Overview and can be hidden by default.
+- Added grouped lane modes for Overview (`project`, `dependency`, `none`).
+- Added viewport virtualization in Overview so large historical timelines render efficiently.
+- Detail pane dependency navigation fixed for short wikilink paths by resolving via Obsidian metadata cache.
+- Overview graph preferences now persist across sessions (`overviewGraphGrouping`, `overviewGraphShowCompleted`).
+- Validation status: production build passing; test suite passing (440 tests).
 
 ## Product Direction Notes
 
