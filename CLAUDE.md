@@ -2,6 +2,16 @@
 
 A custom Obsidian plugin for task management with kanban, dependency tracking, and mobile-friendly UI. Designed to replace a patchwork of community plugins (QuickAdd, Meta Bind, Dataview) with a single, cohesive experience.
 
+## Status Sources
+
+Use these files as the canonical status references:
+
+- `CLAUDE.md` — current state, priorities, conventions, and latest milestone snapshot
+- `ROADMAP.md` — dated progress log and backlog checkpoint by phase/slice
+- `Scripts/memory/project_ttasks.md` — synced high-level status note for quick reference from the vault side
+
+When updating project status, prefer updating `CLAUDE.md` first, then add a dated checkpoint to `ROADMAP.md` when the change is milestone-worthy.
+
 ## Tech Stack
 
 - **TypeScript** — plugin logic
