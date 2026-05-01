@@ -191,6 +191,22 @@ describe('normalizeSettingsFromSources', () => {
 		expect(withInvalid.logbookRendererMode).toBe('list');
 	});
 
+	it('persists overview graph preferences and rejects invalid grouping values', () => {
+		const valid = normalizeSettingsFromSources([
+			DEFAULT_SETTINGS,
+			{ overviewGraphGrouping: 'dependency', overviewGraphShowCompleted: true },
+		]);
+		expect(valid.overviewGraphGrouping).toBe('dependency');
+		expect(valid.overviewGraphShowCompleted).toBe(true);
+
+		const invalid = normalizeSettingsFromSources([
+			DEFAULT_SETTINGS,
+			{ overviewGraphGrouping: 'by-status', overviewGraphShowCompleted: 'yes' },
+		]);
+		expect(invalid.overviewGraphGrouping).toBe('project');
+		expect(invalid.overviewGraphShowCompleted).toBe(false);
+	});
+
 	it('preserves valid custom view definitions', () => {
 		const merged = normalizeSettingsFromSources([
 			DEFAULT_SETTINGS,

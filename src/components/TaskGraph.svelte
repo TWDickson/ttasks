@@ -35,6 +35,7 @@
 	let shouldAutoFocusOverview = defaultGraphMode === 'overview';
 	let showCompletedInOverview = false;
 	let overviewGrouping: HybridTimelineGrouping = 'project';
+	let overviewPrefsHydrated = false;
 
 	$: if (defaultGraphMode !== appliedGraphMode) {
 		graphMode = defaultGraphMode;
@@ -93,6 +94,10 @@
 	})();
 
 	onMount(() => {
+		showCompletedInOverview = plugin.settings.overviewGraphShowCompleted;
+		overviewGrouping = plugin.settings.overviewGraphGrouping;
+		overviewPrefsHydrated = true;
+
 		const updateViewport = () => {
 			dependencyViewportWidth = dependencyScrollEl?.clientWidth ?? 0;
 			overviewViewportWidth = overviewScrollEl?.clientWidth ?? 0;
@@ -113,6 +118,16 @@
 			observer?.disconnect();
 		};
 	});
+
+	$: if (overviewPrefsHydrated && plugin.settings.overviewGraphShowCompleted !== showCompletedInOverview) {
+		plugin.settings.overviewGraphShowCompleted = showCompletedInOverview;
+		void plugin.saveSettings();
+	}
+
+	$: if (overviewPrefsHydrated && plugin.settings.overviewGraphGrouping !== overviewGrouping) {
+		plugin.settings.overviewGraphGrouping = overviewGrouping;
+		void plugin.saveSettings();
+	}
 
 	$: overviewTasks = showCompletedInOverview
 		? tasks

@@ -23,6 +23,7 @@ export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
 export type TaskViewRenderer = 'list' | 'kanban' | 'agenda' | 'graph';
 export type LogbookRendererMode = 'list' | 'kanban';
+export type OverviewGraphGrouping = 'project' | 'dependency' | 'none';
 
 export interface TaskViewPresentation {
 	hierarchy: 'flat' | 'tree';
@@ -81,6 +82,8 @@ export interface TTasksSettings {
 	editorSuggestTrigger: string;
 	fabPosition: FabPosition;
 	logbookRendererMode: LogbookRendererMode;
+	overviewGraphGrouping: OverviewGraphGrouping;
+	overviewGraphShowCompleted: boolean;
 	customViews: CustomTaskViewDefinition[];
 	statuses: string[];
 	completionStatus: string;
@@ -113,6 +116,8 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	editorSuggestTrigger: '@task',
 	fabPosition: 'right',
 	logbookRendererMode: 'list',
+	overviewGraphGrouping: 'project',
+	overviewGraphShowCompleted: false,
 	customViews: [],
 	statuses: DEFAULT_STATUSES,
 	completionStatus: 'Completed',
@@ -211,6 +216,8 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		editorSuggestTrigger: settings.editorSuggestTrigger,
 		fabPosition: settings.fabPosition,
 		logbookRendererMode: settings.logbookRendererMode,
+		overviewGraphGrouping: settings.overviewGraphGrouping,
+		overviewGraphShowCompleted: settings.overviewGraphShowCompleted,
 		customViews: settings.customViews.map(cloneCustomTaskViewDefinition),
 		statuses: [...settings.statuses],
 		completionStatus: settings.completionStatus,
@@ -468,6 +475,16 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 	const logbookRendererMode = asString(root.logbookRendererMode);
 	if (logbookRendererMode === 'list' || logbookRendererMode === 'kanban') {
 		target.logbookRendererMode = logbookRendererMode;
+	}
+
+	const overviewGraphGrouping = asString(root.overviewGraphGrouping);
+	if (overviewGraphGrouping === 'project' || overviewGraphGrouping === 'dependency' || overviewGraphGrouping === 'none') {
+		target.overviewGraphGrouping = overviewGraphGrouping;
+	}
+
+	const overviewGraphShowCompleted = asBoolean(root.overviewGraphShowCompleted);
+	if (overviewGraphShowCompleted !== null) {
+		target.overviewGraphShowCompleted = overviewGraphShowCompleted;
 	}
 
 	if (root.customViews !== undefined) {
