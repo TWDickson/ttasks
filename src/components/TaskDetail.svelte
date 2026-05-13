@@ -1,15 +1,16 @@
-<script lang="ts">
-	import { Component, MarkdownRenderer, Modal, Notice } from 'obsidian';
-	import { onDestroy, onMount } from 'svelte';
+﻿<script lang="ts">
+	import { Modal, Notice } from 'obsidian';
 	import type { Readable, Writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
 	import type { Task, TaskStatus, TaskPriority } from '../types';
 	import type { TaskStore } from '../store/TaskStore';
 	import { resolveCompletionStatus } from '../settings';
-	import { buildTaskGraph } from '../store/taskGraph';
 	import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 	import { localDateString } from '../utils/dateUtils';
 	import { PRIORITY_COLORS } from '../constants';
+	import TaskDetailRelationships from './TaskDetailRelationships.svelte';
+	import TaskDetailNotes from './TaskDetailNotes.svelte';
+	import TaskDetailActions from './TaskDetailActions.svelte';
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
@@ -33,20 +34,13 @@
 	let assigned_to = '';
 	let estimated_days: number | null = null;
 	let blocked_reason = '';
-	let notes = '';
 	let recurrence: string | null = null;
 	let recurrence_type: string | null = null;
-	let notesMode: 'preview' | 'edit' = 'preview';
 	let formTaskPath: string | null = null;
 	let pendingSaves = 0;
 	let saving = false;
-	let notesPreviewEl: HTMLDivElement | null = null;
-	let markdownComponent: Component | null = null;
-	let previewFrame: number | null = null;
-	let previewRenderSeq = 0;
-	let lastPreviewText = '';
 
-	type DebounceKey = 'name' | 'assigned_to' | 'blocked_reason' | 'notes';
+	type DebounceKey = 'name' | 'assigned_to' | 'blocked_reason';
 	const saveTimers: Partial<Record<DebounceKey, ReturnType<typeof setTimeout>>> = {};
 
 	$: saving = pendingSaves > 0;
@@ -65,7 +59,6 @@
 		assigned_to   = task.assigned_to ?? '';
 		estimated_days = task.estimated_days;
 		blocked_reason  = task.blocked_reason ?? '';
-		notes           = task.notes ?? '';
 		recurrence      = task.recurrence ?? null;
 		recurrence_type = task.recurrence_type ?? null;
 		formTaskPath    = task.path;
@@ -110,46 +103,6 @@
 			void saveImmediateForPath(taskPath, updates);
 			delete saveTimers[key];
 		}, 600);
-	}
-
-	function saveNotesDebounced(nextNotes: string) {
-		if (!task) return;
-		const taskPath = task.path;
-		clearSaveTimer('notes');
-		saveTimers.notes = setTimeout(async () => {
-			beginSave();
-			try {
-				const savedNotes = await store.updateNotes(taskPath, nextNotes);
-				if (task?.path === taskPath) {
-					notes = savedNotes;
-				}
-			} finally {
-				endSave();
-				delete saveTimers.notes;
-			}
-		}, 600);
-	}
-
-	async function renderNotesPreview(markdown: string): Promise<void> {
-		if (!notesPreviewEl || !markdownComponent || !task) return;
-		const renderSeq = ++previewRenderSeq;
-		notesPreviewEl.innerHTML = '';
-		const sourcePath = task.path;
-		await MarkdownRenderer.render(plugin.app, markdown || '_No notes yet._', notesPreviewEl, sourcePath, markdownComponent);
-		if (renderSeq !== previewRenderSeq) return;
-	}
-
-	function scheduleNotesPreview(markdown: string): void {
-		if (previewFrame !== null) {
-			cancelAnimationFrame(previewFrame);
-			previewFrame = null;
-		}
-		previewFrame = requestAnimationFrame(() => {
-			previewFrame = null;
-			if (markdown === lastPreviewText) return;
-			lastPreviewText = markdown;
-			void renderNotesPreview(markdown);
-		});
 	}
 
 	// ── Field handlers ──────────────────────────────────────────────────────────
@@ -326,15 +279,13 @@
 		activeTaskPath.set(resolved);
 	}
 
-	function showLinkedHoverPreview(event: MouseEvent, pathLike: string): void {
-		const resolved = resolveTaskPath(pathLike);
-		if (!resolved) return;
-		plugin.triggerTaskHoverPreview(resolved, event);
+	function getSelectTintStyle(color: string | undefined): string {
+		return color
+			? `--tt-select-color:${color};background:color-mix(in srgb, ${color} 10%, var(--background-primary));border-color:color-mix(in srgb, ${color} 42%, var(--background-modifier-border));color:${color};`
+			: '';
 	}
 
-	$: availableDependencies = task ? $tasks
-		.filter(t => t.type === 'task' && t.path !== task.path && !task.depends_on.some(d => normalizeTaskPath(d) === t.path))
-		.sort((a, b) => a.name.localeCompare(b.name)) : [];
+	// ── Dependency callbacks (passed to TaskDetailRelationships) ────────────────
 
 	async function addDependency(depPath: string): Promise<void> {
 		if (!task) return;
@@ -354,140 +305,6 @@
 		} finally {
 			endSave();
 		}
-	}
-
-	$: dependencyTasks = task ? task.depends_on.map((dep) => linkedTask(dep)).filter((dep): dep is Task => !!dep) : [];
-	$: dependentTasks = task ? task.blocks.map((dep) => linkedTask(dep)).filter((dep): dep is Task => !!dep) : [];
-	$: missingDependencies = task ? task.depends_on.filter((dep) => !linkedTask(dep)) : [];
-	$: openDependencies = dependencyTasks.filter((dep) => !dep.is_complete);
-	$: relationshipLayout = buildTaskGraph($tasks, {});
-	$: relationshipNode = task ? relationshipLayout.nodes.find((node) => node.path === task.path) ?? null : null;
-	$: relationshipIssues = [
-		...(relationshipNode?.isCycle ? ['Cycle detected for this task chain.'] : []),
-		...(missingDependencies.length > 0 ? [`${missingDependencies.length} dependency link(s) missing from current task set.`] : []),
-		...(openDependencies.length > 0 ? [`Blocked by ${openDependencies.length} unfinished dependency task(s).`] : []),
-	];
-
-	type RelationshipDirection = 'upstream' | 'downstream';
-
-	interface RelationshipTreeNode {
-		key: string;
-		path: string;
-		label: string;
-		depth: number;
-		direction: RelationshipDirection;
-		task: Task | null;
-		isMissing: boolean;
-		isBlocked: boolean;
-	}
-
-	interface RelationshipTreeLevel {
-		depth: number;
-		nodes: RelationshipTreeNode[];
-	}
-
-	const MAX_REL_TREE_DEPTH = 5;
-	const MAX_REL_TREE_NODES = 60;
-
-	function normalizeTaskPaths(paths: string[]): string[] {
-		const seen = new Set<string>();
-		const normalized: string[] = [];
-		for (const path of paths) {
-			// Resolve to full vault path (handles tasks stored with bare filename)
-			const next = resolveTaskPath(path);
-			if (!next || seen.has(next)) continue;
-			seen.add(next);
-			normalized.push(next);
-		}
-		return normalized;
-	}
-
-	function buildRelationshipTree(startPaths: string[], direction: RelationshipDirection): RelationshipTreeNode[] {
-		const queue = normalizeTaskPaths(startPaths).map((path) => ({ path, depth: 1 }));
-		const visited = new Set<string>();
-		const result: RelationshipTreeNode[] = [];
-
-		while (queue.length > 0 && result.length < MAX_REL_TREE_NODES) {
-			const current = queue.shift();
-			if (!current || visited.has(current.path)) continue;
-			visited.add(current.path);
-
-			const linked = linkedTask(current.path);
-			result.push({
-				key: `${direction}:${current.path}`,
-				path: current.path,
-				label: taskLabelFromPath(current.path),
-				depth: current.depth,
-				direction,
-				task: linked,
-				isMissing: !linked,
-				isBlocked: direction === 'upstream' && !!linked && !linked.is_complete,
-			});
-
-			if (!linked || current.depth >= MAX_REL_TREE_DEPTH) continue;
-
-			const nextPaths = normalizeTaskPaths(direction === 'upstream' ? linked.depends_on : linked.blocks)
-				.sort((a, b) => taskLabelFromPath(a).localeCompare(taskLabelFromPath(b)));
-			for (const nextPath of nextPaths) {
-				if (!visited.has(nextPath)) {
-					queue.push({ path: nextPath, depth: current.depth + 1 });
-				}
-			}
-		}
-
-		return result;
-	}
-
-	function groupTreeLevels(nodes: RelationshipTreeNode[], descending: boolean): RelationshipTreeLevel[] {
-		const grouped = new Map<number, RelationshipTreeNode[]>();
-		for (const node of nodes) {
-			const levelNodes = grouped.get(node.depth) ?? [];
-			levelNodes.push(node);
-			grouped.set(node.depth, levelNodes);
-		}
-
-		const depths = [...grouped.keys()].sort((a, b) => (descending ? b - a : a - b));
-		return depths.map((depth) => ({
-			depth,
-			nodes: (grouped.get(depth) ?? []).sort((a, b) => a.label.localeCompare(b.label) || a.path.localeCompare(b.path)),
-		}));
-	}
-
-	$: upstreamTree = task ? buildRelationshipTree(task.depends_on, 'upstream') : [];
-	$: downstreamTree = task ? buildRelationshipTree(task.blocks, 'downstream') : [];
-	$: upstreamTreeLevels = groupTreeLevels(upstreamTree, true);
-	$: downstreamTreeLevels = groupTreeLevels(downstreamTree, false);
-
-
-	function getSelectTintStyle(color: string | undefined): string {
-		return color
-			? `--tt-select-color:${color};background:color-mix(in srgb, ${color} 10%, var(--background-primary));border-color:color-mix(in srgb, ${color} 42%, var(--background-modifier-border));color:${color};`
-			: '';
-	}
-
-	onMount(() => {
-		markdownComponent = new Component();
-		markdownComponent.load();
-		return () => {
-			markdownComponent?.unload();
-			markdownComponent = null;
-		};
-	});
-
-	onDestroy(() => {
-		for (const key of Object.keys(saveTimers) as DebounceKey[]) {
-			clearSaveTimer(key);
-		}
-		if (previewFrame !== null) {
-			cancelAnimationFrame(previewFrame);
-			previewFrame = null;
-		}
-	});
-
-	$: if (task && notesPreviewEl && markdownComponent) {
-		// Reset cache so preview re-renders when switching from edit to preview
-		lastPreviewText = '';
-		scheduleNotesPreview(notes);
 	}
 
 </script>
@@ -679,174 +496,25 @@
 			</div>
 		</div>
 
-		<!-- Relationship health -->
 		{#if task.type === 'task'}
-			<hr class="tt-divider" />
-			<div class="tt-field-group">
-				<span class="tt-label">System Fit</span>
-				<div class="tt-rel-health">
-					<div class="tt-rel-health-metrics">
-						<span class="tt-rel-pill">Upstream {task.depends_on.length}</span>
-						<span class="tt-rel-pill">Downstream {task.blocks.length}</span>
-						{#if openDependencies.length > 0}
-							<span class="tt-rel-pill tt-rel-pill-alert">Blocked by {openDependencies.length}</span>
-						{/if}
-						{#if relationshipNode?.isCycle}
-							<span class="tt-rel-pill tt-rel-pill-danger">Cycle</span>
-						{/if}
-					</div>
-
-					<div class="tt-rel-tree">
-						{#if upstreamTreeLevels.length === 0 && downstreamTreeLevels.length === 0}
-							<div class="tt-rel-empty">No linked tasks</div>
-						{:else}
-							<div class="tt-rel-tree-stack">
-								{#each upstreamTreeLevels as level}
-									<div class="tt-rel-tree-level" style={`--tt-tree-depth:${level.depth};`}>
-										<span class="tt-rel-tree-label">↑ Upstream</span>
-										<div class="tt-chips">
-											{#each level.nodes as node (node.key)}
-												<button
-													class="tt-chip tt-chip-rel tt-rel-tree-chip"
-													class:tt-chip-warning={node.isMissing}
-													class:tt-chip-blocking={node.isBlocked}
-													on:click={() => openLinkedPath(node.path)}
-													on:mouseenter={(event) => showLinkedHoverPreview(event, node.path)}
-												>
-													{node.label}
-												</button>
-											{/each}
-										</div>
-									</div>
-								{/each}
-
-								<div class="tt-rel-center tt-rel-center-selected">
-									<span class="tt-rel-center-tag">Selected</span>
-									<span class="tt-rel-center-name">{task.name}</span>
-								</div>
-
-								{#each downstreamTreeLevels as level}
-									<div class="tt-rel-tree-level" style={`--tt-tree-depth:${level.depth};`}>
-										<span class="tt-rel-tree-label">↓ Downstream</span>
-										<div class="tt-chips">
-											{#each level.nodes as node (node.key)}
-												<button
-													class="tt-chip tt-chip-rel tt-rel-tree-chip"
-													on:click={() => openLinkedPath(node.path)}
-													on:mouseenter={(event) => showLinkedHoverPreview(event, node.path)}
-												>
-													{node.label}
-												</button>
-											{/each}
-										</div>
-									</div>
-								{/each}
-							</div>
-						{/if}
-					</div>
-
-					<div class="tt-rel-editors">
-						<div class="tt-rel-lane tt-rel-lane-full">
-							<div class="tt-rel-heading">Depends On</div>
-							{#if task.depends_on.length === 0}
-								<div class="tt-rel-empty">None</div>
-							{:else}
-								<div class="tt-chips">
-									{#each task.depends_on as dep}
-										<span class="tt-chip-group">
-											<button class="tt-chip tt-chip-rel" class:tt-chip-warning={!linkedTask(dep)} class:tt-chip-blocking={!!linkedTask(dep) && !linkedTask(dep)?.is_complete} on:click={() => openLinkedPath(dep)} on:mouseenter={(event) => showLinkedHoverPreview(event, dep)}>
-												{taskLabelFromPath(dep)}
-											</button>
-											<button class="tt-chip-remove" on:click|stopPropagation={() => removeDependency(dep)} aria-label="Remove dependency" title="Remove dependency">&times;</button>
-										</span>
-									{/each}
-								</div>
-							{/if}
-							{#if availableDependencies.length > 0}
-								<select class="tt-dep-add" on:change={(e) => { const v = e.currentTarget.value; if (v) { addDependency(v); e.currentTarget.value = ''; } }}>
-									<option value="">+ Add dependency…</option>
-									{#each availableDependencies as t}
-										<option value={t.path}>{t.name}</option>
-									{/each}
-								</select>
-							{/if}
-						</div>
-
-						<div class="tt-rel-lane tt-rel-lane-full">
-							<div class="tt-rel-heading">Blocks</div>
-							{#if task.blocks.length === 0}
-								<div class="tt-rel-empty">None</div>
-							{:else}
-								<div class="tt-chips">
-									{#each task.blocks as dep}
-										<button class="tt-chip tt-chip-rel" on:click={() => openLinkedPath(dep)} on:mouseenter={(event) => showLinkedHoverPreview(event, dep)}>
-											{taskLabelFromPath(dep)}
-										</button>
-									{/each}
-								</div>
-							{/if}
-						</div>
-					</div>
-
-					{#if relationshipIssues.length > 0}
-						<div class="tt-rel-issues">
-							{#each relationshipIssues as issue}
-								<div class="tt-rel-issue">{issue}</div>
-							{/each}
-						</div>
-					{/if}
-				</div>
-			</div>
+			<TaskDetailRelationships
+				{task}
+				tasks={$tasks}
+				{plugin}
+				onAddDependency={addDependency}
+				onRemoveDependency={removeDependency}
+				onOpenTask={(path) => activeTaskPath.set(path)}
+			/>
 		{/if}
 
-		<hr class="tt-divider" />
+		<TaskDetailNotes {task} {plugin} {store} />
 
-		<!-- Notes -->
-		<div class="tt-field-group">
-			<div class="tt-notes-header">
-				<span class="tt-label">Notes</span>
-				<div class="tt-notes-toggle">
-					<button type="button" class="tt-notes-tab" class:is-active={notesMode === 'preview'} on:click={() => notesMode = 'preview'}>Preview</button>
-					<button type="button" class="tt-notes-tab" class:is-active={notesMode === 'edit'} on:click={() => notesMode = 'edit'}>Edit</button>
-				</div>
-			</div>
-			{#if notesMode === 'edit'}
-				<textarea
-					id="tt-notes"
-					class="tt-notes"
-					bind:value={notes}
-					on:input={() => saveNotesDebounced(notes)}
-					placeholder="Add notes…"
-					rows="8"
-				></textarea>
-			{:else}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<div class="tt-notes-preview" bind:this={notesPreviewEl} on:click={() => notesMode = 'edit'} role="button" tabindex="0"></div>
-			{/if}
-		</div>
-
-		<hr class="tt-divider" />
-
-		<!-- Actions -->
-		<div class="tt-actions">
-			{#if !task?.is_complete}
-				<button class="tt-btn tt-btn-primary" on:click={markComplete}>
-					✓ Mark Complete
-				</button>
-			{/if}
-			<button class="tt-btn" on:click={() => store.openFile(task.path)}>
-				Open in editor
-			</button>
-			<button class="tt-btn tt-btn-danger" on:click={confirmDelete}>
-				Delete
-			</button>
-		</div>
-
-		<!-- Meta -->
-		<div class="tt-meta-footer">
-			{#if task.created}<span>Created {task.created}</span>{/if}
-			{#if task.completed}<span>Completed {task.completed}</span>{/if}
-		</div>
+		<TaskDetailActions
+			{task}
+			onMarkComplete={markComplete}
+			onOpenInEditor={() => store.openFile(task.path)}
+			onDelete={confirmDelete}
+		/>
 
 	</div>
 {/if}
@@ -1040,217 +708,8 @@
 		color: var(--text-on-accent);
 	}
 
-	.tt-chip-rel {
-		font-weight: 400;
-		font-size: 0.78rem;
-	}
+	/* Relationship, notes, and action CSS live in their own sub-components. */
 
-	.tt-chip-warning {
-		border-color: color-mix(in srgb, var(--color-orange) 48%, var(--background-modifier-border));
-		background: color-mix(in srgb, var(--color-orange) 12%, var(--background-primary));
-	}
-
-	.tt-chip-blocking {
-		border-color: color-mix(in srgb, var(--color-red) 45%, var(--background-modifier-border));
-	}
-
-	.tt-chip-group {
-		display: inline-flex;
-		align-items: stretch;
-		gap: 0;
-	}
-
-	.tt-chip-group .tt-chip {
-		border-top-right-radius: 0;
-		border-bottom-right-radius: 0;
-		border-right: none;
-	}
-
-	.tt-chip-remove {
-		padding: 2px 7px;
-		border-radius: 0 999px 999px 0;
-		border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
-		border-left: none;
-		background: var(--interactive-normal, var(--background-secondary));
-		color: var(--text-faint);
-		font-size: 0.78rem;
-		cursor: pointer;
-		line-height: 1;
-	}
-
-	.tt-chip-remove:hover {
-		background: color-mix(in srgb, var(--color-red) 12%, var(--background-primary));
-		color: var(--color-red);
-	}
-
-	.tt-dep-add {
-		font-size: 0.74rem;
-		padding: 3px var(--size-4-2, 8px);
-		border-radius: var(--button-radius, var(--radius-m, 8px));
-		border: 1px dashed var(--background-modifier-border);
-		background: transparent;
-		color: var(--text-muted);
-		cursor: pointer;
-		margin-top: 4px;
-	}
-
-
-	.tt-rel-health {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-
-	.tt-rel-health-metrics {
-		display: flex;
-		gap: 6px;
-		flex-wrap: wrap;
-	}
-
-	.tt-rel-pill {
-		display: inline-flex;
-		align-items: center;
-		padding: 3px 9px;
-		border-radius: 999px;
-		border: var(--border-width, 1px) solid var(--background-modifier-border);
-		background: var(--interactive-normal, var(--background-secondary));
-		color: var(--text-muted);
-		font-size: 0.72rem;
-		font-weight: 700;
-		letter-spacing: 0.02em;
-	}
-
-	.tt-rel-pill-alert {
-		border-color: color-mix(in srgb, var(--color-orange) 42%, var(--background-modifier-border));
-		color: var(--color-orange);
-	}
-
-	.tt-rel-pill-danger {
-		border-color: color-mix(in srgb, var(--color-red) 42%, var(--background-modifier-border));
-		color: var(--color-red);
-	}
-
-	.tt-rel-tree {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	.tt-rel-tree-stack {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	.tt-rel-tree-level {
-		position: relative;
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		padding-left: calc((var(--tt-tree-depth, 1) - 1) * 14px + 10px);
-	}
-
-	.tt-rel-tree-level::before {
-		content: '';
-		position: absolute;
-		left: calc((var(--tt-tree-depth, 1) - 1) * 14px + 2px);
-		top: 2px;
-		bottom: 2px;
-		width: 1px;
-		background: color-mix(in srgb, var(--interactive-accent) 30%, var(--background-modifier-border));
-	}
-
-	.tt-rel-tree-label {
-		font-size: 0.65rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		color: var(--text-faint);
-	}
-
-	.tt-rel-tree-chip {
-		justify-content: flex-start;
-		text-align: left;
-	}
-
-	.tt-rel-editors {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-
-	.tt-rel-lane-full {
-		min-width: 0;
-		width: 100%;
-	}
-
-	.tt-rel-lane {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		min-width: 0;
-	}
-
-	.tt-rel-heading {
-		font-size: 0.7rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--text-faint);
-	}
-
-	.tt-rel-empty {
-		font-size: 0.78rem;
-		color: var(--text-faint);
-	}
-
-	.tt-rel-center {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 2px;
-		padding: 6px 10px;
-		border: 1px dashed var(--background-modifier-border);
-		border-radius: var(--radius-m, 8px);
-		min-width: 120px;
-		background: var(--background-primary-alt, var(--background-secondary));
-	}
-
-	.tt-rel-center-selected {
-		border-style: solid;
-		border-color: color-mix(in srgb, var(--interactive-accent) 38%, var(--background-modifier-border));
-	}
-
-	.tt-rel-center-tag {
-		font-size: 0.64rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--text-faint);
-	}
-
-	.tt-rel-center-name {
-		font-size: 0.8rem;
-		font-weight: 600;
-		text-align: center;
-		color: var(--text-normal);
-	}
-
-	.tt-rel-issues {
-		display: flex;
-		flex-direction: column;
-		gap: 5px;
-	}
-
-	.tt-rel-issue {
-		font-size: 0.78rem;
-		padding: 6px 8px;
-		border-left: 3px solid var(--color-orange);
-		border-radius: var(--radius-s, 4px);
-		background: color-mix(in srgb, var(--color-orange) 9%, var(--background-primary-alt, var(--background-secondary)));
-		color: var(--text-muted);
-	}
 
 	.tt-divider {
 		border: none;
@@ -1258,124 +717,4 @@
 		margin: 0;
 	}
 
-	.tt-notes-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-	}
-
-	.tt-notes-toggle {
-		display: flex;
-		gap: 2px;
-		background: var(--background-modifier-border);
-		border-radius: calc(var(--button-radius, var(--radius-m, 8px)) - 2px);
-		padding: 2px;
-	}
-
-	.tt-notes-tab {
-		padding: 3px 10px;
-		border: none;
-		border-radius: var(--radius-s, 4px);
-		background: transparent;
-		color: var(--text-muted);
-		font-size: 0.72rem;
-		font-weight: 600;
-		cursor: pointer;
-	}
-
-	.tt-notes-tab.is-active {
-		background: var(--background-primary);
-		color: var(--text-normal);
-	}
-
-	.tt-notes {
-		width: 100%;
-		box-sizing: border-box;
-		font-size: 0.88rem;
-		padding: var(--size-4-2, 8px);
-		border-radius: var(--input-radius, var(--radius-m, 8px));
-		border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
-		background: var(--background-modifier-form-field);
-		color: var(--text-normal);
-		resize: vertical;
-		font-family: var(--font-text);
-		min-height: 160px;
-		caret-color: var(--caret-color, var(--interactive-accent));
-	}
-
-	.tt-notes:focus {
-		outline: none;
-		border-color: var(--interactive-accent);
-	}
-
-	.tt-notes-preview {
-		padding: var(--size-4-3, 12px);
-		min-height: 160px;
-		border: var(--border-width, 1px) solid var(--background-modifier-border);
-		border-radius: var(--input-radius, var(--radius-m, 8px));
-		background: var(--background-primary-alt, var(--background-secondary));
-		font-size: 0.88rem;
-	}
-
-	.tt-actions {
-		display: flex;
-		gap: var(--size-4-2, 8px);
-		flex-wrap: wrap;
-	}
-
-	.tt-btn {
-		padding: 7px 16px;
-		border-radius: var(--button-radius, var(--radius-m, 8px));
-		border: var(--border-width, 1px) solid var(--background-modifier-border);
-		background: var(--interactive-normal, var(--background-secondary));
-		color: var(--text-normal);
-		font-size: 0.88rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.12s;
-	}
-
-	.tt-btn:hover {
-		background: var(--interactive-hover, var(--background-modifier-hover));
-	}
-
-	.tt-btn-primary {
-		background: var(--interactive-accent);
-		border-color: var(--interactive-accent);
-		color: var(--text-on-accent);
-	}
-
-	.tt-btn-primary:hover {
-		background: var(--interactive-accent-hover);
-		border-color: var(--interactive-accent-hover);
-	}
-
-	.tt-btn-danger {
-		color: var(--color-red);
-		border-color: color-mix(in srgb, var(--color-red) 35%, var(--background-modifier-border));
-		margin-left: auto;
-	}
-
-	.tt-btn-danger:hover {
-		background: color-mix(in srgb, var(--color-red) 10%, var(--background-primary));
-		border-color: color-mix(in srgb, var(--color-red) 60%, var(--background-modifier-border));
-	}
-
-	.tt-meta-footer {
-		display: flex;
-		gap: 16px;
-		font-size: 0.72rem;
-		color: var(--text-faint);
-	}
-
-	@media (max-width: 700px) {
-		.tt-rel-editors {
-			grid-template-columns: 1fr;
-		}
-
-		.tt-rel-center {
-			align-items: flex-start;
-			text-align: left;
-		}
-	}
 </style>
