@@ -7,7 +7,7 @@
 	import type TaskStore from '../store/TaskStore';
 	import type TTasksPlugin from '../main';
 	import { PRIORITY_COLORS } from '../constants';
-	import { buildKanbanColumns } from './viewAdapters';
+	import { labelForGroup } from './viewAdapters';
 	import { getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
 
 	export let plugin: TTasksPlugin;
@@ -28,7 +28,18 @@
 	let draggingPath: string | null = null;
 	let dragOverCol: TaskStatus | null = null;
 
-	$: COLUMNS = buildKanbanColumns($groups, statuses ?? [], statusColors ?? {});
+	$: COLUMNS = (() => {
+		const tasksByStatus = new Map<string, Task[]>();
+		for (const group of $groups) {
+			tasksByStatus.set(group.key, group.tasks.filter(t => t.type !== 'project'));
+		}
+		return (statuses ?? []).map(status => ({
+			id: status as TaskStatus,
+			label: labelForGroup(status),
+			accent: statusColors?.[status],
+			tasks: tasksByStatus.get(status) ?? [],
+		}));
+	})();
 	$: allTasks = COLUMNS.flatMap(column => column.tasks);
 
 	$: if (!COLUMNS.some(col => col.id === activeColumn)) {

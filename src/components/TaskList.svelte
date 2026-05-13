@@ -4,7 +4,7 @@
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
 	import type { TaskGroup } from '../query/types';
-	import { buildListRows, buildListSections, type ListHierarchyMode } from './viewAdapters';
+	import { buildListRows, labelForGroup, type ListSection, type ListHierarchyMode } from './viewAdapters';
 	export let plugin: TTasksPlugin;
 	export let viewId = '';
 	export let groups: Readable<TaskGroup[]>;
@@ -20,7 +20,39 @@
 
 	let collapsedPaths = new Set<string>();
 
-	$: sections = buildListSections($groups, statuses ?? []);
+	function buildSections(groups: TaskGroup[], configuredStatuses: string[]): ListSection[] {
+		const statusTasks = new Map<string, Task[]>();
+		const projectTasks: Task[] = [];
+
+		for (const group of groups) {
+			for (const task of group.tasks) {
+				if (task.type === 'project') {
+					projectTasks.push(task);
+				} else {
+					const current = statusTasks.get(group.key) ?? [];
+					statusTasks.set(group.key, [...current, task]);
+				}
+			}
+		}
+
+		const sections: ListSection[] = [];
+		for (const status of configuredStatuses) {
+			const tasks = statusTasks.get(status);
+			if (tasks && tasks.length > 0) {
+				sections.push({ key: status, label: labelForGroup(status), tasks });
+				statusTasks.delete(status);
+			}
+		}
+		for (const [key, tasks] of statusTasks.entries()) {
+			sections.push({ key, label: labelForGroup(key), tasks });
+		}
+		if (projectTasks.length > 0) {
+			sections.push({ key: 'project', label: 'Projects', tasks: projectTasks });
+		}
+		return sections;
+	}
+
+	$: sections = buildSections($groups, statuses ?? []);
 
 	function toggleExpanded(path: string): void {
 		const next = new Set(collapsedPaths);

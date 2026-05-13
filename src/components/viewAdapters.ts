@@ -10,13 +10,6 @@ export interface BoardQueryConfig {
 	baseFilterConditions: FilterCondition[];
 }
 
-export interface KanbanColumn {
-	id: string;
-	label: string;
-	accent?: string;
-	tasks: Task[];
-}
-
 export interface ListSection {
 	key: string;
 	label: string;
@@ -59,68 +52,6 @@ export function resolveBoardQuery(view: BoardViewMode): BoardQueryConfig {
 	}
 }
 
-export function buildKanbanColumns(
-	groups: TaskGroup[],
-	statuses: string[],
-	statusColors: Record<string, string>,
-): KanbanColumn[] {
-	const tasksByStatus = new Map<string, Task[]>();
-	for (const group of groups) {
-		tasksByStatus.set(
-			group.key,
-			group.tasks.filter(task => task.type !== 'project'),
-		);
-	}
-
-	return statuses.map((status) => ({
-		id: status,
-		label: labelForGroup(status),
-		accent: statusColors[status],
-		tasks: tasksByStatus.get(status) ?? [],
-	}));
-}
-
-export function buildListSections(groups: TaskGroup[], statuses: string[]): ListSection[] {
-	const statusTasks = new Map<string, Task[]>();
-	const projectTasks: Task[] = [];
-
-	for (const group of groups) {
-		const existing = statusTasks.get(group.key) ?? [];
-		const sectionTasks: Task[] = [];
-
-		for (const task of group.tasks) {
-			if (task.type === 'project') {
-				projectTasks.push(task);
-			} else {
-				sectionTasks.push(task);
-			}
-		}
-
-		if (sectionTasks.length > 0) {
-			statusTasks.set(group.key, [...existing, ...sectionTasks]);
-		}
-	}
-
-	const sections: ListSection[] = [];
-	for (const status of statuses) {
-		const tasks = statusTasks.get(status);
-		if (tasks && tasks.length > 0) {
-			sections.push({ key: status, label: labelForGroup(status), tasks });
-			statusTasks.delete(status);
-		}
-	}
-
-	for (const [key, tasks] of statusTasks.entries()) {
-		sections.push({ key, label: labelForGroup(key), tasks });
-	}
-
-	if (projectTasks.length > 0) {
-		sections.push({ key: 'project', label: 'Projects', tasks: projectTasks });
-	}
-
-	return sections;
-}
-
 export function buildListRows(
 	tasks: Task[],
 	collapsedPaths: Set<string>,
@@ -147,7 +78,7 @@ export function buildListRows(
 	}));
 }
 
-function labelForGroup(group: string): string {
+export function labelForGroup(group: string): string {
 	if (group === 'Hold') return 'On Hold';
 	return group;
 }

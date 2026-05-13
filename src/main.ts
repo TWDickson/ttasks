@@ -6,14 +6,15 @@ import { TaskBoardView, TASK_BOARD_VIEW_TYPE } from './views/TaskBoardView';
 import { CreateTaskModal } from './modals/CreateTaskModal';
 import { ReminderService } from './reminders';
 import type { Task } from './types';
-import { addTaskContextMenuItems } from './integration/contextMenu';
+import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration/contextMenu';
+import { resolveQuickAction } from './integration/quickActions';
 import { dispatchProtocolAction, parseProtocolAction } from './integration/protocol';
 import { buildStatusSummary } from './integration/statusSummary';
 import { pathToLinktext } from './integration/hoverLink';
 import { TaskLinkSuggestModal } from './editor/TaskLinkSuggestModal';
 import { buildAliasedLink } from './integration/relationshipLink';
 import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
-import { localDateString, addDaysLocal } from './utils/dateUtils';
+import { localDateString } from './utils/dateUtils';
 
 export type BoardViewMode = string;
 
@@ -200,10 +201,13 @@ export default class TTasksPlugin extends Plugin {
 	showTaskContextMenu(task: Task, event: MouseEvent): void {
 		event.preventDefault();
 		const menu = new Menu();
-		addTaskContextMenuItems(menu, task, {
-			openTask: (path) => {
-				void this.taskStore.openDetail(path);
-			},
+		addTaskContextMenuItems(menu, task, this.buildContextCallbacks());
+		menu.showAtMouseEvent(event);
+	}
+
+	private buildContextCallbacks(): TaskContextMenuDeps {
+		return {
+			openTask: (path) => { void this.taskStore.openDetail(path); },
 			runQuickAction: (action, path) => this.runQuickAction(action, path),
 			convertToProject: async (path) => {
 				await this.taskStore.convertToProject(path);
@@ -221,8 +225,7 @@ export default class TTasksPlugin extends Plugin {
 				await this.taskStore.restore(path);
 				new Notice('TTasks: task reopened');
 			},
-		});
-		menu.showAtMouseEvent(event);
+		};
 	}
 
 	taskStoreTasksSnapshot(): Task[] {
@@ -284,28 +287,7 @@ export default class TTasksPlugin extends Plugin {
 
 	private registerNativeContextMenus(): void {
 		const addForTask = (menu: Menu, task: Task): void => {
-			addTaskContextMenuItems(menu, task, {
-				openTask: (path) => {
-					void this.taskStore.openDetail(path);
-				},
-				runQuickAction: (action, path) => this.runQuickAction(action, path),
-				convertToProject: async (path) => {
-					await this.taskStore.convertToProject(path);
-					new Notice('TTasks: converted to project');
-				},
-				duplicateTask: async (path) => {
-					const created = await this.taskStore.duplicate(path);
-					if (created) {
-						this.activeTaskPath.set(created.path);
-						new Notice(`TTasks: duplicated as "${created.name}"`);
-					}
-				},
-				restoreTask: async (path) => {
-					await this.taskStore.restore(path);
-					new Notice('TTasks: task reopened');
-				},
-				deleteTask: (path) => this.taskStore.delete(path, { prompt: true }),
-			});
+			addTaskContextMenuItems(menu, task, this.buildContextCallbacks());
 		};
 
 		this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
@@ -419,40 +401,22 @@ export default class TTasksPlugin extends Plugin {
 			return false;
 		}
 
-		if (action === 'defer') {
-			const days = this.settings.quickActions.deferDays;
-			const base = task.due_date ?? localDateString();
-			const newDate = addDaysLocal(base, days);
-			await this.taskStore.update(resolvedPath, { due_date: newDate });
-			if (showNotice) new Notice(`TTasks: Deferred "${task.name}" to ${newDate}`);
-			return true;
-		}
+		const result = resolveQuickAction(action, task, {
+			today: localDateString(),
+			completionStatus: this.settings.completionStatus,
+			startStatus: resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus),
+			blockStatus: resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.blockStatus, DEFAULT_SETTINGS.quickActions.blockStatus),
+			statuses: this.settings.statuses,
+			deferDays: this.settings.quickActions.deferDays,
+		});
 
-		const completionStatus = this.settings.completionStatus;
-		const startStatus = resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus);
-		const blockStatus = resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.blockStatus, DEFAULT_SETTINGS.quickActions.blockStatus);
-		const targetStatus = action === 'start'
-			? startStatus
-			: action === 'block'
-				? blockStatus
-				: completionStatus;
-
-		if (!this.settings.statuses.includes(targetStatus)) {
-			if (showNotice) new Notice(`TTasks: status "${targetStatus}" is not configured - check Quick Actions settings.`);
+		if (result.kind === 'error') {
+			if (showNotice) new Notice(`TTasks: ${result.reason}`);
 			return false;
 		}
 
-		const updates = action === 'complete'
-			? { status: targetStatus, completed: localDateString() }
-			: action === 'start'
-				? { status: targetStatus, completed: null, start_date: localDateString() }
-				: { status: targetStatus, completed: null };
-
-		await this.taskStore.update(resolvedPath, updates);
-		if (showNotice) {
-			const label = action === 'start' ? 'Started' : action === 'block' ? 'Blocked' : 'Completed';
-			new Notice(`TTasks: ${label} "${task.name}"`);
-		}
+		await this.taskStore.update(resolvedPath, result.updates);
+		if (showNotice) new Notice(`TTasks: ${result.noticeLabel}`);
 		return true;
 	}
 }

@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
 import type { TaskGroup } from '../query/types';
 import {
-	buildKanbanColumns,
 	buildListRows,
-	buildListSections,
 	flattenTaskGroups,
+	labelForGroup,
 	resolveBoardQuery,
 } from './viewAdapters';
 
@@ -68,66 +67,6 @@ describe('resolveBoardQuery', () => {
 	});
 });
 
-describe('buildKanbanColumns', () => {
-	it('returns one column per configured status in configured order', () => {
-		const groups = [
-			makeGroup('Blocked', [makeTask({ path: 'Tasks/b.md', status: 'Blocked' })]),
-			makeGroup('Active', [makeTask({ path: 'Tasks/a.md', status: 'Active' })]),
-		];
-
-		const columns = buildKanbanColumns(groups, ['Active', 'Blocked', 'Done'], { Blocked: '#f00' });
-
-		expect(columns.map(column => column.id)).toEqual(['Active', 'Blocked', 'Done']);
-		expect(columns[0].tasks.map(task => task.path)).toEqual(['Tasks/a.md']);
-		expect(columns[1].tasks.map(task => task.path)).toEqual(['Tasks/b.md']);
-		expect(columns[2].tasks).toEqual([]);
-		expect(columns[1].accent).toBe('#f00');
-	});
-
-	it('filters projects out of kanban columns', () => {
-		const groups = [
-			makeGroup('Active', [
-				makeTask({ path: 'Tasks/task.md', type: 'task', status: 'Active' }),
-				makeTask({ path: 'Tasks/project.md', type: 'project', status: 'Active' }),
-			]),
-		];
-
-		const columns = buildKanbanColumns(groups, ['Active'], {});
-
-		expect(columns[0].tasks.map(task => task.path)).toEqual(['Tasks/task.md']);
-	});
-});
-
-describe('buildListSections', () => {
-	it('orders sections by configured statuses and appends projects', () => {
-		const groups = [
-			makeGroup('Blocked', [makeTask({ path: 'Tasks/blocked.md', status: 'Blocked' })]),
-			makeGroup('Active', [
-				makeTask({ path: 'Tasks/active.md', status: 'Active' }),
-				makeTask({ path: 'Tasks/project.md', type: 'project', status: 'Active' }),
-			]),
-		];
-
-		const sections = buildListSections(groups, ['Active', 'Blocked', 'Done']);
-
-		expect(sections.map(section => section.key)).toEqual(['Active', 'Blocked', 'project']);
-		expect(sections.map(section => section.label)).toEqual(['Active', 'Blocked', 'Projects']);
-		expect(sections[0].tasks.map(task => task.path)).toEqual(['Tasks/active.md']);
-		expect(sections[2].tasks.map(task => task.path)).toEqual(['Tasks/project.md']);
-	});
-
-	it('renames Hold to On Hold and preserves unknown statuses after configured ones', () => {
-		const groups = [
-			makeGroup('Custom', [makeTask({ path: 'Tasks/custom.md', status: 'Custom' })]),
-			makeGroup('Hold', [makeTask({ path: 'Tasks/hold.md', status: 'Hold' })]),
-		];
-
-		const sections = buildListSections(groups, ['Hold']);
-
-		expect(sections.map(section => section.label)).toEqual(['On Hold', 'Custom']);
-	});
-});
-
 describe('buildListRows', () => {
 	it('returns hierarchical visible rows with expand metadata', () => {
 		const parent = makeTask({ path: 'Tasks/parent.md', name: 'Parent' });
@@ -174,5 +113,17 @@ describe('flattenTaskGroups', () => {
 			'Tasks/b.md',
 			'Tasks/c.md',
 		]);
+	});
+});
+
+describe('labelForGroup', () => {
+	it('renames Hold to On Hold', () => {
+		expect(labelForGroup('Hold')).toBe('On Hold');
+	});
+
+	it('returns other values unchanged', () => {
+		expect(labelForGroup('Active')).toBe('Active');
+		expect(labelForGroup('Blocked')).toBe('Blocked');
+		expect(labelForGroup('Custom Status')).toBe('Custom Status');
 	});
 });
