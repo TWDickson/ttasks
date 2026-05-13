@@ -2,26 +2,21 @@ import { Notice, TFile, normalizePath } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskPriority, TaskRecordType } from '../types';
-import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
-import { materializeChecklistChildren } from './checklistMaterializer';
 import { resolveCompletionStatus } from '../settings';
-import { nextDueDate, nextStartDate } from './recurrence';
-import { computeStatusChanged } from './statusChanged';
-import { buildDuplicateInput } from './taskDuplicate';
-import { resetChecklistCompletionInNotes } from './recurrenceNotes';
-import { deleteFileSafely, buildDeleteDeps } from '../integration/safeDelete';
-import { buildAliasedLink } from '../integration/relationshipLink';
 import { localDateString, addDaysLocal } from '../utils/dateUtils';
-import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
-import { parseWikiLink, parseWikiLinks, extractChecklistLink } from '../utils/wikiLink';
-import { buildRestoreInput } from './taskRestore';
-
-type MigratableField = 'status' | 'area' | 'label';
+import { ensureMdExt } from '../utils/pathUtils';
+import { parseWikiLink } from '../utils/wikiLink';
+import { TaskWriter } from './TaskWriter';
+import { TaskMigrations, type MigratableField } from './TaskMigrations';
+import { TaskRelationships } from './TaskRelationships';
 
 export class TaskStore {
 	readonly tasks: Writable<Task[]> = writable([]);
 
 	private plugin: TTasksPlugin;
+	private writer: TaskWriter;
+	readonly migrations: TaskMigrations;
+	readonly relationships: TaskRelationships;
 	private changedTaskPaths = new Set<string>();
 	private changedFlushTimer: ReturnType<typeof setTimeout> | null = null;
 	private changedFlushInFlight = false;
@@ -29,6 +24,9 @@ export class TaskStore {
 
 	constructor(plugin: TTasksPlugin) {
 		this.plugin = plugin;
+		this.writer = new TaskWriter(plugin, this.tasks, this.folderPath);
+		this.migrations = new TaskMigrations(plugin);
+		this.relationships = new TaskRelationships(plugin);
 	}
 
 	get app() { return this.plugin.app; }
@@ -118,7 +116,7 @@ export class TaskStore {
 				return next;
 			});
 
-			await Promise.all(parsed.map((task) => this.syncParentChecklistFromChild(task)));
+			await Promise.all(parsed.map((task) => this.writer.syncParentChecklistFromChildPublic(task)));
 			this.plugin.log(`flushed ${parsed.length} changed task(s) in ${Date.now() - startedAt}ms`);
 		} finally {
 			this.changedFlushInFlight = false;
@@ -163,403 +161,50 @@ export class TaskStore {
 		);
 	}
 
-	// ── CRUD ────────────────────────────────────────────────────────────────────
+	// ── CRUD (delegated to TaskWriter) ──────────────────────────────────────────
 
 	async create(input: TaskCreateInput): Promise<Task> {
-		const unique = getUniqueTaskPath(
-			this.folderPath,
-			input.name,
-			(path) => !!this.app.vault.getAbstractFileByPath(normalizePath(path))
-		);
-
-		if (!unique) {
-			throw new Error('Unable to allocate a unique task filename after multiple attempts');
-		}
-
-		const shortId = unique.shortId;
-		const slug = unique.slug;
-		const filePath = normalizePath(unique.filePath);
-
-		const today = localDateString();
-		const sanitizedDependsOn = sanitizeDependsOnPaths(
-			input.depends_on,
-			filePath,
-			(pathWithoutExt) => {
-				const depFile = this.app.vault.getAbstractFileByPath(normalizePath(pathWithoutExt + '.md'));
-				return depFile instanceof TFile;
-			}
-		);
-
-		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
-		const full: Task = {
-			...input,
-			depends_on: sanitizedDependsOn,
-			id: shortId,
-			slug,
-			path: filePath,
-			blocks: [],
-			created: today,
-			status_changed: today,
-			is_complete: input.status === completionStatus,
-			is_inbox:    input.area === null,
-		};
-
-		const body = full.notes?.trim() ? '\n\n' + full.notes.trim() : '';
-		await this.app.vault.create(filePath, this.buildFrontmatter(full) + body + '\n');
-
-		// Sync blocks on depends_on targets
-		for (const depPath of sanitizedDependsOn) {
-			await this.addToBlocks(depPath, filePath, input.name);
-		}
-
-		return full;
+		return this.writer.create(input);
 	}
 
 	async update(path: string, updates: Partial<Task>): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
-		if (!(file instanceof TFile)) return;
-
-		await this.app.fileManager.processFrontMatter(file, (fm) => {
-			const fields: (keyof Task)[] = [
-				'name', 'status', 'priority', 'area', 'labels',
-				'blocked_reason', 'assigned_to', 'source', 'due_time',
-				'start_date', 'due_date', 'estimated_days', 'completed',
-				'recurrence', 'recurrence_type',
-			];
-			for (const key of fields) {
-				if (key in updates) fm[key] = (updates as Record<string, unknown>)[key] ?? null;
-			}
-
-			// Write status_changed whenever status actually transitions
-			const today = localDateString();
-			const changed = computeStatusChanged(
-				typeof fm.status === 'string' ? fm.status : undefined,
-				updates.status,
-				today,
-			);
-			if (changed !== undefined) fm.status_changed = changed;
-		});
-	}
-
-	/**
-	 * Check whether a file is currently open in an active editor.
-	 * vault.process() can conflict with the editor's requestSave debounce
-	 * (~2s window), so callers that rewrite file bodies should be aware.
-	 */
-	private isFileOpenInEditor(file: TFile): boolean {
-		return this.app.workspace.getLeavesOfType('markdown')
-			.some(leaf => (leaf.view as any)?.file?.path === file.path);
+		return this.writer.update(path, updates);
 	}
 
 	async updateNotes(path: string, notes: string): Promise<string> {
-		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
-		if (!(file instanceof TFile)) return notes;
-
-		const rewritten = await this.materializeChecklistChildrenFromBody(path, notes);
-
-		if (this.isFileOpenInEditor(file)) {
-			// Delay slightly to let the editor's requestSave debounce settle.
-			// vault.process() can silently conflict with pending editor saves.
-			await new Promise(resolve => setTimeout(resolve, 100));
-		}
-
-		await this.app.vault.process(file, (content) => {
-			const fmEnd = content.indexOf('\n---', 3);
-			const frontmatter = fmEnd >= 0 ? content.substring(0, fmEnd + 4) : content;
-			return frontmatter + (rewritten ? '\n\n' + rewritten : '') + '\n';
-		});
-
-		await this.syncChildrenFromParentChecklist(path, rewritten);
-		return rewritten;
-	}
-
-	private completionStatus(): string {
-		return resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
-	}
-
-	private isCompleteStatus(status: string): boolean {
-		return status === this.completionStatus();
-	}
-
-	private async syncChildrenFromParentChecklist(parentPath: string, body: string): Promise<void> {
-		if (!body) return;
-		const wanted = new Map<string, boolean>();
-		const lines = body.split('\n');
-
-		for (const line of lines) {
-			const parsed = extractChecklistLink(line);
-			if (!parsed?.path) continue;
-			wanted.set(parsed.path, parsed.checked);
-		}
-
-		if (wanted.size === 0) return;
-
-		const complete = this.completionStatus();
-		const fallback = this.plugin.settings.statuses?.[0] ?? 'Active';
-		const tasksByPath = new Map(get(this.tasks).map((t) => [t.path, t]));
-		const today = localDateString();
-		const updates: Promise<void>[] = [];
-
-		for (const [childPath, checked] of wanted.entries()) {
-			if (childPath === parentPath) continue;
-			const child = tasksByPath.get(childPath);
-			if (!child) continue;
-
-			const targetStatus = checked ? complete : (child.status === complete ? fallback : child.status);
-			const targetCompleted = checked ? today : null;
-			const statusChanged = child.status !== targetStatus;
-			const completedChanged = (child.completed ?? null) !== targetCompleted;
-			if (!statusChanged && !completedChanged) continue;
-
-			updates.push(this.update(child.path, {
-				status: targetStatus,
-				completed: targetCompleted,
-			}));
-		}
-
-		if (updates.length > 0) {
-			await Promise.all(updates);
-		}
-	}
-
-	private async syncParentChecklistFromChild(child: Task): Promise<void> {
-		if (!child.parent_task) return;
-		const parentPath = ensureMdExt(child.parent_task.trim());
-		const parentFile = this.app.vault.getAbstractFileByPath(normalizePath(parentPath));
-		if (!(parentFile instanceof TFile)) return;
-
-		const content = await this.app.vault.cachedRead(parentFile);
-		const fmEnd = content.indexOf('\n---', 3);
-		if (fmEnd < 0) return;
-
-		const body = content.substring(fmEnd + 4).trim();
-		if (!body) return;
-
-		const lines = body.split('\n');
-		const childPathWithoutExt = stripMdExt(child.path);
-		const shouldBeChecked = this.isCompleteStatus(child.status);
-		let changed = false;
-
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			const match = line.match(/^(\s*)- \[( |x|X)\](\s+\[\[([^\]|]+)(?:\|[^\]]+)?\]\].*)$/);
-			if (!match) continue;
-			const linked = ensureMdExt((match[4] ?? '').trim());
-			if (linked !== child.path && stripMdExt(linked) !== childPathWithoutExt) continue;
-
-			const currentChecked = (match[2] ?? ' ').toLowerCase() === 'x';
-			if (currentChecked === shouldBeChecked) continue;
-
-			const marker = shouldBeChecked ? 'x' : ' ';
-			lines[i] = `${match[1]}- [${marker}]${match[3]}`;
-			changed = true;
-		}
-
-		if (!changed) return;
-
-		if (this.isFileOpenInEditor(parentFile)) {
-			await new Promise(resolve => setTimeout(resolve, 100));
-		}
-
-		const rewritten = lines.join('\n').trim();
-		await this.app.vault.process(parentFile, (current) => {
-			const currentFmEnd = current.indexOf('\n---', 3);
-			if (currentFmEnd < 0) return current;
-			const frontmatter = current.substring(0, currentFmEnd + 4);
-			return frontmatter + (rewritten ? '\n\n' + rewritten : '') + '\n';
-		});
-	}
-
-	private buildChildTaskInput(parent: Task, title: string, parentPath: string): TaskCreateInput {
-		const today = localDateString();
-		return {
-			type: 'task',
-			name: title,
-			area: parent.area,
-			status: parent.status,
-			priority: parent.priority,
-			labels: [...parent.labels],
-			due_time: null,
-			parent_task: parentPath.replace(/\.md$/, ''),
-			depends_on: [],
-			blocked_reason: '',
-			assigned_to: parent.assigned_to,
-			source: parent.source,
-			start_date: parent.start_date,
-			due_date: null,
-			estimated_days: null,
-			created: today,
-			completed: null,
-			notes: '',
-			recurrence: null,
-			recurrence_type: null,
-		};
-	}
-
-	private async materializeChecklistChildrenFromBody(parentPath: string, body: string): Promise<string> {
-		if (!body) return body;
-		const parent = get(this.tasks).find(t => t.path === parentPath);
-		if (!parent) return body;
-
-		return materializeChecklistChildren({
-			body,
-			parentPath,
-			extractChecklistLink,
-			createChecklistChild: async (content, effectiveParentPath) => {
-				const child = await this.create(this.buildChildTaskInput(parent, content, effectiveParentPath));
-				return { path: child.path, name: child.name };
-			},
-		});
-	}
-
-	async addDependency(taskPath: string, depPathWithoutExt: string): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(normalizePath(taskPath));
-		if (!(file instanceof TFile)) return;
-		const selfClean = taskPath.replace(/\.md$/, '');
-		if (depPathWithoutExt === selfClean) return;
-
-		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(depPathWithoutExt + '.md'));
-		if (!(depFile instanceof TFile)) return;
-
-		const all = get(this.tasks);
-		const depTask = all.find(t => t.path.replace(/\.md$/, '') === depPathWithoutExt);
-		const depName = depTask?.name ?? depPathWithoutExt.split('/').pop() ?? depPathWithoutExt;
-		const selfTask = all.find(t => t.path === taskPath);
-		const selfName = selfTask?.name ?? taskPath.replace(/\.md$/, '').split('/').pop() ?? taskPath;
-		const depLink = this.buildAliasedTaskLink(depPathWithoutExt, depName, file.path);
-
-		await this.app.fileManager.processFrontMatter(file, (fm) => {
-			const current: unknown[] = Array.isArray(fm.depends_on) ? fm.depends_on : [];
-			const already = current.some(v => String(v ?? '').includes(depPathWithoutExt));
-			if (!already) fm.depends_on = [...current, depLink];
-		});
-
-		await this.addToBlocks(depPathWithoutExt, taskPath, selfName);
-	}
-
-	async removeDependency(taskPath: string, depPathWithoutExt: string): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(normalizePath(taskPath));
-		if (!(file instanceof TFile)) return;
-
-		await this.app.fileManager.processFrontMatter(file, (fm) => {
-			if (!Array.isArray(fm.depends_on)) return;
-			fm.depends_on = fm.depends_on.filter((v: unknown) => !String(v ?? '').includes(depPathWithoutExt));
-		});
-
-		// Remove from blocks on the dependency target
-		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(depPathWithoutExt + '.md'));
-		if (depFile instanceof TFile) {
-			const selfClean = taskPath.replace(/\.md$/, '');
-			await this.app.fileManager.processFrontMatter(depFile, (fm) => {
-				if (!Array.isArray(fm.blocks)) return;
-				fm.blocks = fm.blocks.filter((v: unknown) => !String(v ?? '').includes(selfClean));
-			});
-		}
-	}
-
-	async updateParentTask(taskPath: string, parentPath: string | null): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(normalizePath(taskPath));
-		if (!(file instanceof TFile)) return;
-
-		await this.app.fileManager.processFrontMatter(file, (fm) => {
-			if (!parentPath) {
-				fm.parent_task = null;
-				return;
-			}
-			const all = get(this.tasks);
-			const parent = all.find(t => t.path.replace(/\.md$/, '') === parentPath);
-			const name = parent?.name ?? parentPath.split('/').pop() ?? parentPath;
-			fm.parent_task = this.buildAliasedTaskLink(parentPath, name, file.path);
-		});
+		return this.writer.updateNotes(path, notes);
 	}
 
 	async delete(path: string, options?: { prompt?: boolean }): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
-		if (!(file instanceof TFile)) return;
-
-		const fileManager = this.app.fileManager as typeof this.app.fileManager & {
-			promptForDeletion?: (file: TFile) => Promise<void> | void;
-			trashFile?: (file: TFile) => Promise<void> | void;
-		};
-
-		await deleteFileSafely(
-			file,
-			buildDeleteDeps(fileManager, (f) => this.app.vault.delete(f)),
-			{ prompt: options?.prompt ?? false }
-		);
+		return this.writer.delete(path, options);
 	}
 
-	/**
-	 * Mark the task complete and, if it has a recurrence rule, create the next
-	 * instance with dates advanced by one interval. Returns the new task, or
-	 * null if the task has no recurrence rule.
-	 */
+	// ── Dependency mutations (delegated to TaskWriter) ──────────────────────────
+
+	async addDependency(taskPath: string, depPathWithoutExt: string): Promise<void> {
+		return this.writer.addDependency(taskPath, depPathWithoutExt);
+	}
+
+	async removeDependency(taskPath: string, depPathWithoutExt: string): Promise<void> {
+		return this.writer.removeDependency(taskPath, depPathWithoutExt);
+	}
+
+	async updateParentTask(taskPath: string, parentPath: string | null): Promise<void> {
+		return this.writer.updateParentTask(taskPath, parentPath);
+	}
+
+	// ── Higher-level operations (delegated to TaskWriter) ────────────────────────
+
 	async completeAndRecur(task: Task): Promise<Task | null> {
-		const today = localDateString();
-		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
-
-		await this.update(task.path, { status: completionStatus, completed: today });
-
-		if (!task.recurrence) return null;
-
-		const recurType = (task.recurrence_type ?? 'fixed') as import('./recurrence').RecurrenceType;
-		const nextDue   = nextDueDate(task.recurrence, recurType, task.due_date, today);
-		const nextStart = nextStartDate(task.recurrence, recurType, task.start_date, task.due_date, today);
-		const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
-
-		const nextInput: TaskCreateInput = {
-			type:            task.type,
-			name:            task.name,
-			area:            task.area,
-			status:          firstStatus,
-			priority:        task.priority,
-			labels:          [...task.labels],
-			parent_task:     task.parent_task,
-			depends_on:      [],
-			blocked_reason:  '',
-			assigned_to:     task.assigned_to,
-			source:          task.source,
-			start_date:      nextStart,
-			due_date:        nextDue,
-			due_time:        task.due_time,
-			estimated_days:  task.estimated_days,
-			created:         today,
-			completed:       null,
-			// status_changed not carried over — the new instance starts fresh
-			notes:           resetChecklistCompletionInNotes(task.notes ?? ''),
-			recurrence:      task.recurrence,
-			recurrence_type: task.recurrence_type,
-		};
-
-		return this.create(nextInput);
+		return this.writer.completeAndRecur(task);
 	}
 
-	/**
-	 * Create a duplicate of the task at `path`.
-	 * The duplicate lands in the inbox with a new ID; dates and relationships
-	 * are reset per `buildDuplicateInput`.
-	 */
 	async duplicate(path: string): Promise<Task | null> {
-		const all = get(this.tasks);
-		const task = all.find(t => t.path === normalizePath(path));
-		if (!task) return null;
-
-		const today = localDateString();
-		const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
-		const input = buildDuplicateInput(task, today, firstStatus);
-		return this.create(input);
+		return this.writer.duplicate(path);
 	}
 
-	/**
-	 * Reopen a completed task, reverting it to Active status and clearing completion data.
-	 */
 	async restore(path: string): Promise<void> {
-		const all = get(this.tasks);
-		const task = all.find(t => t.path === normalizePath(path));
-		if (!task) return;
-
-		const restoreInput = buildRestoreInput(task);
-		await this.update(path, restoreInput);
+		return this.writer.restore(path);
 	}
 
 	/**
@@ -587,280 +232,40 @@ export class TaskStore {
 		await this.app.workspace.getLeaf('tab').openFile(file);
 	}
 
-	// ── Relationship maintenance ─────────────────────────────────────────────────
+	// ── Relationship maintenance (delegated to TaskRelationships) ───────────────
 
-	private async rewriteRelationshipReferences(oldPath: string, newPath: string): Promise<void> {
-		const oldClean = oldPath.replace(/\.md$/, '');
-		const newClean = newPath.replace(/\.md$/, '');
-		if (oldClean === newClean) return;
-
-		const folder = this.app.vault.getFolderByPath(this.folderPath);
-		if (!folder) return;
-
-		const files = folder.children.filter(
-			(f): f is TFile => f instanceof TFile && f.extension === 'md' && f.path !== newPath
-		);
-
-		const oldPattern = oldClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		const linkRegex = new RegExp(`\\[\\[${oldPattern}(\\|[^\\]]+)?\\]\\]`, 'g');
-
-		for (const file of files) {
-			const cache = this.app.metadataCache.getFileCache(file);
-			const fm = cache?.frontmatter;
-			if (!fm) continue;
-
-			const raw = JSON.stringify(fm);
-			if (!raw.includes(oldClean)) continue;
-
-			await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-				const rewriteLink = (val: unknown): unknown => {
-					if (typeof val !== 'string') return val;
-					return val.replace(linkRegex, (match, alias) => `[[${newClean}${alias ?? ''}]]`);
-				};
-
-				for (const key of ['parent_task', 'blocked_reason']) {
-					if (typeof frontmatter[key] === 'string' && frontmatter[key].includes(oldClean)) {
-						frontmatter[key] = rewriteLink(frontmatter[key]);
-					}
-				}
-
-				for (const key of ['depends_on', 'blocks']) {
-					if (Array.isArray(frontmatter[key])) {
-						frontmatter[key] = frontmatter[key].map((v: unknown) => rewriteLink(v));
-					}
-				}
-			});
-		}
-
-		this.plugin.log(`Rewrote relationship references: ${oldClean} → ${newClean}`);
+	private rewriteRelationshipReferences(oldPath: string, newPath: string): Promise<void> {
+		return this.relationships.rewriteRelationshipReferences(oldPath, newPath);
 	}
 
-	private async removeRelationshipReferences(deletedPath: string): Promise<void> {
-		const deletedClean = deletedPath.replace(/\.md$/, '');
-		const folder = this.app.vault.getFolderByPath(this.folderPath);
-		if (!folder) return;
-
-		const files = folder.children.filter(
-			(f): f is TFile => f instanceof TFile && f.extension === 'md' && f.path !== deletedPath
-		);
-
-		let touched = 0;
-		for (const file of files) {
-			const cache = this.app.metadataCache.getFileCache(file);
-			const fm = cache?.frontmatter;
-			if (!fm) continue;
-
-			const raw = JSON.stringify(fm);
-			if (!raw.includes(deletedClean)) continue;
-
-			let changed = false;
-			await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-				const currentParent = parseWikiLink(frontmatter.parent_task);
-				if (currentParent === deletedClean) {
-					frontmatter.parent_task = null;
-					changed = true;
-				}
-
-				for (const key of ['depends_on', 'blocks']) {
-					if (!Array.isArray(frontmatter[key])) continue;
-					const current = frontmatter[key] as unknown[];
-					const next = current.filter((value: unknown) => parseWikiLink(value) !== deletedClean);
-					if (next.length !== current.length) {
-						frontmatter[key] = next;
-						changed = true;
-					}
-				}
-			});
-
-			if (changed) touched += 1;
-		}
-
-		if (touched > 0) {
-			this.plugin.log(`Removed relationship references to deleted task: ${deletedClean} (${touched} file(s))`);
-		}
+	private removeRelationshipReferences(deletedPath: string): Promise<void> {
+		return this.relationships.removeRelationshipReferences(deletedPath);
 	}
 
-	// ── Bulk operations ──────────────────────────────────────────────────────────
+	// ── Bulk operations (delegated) ──────────────────────────────────────────────
 
 	async syncBlocks(): Promise<void> {
-		const folder = this.app.vault.getFolderByPath(this.folderPath);
-		if (!folder) { new Notice('TTasks: tasks folder not found'); return; }
-
-		const files = folder.children.filter(
-			(f): f is TFile => f instanceof TFile && f.extension === 'md'
-		);
-
-		// Build reverse index: cleanPath → tasks that depend on it
-		const reverseMap = new Map<string, { path: string; name: string }[]>();
-
-		for (const file of files) {
-			const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
-			if (!fm) continue;
-			const name: string = fm.name ?? file.basename;
-			const deps = this.resolveWikiLinkPaths(fm.depends_on, file.path);
-			for (const dep of deps) {
-				const depClean = dep.replace(/\.md$/, '');
-				if (!reverseMap.has(depClean)) reverseMap.set(depClean, []);
-				reverseMap.get(depClean)!.push({ path: file.path.replace(/\.md$/, ''), name });
-			}
-		}
-
-		for (const file of files) {
-			const cleanPath = file.path.replace(/\.md$/, '');
-			const blockers = reverseMap.get(cleanPath) ?? [];
-			await this.app.fileManager.processFrontMatter(file, (fm) => {
-				fm.blocks = blockers.map((b) => this.buildAliasedTaskLink(b.path, b.name, file.path));
-			});
-		}
-
-		this.plugin.log(`SyncBlocks complete — ${files.length} files processed`);
+		return this.relationships.syncBlocks();
 	}
 
 	async migrateCssClasses(): Promise<void> {
-		const folder = this.app.vault.getFolderByPath(this.folderPath);
-		if (!folder) { this.plugin.log('migrateCssClasses: tasks folder not found'); return; }
-
-		const files = folder.children.filter(
-			(f): f is TFile => f instanceof TFile && f.extension === 'md'
-		);
-
-		let patched = 0;
-		for (const file of files) {
-			await this.app.fileManager.processFrontMatter(file, (fm) => {
-				const existing: string[] = Array.isArray(fm.cssclasses)
-					? fm.cssclasses
-					: typeof fm.cssclasses === 'string' ? [fm.cssclasses] : [];
-				if (!existing.includes('ttask')) {
-					fm.cssclasses = [...existing, 'ttask'];
-					patched++;
-				}
-			});
-		}
-
-		this.plugin.log(`MigrateCssClasses: patched ${patched} of ${files.length} files`);
+		return this.migrations.migrateCssClasses();
 	}
 
 	async migrateFieldValues(field: MigratableField, mappings: Record<string, string | null>): Promise<number> {
-		const folder = this.app.vault.getFolderByPath(this.folderPath);
-		if (!folder) return 0;
-
-		const files = folder.children.filter(
-			(f): f is TFile => f instanceof TFile && f.extension === 'md'
-		);
-
-		let patched = 0;
-		for (const file of files) {
-			await this.app.fileManager.processFrontMatter(file, (fm) => {
-				const current = typeof fm[field] === 'string' ? fm[field] : null;
-				if (!current) return;
-				if (!Object.prototype.hasOwnProperty.call(mappings, current)) return;
-				fm[field] = mappings[current] ?? null;
-				patched++;
-			});
-		}
-
-		this.plugin.log(`MigrateFieldValues(${field}): patched ${patched} of ${files.length} files`);
-		return patched;
+		return this.migrations.migrateFieldValues(field, mappings);
 	}
 
-	/**
-	 * Backfill `status_changed` on existing tasks that predate the field.
-	 * Sets it to `start_date ?? created` so stale-in-progress reminders have
-	 * a reasonable baseline. Safe to run multiple times — skips tasks that
-	 * already have `status_changed` set.
-	 */
 	async migrateStatusChanged(): Promise<number> {
-		const folder = this.app.vault.getFolderByPath(this.folderPath);
-		if (!folder) return 0;
-
-		const files = folder.children.filter(
-			(f): f is TFile => f instanceof TFile && f.extension === 'md'
-		);
-
-		let patched = 0;
-		for (const file of files) {
-			await this.app.fileManager.processFrontMatter(file, (fm) => {
-				if (typeof fm.status_changed === 'string' && fm.status_changed) return;
-				const fallback = (typeof fm.start_date === 'string' && fm.start_date)
-					? fm.start_date
-					: (typeof fm.created === 'string' && fm.created)
-						? fm.created
-						: localDateString();
-				fm.status_changed = fallback;
-				patched++;
-			});
-		}
-
-		this.plugin.log(`MigrateStatusChanged: patched ${patched} of ${files.length} files`);
-		return patched;
+		return this.migrations.migrateStatusChanged();
 	}
 
-	/**
-	 * Phase 6 data model migration: renames `category`→`area` and converts
-	 * `task_type: string` → `labels: [string]` in every task file's frontmatter.
-	 * Safe to run multiple times — skips files that already use the new field names.
-	 * Returns the number of files patched.
-	 */
 	async migrateToPhase6DataModel(): Promise<number> {
-		const folder = this.app.vault.getFolderByPath(this.folderPath);
-		if (!folder) return 0;
-
-		const files = folder.children.filter(
-			(f): f is TFile => f instanceof TFile && f.extension === 'md'
-		);
-
-		let patched = 0;
-		for (const file of files) {
-			await this.app.fileManager.processFrontMatter(file, (fm) => {
-				let changed = false;
-
-				// category → area
-				if ('category' in fm && !('area' in fm)) {
-					fm.area = fm.category ?? null;
-					delete fm.category;
-					changed = true;
-				}
-
-				// task_type: string → labels: [string]
-				if ('task_type' in fm && !('labels' in fm)) {
-					fm.labels = typeof fm.task_type === 'string' && fm.task_type
-						? [fm.task_type]
-						: [];
-					delete fm.task_type;
-					changed = true;
-				}
-
-				if (changed) patched++;
-			});
-		}
-
-		this.plugin.log(`MigrateToPhase6DataModel: patched ${patched} of ${files.length} files`);
-		return patched;
+		return this.migrations.migrateToPhase6DataModel();
 	}
 
 	async migrateStatuses(validStatuses: string[]): Promise<number> {
-		const folder = this.app.vault.getFolderByPath(this.folderPath);
-		if (!folder) return 0;
-
-		const allowed = new Set(validStatuses);
-		const fallback = validStatuses[0] ?? 'Active';
-
-		const files = folder.children.filter(
-			(f): f is TFile => f instanceof TFile && f.extension === 'md'
-		);
-
-		let patched = 0;
-		for (const file of files) {
-			await this.app.fileManager.processFrontMatter(file, (fm) => {
-				const current = typeof fm.status === 'string' ? fm.status : '';
-				if (current && allowed.has(current)) return;
-				fm.status = fallback;
-				patched++;
-			});
-		}
-
-		this.plugin.log(`MigrateStatuses: patched ${patched} of ${files.length} files`);
-		return patched;
+		return this.migrations.migrateStatuses(validStatuses);
 	}
 
 	async seedGraphTestData(): Promise<{ created: number; skipped: boolean }> {
@@ -1175,34 +580,6 @@ export class TaskStore {
 			.filter((v): v is string => v !== null);
 	}
 
-	private buildAliasedTaskLink(pathWithoutExt: string, alias: string, sourcePath: string): string {
-		const cleanPath = stripMdExt(pathWithoutExt);
-		return buildAliasedLink({
-			targetPathWithoutExt: cleanPath,
-			alias,
-			sourcePath,
-			resolveFile: (path) => {
-				const resolved = this.app.vault.getAbstractFileByPath(normalizePath(path));
-				return resolved instanceof TFile ? resolved : null;
-			},
-			generateMarkdownLink: (file, src, subpath, linkAlias) => this.app.fileManager.generateMarkdownLink(file, src, subpath, linkAlias),
-		});
-	}
-
-	private async addToBlocks(depPath: string, thisPath: string, thisName: string): Promise<void> {
-		const fullPath = depPath.endsWith('.md') ? depPath : depPath + '.md';
-		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(fullPath));
-		if (!(depFile instanceof TFile)) return;
-
-		const cleanPath = thisPath.replace(/\.md$/, '');
-		const thisLink = this.buildAliasedTaskLink(cleanPath, thisName, depFile.path);
-		await this.app.fileManager.processFrontMatter(depFile, (fm) => {
-			const current: unknown[] = Array.isArray(fm.blocks) ? fm.blocks : [];
-			const already = current.some(b => String(b ?? '').includes(cleanPath));
-			if (!already) fm.blocks = [...current, thisLink];
-		});
-	}
-
 	private async ensureFolderPathExists(path: string): Promise<void> {
 		const segments = normalizePath(path).split('/').filter(Boolean);
 		let current = '';
@@ -1216,57 +593,4 @@ export class TaskStore {
 		}
 	}
 
-	// ── Frontmatter builder (creation only) ──────────────────────────────────────
-
-	private resolveNameForPath(pathWithoutExt: string): string {
-		const all = get(this.tasks);
-		const match = all.find(t => t.path === pathWithoutExt + '.md' || t.path.replace(/\.md$/, '') === pathWithoutExt);
-		if (match) return match.name;
-		return pathWithoutExt.split('/').pop()?.replace(/^[a-f0-9]+-/, '') ?? pathWithoutExt;
-	}
-
-	private buildFrontmatter(task: Task): string {
-		const esc = (s: string) => String(s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-		const strOrNull = (s: string | null | undefined) => s ? `"${esc(s)}"` : 'null';
-		const link = (p: string | null) => {
-			if (!p) return 'null';
-			const clean = p.replace(/\.md$/, '');
-			const name = this.resolveNameForPath(clean);
-			return `'[[${clean}|${name}]]'`;
-		};
-		const depsStr = task.depends_on.length
-			? `\n${task.depends_on.map(d => `  - ${link(d)}`).join('\n')}`
-			: ' []';
-
-		const labelsYaml = task.labels.length
-			? `\n${task.labels.map(l => `  - "${esc(l)}"`).join('\n')}`
-			: ' []';
-
-		return [
-			'---',
-			`type: ${task.type}`,
-			`name: "${esc(task.name)}"`,
-			`cssclasses: [ttask]`,
-			`area: ${strOrNull(task.area)}`,
-			`status: "${esc(task.status)}"`,
-			`priority: "${esc(task.priority)}"`,
-			`labels:${labelsYaml}`,
-			`parent_task: ${link(task.parent_task)}`,
-			`depends_on:${depsStr}`,
-			`blocks: []`,
-			`blocked_reason: "${esc(task.blocked_reason)}"`,
-			`assigned_to: "${esc(task.assigned_to)}"`,
-			`source: "${esc(task.source)}"`,
-			`start_date: ${task.start_date ? `'${task.start_date}'` : 'null'}`,
-			`due_date: ${task.due_date ? `'${task.due_date}'` : 'null'}`,
-			`due_time: ${task.due_time ? `'${task.due_time}'` : 'null'}`,
-			`estimated_days: ${task.estimated_days ?? 'null'}`,
-			`created: '${task.created}'`,
-			`completed: null`,
-			`status_changed: '${task.created}'`,
-			`recurrence: ${task.recurrence ? `"${esc(task.recurrence)}"` : 'null'}`,
-			`recurrence_type: ${task.recurrence_type ? `"${esc(task.recurrence_type)}"` : 'null'}`,
-			'---',
-		].join('\n');
-	}
 }
