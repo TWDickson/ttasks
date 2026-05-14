@@ -117,4 +117,59 @@ describe('addTaskContextMenuItems', () => {
 		expect(titles).not.toContain('Complete');
 		expect(titles).not.toContain('Convert to Project');
 	});
+
+	it('shows "Create dependent task" when createDependent callback is provided', () => {
+		const menu = new FakeMenu();
+		const task = makeTask({ type: 'task' });
+		const createDependent = vi.fn(async () => {});
+		const deps = {
+			openTask: vi.fn(),
+			runQuickAction: vi.fn(async () => true),
+			convertToProject: vi.fn(async () => {}),
+			duplicateTask: vi.fn(async () => {}),
+			restoreTask: vi.fn(async () => {}),
+			deleteTask: vi.fn(async () => {}),
+			createDependent,
+		};
+
+		addTaskContextMenuItems(menu as never, task, deps);
+		const titles = menu.items.map(i => i.title);
+		expect(titles).toContain('Create dependent task');
+
+		menu.items.find(i => i.title === 'Create dependent task')?.onClick?.();
+		expect(createDependent).toHaveBeenCalledWith(task.path);
+	});
+
+	it('omits "Create dependent task" when createDependent is not provided', () => {
+		const menu = new FakeMenu();
+		const task = makeTask({ type: 'task' });
+		const deps = {
+			openTask: vi.fn(),
+			runQuickAction: vi.fn(async () => true),
+			convertToProject: vi.fn(async () => {}),
+			duplicateTask: vi.fn(async () => {}),
+			restoreTask: vi.fn(async () => {}),
+			deleteTask: vi.fn(async () => {}),
+		};
+
+		addTaskContextMenuItems(menu as never, task, deps);
+		expect(menu.items.map(i => i.title)).not.toContain('Create dependent task');
+	});
+
+	it('omits "Create dependent task" for projects even when callback is provided', () => {
+		const menu = new FakeMenu();
+		const task = makeTask({ type: 'project' });
+		const deps = {
+			openTask: vi.fn(),
+			runQuickAction: vi.fn(async () => true),
+			convertToProject: vi.fn(async () => {}),
+			duplicateTask: vi.fn(async () => {}),
+			restoreTask: vi.fn(async () => {}),
+			deleteTask: vi.fn(async () => {}),
+			createDependent: vi.fn(async () => {}),
+		};
+
+		addTaskContextMenuItems(menu as never, task, deps);
+		expect(menu.items.map(i => i.title)).not.toContain('Create dependent task');
+	});
 });

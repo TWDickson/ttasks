@@ -9,6 +9,8 @@ export interface TaskContextMenuDeps {
 	duplicateTask: (path: string) => Promise<void>;
 	restoreTask: (path: string) => Promise<void>;
 	deleteTask: (path: string) => Promise<void>;
+	/** Optional: shown only when caller wants to offer "create a task that depends on this" */
+	createDependent?: (path: string) => Promise<void>;
 }
 
 function addMenuItem(
@@ -48,6 +50,11 @@ export function addTaskContextMenuItems(
 		addMenuItem(menu, 'Convert to Project', 'folder', () => {
 			void deps.convertToProject(task.path);
 		});
+		if (deps.createDependent) {
+			addMenuItem(menu, 'Create dependent task', 'git-branch-plus', () => {
+				void deps.createDependent!(task.path);
+			});
+		}
 	}
 
 	menu.addSeparator();

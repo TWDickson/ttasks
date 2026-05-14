@@ -223,4 +223,82 @@ describe('buildHybridTimeline', () => {
 		expect(model.underdefined[0].widthPercent).toBeGreaterThanOrEqual(10);
 		expect(model.underdefined[0].widthPercent).toBeLessThanOrEqual(20);
 	});
+
+	// ── B5: project grouping ───────────────────────────────────────────────────
+
+	it('groups defined items by parent project when grouping=project', () => {
+		const projectA = makeTask({ path: 'Tasks/project-a.md', name: 'Project A', type: 'project' });
+		const projectB = makeTask({ path: 'Tasks/project-b.md', name: 'Project B', type: 'project' });
+		const taskA1 = makeTask({ path: 'Tasks/a1.md', name: 'A1', parent_task: 'Tasks/project-a', due_date: '2026-06-01' });
+		const taskA2 = makeTask({ path: 'Tasks/a2.md', name: 'A2', parent_task: 'Tasks/project-a', due_date: '2026-06-10' });
+		const taskB1 = makeTask({ path: 'Tasks/b1.md', name: 'B1', parent_task: 'Tasks/project-b', due_date: '2026-06-05' });
+		const taskOrphan = makeTask({ path: 'Tasks/orphan.md', name: 'Orphan', due_date: '2026-06-15' });
+
+		const model = buildHybridTimeline(
+			[projectA, projectB, taskA1, taskA2, taskB1, taskOrphan],
+			{ grouping: 'project' },
+		);
+
+		const definedPaths = model.defined.map(i => i.path);
+		expect(definedPaths).toContain('Tasks/a1.md');
+		expect(definedPaths).toContain('Tasks/a2.md');
+		expect(definedPaths).toContain('Tasks/b1.md');
+		expect(definedPaths).toContain('Tasks/orphan.md');
+
+		// Each item has a groupKey matching its project
+		const a1 = model.defined.find(i => i.path === 'Tasks/a1.md')!;
+		const b1 = model.defined.find(i => i.path === 'Tasks/b1.md')!;
+		const orphan = model.defined.find(i => i.path === 'Tasks/orphan.md')!;
+		expect(a1.groupKey).toBe('project:Tasks/project-a.md');
+		expect(b1.groupKey).toBe('project:Tasks/project-b.md');
+		expect(orphan.groupKey).toBe('__no_project__');
+
+		// A1 and A2 share the same group band, B1 in a separate band
+		expect(a1.groupKey).toBe(model.defined.find(i => i.path === 'Tasks/a2.md')!.groupKey);
+		expect(a1.groupKey).not.toBe(b1.groupKey);
+	});
+
+	it('uses parent task name as group label when the parent is a visible task', () => {
+		// When the parent_task is itself a visible task (type='task'), its name is used as label.
+		// Projects (type='project') are filtered out of visibleTasks, so they fall back to path leaf.
+		const parentTask = makeTask({ path: 'Tasks/parent.md', name: 'Parent Task', type: 'task', due_date: '2026-06-01' });
+		const childTask = makeTask({ path: 'Tasks/child.md', name: 'Child', parent_task: 'Tasks/parent', due_date: '2026-06-10' });
+
+		const model = buildHybridTimeline([parentTask, childTask], { grouping: 'project' });
+
+		const child = model.defined.find(i => i.path === 'Tasks/child.md')!;
+		expect(child.groupLabel).toBe('Parent Task');
+	});
+
+	it('falls back to path leaf as group label when parent is a project (excluded from task list)', () => {
+		// Project tasks are excluded from visibleTasks; the resolver falls back to pathLeaf
+		const project = makeTask({ path: 'Tasks/my-proj.md', name: 'My Project', type: 'project' });
+		const task = makeTask({ path: 'Tasks/t.md', name: 'T', parent_task: 'Tasks/my-proj', due_date: '2026-06-01' });
+
+		const model = buildHybridTimeline([project, task], { grouping: 'project' });
+
+		const item = model.defined.find(i => i.path === 'Tasks/t.md')!;
+		// Falls back to the last segment of the parent path (no '.md' because normalizeTaskPath strips it)
+		expect(item.groupLabel).toBeTruthy();
+		expect(item.groupKey).toBe('project:Tasks/my-proj.md');
+	});
+
+	it('assigns "No project" label to orphan tasks when grouping=project', () => {
+		const task = makeTask({ path: 'Tasks/t.md', name: 'Orphan', due_date: '2026-06-01' });
+
+		const model = buildHybridTimeline([task], { grouping: 'project' });
+
+		const item = model.defined.find(i => i.path === 'Tasks/t.md')!;
+		expect(item.groupLabel).toBe('No project');
+	});
+
+	it('uses a single group when grouping=none', () => {
+		const t1 = makeTask({ path: 'Tasks/t1.md', name: 'T1', parent_task: 'Tasks/proj-a', due_date: '2026-06-01' });
+		const t2 = makeTask({ path: 'Tasks/t2.md', name: 'T2', parent_task: 'Tasks/proj-b', due_date: '2026-06-05' });
+
+		const model = buildHybridTimeline([t1, t2], { grouping: 'none' });
+
+		const keys = new Set(model.defined.map(i => i.groupKey));
+		expect(keys.size).toBe(1);
+	});
 });

@@ -33,11 +33,19 @@ export class CreateTaskModal extends Modal {
 	private notesRenderFrame: number | null = null;
 	private createBtnEl: HTMLButtonElement | null = null;
 
-	constructor(app: App, plugin: TTasksPlugin, defaultType: TaskRecordType = 'task') {
+	constructor(
+		app: App,
+		plugin: TTasksPlugin,
+		defaultType: TaskRecordType = 'task',
+		options?: { initialDependsOn?: string[] },
+	) {
 		super(app);
 		this.plugin = plugin;
 		this.type = defaultType;
 		this.status = resolveEmergencyStatus(this.plugin.settings.statuses);
+		if (options?.initialDependsOn?.length) {
+			this.depends_on = options.initialDependsOn.map(p => p.replace(/\.md$/, ''));
+		}
 	}
 
 	private get categories(): string[] {
@@ -281,6 +289,12 @@ export class CreateTaskModal extends Modal {
 
 		renderAfterTaskOptions();
 		renderDepsChips();
+
+		// Disable start-date fields when deps are pre-filled
+		if (this.depends_on.length > 0) {
+			startDateInput.disabled = true;
+			startTodayBtn.disabled = true;
+		}
 
 		startDateInput.addEventListener('change', () => {
 			this.start_date = startDateInput.value;

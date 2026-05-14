@@ -225,6 +225,10 @@ export default class TTasksPlugin extends Plugin {
 				await this.taskStore.restore(path);
 				new Notice('TTasks: task reopened');
 			},
+			createDependent: async (path) => {
+				const depPath = path.replace(/\.md$/, '');
+				new CreateTaskModal(this.app, this, 'task', { initialDependsOn: [depPath] }).open();
+			},
 		};
 	}
 
