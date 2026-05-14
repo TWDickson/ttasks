@@ -90,7 +90,7 @@ export class TaskWriter {
 				'name', 'status', 'priority', 'area', 'labels',
 				'blocked_reason', 'assigned_to', 'source', 'due_time',
 				'start_date', 'due_date', 'estimated_days', 'completed',
-				'recurrence', 'recurrence_type',
+				'recurrence', 'recurrence_type', 'reminder_override',
 			];
 			for (const key of fields) {
 				if (key in updates) fm[key] = (updates as Record<string, unknown>)[key] ?? null;

@@ -5,6 +5,7 @@ import { resolveConfiguredStatus, DEFAULT_SETTINGS } from './settings';
 import type { Task } from './types';
 import { localDateString, daysBetweenLocal } from './utils/dateUtils';
 import { resolveStaleDate } from './store/statusChanged';
+import { isSnoozed, purgeSnoozed, snoozeTask, type SnoozedState } from './store/reminderSnooze';
 
 // Keys are `{path}|{rule}|{YYYY-MM-DD}`.
 // Pipe cannot appear in vault paths on any OS and is not used in rule IDs.
@@ -21,8 +22,27 @@ export class ReminderService {
 	private get storageKey(): string {
 		return `ttasks-reminders-fired-${this.plugin.app.vault.getName()}`;
 	}
+	private get snoozeKey(): string {
+		return `ttasks-snoozed-v1-${this.plugin.app.vault.getName()}`;
+	}
 
 	constructor(private plugin: TTasksPlugin) {}
+
+	private loadSnoozed(): SnoozedState {
+		try {
+			const raw = localStorage.getItem(this.snoozeKey);
+			return raw ? JSON.parse(raw) : {};
+		} catch { return {}; }
+	}
+
+	private saveSnoozed(state: SnoozedState): void {
+		localStorage.setItem(this.snoozeKey, JSON.stringify(state));
+	}
+
+	snooze(path: string, hours: number): void {
+		const next = snoozeTask(this.loadSnoozed(), path, hours, new Date());
+		this.saveSnoozed(purgeSnoozed(next, new Date()));
+	}
 
 	async start(): Promise<void> {
 		this.loadFiredKeys();
@@ -39,7 +59,7 @@ export class ReminderService {
 	private async check(): Promise<void> {
 		const r = this.plugin.settings.reminders;
 		if (!r.enabled) return;
-		if (this.isQuietHours()) return;
+		const inQuietHours = this.isQuietHours();
 
 		const today = todayString();
 		const tasks = get(this.plugin.taskStore.tasks);
@@ -58,8 +78,20 @@ export class ReminderService {
 		let dueTodayCount = 0;
 		let leadTimeCount = 0;
 
+		const snoozed = this.loadSnoozed();
+		const now = new Date();
+
 		for (const task of tasks) {
 			if (task.is_complete) continue;
+
+			// Per-task override: mute suppresses all reminders
+			if (task.reminder_override === 'mute') continue;
+
+			// Quiet hours: skip unless task is marked urgent
+			if (inQuietHours && task.reminder_override !== 'urgent') continue;
+
+			// Snooze: skip until snooze expires
+			if (isSnoozed(snoozed, task.path, now)) continue;
 
 			// due-today — check before lead-time so we don't double-fire on the same day
 			if (r.ruleDueToday && task.due_date === today) {
@@ -150,6 +182,15 @@ export class ReminderService {
 		const frag = document.createDocumentFragment();
 		const span = frag.createEl('span', { text: message });
 		span.style.cursor = 'pointer';
+
+		// Snooze button: dismiss this task's reminders for 4 hours
+		const snoozeBtn = frag.createEl('button', { text: 'Snooze 4h' });
+		snoozeBtn.style.cssText = 'margin-left:8px;font-size:0.75rem;padding:2px 6px;border-radius:4px;cursor:pointer;';
+		snoozeBtn.addEventListener('click', (e) => {
+			e.stopPropagation();
+			this.snooze(task.path, 4);
+			notice.hide();
+		});
 
 		const notice = new Notice(frag, NOTICE_DURATION_MS);
 		notice.noticeEl.style.cursor = 'pointer';

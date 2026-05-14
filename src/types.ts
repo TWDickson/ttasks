@@ -46,6 +46,10 @@ export interface Task {
 	// Free-form body content (everything after frontmatter)
 	notes: string;
 
+	// Optional per-task reminder behaviour override
+	// 'urgent': bypass quiet hours; 'mute': suppress all reminders for this task
+	reminder_override?: 'urgent' | 'mute' | null;
+
 	// Derived flags — computed at load time, not stored in frontmatter
 	is_complete: boolean;
 	is_inbox: boolean;  // true when area is null (task hasn't been classified into a line of work)

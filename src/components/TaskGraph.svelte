@@ -5,6 +5,7 @@
 	import type { TaskGroup } from '../query/types';
 	import type TTasksPlugin from '../main';
 	import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, type HybridTimelineGrouping, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
+	import { buildLaneHeaders } from '../store/graphLaneLayout';
 	import { PRIORITY_COLORS } from '../constants';
 	import { flattenTaskGroups } from './viewAdapters';
 	import { formatHumanDate } from './taskDateMeta';
@@ -152,6 +153,8 @@
 	$: linkCanvasHeightPx = definedTrackHeightPx + underdefinedTrackHeightPx + 78;
 	$: definedStatusSummary = summarizeByStatus(hybridTimeline.defined.map((item) => item.task));
 	$: underdefinedStatusSummary = summarizeByStatus(hybridTimeline.underdefined.map((item) => item.task));
+	$: definedLaneHeaders = buildLaneHeaders(hybridTimeline.definedGroups, HYBRID_ROW_HEIGHT, HYBRID_ROW_GAP, HYBRID_TRACK_PADDING);
+	$: underdefinedLaneHeaders = buildLaneHeaders(hybridTimeline.underdefinedGroups, HYBRID_ROW_HEIGHT, HYBRID_ROW_GAP, HYBRID_TRACK_PADDING);
 
 	$: if (graphMode !== lastGraphMode) {
 		shouldAutoFocusOverview = graphMode === 'overview';
@@ -501,27 +504,46 @@
 								{/each}
 							</div>
 						</div>
-						<div class="tt-hybrid-track-canvas" style={`height:${definedTrackHeightPx}px;`}>
-							{#each hybridTimeline.definedGroups as group (group.key)}
-								<div class="tt-hybrid-group-band" style={groupBandStyle(group)}></div>
-								<div class="tt-hybrid-group-label" style={groupLabelStyle(group)}>{group.label}</div>
-							{/each}
-							{#each visibleDefined as item (item.path)}
-								<button
-									type="button"
-									class="tt-overview-bar tt-hybrid-defined-item"
-									class:is-done={item.task.is_complete}
-									class:is-active={$activeTaskPath === item.path}
-									class:is-inferred={item.isInferred}
-									style={definedBarStyle(item)}
-									title={`${item.task.name} | ${formatDate(item.start)} → ${formatDate(item.end)}${item.isInferred ? ' (inferred)' : ''}`}
-									on:click={() => onOpen(item.path)}
-									on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
-									on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
-								>
-									<span class="tt-overview-title">{item.task.name}</span>
-								</button>
-							{/each}
+						<div class="tt-hybrid-track-body">
+							<!-- Lane sidebar: named project headers positioned at each band's row -->
+							{#if definedLaneHeaders.length > 1}
+								<div class="tt-hybrid-lane-sidebar" style={`height:${definedTrackHeightPx}px;`} aria-hidden="true">
+									{#each definedLaneHeaders as header (header.key)}
+										<div
+											class="tt-hybrid-lane-header"
+											style={`top:${header.topPx}px;height:${header.heightPx}px;`}
+										>
+											<span class="tt-lane-title" title={header.label}>{header.label}</span>
+											<span class="tt-lane-count">{header.taskCount}</span>
+										</div>
+									{/each}
+								</div>
+							{/if}
+							<div class="tt-hybrid-track-canvas" style={`height:${definedTrackHeightPx}px;`}>
+								{#each hybridTimeline.definedGroups as group (group.key)}
+									<div class="tt-hybrid-group-band" style={groupBandStyle(group)}></div>
+								{/each}
+								{#each visibleDefined as item (item.path)}
+									<button
+										type="button"
+										class="tt-overview-bar tt-hybrid-defined-item"
+										class:is-done={item.task.is_complete}
+										class:is-active={$activeTaskPath === item.path}
+										class:is-inferred={item.isInferred}
+										style={definedBarStyle(item)}
+										title={`${item.task.name} | ${formatDate(item.start)} → ${formatDate(item.end)}${item.isInferred ? ' (inferred)' : ''}`}
+										tabindex="0"
+										aria-label="{item.task.name} — {formatDate(item.start)} to {formatDate(item.end)}{item.isInferred ? ' (estimated)' : ''}"
+										aria-pressed={$activeTaskPath === item.path}
+										on:click={() => onOpen(item.path)}
+										on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(item.path); } }}
+										on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
+										on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
+									>
+										<span class="tt-overview-title">{item.task.name}</span>
+									</button>
+								{/each}
+							</div>
 						</div>
 					</section>
 
@@ -536,27 +558,45 @@
 								{/each}
 							</div>
 						</div>
-						<div class="tt-hybrid-track-canvas" style={`height:${underdefinedTrackHeightPx}px;`}>
-							{#each hybridTimeline.underdefinedGroups as group (group.key)}
-								<div class="tt-hybrid-group-band" style={groupBandStyle(group)}></div>
-								<div class="tt-hybrid-group-label" style={groupLabelStyle(group)}>{group.label}</div>
-							{/each}
-							{#each visibleUnderdefined as item (item.path)}
-								<button
-									type="button"
-									class="tt-overview-bar tt-hybrid-underdefined-item"
-									class:is-done={item.task.is_complete}
-									class:is-active={$activeTaskPath === item.path}
-									style={underdefinedCardStyle(item)}
-									title={`${item.task.name} | follows ${item.anchorPath.replace(/\.md$/, '')}`}
-									on:click={() => onOpen(item.path)}
-									on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
-									on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
-								>
-									<span class="tt-hybrid-underdefined-name">{item.task.name}</span>
-									<span class="tt-hybrid-underdefined-anchor">after {item.anchorPath.replace(/\.md$/, '').split('/').pop()}</span>
-								</button>
-							{/each}
+						<div class="tt-hybrid-track-body">
+							{#if underdefinedLaneHeaders.length > 1}
+								<div class="tt-hybrid-lane-sidebar" style={`height:${underdefinedTrackHeightPx}px;`} aria-hidden="true">
+									{#each underdefinedLaneHeaders as header (header.key)}
+										<div
+											class="tt-hybrid-lane-header"
+											style={`top:${header.topPx}px;height:${header.heightPx}px;`}
+										>
+											<span class="tt-lane-title" title={header.label}>{header.label}</span>
+											<span class="tt-lane-count">{header.taskCount}</span>
+										</div>
+									{/each}
+								</div>
+							{/if}
+							<div class="tt-hybrid-track-canvas" style={`height:${underdefinedTrackHeightPx}px;`}>
+								{#each hybridTimeline.underdefinedGroups as group (group.key)}
+									<div class="tt-hybrid-group-band" style={groupBandStyle(group)}></div>
+								{/each}
+								{#each visibleUnderdefined as item (item.path)}
+									<button
+										type="button"
+										class="tt-overview-bar tt-hybrid-underdefined-item"
+										class:is-done={item.task.is_complete}
+										class:is-active={$activeTaskPath === item.path}
+										style={underdefinedCardStyle(item)}
+										title={`${item.task.name} | follows ${item.anchorPath.replace(/\.md$/, '')}`}
+										tabindex="0"
+										aria-label="{item.task.name} — follows {item.anchorPath.replace(/\.md$/, '').split('/').pop()}"
+										aria-pressed={$activeTaskPath === item.path}
+										on:click={() => onOpen(item.path)}
+										on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(item.path); } }}
+										on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
+										on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
+									>
+										<span class="tt-hybrid-underdefined-name">{item.task.name}</span>
+										<span class="tt-hybrid-underdefined-anchor">after {item.anchorPath.replace(/\.md$/, '').split('/').pop()}</span>
+									</button>
+								{/each}
+							</div>
 						</div>
 					</section>
 				</div>
@@ -727,6 +767,56 @@
 		border: 1px solid color-mix(in srgb, var(--tt-chip-accent) 40%, var(--background-modifier-border));
 	}
 
+	.tt-hybrid-track-body {
+		display: flex;
+		align-items: flex-start;
+	}
+
+	.tt-hybrid-lane-sidebar {
+		width: 110px;
+		flex-shrink: 0;
+		position: relative;
+		border-right: 1px solid var(--background-modifier-border);
+		border-radius: var(--radius-m, 8px) 0 0 var(--radius-m, 8px);
+		background: var(--background-primary-alt, var(--background-secondary));
+		overflow: hidden;
+	}
+
+	.tt-hybrid-lane-header {
+		position: absolute;
+		left: 0;
+		right: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		padding: 0 8px;
+		border-bottom: 1px dashed color-mix(in srgb, var(--background-modifier-border) 60%, transparent);
+		overflow: hidden;
+	}
+
+	.tt-lane-title {
+		font-size: 0.68rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-muted);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.tt-lane-count {
+		font-size: 0.62rem;
+		color: var(--text-faint);
+	}
+
+	.tt-hybrid-lane-sidebar + .tt-hybrid-track-canvas {
+		border-radius: 0 var(--radius-m, 8px) var(--radius-m, 8px) 0;
+		border-left: none;
+		flex: 1;
+		min-width: 0;
+	}
+
 	.tt-hybrid-track-canvas {
 		position: relative;
 		border-radius: var(--radius-m, 8px);
@@ -749,23 +839,6 @@
 		background: linear-gradient(180deg, color-mix(in srgb, var(--background-secondary) 35%, transparent), transparent 40%);
 		pointer-events: none;
 		z-index: 0;
-	}
-
-	.tt-hybrid-group-label {
-		position: absolute;
-		left: 8px;
-		transform: translateY(-50%);
-		font-size: 0.62rem;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		font-weight: 700;
-		padding: 1px 5px;
-		border-radius: 999px;
-		background: color-mix(in srgb, var(--background-primary) 88%, transparent);
-		color: var(--text-faint);
-		border: 1px solid color-mix(in srgb, var(--background-modifier-border) 75%, transparent);
-		pointer-events: none;
-		z-index: 1;
 	}
 
 	.tt-hybrid-underdefined-item {

@@ -507,10 +507,24 @@
 					</select>
 				{/if}
 			</div>
+
+			<label class="tt-label" for="tt-reminder-override">Reminders</label>
+			<select
+				id="tt-reminder-override"
+				value={task.reminder_override ?? ''}
+				on:change={(e) => {
+					const v = e.currentTarget.value;
+					void saveImmediate({ reminder_override: v === 'urgent' || v === 'mute' ? v : null });
+				}}
+			>
+				<option value="">Default</option>
+				<option value="urgent">Urgent — bypass quiet hours</option>
+				<option value="mute">Mute — never remind</option>
+			</select>
 		</div>
 
-		{#if task.type === 'task'}
-			<TaskDetailRelationships
+	{#if task.type === 'task'}
+		<TaskDetailRelationships
 				{task}
 				tasks={$tasks}
 				{plugin}

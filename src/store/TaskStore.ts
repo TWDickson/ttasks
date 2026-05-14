@@ -550,6 +550,8 @@ export class TaskStore {
 			notes,
 			recurrence:      typeof fm.recurrence === 'string' ? fm.recurrence : null,
 			recurrence_type: typeof fm.recurrence_type === 'string' ? fm.recurrence_type : null,
+			reminder_override: (fm.reminder_override === 'urgent' || fm.reminder_override === 'mute')
+				? fm.reminder_override : null,
 			is_complete: normalizedStatus === completionStatus,
 			is_inbox:    area === null,
 		};
