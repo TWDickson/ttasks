@@ -1,7 +1,7 @@
 ﻿import type { QuerySpec } from '../query/types';
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
-export type TaskViewRenderer = 'list' | 'kanban' | 'agenda' | 'graph';
+export type TaskViewRenderer = 'list' | 'kanban' | 'agenda' | 'graph' | 'archive';
 export type LogbookRendererMode = 'list' | 'kanban';
 export type OverviewGraphGrouping = 'project' | 'dependency' | 'none';
 

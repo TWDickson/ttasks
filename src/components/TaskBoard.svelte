@@ -12,6 +12,7 @@
 	import { createTaskQuery } from '../query/useTaskQuery';
 	import { canToggleBuiltinCompleted, defaultCompletedVisibility } from './builtinViewCompletionToggle';
 	import { canToggleLogbookRenderer, resolveViewRenderer, toggleLogbookRendererMode } from './logbookViewMode';
+	import TaskArchiveView from './TaskArchiveView.svelte';
 	import { buildBoardQuery } from './boardQuery';
 	import type { FilterCondition } from '../query/types';
 	import {
@@ -412,6 +413,8 @@
 						onOpen={(path) => plugin.taskStore.openDetail(path)}
 						onContextMenu={openContextMenu}
 					/>
+				{:else if currentRenderer === 'archive'}
+					<TaskArchiveView {plugin} />
 				{:else}
 					<TaskAgenda
 						{plugin}

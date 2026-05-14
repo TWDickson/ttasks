@@ -101,6 +101,16 @@ export default class TTasksPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'archive-migrate-completed',
+			name: 'Archive: move all completed tasks to archive folder',
+			callback: async () => {
+				const count = await this.archiveService.archiveAllCompleted();
+				new Notice(`TTasks: archived ${count} completed task(s).`);
+				await this.taskStore.load();
+			},
+		});
+
+		this.addCommand({
 			id: 'duplicate-task',
 			name: 'Duplicate active task',
 			checkCallback: (checking) => {

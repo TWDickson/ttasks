@@ -149,7 +149,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 	{
 		id: 'logbook',
 		name: 'Logbook',
-		icon: 'archive',
+		icon: 'book-open',
 		renderer: 'list',
 		query: {
 			filter: {
@@ -162,6 +162,19 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 				{ field: 'completed', direction: 'desc' },
 			],
 			group: { kind: 'date_buckets', field: 'completed', preset: 'logbook' },
+		},
+		presentation: { hierarchy: 'flat', graphMode: 'dependency' },
+		source: 'builtin',
+	},
+	{
+		id: 'archive',
+		name: 'Archive',
+		icon: 'archive',
+		renderer: 'archive',
+		query: {
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			group: { kind: 'none' },
 		},
 		presentation: { hierarchy: 'flat', graphMode: 'dependency' },
 		source: 'builtin',

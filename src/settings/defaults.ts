@@ -94,7 +94,7 @@ const GROUP_FIELDS = new Set<GroupField>([
 	'status', 'area', 'priority', 'type', 'due_date', 'parent_task',
 ]);
 
-const TASK_VIEW_RENDERERS = new Set<TaskViewRenderer>(['list', 'kanban', 'agenda', 'graph']);
+const TASK_VIEW_RENDERERS = new Set<TaskViewRenderer>(['list', 'kanban', 'agenda', 'graph', 'archive']);
 
 const EMPTY_FILTER_SPEC: FilterGroup = { logic: 'and', conditions: [] };
 
