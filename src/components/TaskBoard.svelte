@@ -13,6 +13,9 @@
 	import { canToggleBuiltinCompleted, defaultCompletedVisibility } from './builtinViewCompletionToggle';
 	import { canToggleLogbookRenderer, resolveViewRenderer, toggleLogbookRendererMode } from './logbookViewMode';
 	import TaskArchiveView from './TaskArchiveView.svelte';
+	import BatchActionBar from './BatchActionBar.svelte';
+	import { batchEligibility, clearSelection, selectAll, toggleSelection } from '../store/taskSelection';
+	import { localDateString } from '../utils/dateUtils';
 	import { buildBoardQuery } from './boardQuery';
 	import type { FilterCondition } from '../query/types';
 	import {
@@ -50,6 +53,42 @@
 	// an empty state (e.g. after deletion) without collapsing.
 	let panelOpen = false;
 	$: if ($activeTaskPath !== null) panelOpen = true;
+
+	// ── Multi-select ──────────────────────────────────────────────────────────
+	let selectedPaths: Set<string> = new Set();
+	// Clear selection when switching views
+	$: { if (currentView) selectedPaths = clearSelection(); }
+	$: eligibility = batchEligibility(selectedPaths, $tasks);
+
+	function handleSelect(path: string): void {
+		selectedPaths = toggleSelection(selectedPaths, path);
+	}
+
+	async function batchComplete(): Promise<void> {
+		const completionStatus = plugin.settings.completionStatus;
+		const today = localDateString();
+		for (const path of selectedPaths) {
+			await plugin.taskStore.update(path, { status: completionStatus, completed: today });
+		}
+		selectedPaths = clearSelection();
+	}
+
+	async function batchArchive(): Promise<void> {
+		for (const path of selectedPaths) {
+			await plugin.archiveService.archiveTask(path);
+		}
+		selectedPaths = clearSelection();
+	}
+
+	async function batchDelete(): Promise<void> {
+		const count = selectedPaths.size;
+		// Re-use Obsidian's confirm via a simple window.confirm
+		if (!confirm(`Delete ${count} task${count === 1 ? '' : 's'}? This cannot be undone.`)) return;
+		for (const path of selectedPaths) {
+			await plugin.taskStore.delete(path);
+		}
+		selectedPaths = clearSelection();
+	}
 
 	// ── Filter state (routed through the query engine) ────────────────────────
 	let searchQuery    = '';
@@ -388,7 +427,20 @@
 						onRestore={currentView.id === 'logbook' ? ((path) => plugin.taskStore.restore(path)) : undefined}
 						onContextMenu={openContextMenu}
 						onNewTask={openNewTask}
+						selectable={true}
+						{selectedPaths}
+						onSelect={handleSelect}
 					/>
+					{#if selectedPaths.size > 0}
+						<BatchActionBar
+							selectedCount={selectedPaths.size}
+							{eligibility}
+							onArchive={batchArchive}
+							onComplete={batchComplete}
+							onDelete={batchDelete}
+							onClear={() => { selectedPaths = clearSelection(); }}
+						/>
+					{/if}
 				{:else if currentRenderer === 'kanban'}
 					<TaskKanban
 						{plugin}

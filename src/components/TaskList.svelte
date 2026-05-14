@@ -17,6 +17,9 @@
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 	export let onRestore: ((path: string) => Promise<void>) | undefined = undefined;
 	export let onNewTask: (() => void) | undefined = undefined;
+	export let selectable = false;
+	export let selectedPaths: Set<string> = new Set();
+	export let onSelect: ((path: string) => void) | undefined = undefined;
 
 	let collapsedPaths = new Set<string>();
 
@@ -98,6 +101,9 @@
 								onExpand={() => toggleExpanded(row.task.path)}
 								onContextMenu={onContextMenu}
 								onRestore={onRestore}
+								{selectable}
+								selected={selectedPaths.has(row.task.path)}
+								{onSelect}
 							/>
 						{/each}
 					</ul>

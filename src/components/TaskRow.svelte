@@ -24,6 +24,12 @@
 	export let expanded = true;
 	/** Called when the chevron is clicked. */
 	export let onExpand: (() => void) | undefined = undefined;
+	/** When true, a selection checkbox is shown before the row content. */
+	export let selectable = false;
+	/** Whether this task is currently selected. */
+	export let selected = false;
+	/** Called when the checkbox state changes. */
+	export let onSelect: ((path: string) => void) | undefined = undefined;
 
 	let cachedToday = localDateString();
 
@@ -86,6 +92,16 @@
 	class:is-active={active}
 	style:padding-left={indent > 0 ? `${indent * 20}px` : undefined}
 >
+	{#if selectable}
+		<input
+			type="checkbox"
+			class="tt-task-checkbox"
+			checked={selected}
+			aria-label="Select task"
+			on:click|stopPropagation
+			on:change|stopPropagation={() => onSelect?.(task.path)}
+		/>
+	{/if}
 	{#if expandable}
 		<button
 			type="button"
@@ -145,6 +161,14 @@
 		align-items: stretch;
 		overflow: visible;
 		border-radius: var(--radius-m, 8px);
+	}
+
+	.tt-task-checkbox {
+		flex-shrink: 0;
+		width: 16px;
+		height: 16px;
+		cursor: pointer;
+		accent-color: var(--interactive-accent);
 	}
 
 	.tt-expand-btn {
