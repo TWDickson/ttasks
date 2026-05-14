@@ -205,7 +205,7 @@
 			return `${node.incomingCount} dependency${node.incomingCount === 1 ? '' : 'ies'}`;
 		}
 		if (node.outgoingCount > 0) {
-			return `blocks ${node.outgoingCount} task${node.outgoingCount === 1 ? '' : 's'}`;
+			return `unblocks ${node.outgoingCount} task${node.outgoingCount === 1 ? '' : 's'}`;
 		}
 		return 'independent';
 	}

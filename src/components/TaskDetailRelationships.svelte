@@ -151,8 +151,8 @@
 
 	$: relationshipIssues = [
 		...(relationshipNode?.isCycle ? ['Cycle detected for this task chain.'] : []),
-		...(missingDependencies.length > 0 ? [`${missingDependencies.length} dependency link(s) missing from current task set.`] : []),
-		...(openDependencies.length > 0 ? [`Blocked by ${openDependencies.length} unfinished dependency task(s).`] : []),
+		...(missingDependencies.length > 0 ? [`${missingDependencies.length} blocker link(s) missing from current task set.`] : []),
+		...(openDependencies.length > 0 ? [`Blocked by ${openDependencies.length} unfinished task(s) — cannot start yet.`] : []),
 	];
 
 	$: upstreamTree = buildRelationshipTree(task.depends_on, 'upstream');
@@ -170,15 +170,19 @@
 	<span class="tt-label">System Fit</span>
 	<div class="tt-rel-health">
 		<div class="tt-rel-health-metrics">
-			<span class="tt-rel-pill">Upstream {task.depends_on.length}</span>
-			<span class="tt-rel-pill">Downstream {task.blocks.length}</span>
+			<span class="tt-rel-pill">⏸ Waiting on {task.depends_on.length}</span>
+			<span class="tt-rel-pill">→ Unblocks {task.blocks.length}</span>
 			{#if openDependencies.length > 0}
-				<span class="tt-rel-pill tt-rel-pill-alert">Blocked by {openDependencies.length}</span>
+				<span class="tt-rel-pill tt-rel-pill-alert">Blocked by {openDependencies.length} open</span>
 			{/if}
 			{#if relationshipNode?.isCycle}
 				<span class="tt-rel-pill tt-rel-pill-danger">Cycle</span>
 			{/if}
 		</div>
+		<p class="tt-rel-help">
+			<strong>Blocked by</strong> — must finish before this starts. &nbsp;
+			<strong>Unblocks</strong> — completing this enables these tasks.
+		</p>
 
 		<div class="tt-rel-tree">
 			{#if upstreamTreeLevels.length === 0 && downstreamTreeLevels.length === 0}
@@ -187,7 +191,7 @@
 				<div class="tt-rel-tree-stack">
 					{#each upstreamTreeLevels as level}
 						<div class="tt-rel-tree-level" style={`--tt-tree-depth:${level.depth};`}>
-							<span class="tt-rel-tree-label">↑ Upstream</span>
+							<span class="tt-rel-tree-label">↑ Blocked by</span>
 							<div class="tt-chips">
 								{#each level.nodes as node (node.key)}
 									<button
@@ -211,7 +215,7 @@
 
 					{#each downstreamTreeLevels as level}
 						<div class="tt-rel-tree-level" style={`--tt-tree-depth:${level.depth};`}>
-							<span class="tt-rel-tree-label">↓ Downstream</span>
+							<span class="tt-rel-tree-label">↓ Unblocks</span>
 							<div class="tt-chips">
 								{#each level.nodes as node (node.key)}
 									<button
@@ -231,7 +235,7 @@
 
 		<div class="tt-rel-editors">
 			<div class="tt-rel-lane tt-rel-lane-full">
-				<div class="tt-rel-heading">Depends On</div>
+				<div class="tt-rel-heading">⏸ Blocked by</div>
 				{#if task.depends_on.length === 0}
 					<div class="tt-rel-empty">None</div>
 				{:else}
@@ -250,8 +254,8 @@
 								<button
 									class="tt-chip-remove"
 									on:click|stopPropagation={() => onRemoveDependency(dep)}
-									aria-label="Remove dependency"
-									title="Remove dependency"
+									aria-label="Remove blocker"
+									title="Remove blocker"
 								>&times;</button>
 							</span>
 						{/each}
@@ -265,7 +269,7 @@
 							if (v) { onAddDependency(v); e.currentTarget.value = ''; }
 						}}
 					>
-						<option value="">+ Add dependency…</option>
+						<option value="">+ Add blocker…</option>
 						{#each availableDependencies as t}
 							<option value={t.path}>{t.name}</option>
 						{/each}
@@ -274,7 +278,7 @@
 			</div>
 
 			<div class="tt-rel-lane tt-rel-lane-full">
-				<div class="tt-rel-heading">Blocks</div>
+				<div class="tt-rel-heading">→ Unblocks</div>
 				{#if task.blocks.length === 0}
 					<div class="tt-rel-empty">None</div>
 				{:else}
@@ -495,6 +499,18 @@
 		flex-direction: column;
 		gap: 6px;
 		min-width: 0;
+	}
+
+	.tt-rel-help {
+		font-size: 0.72rem;
+		color: var(--text-faint);
+		margin: 0;
+		line-height: 1.5;
+	}
+
+	.tt-rel-help strong {
+		color: var(--text-muted);
+		font-weight: 600;
 	}
 
 	.tt-rel-heading {
