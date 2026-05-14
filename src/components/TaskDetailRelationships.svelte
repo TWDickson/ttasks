@@ -2,6 +2,7 @@
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import { buildTaskGraph } from '../store/taskGraph';
+	import { sortDependencyFirst } from './dependencySort';
 
 	export let task: Task;
 	export let tasks: Task[];
@@ -161,7 +162,7 @@
 
 	$: availableDependencies = tasks
 		.filter((t) => t.type === 'task' && t.path !== task.path && !task.depends_on.some((d) => normalizeTaskPath(d) === t.path))
-		.sort((a, b) => a.name.localeCompare(b.name));
+		.sort((a, b) => sortDependencyFirst(a, b, task.parent_task));
 </script>
 
 <hr class="tt-divider" />

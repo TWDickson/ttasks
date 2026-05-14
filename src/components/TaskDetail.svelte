@@ -215,6 +215,11 @@
 		saveStartDate(todayDateString());
 	}
 
+	function normalizeEstDays(value: number | null): number | null {
+		if (value == null || isNaN(value)) return null;
+		return value;
+	}
+
 	function withCurrentOption(base: string[], current: string | null): string[] {
 		if (!current) return base;
 		if (base.includes(current)) return base;
@@ -449,15 +454,23 @@
 			/>
 
 			<label class="tt-label" for="tt-est-days">Est. Days</label>
-			<input
-				id="tt-est-days"
-				type="number"
-				bind:value={estimated_days}
-				min="0"
-				step="0.5"
-				on:change={() => saveImmediate({ estimated_days })}
-				placeholder="—"
-			/>
+			<div class="tt-date-field">
+				<input
+					id="tt-est-days"
+					type="number"
+					bind:value={estimated_days}
+					min="0"
+					step="0.5"
+					on:change={() => saveImmediate({ estimated_days: normalizeEstDays(estimated_days) })}
+					placeholder="—"
+				/>
+				{#if estimated_days != null && !isNaN(estimated_days)}
+					<button class="tt-date-today" type="button" on:click={() => {
+						estimated_days = null;
+						void saveImmediate({ estimated_days: null });
+					}}>Clear</button>
+				{/if}
+			</div>
 
 			{#if status === blockStatus}
 				<label class="tt-label" for="tt-blocked-reason">Blocked Reason</label>
