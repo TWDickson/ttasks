@@ -9,6 +9,8 @@
 	import { PRIORITY_COLORS } from '../constants';
 	import { labelForGroup } from './viewAdapters';
 	import { getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
+	import { buildDepCountBadge, isFieldEnabled, type KanbanCardField } from './kanbanCardFields';
+	import { deserializeCollapsed, isColumnCollapsed, serializeCollapsed, toggleColumnCollapse } from './kanbanCollapse';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
@@ -17,6 +19,7 @@
 	export let areaColors: Record<string, string>;
 	export let labelColors: Record<string, string>;
 	export let blockStatus = 'Blocked';
+	export let kanbanCardFields: KanbanCardField[] = ['area', 'dueDate', 'labels', 'depCount'];
 	export let activeTaskPath: Writable<string | null>;
 	export let store: TaskStore;
 	export let onOpen: (path: string) => void;
@@ -27,6 +30,13 @@
 	let activeColumn: TaskStatus = statuses?.[0] ?? 'Active';
 	let draggingPath: string | null = null;
 	let dragOverCol: TaskStatus | null = null;
+	let collapsedColumns = deserializeCollapsed(plugin.settings.kanbanCollapsedColumns);
+
+	async function handleToggleCollapse(columnId: string): Promise<void> {
+		collapsedColumns = toggleColumnCollapse(collapsedColumns, columnId);
+		plugin.settings.kanbanCollapsedColumns = serializeCollapsed(collapsedColumns);
+		await plugin.saveSettings();
+	}
 
 	$: COLUMNS = (() => {
 		const tasksByStatus = new Map<string, Task[]>();
@@ -156,10 +166,12 @@
 	<div class="tt-kanban">
 		{#each COLUMNS as col}
 			{@const cards = col.tasks}
+			{@const collapsed = isColumnCollapsed(collapsedColumns, col.id)}
 			<div
 				class="tt-kanban-col"
 				class:is-active-col={activeColumn === col.id}
 				class:is-drag-over={dragOverCol === col.id}
+				class:tt-col-collapsed={collapsed}
 				role="group"
 				aria-labelledby={getColumnLabelId(col.id)}
 				on:dragover={(e) => onDragOver(e, col.id)}
@@ -173,8 +185,15 @@
 						style={col.accent ? `color:${col.accent}` : ''}
 					>{col.label}</span>
 					<span class="tt-count">{cards.length}</span>
+					<button
+						class="tt-col-collapse-btn"
+						title={collapsed ? 'Expand column' : 'Collapse column'}
+						on:click|stopPropagation={() => handleToggleCollapse(col.id)}
+						aria-label={collapsed ? 'Expand' : 'Collapse'}
+					>{collapsed ? '›' : '‹'}</button>
 				</div>
 
+				{#if !collapsed}
 				<div class="tt-kanban-col-body">
 					{#if cards.length === 0}
 						<div class="tt-kanban-empty">Drop tasks here</div>
@@ -210,10 +229,10 @@
 								{/if}
 
 								<div class="tt-card-meta">
-									{#if task.area}
+									{#if task.area && isFieldEnabled(kanbanCardFields, 'area')}
 										<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!areaColors?.[task.area]} style={getBadgeStyle(areaColors?.[task.area])}>{task.area}</span>
 									{/if}
-									{#if getDateBadge(task)}
+									{#if isFieldEnabled(kanbanCardFields, 'dueDate') && getDateBadge(task)}
 										<span
 											class="tt-badge"
 											class:tt-badge-overdue={getDateBadge(task)?.isOverdue}
@@ -223,9 +242,19 @@
 											{getDateBadge(task)?.label}
 										</span>
 									{/if}
-									{#each task.labels as label (label)}
-										<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!labelColors?.[label]} style={getBadgeStyle(labelColors?.[label])}>{label}</span>
-									{/each}
+									{#if isFieldEnabled(kanbanCardFields, 'labels')}
+										{#each task.labels as label (label)}
+											<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!labelColors?.[label]} style={getBadgeStyle(labelColors?.[label])}>{label}</span>
+										{/each}
+									{/if}
+									{#if isFieldEnabled(kanbanCardFields, 'depCount')}
+										{@const depBadge = buildDepCountBadge(task)}
+										{#if depBadge}
+											<span class="tt-badge tt-badge-dep" title="Blocked by {depBadge.blockedBy} · Unblocks {depBadge.unblocks}">
+												{[depBadge.blockedBy > 0 ? `⏸${depBadge.blockedBy}` : '', depBadge.unblocks > 0 ? `→${depBadge.unblocks}` : ''].filter(Boolean).join(' ')}
+											</span>
+										{/if}
+									{/if}
 									<!-- Mobile-only: inline status change -->
 									<select
 										class="tt-card-status-select"
@@ -247,6 +276,7 @@
 						{/each}
 					{/if}
 				</div>
+				{/if}
 			</div>
 		{/each}
 	</div>
@@ -314,6 +344,45 @@
 
 	.tt-kanban-col.is-drag-over {
 		border-color: var(--interactive-accent);
+	}
+
+	.tt-col-collapsed {
+		width: 52px !important;
+		min-width: 52px;
+		flex: none;
+		overflow: hidden;
+	}
+
+	.tt-col-collapsed .tt-kanban-col-header {
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		padding: 10px 6px;
+		writing-mode: vertical-rl;
+		height: 100%;
+	}
+
+	.tt-col-collapsed .tt-kanban-col-label {
+		writing-mode: vertical-rl;
+		flex: 1;
+		text-align: center;
+	}
+
+	.tt-col-collapse-btn {
+		flex-shrink: 0;
+		background: transparent;
+		border: none;
+		color: var(--text-faint);
+		cursor: pointer;
+		font-size: 0.85rem;
+		padding: 2px 4px;
+		border-radius: 4px;
+		line-height: 1;
+	}
+
+	.tt-col-collapse-btn:hover {
+		background: var(--background-modifier-hover);
+		color: var(--text-normal);
 	}
 
 	.tt-kanban-col-header {
@@ -470,6 +539,14 @@
 
 	.tt-badge-type {
 		background: var(--background-secondary);
+	}
+
+	.tt-badge-dep {
+		background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-secondary));
+		border-color: color-mix(in srgb, var(--interactive-accent) 30%, var(--background-modifier-border));
+		color: var(--interactive-accent);
+		font-variant-numeric: tabular-nums;
+		letter-spacing: 0.02em;
 	}
 
 	/* Status select: hidden on desktop, visible on mobile */

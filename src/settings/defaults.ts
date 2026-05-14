@@ -3,6 +3,7 @@
 	CustomTaskViewDefinition,
 	TaskViewPresentation,
 	TaskViewRenderer,
+	KanbanCardField,
 	QuickActionsSettings,
 	RemindersSettings,
 	ArchiveSettings,
@@ -64,6 +65,8 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		mode: 'manual',
 		daysAfterComplete: 45,
 	},
+	kanbanCardFields: ['area', 'dueDate', 'labels', 'depCount'] as KanbanCardField[],
+	kanbanCollapsedColumns: [],
 };
 
 const FILTER_OPERATORS = new Set<FilterOperator>([
@@ -174,6 +177,8 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 			mode: settings.archive?.mode ?? DEFAULT_SETTINGS.archive.mode,
 			daysAfterComplete: settings.archive?.daysAfterComplete ?? DEFAULT_SETTINGS.archive.daysAfterComplete,
 		},
+		kanbanCardFields: settings.kanbanCardFields ?? [...DEFAULT_SETTINGS.kanbanCardFields],
+		kanbanCollapsedColumns: settings.kanbanCollapsedColumns ?? [...DEFAULT_SETTINGS.kanbanCollapsedColumns],
 	};
 }
 
@@ -500,6 +505,12 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		const quietEnd = asInteger(reminders.quietEnd);
 		if (quietEnd !== null) target.reminders.quietEnd = quietEnd;
 	}
+
+	const kanbanCardFields = asStringArray(root.kanbanCardFields);
+	if (kanbanCardFields !== null) target.kanbanCardFields = kanbanCardFields as KanbanCardField[];
+
+	const kanbanCollapsedColumns = asStringArray(root.kanbanCollapsedColumns);
+	if (kanbanCollapsedColumns !== null) target.kanbanCollapsedColumns = kanbanCollapsedColumns;
 
 	const archive = asRecord(root.archive);
 	if (archive !== null) {

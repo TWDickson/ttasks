@@ -344,6 +344,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 		this.renderViewsSettings(containerEl);
 		this.renderQuickActionsSettings(containerEl);
 		this.renderRemindersSettings(containerEl);
+		this.renderKanbanSettings(containerEl);
 		this.renderArchiveSettings(containerEl);
 	}
 
@@ -724,6 +725,36 @@ export class TTasksSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}
 				}));
+	}
+
+	private renderKanbanSettings(containerEl: HTMLElement): void {
+		containerEl.createEl('h2', { text: 'Kanban cards' });
+
+		new Setting(containerEl)
+			.setName('Visible card fields')
+			.setDesc('Choose which fields appear as badges on Kanban cards. All fields are shown by default.');
+
+		const fields: import('./types').KanbanCardField[] = ['area', 'dueDate', 'labels', 'depCount'];
+		const labels: Record<string, string> = {
+			area: 'Area',
+			dueDate: 'Due date',
+			labels: 'Labels',
+			depCount: 'Dependency count',
+		};
+
+		for (const field of fields) {
+			new Setting(containerEl)
+				.setName(labels[field])
+				.addToggle(t => t
+					.setValue(this.plugin.settings.kanbanCardFields.includes(field))
+					.onChange(async (on) => {
+						const current = this.plugin.settings.kanbanCardFields;
+						this.plugin.settings.kanbanCardFields = on
+							? [...current, field]
+							: current.filter(f => f !== field);
+						await this.plugin.saveSettings();
+					}));
+		}
 	}
 
 	private renderArchiveSettings(containerEl: HTMLElement): void {

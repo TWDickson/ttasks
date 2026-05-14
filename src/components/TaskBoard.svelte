@@ -398,6 +398,7 @@
 						blockStatus={configuredBlockStatus}
 						areaColors={configuredCategoryColors}
 						labelColors={configuredTaskTypeColors}
+						kanbanCardFields={plugin.settings.kanbanCardFields}
 						{activeTaskPath}
 						store={plugin.taskStore}
 						onOpen={(path) => plugin.taskStore.openDetail(path)}

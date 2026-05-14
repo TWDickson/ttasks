@@ -57,6 +57,8 @@ export interface RemindersSettings {
 	quietEnd: number;
 }
 
+export type KanbanCardField = 'area' | 'dueDate' | 'labels' | 'depCount';
+
 export type ArchiveMode = 'manual' | 'scheduled';
 
 export interface ArchiveSettings {
@@ -82,4 +84,6 @@ export interface TTasksSettings {
 	quickActions: QuickActionsSettings;
 	reminders: RemindersSettings;
 	archive: ArchiveSettings;
+	kanbanCardFields: KanbanCardField[];
+	kanbanCollapsedColumns: string[];
 }
