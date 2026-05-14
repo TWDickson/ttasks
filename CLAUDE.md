@@ -119,22 +119,24 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 ## Current Priorities
 
-1. Phase 7 execution: completed-task handling / Logbook and archive workflows
-2. Graph + overview UX hardening follow-through (lane polish, readability, accessibility)
-3. Reminder + quick-action refinements based on real-world usage
-4. Continued hardening around custom views and renderer/query compatibility
+1. **Stream D** — Kanban enhancements: dep count badge + card field visibility (D1), column collapse (D2)
+2. **Stream E** — Productivity: multi-select batch ops (E1), in-board keyboard shortcuts (E2)
+3. **Stream F** — Graph polish: lane sidebar headers + accessibility (F1)
+4. **Stream G** — Reminder improvements: snooze + per-task override (G1)
+5. TickTick data import (~19 tasks remaining in TickTick)
 
-## Recent Updates (2026-05-01)
+PRDs: `Scripts/TASK_D1–D2.md`, `Scripts/TASK_E1–E2.md`, `Scripts/TASK_F1.md`, `Scripts/TASK_G1.md`
 
-- Overview graph mode now uses true horizontal timeline scrolling with initial focus around today.
-- Added a red/dashed "today" marker across the axis and tracks.
-- Overview bars now use safer title truncation and less disruptive hover behavior.
-- Completed tasks are visually muted in Overview and can be hidden by default.
-- Added grouped lane modes for Overview (`project`, `dependency`, `none`).
-- Added viewport virtualization in Overview so large historical timelines render efficiently.
-- Detail pane dependency navigation fixed for short wikilink paths by resolving via Obsidian metadata cache.
-- Overview graph preferences now persist across sessions (`overviewGraphGrouping`, `overviewGraphShowCompleted`).
-- Validation status: production build passing; test suite passing (440 tests).
+## Recent Updates (2026-05-14)
+
+- **Phase 7 COMPLETE** — Archive infrastructure (ArchiveService, auto-archive, archive view, logbook, migration command).
+- Store decomposition: TaskStore 900→596 lines; TaskMigrations, TaskRelationships, TaskWriter extracted.
+- Settings split: settings.ts 1869→35-line re-export shim; types/defaults/SettingsTab in `src/settings/`.
+- Quick-action pure logic extracted to `integration/quickActions.ts`; view adapter flatten bridge removed.
+- TaskDetail.svelte 1381→721 lines; TaskDetailRelationships, TaskDetailNotes, TaskDetailActions extracted.
+- Bug fixes: est-days NaN clear, dependency sort (same-project first), "Blocked by"/"Unblocks" verbiage, create-dependent-task context menu.
+- Archive: ArchiveService with `archive_history` logbook, archive view in board rail, migration command.
+- Validation status: production build passing; **test suite: 553 passing (40 files)**.
 
 ## Product Direction Notes
 
