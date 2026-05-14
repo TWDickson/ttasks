@@ -57,6 +57,13 @@ export interface RemindersSettings {
 	quietEnd: number;
 }
 
+export type ArchiveMode = 'manual' | 'scheduled';
+
+export interface ArchiveSettings {
+	mode: ArchiveMode;
+	daysAfterComplete: number;
+}
+
 export interface TTasksSettings {
 	tasksFolder: string;
 	editorSuggestTrigger: string;
@@ -74,4 +81,5 @@ export interface TTasksSettings {
 	labelColors: Record<string, string>;
 	quickActions: QuickActionsSettings;
 	reminders: RemindersSettings;
+	archive: ArchiveSettings;
 }

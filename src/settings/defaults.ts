@@ -5,6 +5,7 @@
 	TaskViewRenderer,
 	QuickActionsSettings,
 	RemindersSettings,
+	ArchiveSettings,
 } from './types';
 import type {
 	FilterCondition,
@@ -59,6 +60,10 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		deferDays: 1,
 	},
 	reminders: DEFAULT_REMINDERS_SETTINGS,
+	archive: {
+		mode: 'manual',
+		daysAfterComplete: 45,
+	},
 };
 
 const FILTER_OPERATORS = new Set<FilterOperator>([
@@ -164,6 +169,10 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 			quietHoursEnabled: settings.reminders.quietHoursEnabled,
 			quietStart: settings.reminders.quietStart,
 			quietEnd: settings.reminders.quietEnd,
+		},
+		archive: {
+			mode: settings.archive?.mode ?? DEFAULT_SETTINGS.archive.mode,
+			daysAfterComplete: settings.archive?.daysAfterComplete ?? DEFAULT_SETTINGS.archive.daysAfterComplete,
 		},
 	};
 }
@@ -491,6 +500,15 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		const quietEnd = asInteger(reminders.quietEnd);
 		if (quietEnd !== null) target.reminders.quietEnd = quietEnd;
 	}
+
+	const archive = asRecord(root.archive);
+	if (archive !== null) {
+		const mode = asString(archive.mode);
+		if (mode === 'manual' || mode === 'scheduled') target.archive.mode = mode;
+
+		const days = asInteger(archive.daysAfterComplete);
+		if (days !== null) target.archive.daysAfterComplete = days;
+	}
 }
 
 export function normalizeSettingsFromSources(sources: unknown[]): TTasksSettings {
@@ -514,6 +532,8 @@ export function normalizeSettingsFromSources(sources: unknown[]): TTasksSettings
 	merged.reminders.staleThresholdDays = clampInteger(merged.reminders.staleThresholdDays, 1, 180);
 	merged.reminders.quietStart = clampInteger(merged.reminders.quietStart, 0, 23);
 	merged.reminders.quietEnd = clampInteger(merged.reminders.quietEnd, 0, 23);
+
+	merged.archive.daysAfterComplete = clampInteger(merged.archive.daysAfterComplete, 1, 365);
 
 	return merged;
 }

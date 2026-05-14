@@ -5,6 +5,7 @@
 	export let onMarkComplete: () => Promise<void>;
 	export let onOpenInEditor: () => void;
 	export let onDelete: () => Promise<void>;
+	export let onArchive: (() => Promise<void>) | undefined = undefined;
 </script>
 
 <hr class="tt-divider" />
@@ -12,6 +13,10 @@
 	{#if !task.is_complete}
 		<button class="tt-btn tt-btn-primary" on:click={onMarkComplete}>
 			✓ Mark Complete
+		</button>
+	{:else if onArchive}
+		<button class="tt-btn" on:click={onArchive} title="Move to archive folder">
+			Archive
 		</button>
 	{/if}
 	<button class="tt-btn" on:click={onOpenInEditor}>

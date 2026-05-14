@@ -527,6 +527,10 @@
 			onMarkComplete={markComplete}
 			onOpenInEditor={() => store.openFile(task.path)}
 			onDelete={confirmDelete}
+			onArchive={task.is_complete ? async () => {
+				await plugin.archiveService.archiveTask(task.path);
+				activeTaskPath.set(null);
+			} : undefined}
 		/>
 
 	</div>

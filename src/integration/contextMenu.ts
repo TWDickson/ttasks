@@ -11,6 +11,8 @@ export interface TaskContextMenuDeps {
 	deleteTask: (path: string) => Promise<void>;
 	/** Optional: shown only when caller wants to offer "create a task that depends on this" */
 	createDependent?: (path: string) => Promise<void>;
+	/** Optional: archive the task (move to archive folder). Shown for completed tasks. */
+	archiveTask?: (path: string) => Promise<void>;
 }
 
 function addMenuItem(
@@ -62,6 +64,11 @@ export function addTaskContextMenuItems(
 		addMenuItem(menu, 'Reopen', 'undo-2', () => {
 			void deps.restoreTask(task.path);
 		});
+		if (deps.archiveTask) {
+			addMenuItem(menu, 'Archive', 'archive', () => {
+				void deps.archiveTask!(task.path);
+			});
+		}
 	}
 	addMenuItem(menu, 'Duplicate', 'copy', () => {
 		void deps.duplicateTask(task.path);

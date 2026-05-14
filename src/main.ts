@@ -8,6 +8,7 @@ import { ReminderService } from './reminders';
 import type { Task } from './types';
 import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration/contextMenu';
 import { resolveQuickAction } from './integration/quickActions';
+import { ArchiveService } from './store/ArchiveService';
 import { dispatchProtocolAction, parseProtocolAction } from './integration/protocol';
 import { buildStatusSummary } from './integration/statusSummary';
 import { pathToLinktext } from './integration/hoverLink';
@@ -21,6 +22,7 @@ export type BoardViewMode = string;
 export default class TTasksPlugin extends Plugin {
 	settings!: TTasksSettings;
 	taskStore!: TaskStore;
+	archiveService!: ArchiveService;
 	reminderService!: ReminderService;
 	activeTaskPath: Writable<string | null> = writable(null);
 	activeViewMode: Writable<BoardViewMode | null> = writable(null);
@@ -32,6 +34,7 @@ export default class TTasksPlugin extends Plugin {
 
 		this.taskStore = new TaskStore(this);
 		this.taskStore.register();
+		this.archiveService = new ArchiveService(this);
 		this.registerEditorSuggest(new TaskLinkEditorSuggest(this.app, this));
 
 		this.registerView(
@@ -141,6 +144,8 @@ export default class TTasksPlugin extends Plugin {
 			this.registerEvent(resolvedRef);
 			// Start reminders after tasks are loaded so the first check has data.
 			void this.reminderService.start();
+			// Scheduled auto-archive: check once on load, then hourly.
+			this.startAutoArchive();
 		});
 	}
 
@@ -229,7 +234,22 @@ export default class TTasksPlugin extends Plugin {
 				const depPath = path.replace(/\.md$/, '');
 				new CreateTaskModal(this.app, this, 'task', { initialDependsOn: [depPath] }).open();
 			},
+			archiveTask: async (path) => {
+				await this.archiveService.archiveTask(path);
+				this.activeTaskPath.set(null);
+				new Notice('TTasks: task archived.');
+			},
 		};
+	}
+
+	private startAutoArchive(): void {
+		if (this.settings.archive.mode !== 'scheduled') return;
+		const run = () => {
+			void this.archiveService.archiveEligibleTasks(this.settings.archive.daysAfterComplete);
+		};
+		run(); // check on startup
+		// Check hourly — registered interval cleaned up automatically on plugin unload
+		this.registerInterval(window.setInterval(run, 60 * 60 * 1000));
 	}
 
 	taskStoreTasksSnapshot(): Task[] {
