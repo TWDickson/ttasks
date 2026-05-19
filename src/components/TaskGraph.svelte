@@ -1170,12 +1170,33 @@
 
 	.tt-dependency-lane-header.is-rotated .tt-dependency-lane-label {
 		display: block;
+		font-size: 12px;
 		line-height: 1.05;
 		max-height: none;
 		white-space: normal;
 		writing-mode: vertical-rl;
 		text-orientation: mixed;
 		transform: rotate(180deg);
+		letter-spacing: 0.3px;
+	}
+
+	@media (min-width: 1024px) {
+		.tt-dependency-lane-header.is-rotated .tt-dependency-lane-label {
+			font-size: 13px;
+			letter-spacing: 0.4px;
+		}
+	}
+
+	@media (max-width: 767px) {
+		.tt-dependency-lane-header.is-rotated .tt-dependency-lane-label {
+			font-size: 11px;
+			letter-spacing: 0.2px;
+		}
+
+		.tt-dependency-lane-header.is-rotated {
+			padding: 6px 6px 6px 8px;
+			gap: 4px;
+		}
 	}
 
 	.tt-dependency-lane-header.is-compact .tt-dependency-lane-count {
