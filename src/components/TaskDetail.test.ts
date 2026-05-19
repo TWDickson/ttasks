@@ -178,6 +178,16 @@ describe('TaskDetail.svelte', () => {
 			expect(createdField!.readOnly).toBe(true);
 			expect(completedField?.readOnly).toBe(true);
 		});
+
+		it('should render recurrence and reminder override as select fields', () => {
+			const recurrenceField = getFieldByName('recurrence');
+			const recurrenceTypeField = getFieldByName('recurrence_type');
+			const reminderField = getFieldByName('reminder_override');
+
+			expect(recurrenceField?.type).toBe('select');
+			expect(recurrenceTypeField?.type).toBe('select');
+			expect(reminderField?.type).toBe('select');
+		});
 	});
 
 	describe('Field Visibility Rules', () => {

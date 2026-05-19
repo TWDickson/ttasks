@@ -281,6 +281,11 @@
 		};
 	}
 
+	const reminderOverrideLabels: Record<string, string> = {
+		urgent: 'Urgent — bypass quiet hours',
+		mute: 'Mute — never remind',
+	};
+
 	// ── Constants ───────────────────────────────────────────────────────────────
 	let priorityOptions: TaskPriority[] = ['High', 'Medium', 'Low', 'None'];
 
@@ -297,8 +302,14 @@
 	$: statusFieldProps = getInlineFieldProps('status');
 	$: priorityFieldProps = getInlineFieldProps('priority');
 	$: parentTaskFieldProps = getInlineFieldProps('parent_task');
+	$: recurrenceFieldProps = getInlineFieldProps('recurrence');
+	$: recurrenceTypeFieldProps = getInlineFieldProps('recurrence_type');
+	$: reminderOverrideFieldProps = getInlineFieldProps('reminder_override');
 	$: areaOptions = ['', ...withCurrentOption(resolveFieldOptions('area', plugin.settings), area || null)];
 	$: labelOptions = ['', ...withCurrentOption(resolveFieldOptions('labels', plugin.settings), selectedLabels[0] ?? null)];
+	$: recurrenceOptions = resolveFieldOptions('recurrence', plugin.settings);
+	$: recurrenceTypeOptions = resolveFieldOptions('recurrence_type', plugin.settings);
+	$: reminderOverrideOptions = resolveFieldOptions('reminder_override', plugin.settings);
 	$: statusOptionColors = resolveFieldOptionColors('status', plugin.settings);
 	$: priorityOptionColors = resolveFieldOptionColors('priority', plugin.settings);
 	$: areaFieldProps = getInlineFieldProps('area');
@@ -553,43 +564,47 @@
 			{/if}
 
 			<label class="tt-label" for="tt-recurrence">Repeats</label>
-			<div class="tt-recurrence-row">
-				<select
-					id="tt-recurrence"
-					bind:value={recurrence}
-					on:change={() => saveImmediate({ recurrence: recurrence || null })}
-				>
-					<option value="">— never —</option>
-					{#each RECURRENCE_OPTIONS as r}
-						<option value={r}>{RECURRENCE_LABELS[r]}</option>
-					{/each}
-				</select>
-				{#if recurrence}
-					<select
-						bind:value={recurrence_type}
-						on:change={() => saveImmediate({ recurrence_type: recurrence_type || null })}
-						class="tt-recurrence-type"
-					>
-						{#each RECURRENCE_TYPES as t}
-							<option value={t}>{RECURRENCE_TYPE_LABELS[t]}</option>
-						{/each}
-					</select>
-				{/if}
-			</div>
+			{#if recurrenceFieldProps}
+				<SelectField
+					{...recurrenceFieldProps}
+					value={recurrence ?? ''}
+					options={recurrenceOptions}
+					optionLabels={RECURRENCE_LABELS}
+					onChange={(nextValue) => {
+						recurrence = nextValue || null;
+						if (!recurrence) recurrence_type = null;
+						void saveImmediate({ recurrence: recurrence || null, recurrence_type: recurrence_type || null });
+					}}
+				/>
+			{/if}
 
-			<label class="tt-label" for="tt-reminder-override">Reminders</label>
-			<select
-				id="tt-reminder-override"
-				value={task.reminder_override ?? ''}
-				on:change={(e) => {
-					const v = e.currentTarget.value;
-					void saveImmediate({ reminder_override: v === 'urgent' || v === 'mute' ? v : null });
-				}}
-			>
-				<option value="">Default</option>
-				<option value="urgent">Urgent — bypass quiet hours</option>
-				<option value="mute">Mute — never remind</option>
-			</select>
+			{#if recurrence && recurrenceTypeFieldProps}
+				<label class="tt-label" for="recurrence_type">Repeat Type</label>
+				<SelectField
+					{...recurrenceTypeFieldProps}
+					value={recurrence_type ?? ''}
+					options={recurrenceTypeOptions}
+					optionLabels={RECURRENCE_TYPE_LABELS}
+					onChange={(nextValue) => {
+						recurrence_type = nextValue || null;
+						void saveImmediate({ recurrence_type: recurrence_type || null });
+					}}
+				/>
+			{/if}
+
+			<label class="tt-label" for="reminder_override">Reminders</label>
+			{#if reminderOverrideFieldProps}
+				<SelectField
+					{...reminderOverrideFieldProps}
+					value={task.reminder_override ?? ''}
+					options={reminderOverrideOptions}
+					optionLabels={reminderOverrideLabels}
+					onChange={(nextValue) => {
+						const v = nextValue === 'urgent' || nextValue === 'mute' ? nextValue : null;
+						void saveImmediate({ reminder_override: v });
+					}}
+				/>
+			{/if}
 		</div>
 
 	{#if task.type === 'task'}
@@ -714,8 +729,7 @@
 		align-items: center;
 	}
 
-	.tt-fields input,
-	.tt-fields select {
+	.tt-fields input {
 		width: 100%;
 		box-sizing: border-box;
 		font-size: 0.88rem;
@@ -755,21 +769,8 @@
 		color: var(--text-normal);
 	}
 
-	.tt-recurrence-row {
-		display: flex;
-		gap: 8px;
-	}
-
-	.tt-recurrence-row select {
-		flex: 1;
-	}
-
-	.tt-recurrence-type {
-		flex: 1.4 !important;
-	}
-
 	.tt-fields input:focus,
-	.tt-fields select:focus {
+	.tt-fields input:focus {
 		outline: none;
 		border-color: var(--interactive-accent);
 	}

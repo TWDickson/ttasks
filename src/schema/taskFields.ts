@@ -242,11 +242,33 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		placeholder: 'Where did this task come from?',
 	},
 
-	// ── RECURRENCE (Advanced) ───────────────────────────────────────────────────
-	// Note: Recurrence has special handling (recurrence + recurrence_type)
-	// These fields are conditional and need special rendering
-	// For now, keep in advanced, will require custom component logic
-	// TODO: Implement recurrence field type
+	// ── RECURRENCE + REMINDERS (Advanced) ───────────────────────────────────────
+	{
+		name: 'recurrence',
+		label: 'Repeats',
+		type: 'select',
+		section: 'advanced',
+		options: ['daily', 'weekly', 'biweekly', 'monthly', 'yearly'],
+		selectAllowEmpty: true,
+	},
+
+	{
+		name: 'recurrence_type',
+		label: 'Repeat Type',
+		type: 'select',
+		section: 'advanced',
+		options: ['fixed', 'from_completion'],
+		visible: (values) => !!values.recurrence,
+	},
+
+	{
+		name: 'reminder_override',
+		label: 'Reminders',
+		type: 'select',
+		section: 'advanced',
+		options: ['urgent', 'mute'],
+		selectAllowEmpty: true,
+	},
 
 	// ── METADATA (Read-only) ────────────────────────────────────────────────────
 	{
