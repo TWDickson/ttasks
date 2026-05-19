@@ -81,12 +81,31 @@ describe('fieldAdapters', () => {
 			const field = taskFields.find((f: FieldDefinition) => f.name === 'parent_task')!;
 			const values = { parent_task: null };
 			const errors = {};
+			const mixedTasks = [
+				{ ...mockTask, path: 'Planner/Tasks/proj1.md', name: 'Project 1', type: 'project' } as Task,
+				{ ...mockTask, path: 'Planner/Tasks/task1.md', name: 'Task 1', type: 'task' } as Task,
+			];
 
-			const props = adaptFieldForModal(field, values, mockTasks, mockSettings, errors);
+			const props = adaptFieldForModal(field, values, mixedTasks, mockSettings, errors);
 
 			expect(props.options).toBeDefined();
 			expect(Array.isArray(props.options)).toBe(true);
-			expect((props.options as Task[]).length).toBe(2);
+			expect((props.options as Task[]).length).toBe(1);
+		});
+
+		it('filters parent_task options to projects only', () => {
+			const field = taskFields.find((f: FieldDefinition) => f.name === 'parent_task')!;
+			const values = { parent_task: null };
+			const errors = {};
+			const mixedTasks = [
+				{ ...mockTask, path: 'Planner/Tasks/proj1.md', name: 'Project 1', type: 'project' } as Task,
+				{ ...mockTask, path: 'Planner/Tasks/task1.md', name: 'Task 1', type: 'task' } as Task,
+				{ ...mockTask, path: 'Planner/Tasks/proj2.md', name: 'Project 2', type: 'project' } as Task,
+			];
+
+			const props = adaptFieldForModal(field, values, mixedTasks, mockSettings, errors);
+
+			expect((props.options as Task[]).every((t) => t.type === 'project')).toBe(true);
 		});
 
 		it('includes error message from errors map', () => {
@@ -162,6 +181,21 @@ describe('fieldAdapters', () => {
 			const props = adaptFieldForDetail(field, values, mockTasks, mockSettings, errors);
 
 			expect(props.options).toBeDefined();
+		});
+
+		it('filters depends_on options to tasks only', () => {
+			const field = taskFields.find((f: FieldDefinition) => f.name === 'depends_on')!;
+			const values = { depends_on: [] };
+			const errors = {};
+			const mixedTasks = [
+				{ ...mockTask, path: 'Planner/Tasks/proj1.md', name: 'Project 1', type: 'project' } as Task,
+				{ ...mockTask, path: 'Planner/Tasks/task1.md', name: 'Task 1', type: 'task' } as Task,
+				{ ...mockTask, path: 'Planner/Tasks/task2.md', name: 'Task 2', type: 'task' } as Task,
+			];
+
+			const props = adaptFieldForDetail(field, values, mixedTasks, mockSettings, errors);
+
+			expect((props.options as Task[]).every((t) => t.type === 'task')).toBe(true);
 		});
 
 		it('handles null/empty values gracefully', () => {

@@ -15,6 +15,7 @@
 	import SelectField from './fields/SelectField.svelte';
 	import DateField from './fields/DateField.svelte';
 	import ChipsField from './fields/ChipsField.svelte';
+	import WikiLinkField from './fields/WikiLinkField.svelte';
 	import TaskDetailRelationships from './TaskDetailRelationships.svelte';
 	import TaskDetailNotes from './TaskDetailNotes.svelte';
 	import TaskDetailActions from './TaskDetailActions.svelte';
@@ -177,6 +178,12 @@
 		}
 	}
 
+	async function onParentTaskFieldChange(nextValue: string | string[]): Promise<void> {
+		if (!task || typeof nextValue !== 'string') return;
+		parent_task_path = nextValue;
+		await onParentTaskChange();
+	}
+
 	function normalizeDateValue(value: string): string | null {
 		if (!value) return null;
 		return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
@@ -289,6 +296,7 @@
 	$: showBlockedReason = isBlockedStatus(status, blockStatus);
 	$: statusFieldProps = getInlineFieldProps('status');
 	$: priorityFieldProps = getInlineFieldProps('priority');
+	$: parentTaskFieldProps = getInlineFieldProps('parent_task');
 	$: areaOptions = ['', ...withCurrentOption(resolveFieldOptions('area', plugin.settings), area || null)];
 	$: labelOptions = ['', ...withCurrentOption(resolveFieldOptions('labels', plugin.settings), selectedLabels[0] ?? null)];
 	$: statusOptionColors = resolveFieldOptionColors('status', plugin.settings);
@@ -299,13 +307,9 @@
 	$: startDateFieldProps = getInlineFieldProps('start_date');
 	$: assignedToFieldProps = getInlineFieldProps('assigned_to');
 	$: blockedReasonFieldProps = getInlineFieldProps('blocked_reason');
-	$: parentProjectOptions = [
-		{ value: '', label: '— none —' },
-		...$tasks
-			.filter(t => t.type === 'project' && t.path !== task?.path)
-			.map(t => ({ value: t.path.replace(/\.md$/, ''), label: t.name }))
-			.sort((a, b) => a.label.localeCompare(b.label)),
-	];
+	$: parentProjectTasks = $tasks
+		.filter(t => t.type === 'project' && t.path !== task?.path)
+		.sort((a, b) => a.name.localeCompare(b.name));
 
 	function normalizeTaskPath(pathLike: string | null | undefined): string | null {
 		if (!pathLike) return null;
@@ -447,17 +451,16 @@
 			{/if}
 
 			{#if task.type === 'task'}
-				<label class="tt-label" for="tt-parent-task">Project</label>
+				<label class="tt-label" for="parent_task">Project</label>
 				<div class="tt-parent-task-row">
-					<select
-						id="tt-parent-task"
-						bind:value={parent_task_path}
-						on:change={onParentTaskChange}
-					>
-						{#each parentProjectOptions as opt}
-							<option value={opt.value}>{opt.label}</option>
-						{/each}
-					</select>
+					{#if parentTaskFieldProps}
+						<WikiLinkField
+							{...parentTaskFieldProps}
+							value={parent_task_path || ''}
+							options={parentProjectTasks}
+							onChange={onParentTaskFieldChange}
+						/>
+					{/if}
 					{#if parent_task_path}
 						<button
 							class="tt-parent-task-open"
@@ -666,11 +669,6 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-	}
-
-	.tt-parent-task-row select {
-		flex: 1;
-		min-width: 0;
 	}
 
 	.tt-parent-task-open {

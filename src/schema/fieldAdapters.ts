@@ -72,9 +72,16 @@ export function adaptFieldForModal(
 	let options: string[] | Task[] | undefined;
 
 	if (field.type === 'wikilink') {
+		let wikiLinkOptions = allTasks;
+		if (field.name === 'parent_task') {
+			wikiLinkOptions = allTasks.filter((task) => task.type === 'project');
+		} else if (field.name === 'depends_on' || field.name === 'blocks') {
+			wikiLinkOptions = allTasks.filter((task) => task.type === 'task');
+		}
+
 		// Sort dependency options by parent_task if applicable
 		const parentTaskPath = values.parent_task?.replace(/\.md$/, '');
-		options = sortDependencies(allTasks, parentTaskPath);
+		options = sortDependencies(wikiLinkOptions, parentTaskPath);
 	} else if (field.type === 'select' || field.type === 'chips') {
 		options = resolveOptionsForDefinition(field, settings, {
 			values,
@@ -130,9 +137,16 @@ export function adaptFieldForDetail(
 	let options: string[] | Task[] | undefined;
 
 	if (field.type === 'wikilink') {
+		let wikiLinkOptions = allTasks;
+		if (field.name === 'parent_task') {
+			wikiLinkOptions = allTasks.filter((task) => task.type === 'project');
+		} else if (field.name === 'depends_on' || field.name === 'blocks') {
+			wikiLinkOptions = allTasks.filter((task) => task.type === 'task');
+		}
+
 		// Sort by parent_task
 		const parentTaskPath = values.parent_task?.replace(/\.md$/, '');
-		options = sortDependencies(allTasks, parentTaskPath);
+		options = sortDependencies(wikiLinkOptions, parentTaskPath);
 	} else if (field.type === 'select' || field.type === 'chips') {
 		options = resolveOptionsForDefinition(field, settings, {
 			values,

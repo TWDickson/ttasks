@@ -1,8 +1,11 @@
 <script lang="ts">
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
+	import type { FieldDefinition } from '../schema/types';
+	import { getFieldByName } from '../schema/taskFields';
 	import { buildTaskGraph } from '../store/taskGraph';
 	import { sortDependencyFirst } from './dependencySort';
+	import WikiLinkField from './fields/WikiLinkField.svelte';
 
 	export let task: Task;
 	export let tasks: Task[];
@@ -163,6 +166,18 @@
 	$: availableDependencies = tasks
 		.filter((t) => t.type === 'task' && t.path !== task.path && !task.depends_on.some((d) => normalizeTaskPath(d) === t.path))
 		.sort((a, b) => sortDependencyFirst(a, b, task.parent_task));
+
+	const addBlockerFieldDefinition: FieldDefinition = {
+		...(getFieldByName('depends_on') as FieldDefinition),
+		label: '',
+		chipsType: 'single',
+		selectAllowEmpty: true,
+	};
+
+	function onAddDependencySelection(nextValue: string | string[]): void {
+		if (typeof nextValue !== 'string' || !nextValue) return;
+		void onAddDependency(nextValue);
+	}
 </script>
 
 <hr class="tt-divider" />
@@ -262,18 +277,12 @@
 					</div>
 				{/if}
 				{#if availableDependencies.length > 0}
-					<select
-						class="tt-dep-add"
-						on:change={(e) => {
-							const v = e.currentTarget.value;
-							if (v) { onAddDependency(v); e.currentTarget.value = ''; }
-						}}
-					>
-						<option value="">+ Add blocker…</option>
-						{#each availableDependencies as t}
-							<option value={t.path}>{t.name}</option>
-						{/each}
-					</select>
+					<WikiLinkField
+						definition={addBlockerFieldDefinition}
+						value={null}
+						options={availableDependencies}
+						onChange={onAddDependencySelection}
+					/>
 				{/if}
 			</div>
 
@@ -392,17 +401,6 @@
 	.tt-chip-remove:hover {
 		background: color-mix(in srgb, var(--color-red) 12%, var(--background-primary));
 		color: var(--color-red);
-	}
-
-	.tt-dep-add {
-		font-size: 0.74rem;
-		padding: 3px var(--size-4-2, 8px);
-		border-radius: var(--button-radius, var(--radius-m, 8px));
-		border: 1px dashed var(--background-modifier-border);
-		background: transparent;
-		color: var(--text-muted);
-		cursor: pointer;
-		margin-top: 4px;
 	}
 
 	.tt-rel-health {

@@ -3,27 +3,14 @@
 	import type { Task } from '../../types';
 	import { sortDependencyFirst } from './wikiLinkSort';
 
-	interface Props {
-		definition: FieldDefinition;
-		value: string | string[] | null;
-		options: Task[];
-		context?: FieldContext;
-		error?: string;
-		readonly?: boolean;
-		onChange?: (value: string | string[]) => void;
-		onBlur?: () => void;
-	}
-
-	let {
-		definition,
-		value = [],
-		options = [],
-		context,
-		error,
-		readonly = false,
-		onChange,
-		onBlur,
-	}: Props = $props();
+	export let definition: FieldDefinition;
+	export let value: string | string[] | null = [];
+	export let options: Task[] = [];
+	export let context: FieldContext | undefined = undefined;
+	export let error: string | null = null;
+	export let readonly = false;
+	export let onChange: ((value: string | string[]) => void) | undefined = undefined;
+	export let onBlur: (() => void) | undefined = undefined;
 
 	const isMulti = definition.chipsType === 'multi';
 	const values = Array.isArray(value) ? value.map(v => v.replace(/\.md$/, '')) : value ? [value.replace(/\.md$/, '')] : [];
@@ -63,6 +50,10 @@
 		select.value = ''; // Reset dropdown
 	};
 
+	const handleBlur = () => {
+		onBlur?.();
+	};
+
 	const getTaskLabel = (path: string): string => {
 		const task = options.find(t => t.path.replace(/\.md$/, '') === path);
 		if (task) return task.name;
@@ -72,12 +63,12 @@
 
 <div class="tt-field tt-field-wikilink">
 	{#if definition.label}
-		<label>
+		<span class="tt-field-label">
 			{definition.label}
 			{#if definition.required}
 				<span class="tt-field-required">*</span>
 			{/if}
-		</label>
+		</span>
 	{/if}
 
 	{#if isMulti}
@@ -91,7 +82,8 @@
 						<button
 							type="button"
 							class="tt-chip-remove"
-							onClick={() => handleRemoveChip(path)}
+							on:click={() => handleRemoveChip(path)}
+							on:blur={handleBlur}
 							title="Remove"
 						>
 							×
@@ -105,8 +97,8 @@
 			class="tt-field-select-input"
 			value=""
 			disabled={readonly}
-			{onChange: handleSelectChange}
-			{onBlur}
+			on:change={handleSelectChange}
+			on:blur={handleBlur}
 			class:tt-field-error={!!error}
 		>
 			<option value="">+ Add dependency…</option>
@@ -125,8 +117,8 @@
 			class="tt-field-select-input"
 			value={values[0] || ''}
 			disabled={readonly}
-			{onChange: handleSelectChange}
-			{onBlur}
+			on:change={handleSelectChange}
+			on:blur={handleBlur}
 			class:tt-field-error={!!error}
 		>
 			{#if definition.selectAllowEmpty}
@@ -153,7 +145,7 @@
 		gap: 0.5rem;
 	}
 
-	label {
+	.tt-field-label {
 		font-size: 0.875rem;
 		font-weight: 500;
 		color: var(--text-normal);
