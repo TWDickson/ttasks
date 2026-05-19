@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
 import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, resolveTaskDates } from './taskGraph';
+import { countCrossingsByColumnPairs } from './graphCrossingOptimizer';
 
 function makeTask(overrides: Partial<Task> & Pick<Task, 'path' | 'name'>): Task {
 	const { path, name, ...rest } = overrides;
@@ -134,6 +135,26 @@ describe('buildTaskGraph', () => {
 		const columns = new Map(layout.nodes.map((node) => [node.path, node.column]));
 
 		expect(columns.get('Tasks/b.md')).toBeGreaterThan(columns.get('Tasks/a.md') ?? -1);
+	});
+
+	it('reduces same-lane column-pair crossings for dense dependency patterns', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/proj-a.md', name: 'Project A', type: 'project' }),
+			makeTask({ path: 'Tasks/a.md', name: 'A', parent_task: 'Tasks/proj-a' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', parent_task: 'Tasks/proj-a' }),
+			makeTask({ path: 'Tasks/c.md', name: 'C', parent_task: 'Tasks/proj-a', depends_on: ['Tasks/b'] }),
+			makeTask({ path: 'Tasks/d.md', name: 'D', parent_task: 'Tasks/proj-a', depends_on: ['Tasks/a'] }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const nodesByPath = new Map(layout.nodes.map((node) => [node.path, node]));
+		const orderedLanePaths = layout.nodes
+			.filter((node) => node.task.type !== 'project' && node.laneKey === 'Tasks/proj-a.md')
+			.sort((left, right) => left.row - right.row)
+			.map((node) => node.path);
+
+		const crossings = countCrossingsByColumnPairs(orderedLanePaths, nodesByPath, layout.edges);
+		expect(crossings).toBe(0);
 	});
 });
 

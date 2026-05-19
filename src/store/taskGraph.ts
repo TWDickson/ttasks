@@ -1,4 +1,5 @@
 import type { Task } from '../types';
+import { optimizeLaneOrderForCrossings } from './graphCrossingOptimizer';
 
 export interface TaskGraphNode {
 	path: string;
@@ -435,6 +436,15 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 			.sort((left, right) => left.row - right.row || left.column - right.column || left.path.localeCompare(right.path));
 
 		if (laneNodes.length === 0) continue;
+
+		const initialOrder = laneNodes.map((node) => node.path);
+		const optimizedOrder = optimizeLaneOrderForCrossings(initialOrder, new Map(nodes.map((n) => [n.path, n])), edges);
+		const rankByPath = new Map(optimizedOrder.map((path, index) => [path, index]));
+		laneNodes.sort((left, right) => {
+			const lRank = rankByPath.get(left.path) ?? Number.MAX_SAFE_INTEGER;
+			const rRank = rankByPath.get(right.path) ?? Number.MAX_SAFE_INTEGER;
+			return lRank - rRank || left.path.localeCompare(right.path);
+		});
 
 		const startRow = laneRowCursor;
 		for (const [index, node] of laneNodes.entries()) {
