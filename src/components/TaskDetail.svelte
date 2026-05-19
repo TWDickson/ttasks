@@ -282,6 +282,20 @@
 		};
 	}
 
+	function getHeaderFieldProps(fieldName: keyof Task): FieldComponentProps | null {
+		const props = getInlineFieldProps(fieldName);
+		if (!props) return null;
+
+		return {
+			...props,
+			definition: {
+				...props.definition,
+				label: '',
+				placeholder: 'Task name',
+			},
+		};
+	}
+
 	const reminderOverrideLabels: Record<string, string> = {
 		urgent: 'Urgent — bypass quiet hours',
 		mute: 'Mute — never remind',
@@ -300,6 +314,7 @@
 	$: completionStatus = getCompletionStatus();
 	$: blockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
 	$: showBlockedReason = isBlockedStatus(status, blockStatus);
+	$: nameFieldProps = getHeaderFieldProps('name');
 	$: statusFieldProps = getInlineFieldProps('status');
 	$: priorityFieldProps = getInlineFieldProps('priority');
 	$: parentTaskFieldProps = getInlineFieldProps('parent_task');
@@ -406,13 +421,16 @@
 
 		<!-- Name -->
 		<div class="tt-detail-name-row">
-			<input
-				class="tt-detail-name"
-				type="text"
-				bind:value={name}
-				on:input={() => saveDebounced('name', { name })}
-				placeholder="Task name"
-			/>
+			{#if nameFieldProps}
+				<TextField
+					{...nameFieldProps}
+					value={name}
+					onChange={(nextValue) => {
+						name = nextValue;
+						saveDebounced('name', { name: nextValue });
+					}}
+				/>
+			{/if}
 			{#if saving}
 				<span class="tt-saving">saving…</span>
 			{/if}
@@ -656,7 +674,16 @@
 		gap: 8px;
 	}
 
-	.tt-detail-name {
+	:global(.tt-detail-name-row .tt-field) {
+		flex: 1;
+	}
+
+	:global(.tt-detail-name-row .tt-field label) {
+		display: none;
+	}
+
+	:global(.tt-detail-name-row .tt-field .tt-field-input) {
+		/* Reuse existing title input visuals while rendering through TextField. */
 		flex: 1;
 		min-width: 0;
 		font-size: 1.3rem;
@@ -670,11 +697,14 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		font-family: var(--font-interface);
+		box-shadow: none;
 	}
 
-	.tt-detail-name:focus {
+	:global(.tt-detail-name-row .tt-field .tt-field-input:focus) {
 		outline: none;
 		border-bottom-color: var(--interactive-accent);
+		box-shadow: none;
 	}
 
 	.tt-parent-task-row {
