@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
 import type { TaskGraphEdge, TaskGraphNode } from './taskGraph';
-import { countCrossingsByColumnPairs, countCrossingsForColumnPair, optimizeLaneOrderForCrossings } from './graphCrossingOptimizer';
+import { applyBarycenterOrdering, countCrossingsByColumnPairs, countCrossingsForColumnPair, optimizeLaneOrderForCrossings } from './graphCrossingOptimizer';
 
 function makeTask(path: string): Task {
 	return {
@@ -94,5 +94,49 @@ describe('graphCrossingOptimizer', () => {
 		const after = countCrossingsByColumnPairs(afterOrder, nodes, edges);
 
 		expect(after).toBeLessThan(before);
+	});
+
+	it('barycenter ordering does not regress crossings in three-column pattern', () => {
+		const nodes = new Map<string, TaskGraphNode>([
+			['Tasks/a.md', makeNode('Tasks/a.md', 0, 0)],
+			['Tasks/b.md', makeNode('Tasks/b.md', 1, 0)],
+			['Tasks/c.md', makeNode('Tasks/c.md', 0, 1)],
+			['Tasks/d.md', makeNode('Tasks/d.md', 1, 1)],
+			['Tasks/e.md', makeNode('Tasks/e.md', 0, 2)],
+			['Tasks/f.md', makeNode('Tasks/f.md', 1, 2)],
+		]);
+
+		const edges = [
+			makeEdge('a->d', 'Tasks/a.md', 'Tasks/d.md'),
+			makeEdge('b->c', 'Tasks/b.md', 'Tasks/c.md'),
+			makeEdge('c->f', 'Tasks/c.md', 'Tasks/f.md'),
+			makeEdge('d->e', 'Tasks/d.md', 'Tasks/e.md'),
+		];
+
+		const beforeOrder = ['Tasks/a.md', 'Tasks/b.md', 'Tasks/c.md', 'Tasks/d.md', 'Tasks/e.md', 'Tasks/f.md'];
+		const before = countCrossingsByColumnPairs(beforeOrder, nodes, edges);
+
+		const afterOrder = applyBarycenterOrdering(beforeOrder, nodes, edges);
+		const after = countCrossingsByColumnPairs(afterOrder, nodes, edges);
+
+		expect(after).toBeLessThanOrEqual(before);
+	});
+
+	it('barycenter ordering preserves locked prefix', () => {
+		const nodes = new Map<string, TaskGraphNode>([
+			['Tasks/lock.md', makeNode('Tasks/lock.md', 0, 0)],
+			['Tasks/a.md', makeNode('Tasks/a.md', 1, 0)],
+			['Tasks/b.md', makeNode('Tasks/b.md', 2, 0)],
+			['Tasks/c.md', makeNode('Tasks/c.md', 0, 1)],
+		]);
+		const edges = [
+			makeEdge('a->c', 'Tasks/a.md', 'Tasks/c.md'),
+			makeEdge('b->c', 'Tasks/b.md', 'Tasks/c.md'),
+		];
+
+		const order = ['Tasks/lock.md', 'Tasks/a.md', 'Tasks/b.md', 'Tasks/c.md'];
+		const optimized = applyBarycenterOrdering(order, nodes, edges, 1);
+
+		expect(optimized[0]).toBe('Tasks/lock.md');
 	});
 });

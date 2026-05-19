@@ -103,7 +103,7 @@ export function optimizeLaneOrderForCrossings(
 ): string[] {
 	if (orderedLanePaths.length <= 2) return orderedLanePaths;
 
-	const best = [...orderedLanePaths];
+	const best = applyBarycenterOrdering(orderedLanePaths, nodesByPath, edges, lockedPrefixCount);
 	let bestScore = scoreLaneOrder(best, nodesByPath, edges);
 
 	const maxPasses = Math.max(2, Math.min(10, orderedLanePaths.length));
@@ -127,4 +127,87 @@ export function optimizeLaneOrderForCrossings(
 	}
 
 	return best;
+}
+
+export function applyBarycenterOrdering(
+	orderedLanePaths: string[],
+	nodesByPath: Map<string, TaskGraphNode>,
+	edges: TaskGraphEdge[],
+	lockedPrefixCount = 0,
+): string[] {
+	if (orderedLanePaths.length <= 2) return [...orderedLanePaths];
+
+	let current = [...orderedLanePaths];
+	const locked = new Set(current.slice(0, Math.max(0, lockedPrefixCount)));
+
+	const adjacentNeighbors = buildAdjacentNeighborMap(nodesByPath, edges);
+
+	const maxPasses = Math.max(2, Math.min(8, orderedLanePaths.length));
+	for (let pass = 0; pass < maxPasses; pass += 1) {
+		const rank = new Map<string, number>();
+		for (const [index, path] of current.entries()) {
+			rank.set(path, index);
+		}
+
+		const movable = current.filter((path) => !locked.has(path));
+		movable.sort((left, right) => {
+			const leftScore = computeBarycenterScore(left, rank, adjacentNeighbors);
+			const rightScore = computeBarycenterScore(right, rank, adjacentNeighbors);
+			if (leftScore !== rightScore) return leftScore - rightScore;
+			return (rank.get(left) ?? 0) - (rank.get(right) ?? 0);
+		});
+
+		current = [...current.slice(0, locked.size), ...movable];
+	}
+
+	return current;
+}
+
+function computeBarycenterScore(
+	path: string,
+	rank: Map<string, number>,
+	adjacentNeighbors: Map<string, string[]>,
+): number {
+	const neighbors = adjacentNeighbors.get(path) ?? [];
+	if (neighbors.length === 0) return rank.get(path) ?? Number.MAX_SAFE_INTEGER;
+
+	let sum = 0;
+	let count = 0;
+	for (const neighbor of neighbors) {
+		const neighborRank = rank.get(neighbor);
+		if (neighborRank === undefined) continue;
+		sum += neighborRank;
+		count += 1;
+	}
+
+	if (count === 0) return rank.get(path) ?? Number.MAX_SAFE_INTEGER;
+	return sum / count;
+}
+
+function buildAdjacentNeighborMap(
+	nodesByPath: Map<string, TaskGraphNode>,
+	edges: TaskGraphEdge[],
+): Map<string, string[]> {
+	const neighbors = new Map<string, Set<string>>();
+	for (const path of nodesByPath.keys()) {
+		neighbors.set(path, new Set<string>());
+	}
+
+	for (const edge of edges) {
+		if (edge.isParentEdge) continue;
+		const from = nodesByPath.get(edge.from);
+		const to = nodesByPath.get(edge.to);
+		if (!from || !to) continue;
+		if (from.laneKey !== to.laneKey) continue;
+		if (Math.abs(from.column - to.column) !== 1) continue;
+
+		neighbors.get(from.path)?.add(to.path);
+		neighbors.get(to.path)?.add(from.path);
+	}
+
+	const result = new Map<string, string[]>();
+	for (const [path, set] of neighbors) {
+		result.set(path, [...set]);
+	}
+	return result;
 }
