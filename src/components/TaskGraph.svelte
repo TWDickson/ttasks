@@ -37,6 +37,7 @@
 	let lastGraphDiagnosticsKey = '';
 	let dependencyScrollEl: HTMLDivElement | null = null;
 	let dependencyViewportWidth = 0;
+	let dependencyScrollLeft = 0;
 	let overviewScrollEl: HTMLDivElement | null = null;
 	let overviewViewportWidth = 0;
 	let overviewScrollLeft = 0;
@@ -85,6 +86,7 @@
 		: 1;
 	$: fittedDependencyWidth = Math.max(1, Math.round(layout.width * dependencyScale));
 	$: fittedDependencyHeight = Math.max(1, Math.round(layout.height * dependencyScale));
+	$: dependencyLaneStickyOffset = dependencyScale > 0 ? dependencyScrollLeft / dependencyScale : 0;
 	$: nodesByPath = new Map(layout.nodes.map((node) => [node.path, node]));
 	$: dependencyLaneHeaders = buildLaneHeaders(
 		layout.lanes.map((lane) => ({
@@ -166,6 +168,7 @@
 
 		const updateViewport = () => {
 			dependencyViewportWidth = dependencyScrollEl?.clientWidth ?? 0;
+			dependencyScrollLeft = dependencyScrollEl?.scrollLeft ?? 0;
 			overviewViewportWidth = overviewScrollEl?.clientWidth ?? 0;
 		};
 
@@ -307,6 +310,11 @@
 	function onOverviewScroll(event: Event): void {
 		const target = event.currentTarget as HTMLDivElement | null;
 		overviewScrollLeft = target?.scrollLeft ?? 0;
+	}
+
+	function onDependencyScroll(event: Event): void {
+		const target = event.currentTarget as HTMLDivElement | null;
+		dependencyScrollLeft = target?.scrollLeft ?? 0;
 	}
 
 	function intersectsViewport(left: number, width: number, min: number, max: number): boolean {
@@ -468,11 +476,11 @@
 		{#if dependencyEmpty}
 			<div class="tt-graph-empty">No dependency relationships found. Add depends_on links between tasks to see the graph.</div>
 		{:else}
-			<div class="tt-graph-scroll" bind:this={dependencyScrollEl}>
+			<div class="tt-graph-scroll" bind:this={dependencyScrollEl} on:scroll={onDependencyScroll}>
 				<div class="tt-graph-fit" style={`width:${fittedDependencyWidth}px;height:${fittedDependencyHeight}px;`}>
 				<div class="tt-graph-stage" style={`width:${layout.width}px;height:${layout.height}px;transform:scale(${dependencyScale});`}>
 					{#if dependencyLaneHeaders.length > 0}
-						<div class="tt-dependency-lanes" aria-hidden="true">
+						<div class="tt-dependency-lanes" style={`transform:translateX(${dependencyLaneStickyOffset}px);`} aria-hidden="true">
 							{#each dependencyLaneHeaders as lane (lane.key)}
 								<div
 									class="tt-dependency-lane-header"
