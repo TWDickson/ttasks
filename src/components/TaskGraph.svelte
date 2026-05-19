@@ -19,6 +19,7 @@
 		percentAtDate,
 		startOfToday,
 	} from './graphTimeline';
+	import { computeDependencyLaneWidth, groupingLabel, laneHeaderClass } from './graphPresentation';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
@@ -116,7 +117,11 @@
 		DEPENDENCY_ROW_GAP,
 		DEPENDENCY_GRAPH_PADDING,
 	);
-	$: dependencyLaneWidth = computeDependencyLaneWidth(dependencyLaneHeaders);
+	$: dependencyLaneWidth = computeDependencyLaneWidth(
+		dependencyLaneHeaders,
+		DEPENDENCY_LANE_MIN_WIDTH,
+		DEPENDENCY_LANE_MAX_WIDTH,
+	);
 	$: dependencyEmpty = layout.nodes.length === 0;
 
 	$: {
@@ -308,16 +313,8 @@
 		dependencyScrollLeft = target?.scrollLeft ?? 0;
 	}
 
-	function laneHeaderClass(lane: { label: string; heightPx: number }): string {
-		const compact = lane.heightPx < DEPENDENCY_LANE_COMPACT_HEIGHT;
-		const rotate = compact || lane.label.length >= DEPENDENCY_LANE_ROTATE_LABEL_LENGTH;
-		return `tt-dependency-lane-header${compact ? ' is-compact' : ''}${rotate ? ' is-rotated' : ''}`;
-	}
-
-	function computeDependencyLaneWidth(lanes: Array<{ label: string }>): number {
-		const longestLabelLength = lanes.reduce((longest, lane) => Math.max(longest, lane.label.length), 0);
-		const estimated = 96 + Math.min(18, longestLabelLength) * 2.7;
-		return Math.round(Math.max(DEPENDENCY_LANE_MIN_WIDTH, Math.min(DEPENDENCY_LANE_MAX_WIDTH, estimated)));
+	function getLaneHeaderClass(lane: { label: string; heightPx: number }): string {
+		return laneHeaderClass(lane, DEPENDENCY_LANE_COMPACT_HEIGHT, DEPENDENCY_LANE_ROTATE_LABEL_LENGTH);
 	}
 
 	function groupBandStyle(band: { startRow: number; endRow: number }): string {
@@ -329,12 +326,6 @@
 	function groupLabelStyle(band: { startRow: number }): string {
 		const top = HYBRID_TRACK_PADDING + band.startRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
 		return `top:${top}px;`;
-	}
-
-	function groupingLabel(mode: HybridTimelineGrouping): string {
-		if (mode === 'project') return 'Project';
-		if (mode === 'dependency') return 'Dependency';
-		return 'None';
 	}
 
 	function definedBarStyle(item: { leftPercent: number; widthPercent: number; row: number; task: Task }): string {
@@ -460,7 +451,7 @@
 						<div class="tt-dependency-lanes" style={`--tt-dependency-lane-width:${dependencyLaneWidth}px;transform:translateX(${dependencyLaneStickyOffset}px);`} aria-hidden="true">
 							{#each dependencyLaneHeaders as lane (lane.key)}
 								<div
-									class={laneHeaderClass(lane)}
+									class={getLaneHeaderClass(lane)}
 									style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
 									title={lane.label}
 								>
