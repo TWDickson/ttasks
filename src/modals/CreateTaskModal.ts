@@ -6,6 +6,7 @@ import { resolveEmergencyStatus } from '../settings';
 import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 import { PRIORITY_COLORS } from '../constants';
 import { localDateString } from '../utils/dateUtils';
+import { sortDependencyFirst } from '../components/dependencySort';
 
 const PRIORITIES: TaskPriority[]    = ['None', 'Low', 'Medium', 'High'];
 
@@ -22,6 +23,7 @@ export class CreateTaskModal extends Modal {
 	private area                       = '';
 	private selectedLabels: string[]   = [];
 	private depends_on: string[]       = [];
+	private parent_task: string | null = null;
 	private due_date                   = '';
 	private start_date                 = '';
 	private estimated_days: number | null = null;
@@ -280,9 +282,11 @@ export class CreateTaskModal extends Modal {
 		const renderAfterTaskOptions = () => {
 			afterTaskSelect.empty();
 			afterTaskSelect.createEl('option', { text: '+ Add dependency…', value: '' });
-			for (const t of allTasks) {
+			const availableTasks = allTasks
+				.filter(t => !this.depends_on.includes(t.path.replace(/\.md$/, '')))
+				.sort((a, b) => sortDependencyFirst(a, b, this.parent_task));
+			for (const t of availableTasks) {
 				const path = t.path.replace(/\.md$/, '');
-				if (this.depends_on.includes(path)) continue;
 				afterTaskSelect.createEl('option', { text: t.name, value: path });
 			}
 		};
@@ -487,6 +491,20 @@ export class CreateTaskModal extends Modal {
 			applyCategoryTint();
 		});
 
+		// ── Parent Task (Project) ────────────────────────────────────────────────────
+		const parentTaskField = this.field(details, 'Parent Project');
+		const parentTaskSelect = parentTaskField.createEl('select', { cls: 'tt-modal-select' });
+		const projects = allTasks.filter(t => t.type === 'project');
+		parentTaskSelect.createEl('option', { text: '— none —', value: '' });
+		for (const p of projects.sort((a, b) => a.name.localeCompare(b.name))) {
+			const path = p.path.replace(/\.md$/, '');
+			parentTaskSelect.createEl('option', { text: p.name, value: path });
+		}
+		parentTaskSelect.addEventListener('change', () => {
+			this.parent_task = parentTaskSelect.value || null;
+			renderAfterTaskOptions();
+		});
+
 		// ── Recurrence ───────────────────────────────────────────────────────────
 		const recurrenceField = this.field(details, 'Repeats');
 		const recurrenceRow = recurrenceField.createDiv('tt-modal-recurrence-row');
@@ -628,7 +646,7 @@ export class CreateTaskModal extends Modal {
 				priority:       this.priority,
 				labels:         this.selectedLabels,
 				due_time:       null,
-				parent_task:    null,
+				parent_task:    this.parent_task,
 				depends_on:     this.depends_on,
 				blocked_reason: '',
 				assigned_to:    '',
