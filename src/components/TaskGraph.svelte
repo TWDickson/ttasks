@@ -25,6 +25,9 @@
 	const DEPENDENCY_NODE_HEIGHT = 122;
 	const DEPENDENCY_ROW_GAP = 12;
 	const DEPENDENCY_LANE_GUTTER = 152;
+	const DEPENDENCY_LANE_MIN_WIDTH = 112;
+	const DEPENDENCY_LANE_MAX_WIDTH = 148;
+	const DEPENDENCY_LANE_COMPACT_HEIGHT = 132;
 	const DEPENDENCY_GRAPH_PADDING = DEPENDENCY_LANE_GUTTER + 20;
 	const OVERVIEW_PIXELS_PER_DAY = 54;
 	const HYBRID_ROW_HEIGHT = 34;
@@ -100,6 +103,7 @@
 		DEPENDENCY_ROW_GAP,
 		DEPENDENCY_GRAPH_PADDING,
 	);
+	$: dependencyLaneWidth = computeDependencyLaneWidth(dependencyLaneHeaders);
 	$: dependencyEmpty = layout.nodes.length === 0;
 
 	$: {
@@ -317,6 +321,16 @@
 		dependencyScrollLeft = target?.scrollLeft ?? 0;
 	}
 
+	function laneHeaderClass(lane: { heightPx: number }): string {
+		return lane.heightPx < DEPENDENCY_LANE_COMPACT_HEIGHT ? 'tt-dependency-lane-header is-compact' : 'tt-dependency-lane-header';
+	}
+
+	function computeDependencyLaneWidth(lanes: Array<{ label: string }>): number {
+		const longestLabelLength = lanes.reduce((longest, lane) => Math.max(longest, lane.label.length), 0);
+		const estimated = 96 + Math.min(18, longestLabelLength) * 2.7;
+		return Math.round(Math.max(DEPENDENCY_LANE_MIN_WIDTH, Math.min(DEPENDENCY_LANE_MAX_WIDTH, estimated)));
+	}
+
 	function intersectsViewport(left: number, width: number, min: number, max: number): boolean {
 		const right = left + width;
 		return right >= min && left <= max;
@@ -480,11 +494,12 @@
 				<div class="tt-graph-fit" style={`width:${fittedDependencyWidth}px;height:${fittedDependencyHeight}px;`}>
 				<div class="tt-graph-stage" style={`width:${layout.width}px;height:${layout.height}px;transform:scale(${dependencyScale});`}>
 					{#if dependencyLaneHeaders.length > 0}
-						<div class="tt-dependency-lanes" style={`transform:translateX(${dependencyLaneStickyOffset}px);`} aria-hidden="true">
+						<div class="tt-dependency-lanes" style={`--tt-dependency-lane-width:${dependencyLaneWidth}px;transform:translateX(${dependencyLaneStickyOffset}px);`} aria-hidden="true">
 							{#each dependencyLaneHeaders as lane (lane.key)}
 								<div
-									class="tt-dependency-lane-header"
+									class={laneHeaderClass(lane)}
 									style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
+									title={lane.label}
 								>
 									<span class="tt-dependency-lane-label">{lane.label}</span>
 									<span class="tt-dependency-lane-count">{lane.taskCount}</span>
@@ -1087,7 +1102,7 @@
 	.tt-dependency-lanes {
 		position: absolute;
 		inset: 0 auto 0 8px;
-		width: 136px;
+		width: var(--tt-dependency-lane-width, 136px);
 		pointer-events: none;
 		z-index: 1;
 	}
@@ -1098,8 +1113,9 @@
 		right: 0;
 		display: flex;
 		flex-direction: column;
-		justify-content: space-between;
+		justify-content: flex-start;
 		align-items: flex-start;
+		gap: 8px;
 		padding: 10px 10px 10px 12px;
 		border-radius: var(--radius-m);
 		border: var(--border-width, 1px) solid color-mix(in srgb, var(--text-accent) 30%, var(--background-modifier-border));
@@ -1112,16 +1128,23 @@
 			inset 3px 0 0 color-mix(in srgb, var(--interactive-accent) 62%, transparent),
 			inset 0 0 0 1px color-mix(in srgb, var(--background-primary) 35%, transparent),
 			0 1px 0 color-mix(in srgb, var(--text-faint) 18%, transparent);
+		overflow: hidden;
 	}
 
 	.tt-dependency-lane-label {
+		display: -webkit-box;
 		font-size: 12px;
 		font-weight: 600;
 		line-height: 1.25;
 		color: color-mix(in srgb, var(--text-normal) 88%, var(--text-muted));
+		overflow: hidden;
+		overflow-wrap: anywhere;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 5;
 	}
 
 	.tt-dependency-lane-count {
+		margin-top: auto;
 		font-size: 11px;
 		font-weight: 700;
 		color: color-mix(in srgb, var(--text-normal) 75%, var(--text-faint));
@@ -1129,6 +1152,26 @@
 		padding: 1px 6px;
 		border-radius: var(--radius-s);
 		border: 1px solid color-mix(in srgb, var(--interactive-accent) 22%, transparent);
+	}
+
+	.tt-dependency-lane-header.is-compact {
+		align-items: center;
+		padding: 8px 8px 8px 10px;
+		gap: 6px;
+	}
+
+	.tt-dependency-lane-header.is-compact .tt-dependency-lane-label {
+		display: block;
+		line-height: 1.05;
+		max-height: none;
+		white-space: normal;
+		writing-mode: vertical-rl;
+		text-orientation: mixed;
+		transform: rotate(180deg);
+	}
+
+	.tt-dependency-lane-header.is-compact .tt-dependency-lane-count {
+		margin-top: 0;
 	}
 
 	.tt-graph-edge {

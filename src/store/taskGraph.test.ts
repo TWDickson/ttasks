@@ -117,6 +117,24 @@ describe('buildTaskGraph', () => {
 		expect(nodePaths.has('Tasks/proj-b.md')).toBe(false);
 	});
 
+	it('resolves lanes to the owning project when parent_task points to an intermediate task', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/proj-a.md', name: 'Project A', type: 'project' }),
+			makeTask({ path: 'Tasks/epic-a.md', name: 'Epic A', parent_task: 'Tasks/proj-a' }),
+			makeTask({ path: 'Tasks/work-a.md', name: 'Work A', parent_task: 'Tasks/epic-a' }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const laneByLabel = new Map(layout.lanes.map((lane) => [lane.label, lane]));
+
+		expect(laneByLabel.has('Project A')).toBe(true);
+		expect(laneByLabel.get('Project A')?.taskPaths).toContain('Tasks/epic-a.md');
+		expect(laneByLabel.get('Project A')?.taskPaths).toContain('Tasks/work-a.md');
+
+		const workNode = layout.nodes.find((node) => node.path === 'Tasks/work-a.md');
+		expect(workNode?.laneKey).toBe('Tasks/proj-a.md');
+	});
+
 	it('nudges independent tasks left-to-right by approximate date ordering', () => {
 		const tasks = [
 			makeTask({ path: 'Tasks/soon.md', name: 'Soon', due_date: '2026-06-02' }),

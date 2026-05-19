@@ -86,23 +86,22 @@ function getDateKey(task: Task): number {
 }
 
 /**
- * Group tasks by lane (parent_task), preserving project nodes.
- * Returns lanes sorted: projects first (by name), then unassigned/independent.
+ * Group visible tasks by owning project lane.
+ * Lane resolution walks parent_task ancestry until it reaches a project record.
  */
-function buildLaneAssignment(tasks: Task[]): Map<string | null, string[]> {
+function buildLaneAssignment(tasks: Task[], allTaskByPath: Map<string, Task>): Map<string | null, string[]> {
 	const lanesByKey = new Map<string | null, string[]>();
 
-	// First pass: collect all unique parent_task values
+	// First pass: collect all known project paths.
 	const projectPaths = new Set<string>();
 	for (const task of tasks) {
 		if (task.type === 'project') {
 			projectPaths.add(task.path);
 		}
-		if (task.parent_task) {
-			const normalizedParent = normalizeTaskPath(task.parent_task);
-			if (normalizedParent) {
-				projectPaths.add(normalizedParent);
-			}
+
+		const projectPath = resolveOwningProjectPath(task, allTaskByPath);
+		if (projectPath) {
+			projectPaths.add(projectPath);
 		}
 	}
 
@@ -112,9 +111,9 @@ function buildLaneAssignment(tasks: Task[]): Map<string | null, string[]> {
 	}
 	lanesByKey.set(null, []);  // Unassigned/independent lane
 
-	// Assign tasks to lanes
+	// Assign visible tasks to their owning project lane.
 	for (const task of tasks) {
-		const laneKey = normalizeTaskPath(task.parent_task) ?? null;
+		const laneKey = resolveOwningProjectPath(task, allTaskByPath);
 		lanesByKey.get(laneKey)?.push(task.path);
 	}
 
@@ -122,10 +121,31 @@ function buildLaneAssignment(tasks: Task[]): Map<string | null, string[]> {
 }
 
 function resolveNodeLaneKey(task: Task, allTaskByPath: Map<string, Task>): string | null {
+	return resolveOwningProjectPath(task, allTaskByPath);
+}
+
+function resolveOwningProjectPath(task: Task, allTaskByPath: Map<string, Task>): string | null {
 	const normalizedParent = normalizeTaskPath(task.parent_task);
-	if (normalizedParent && allTaskByPath.has(normalizedParent)) {
-		return normalizedParent;
+	if (!normalizedParent) {
+		return null;
 	}
+
+	let currentPath: string | null = normalizedParent;
+	const visited = new Set<string>();
+
+	while (currentPath && !visited.has(currentPath)) {
+		visited.add(currentPath);
+		const current = allTaskByPath.get(currentPath);
+		if (!current) {
+			// Parent may exist in vault but not in the current query; preserve lane grouping key.
+			return currentPath;
+		}
+		if (current.type === 'project') {
+			return current.path;
+		}
+		currentPath = normalizeTaskPath(current.parent_task);
+	}
+
 	return null;
 }
 
@@ -422,12 +442,12 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 
 	// Lane compaction pass: make rows contiguous inside project lanes so lane
 	// headers are meaningful and edge crossings are reduced by local ordering.
-	const laneAssignments = buildLaneAssignment(visibleTasks);
+	const laneAssignments = buildLaneAssignment(visibleTasks, allTaskByPath);
 	const laneKeysSorted = [...laneAssignments.keys()].sort((left, right) => {
 		if (left === null) return 1;
 		if (right === null) return -1;
-		const leftLabel = allTaskByPath.get(left)?.name ?? left;
-		const rightLabel = allTaskByPath.get(right)?.name ?? right;
+		const leftLabel = allTaskByPath.get(left)?.name ?? pathLeaf(left);
+		const rightLabel = allTaskByPath.get(right)?.name ?? pathLeaf(right);
 		return leftLabel.localeCompare(rightLabel);
 	});
 
@@ -486,14 +506,14 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 
 	// Sort project lanes by name
 	projectLanes.sort((a, b) => {
-		const aLabel = allTaskByPath.get(a[0])?.name ?? a[0];
-		const bLabel = allTaskByPath.get(b[0])?.name ?? b[0];
+		const aLabel = allTaskByPath.get(a[0])?.name ?? pathLeaf(a[0]);
+		const bLabel = allTaskByPath.get(b[0])?.name ?? pathLeaf(b[0]);
 		return aLabel.localeCompare(bLabel);
 	});
 
 	// Build lane descriptors
 	for (const [laneKey, laneBand] of projectLanes) {
-		const label = allTaskByPath.get(laneKey)?.name ?? laneKey;
+		const label = allTaskByPath.get(laneKey)?.name ?? pathLeaf(laneKey);
 		lanes.push({
 			key: laneKey,
 			label,
