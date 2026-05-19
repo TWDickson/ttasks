@@ -14,6 +14,7 @@
 	import { resolveLinkedTaskPath } from './taskDetailLinks';
 	import { deriveTaskDetailOptionState } from './taskDetailOptions';
 	import { createTaskDetailSaveController, normalizeDateValue } from './taskDetailSaveController';
+	import { runArchiveFlow, runDeleteFlow, runMarkCompleteFlow } from './taskDetailActions';
 	import TextField from './fields/TextField.svelte';
 	import SelectField from './fields/SelectField.svelte';
 	import DateField from './fields/DateField.svelte';
@@ -96,23 +97,18 @@
 		const completeStatus = getCompletionStatus();
 		status = completeStatus;
 
-		if (task.recurrence) {
-			const next = await store.completeAndRecur(task);
-			if (next) {
-				new Notice(`Completed. Next due ${next.due_date ?? 'TBD'} (${next.name})`);
-			}
-		} else {
-			const today = localDateString();
-			await saveController.saveImmediate({ status: completeStatus, completed: today });
-		}
+		await runMarkCompleteFlow({
+			task,
+			completionStatus: completeStatus,
+			today: localDateString(),
+			saveImmediate: (updates) => saveController.saveImmediate(updates),
+			completeAndRecur: (currentTask) => store.completeAndRecur(currentTask),
+			notice: (message) => { new Notice(message); },
+		});
 	}
 
-	async function confirmDelete() {
-		if (!task) return;
-		const taskName = task.name;
-		const taskPath = task.path;
-
-		await new Promise<void>((resolve) => {
+	async function confirmDeleteTask(taskName: string): Promise<boolean> {
+		return await new Promise<boolean>((resolve) => {
 			const modal = new Modal(plugin.app);
 			modal.titleEl.setText('Delete task');
 			modal.contentEl.createEl('p', { text: `Are you sure you want to delete "${taskName}"? This cannot be undone.` });
@@ -120,18 +116,30 @@
 
 			actions.createEl('button', { text: 'Cancel' }).addEventListener('click', () => {
 				modal.close();
-				resolve();
+				resolve(false);
 			});
 
 			const confirmBtn = actions.createEl('button', { text: 'Delete', cls: 'mod-warning' });
-			confirmBtn.addEventListener('click', async () => {
+			confirmBtn.addEventListener('click', () => {
 				modal.close();
-				activeTaskPath.set(null);
-				await store.delete(taskPath);
-				resolve();
+				resolve(true);
 			});
 
+			modal.onClose = () => {
+				resolve(false);
+			};
+
 			modal.open();
+		});
+	}
+
+	async function confirmDelete() {
+		if (!task) return;
+		await runDeleteFlow({
+			task,
+			confirmDelete: (taskName) => confirmDeleteTask(taskName),
+			setActiveTaskPath: (nextPath) => activeTaskPath.set(nextPath),
+			deleteTask: (taskPath) => store.delete(taskPath),
 		});
 	}
 
@@ -346,9 +354,12 @@
 	}
 
 	async function archiveTask(): Promise<void> {
-		if (!task || !task.is_complete) return;
-		await plugin.archiveService.archiveTask(task.path);
-		activeTaskPath.set(null);
+		if (!task) return;
+		await runArchiveFlow({
+			task,
+			archiveTask: (taskPath) => plugin.archiveService.archiveTask(taskPath),
+			setActiveTaskPath: (nextPath) => activeTaskPath.set(nextPath),
+		});
 	}
 
 	// ── Dependency callbacks (passed to TaskDetailRelationships) ────────────────
