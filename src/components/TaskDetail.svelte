@@ -10,6 +10,7 @@
 	import { isBlockedStatus } from '../schema/fieldVisibility';
 	import type { FieldComponentProps } from '../schema/fieldAdapters';
 	import { deriveTaskDetailFieldProps } from './taskDetailFieldProps';
+	import { resolveLinkedTaskPath } from './taskDetailLinks';
 	import { deriveTaskDetailOptionState } from './taskDetailOptions';
 	import TextField from './fields/TextField.svelte';
 	import SelectField from './fields/SelectField.svelte';
@@ -362,33 +363,8 @@
 		.filter(t => t.type === 'project' && t.path !== task?.path)
 		.sort((a, b) => a.name.localeCompare(b.name));
 
-	function normalizeTaskPath(pathLike: string | null | undefined): string | null {
-		if (!pathLike) return null;
-		const clean = pathLike.trim();
-		if (!clean) return null;
-		return clean.endsWith('.md') ? clean : `${clean}.md`;
-	}
-
-	function linkedTask(pathLike: string | null | undefined): Task | null {
-		const normalized = normalizeTaskPath(pathLike);
-		if (!normalized) return null;
-		// Exact match first (full vault path)
-		const exact = $tasks.find((item) => item.path === normalized);
-		if (exact) return exact;
-		// Fallback: match by filename only, for tasks stored without folder prefix
-		return $tasks.find((item) => item.path.endsWith('/' + normalized)) ?? null;
-	}
-
-	/** Resolve a possibly-short pathLike to the full vault path stored in the task store. */
-	function resolveTaskPath(pathLike: string | null | undefined): string | null {
-		const normalized = normalizeTaskPath(pathLike);
-		if (!normalized) return null;
-		const found = linkedTask(normalized);
-		return found ? found.path : normalized;
-	}
-
 	function openLinkedPath(pathLike: string): void {
-		const resolved = resolveTaskPath(pathLike);
+		const resolved = resolveLinkedTaskPath(pathLike, $tasks);
 		if (!resolved) return;
 		activeTaskPath.set(resolved);
 	}
