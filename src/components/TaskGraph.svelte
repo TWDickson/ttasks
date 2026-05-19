@@ -6,6 +6,7 @@
 	import type TTasksPlugin from '../main';
 	import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, type HybridTimelineGrouping, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
 	import { computeEdgePath, sortIncomingEdges, sortOutgoingEdges } from '../store/graphEdgeRouting';
+	import { computeGraphQualityMetrics } from '../store/graphQualityMetrics';
 	import { buildLaneHeaders } from '../store/graphLaneLayout';
 	import { PRIORITY_COLORS } from '../constants';
 	import { flattenTaskGroups } from './viewAdapters';
@@ -33,6 +34,7 @@
 	let appliedGraphMode: GraphMode = defaultGraphMode;
 	let lastGraphMode: GraphMode = defaultGraphMode;
 	let showIndependentInDependency = false;
+	let lastGraphDiagnosticsKey = '';
 	let dependencyScrollEl: HTMLDivElement | null = null;
 	let dependencyViewportWidth = 0;
 	let overviewScrollEl: HTMLDivElement | null = null;
@@ -96,6 +98,32 @@
 		DEPENDENCY_GRAPH_PADDING,
 	);
 	$: dependencyEmpty = layout.nodes.length === 0;
+
+	$: {
+		if (!plugin.settings.graphDiagnosticsEnabled || graphMode !== 'dependency') {
+			lastGraphDiagnosticsKey = '';
+		} else {
+			const edgeKey = layout.edges
+				.map((edge) => `${edge.id}:${edge.from}:${edge.to}:${edge.isParentEdge ? 'p' : 'd'}`)
+				.sort()
+				.join('|');
+			const nodeKey = layout.nodes
+				.map((node) => `${node.path}:${node.row}:${node.column}:${node.laneKey ?? '__u__'}`)
+				.sort()
+				.join('|');
+			const layoutKey = `${layout.nodes.length}:${layout.edges.length}:${layout.lanes.length}:${nodeKey}:${edgeKey}`;
+
+			if (layoutKey !== lastGraphDiagnosticsKey) {
+				lastGraphDiagnosticsKey = layoutKey;
+				const metrics = computeGraphQualityMetrics(layout.nodes, layout.edges, layout.lanes);
+				console.info('[TTasks][GraphDiagnostics]', {
+					view: 'dependency',
+					timestamp: new Date().toISOString(),
+					metrics,
+				});
+			}
+		}
+	}
 
 	// For each node spread outgoing and incoming edge attachment points so
 	// multiple edges don't draw on top of each other.

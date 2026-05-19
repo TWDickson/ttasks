@@ -42,6 +42,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	logbookRendererMode: 'list',
 	overviewGraphGrouping: 'project',
 	overviewGraphShowCompleted: false,
+	graphDiagnosticsEnabled: false,
 	customViews: [],
 	statuses: DEFAULT_STATUSES,
 	completionStatus: 'Completed',
@@ -148,6 +149,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		logbookRendererMode: settings.logbookRendererMode,
 		overviewGraphGrouping: settings.overviewGraphGrouping,
 		overviewGraphShowCompleted: settings.overviewGraphShowCompleted,
+		graphDiagnosticsEnabled: settings.graphDiagnosticsEnabled,
 		customViews: settings.customViews.map(cloneCustomTaskViewDefinition),
 		statuses: [...settings.statuses],
 		completionStatus: settings.completionStatus,
@@ -421,6 +423,11 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 	const overviewGraphShowCompleted = asBoolean(root.overviewGraphShowCompleted);
 	if (overviewGraphShowCompleted !== null) {
 		target.overviewGraphShowCompleted = overviewGraphShowCompleted;
+	}
+
+	const graphDiagnosticsEnabled = asBoolean(root.graphDiagnosticsEnabled);
+	if (graphDiagnosticsEnabled !== null) {
+		target.graphDiagnosticsEnabled = graphDiagnosticsEnabled;
 	}
 
 	if (root.customViews !== undefined) {

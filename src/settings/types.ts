@@ -73,6 +73,7 @@ export interface TTasksSettings {
 	logbookRendererMode: LogbookRendererMode;
 	overviewGraphGrouping: OverviewGraphGrouping;
 	overviewGraphShowCompleted: boolean;
+	graphDiagnosticsEnabled: boolean;
 	customViews: CustomTaskViewDefinition[];
 	statuses: string[];
 	completionStatus: string;

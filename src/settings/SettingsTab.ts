@@ -269,6 +269,16 @@ export class TTasksSettingTab extends PluginSettingTab {
 				})
 			);
 
+		new Setting(containerEl)
+			.setName('Graph diagnostics logging')
+			.setDesc('Developer mode: log dependency graph quality metrics (crossings, bend score, lane breakdown) to console when graph layout changes.')
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.settings.graphDiagnosticsEnabled)
+				.onChange(async (value) => {
+					this.plugin.settings.graphDiagnosticsEnabled = value;
+					await this.plugin.saveSettings();
+				}));
+
 		const statuses = this.plugin.settings.statuses ?? [];
 
 		new Setting(containerEl)
