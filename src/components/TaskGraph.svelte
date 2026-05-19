@@ -11,6 +11,14 @@
 	import { PRIORITY_COLORS } from '../constants';
 	import { flattenTaskGroups } from './viewAdapters';
 	import { formatHumanDate } from './taskDateMeta';
+	import {
+		buildTimelineTicks,
+		diffDays,
+		formatDateISO,
+		intersectsViewport,
+		percentAtDate,
+		startOfToday,
+	} from './graphTimeline';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
@@ -21,7 +29,6 @@
 
 	type GraphMode = 'dependency' | 'overview';
 	export let defaultGraphMode: GraphMode = 'dependency';
-	const DAY_MS = 24 * 60 * 60 * 1000;
 	const DEPENDENCY_NODE_HEIGHT = 122;
 	const DEPENDENCY_ROW_GAP = 12;
 	const DEPENDENCY_LANE_GUTTER = 152;
@@ -281,32 +288,6 @@
 		return 'independent';
 	}
 
-	function addDays(date: Date, days: number): Date {
-		const next = new Date(date.getTime());
-		next.setDate(next.getDate() + days);
-		return next;
-	}
-
-	function startOfToday(): Date {
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
-		return today;
-	}
-
-	function diffDays(start: Date, end: Date): number {
-		return Math.round((end.getTime() - start.getTime()) / DAY_MS);
-	}
-
-	function formatDate(date: Date): string {
-		return date.toISOString().slice(0, 10);
-	}
-
-	function percentAtDate(date: Date, rangeStart: Date, rangeEnd: Date): number {
-		const spanDays = Math.max(1, diffDays(rangeStart, rangeEnd) + 1);
-		const offsetDays = diffDays(rangeStart, date);
-		return Math.max(0, Math.min(100, (offsetDays / spanDays) * 100));
-	}
-
 	function focusOverviewAroundToday(): void {
 		if (!overviewScrollEl) return;
 		const viewportWidth = overviewScrollEl.clientWidth;
@@ -337,11 +318,6 @@
 		const longestLabelLength = lanes.reduce((longest, lane) => Math.max(longest, lane.label.length), 0);
 		const estimated = 96 + Math.min(18, longestLabelLength) * 2.7;
 		return Math.round(Math.max(DEPENDENCY_LANE_MIN_WIDTH, Math.min(DEPENDENCY_LANE_MAX_WIDTH, estimated)));
-	}
-
-	function intersectsViewport(left: number, width: number, min: number, max: number): boolean {
-		const right = left + width;
-		return right >= min && left <= max;
 	}
 
 	function groupBandStyle(band: { startRow: number; endRow: number }): string {
@@ -404,27 +380,6 @@
 			.sort((left, right) => right.count - left.count || left.status.localeCompare(right.status));
 	}
 
-	function buildTimelineTicks(start: Date, end: Date): Array<{ date: Date; label: string; leftPercent: number }> {
-		const span = Math.max(1, diffDays(start, end) + 1);
-		const stepDays = span > 180 ? 30 : span > 90 ? 14 : 7;
-		const ticks: Array<{ date: Date; label: string; leftPercent: number }> = [];
-		for (let offset = 0; offset <= span - 1; offset += stepDays) {
-			const tickDate = addDays(start, offset);
-			ticks.push({
-				date: tickDate,
-				label: formatDate(tickDate),
-				leftPercent: (offset / span) * 100,
-			});
-		}
-		if (ticks.length === 0 || ticks[ticks.length - 1].leftPercent < 99.5) {
-			ticks.push({
-				date: end,
-				label: formatDate(end),
-				leftPercent: 100,
-			});
-		}
-		return ticks;
-	}
 </script>
 
 <div class="tt-graph-shell">
@@ -555,9 +510,9 @@
 							<div class="tt-graph-meta">
 								<span>{subtitle(node)}</span>
 							{#if node.task.is_complete && node.task.completed}
-								<span>Done {formatHumanDate(node.task.completed, formatDate(startOfToday()))}</span>
+								<span>Done {formatHumanDate(node.task.completed, formatDateISO(startOfToday()))}</span>
 							{:else if node.task.due_date}
-								<span>Due {formatHumanDate(node.task.due_date, formatDate(startOfToday()))}</span>
+								<span>Due {formatHumanDate(node.task.due_date, formatDateISO(startOfToday()))}</span>
 								{/if}
 							</div>
 						</button>
@@ -631,9 +586,9 @@
 										class:is-active={$activeTaskPath === item.path}
 										class:is-inferred={item.isInferred}
 										style={definedBarStyle(item)}
-										title={`${item.task.name} | ${formatDate(item.start)} → ${formatDate(item.end)}${item.isInferred ? ' (inferred)' : ''}`}
+										title={`${item.task.name} | ${formatDateISO(item.start)} → ${formatDateISO(item.end)}${item.isInferred ? ' (inferred)' : ''}`}
 										tabindex="0"
-										aria-label="{item.task.name} — {formatDate(item.start)} to {formatDate(item.end)}{item.isInferred ? ' (estimated)' : ''}"
+										aria-label="{item.task.name} — {formatDateISO(item.start)} to {formatDateISO(item.end)}{item.isInferred ? ' (estimated)' : ''}"
 										aria-pressed={$activeTaskPath === item.path}
 										on:click={() => onOpen(item.path)}
 										on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(item.path); } }}
