@@ -86,6 +86,55 @@ describe('buildTaskGraph', () => {
 		expect(blockedNodes).toEqual([]);
 		expect(layout.blockedEdgeCount).toBe(0);
 	});
+
+	it('builds project-based lanes with project header labels', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/proj-a.md', name: 'Project A', type: 'project' }),
+			makeTask({ path: 'Tasks/proj-b.md', name: 'Project B', type: 'project' }),
+			makeTask({ path: 'Tasks/a1.md', name: 'A1', parent_task: 'Tasks/proj-a' }),
+			makeTask({ path: 'Tasks/a2.md', name: 'A2', parent_task: 'Tasks/proj-a' }),
+			makeTask({ path: 'Tasks/b1.md', name: 'B1', parent_task: 'Tasks/proj-b' }),
+			makeTask({ path: 'Tasks/orphan.md', name: 'Orphan' }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const lanesByLabel = new Map(layout.lanes.map((lane) => [lane.label, lane]));
+
+		expect(lanesByLabel.has('Project A')).toBe(true);
+		expect(lanesByLabel.has('Project B')).toBe(true);
+		expect(lanesByLabel.has('Unassigned')).toBe(true);
+
+		expect(lanesByLabel.get('Project A')?.taskPaths).toContain('Tasks/proj-a.md');
+		expect(lanesByLabel.get('Project A')?.taskPaths).toContain('Tasks/a1.md');
+		expect(lanesByLabel.get('Project A')?.taskPaths).toContain('Tasks/a2.md');
+		expect(lanesByLabel.get('Project B')?.taskPaths).toContain('Tasks/proj-b.md');
+		expect(lanesByLabel.get('Project B')?.taskPaths).toContain('Tasks/b1.md');
+		expect(lanesByLabel.get('Unassigned')?.taskPaths).toContain('Tasks/orphan.md');
+	});
+
+	it('nudges independent tasks left-to-right by approximate date ordering', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/soon.md', name: 'Soon', due_date: '2026-06-02' }),
+			makeTask({ path: 'Tasks/later.md', name: 'Later', due_date: '2026-06-20' }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const columns = new Map(layout.nodes.map((node) => [node.path, node.column]));
+
+		expect(columns.get('Tasks/soon.md')).toBeLessThan(columns.get('Tasks/later.md') ?? Infinity);
+	});
+
+	it('keeps dependency ordering ahead of temporal nudging', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', due_date: '2026-06-20' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', due_date: '2026-06-02', depends_on: ['Tasks/a'] }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const columns = new Map(layout.nodes.map((node) => [node.path, node.column]));
+
+		expect(columns.get('Tasks/b.md')).toBeGreaterThan(columns.get('Tasks/a.md') ?? -1);
+	});
 });
 
 describe('resolveConnectedDependencyPaths', () => {

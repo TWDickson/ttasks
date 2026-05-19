@@ -20,6 +20,10 @@
 	type GraphMode = 'dependency' | 'overview';
 	export let defaultGraphMode: GraphMode = 'dependency';
 	const DAY_MS = 24 * 60 * 60 * 1000;
+	const DEPENDENCY_NODE_HEIGHT = 122;
+	const DEPENDENCY_ROW_GAP = 12;
+	const DEPENDENCY_LANE_GUTTER = 152;
+	const DEPENDENCY_GRAPH_PADDING = DEPENDENCY_LANE_GUTTER + 20;
 	const OVERVIEW_PIXELS_PER_DAY = 54;
 	const HYBRID_ROW_HEIGHT = 34;
 	const HYBRID_ROW_GAP = 8;
@@ -67,10 +71,10 @@
 
 	$: layout = buildTaskGraph(dependencyGraphTasks, {
 		nodeWidth: 226,
-		nodeHeight: 122,
+		nodeHeight: DEPENDENCY_NODE_HEIGHT,
 		horizontalGap: 52,
-		verticalGap: 12,
-		padding: 20,
+		verticalGap: DEPENDENCY_ROW_GAP,
+		padding: DEPENDENCY_GRAPH_PADDING,
 	});
 	$: dependencyScale = dependencyViewportWidth > 0 && layout.width > 0
 		? Math.min(1, dependencyViewportWidth / layout.width)
@@ -78,6 +82,18 @@
 	$: fittedDependencyWidth = Math.max(1, Math.round(layout.width * dependencyScale));
 	$: fittedDependencyHeight = Math.max(1, Math.round(layout.height * dependencyScale));
 	$: nodesByPath = new Map(layout.nodes.map((node) => [node.path, node]));
+	$: dependencyLaneHeaders = buildLaneHeaders(
+		layout.lanes.map((lane) => ({
+			key: lane.key ?? '__unassigned__',
+			label: lane.label,
+			startRow: lane.startRow,
+			endRow: lane.endRow,
+			count: lane.taskPaths.length,
+		})),
+		DEPENDENCY_NODE_HEIGHT,
+		DEPENDENCY_ROW_GAP,
+		DEPENDENCY_GRAPH_PADDING,
+	);
 	$: dependencyEmpty = layout.nodes.length === 0;
 
 	// For each node spread outgoing and incoming edge attachment points so
@@ -431,6 +447,19 @@
 			<div class="tt-graph-scroll" bind:this={dependencyScrollEl}>
 				<div class="tt-graph-fit" style={`width:${fittedDependencyWidth}px;height:${fittedDependencyHeight}px;`}>
 				<div class="tt-graph-stage" style={`width:${layout.width}px;height:${layout.height}px;transform:scale(${dependencyScale});`}>
+					{#if dependencyLaneHeaders.length > 0}
+						<div class="tt-dependency-lanes" aria-hidden="true">
+							{#each dependencyLaneHeaders as lane (lane.key)}
+								<div
+									class="tt-dependency-lane-header"
+									style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
+								>
+									<span class="tt-dependency-lane-label">{lane.label}</span>
+									<span class="tt-dependency-lane-count">{lane.taskCount}</span>
+								</div>
+							{/each}
+						</div>
+					{/if}
 					<svg class="tt-graph-svg" viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="xMinYMin meet" aria-hidden="true">
 						<defs>
 							<marker id="ttasks-graph-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
@@ -1021,6 +1050,45 @@
 		position: absolute;
 		inset: 0;
 		overflow: visible;
+	}
+
+	.tt-dependency-lanes {
+		position: absolute;
+		inset: 0 auto 0 8px;
+		width: 136px;
+		pointer-events: none;
+		z-index: 1;
+	}
+
+	.tt-dependency-lane-header {
+		position: absolute;
+		left: 0;
+		right: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: space-between;
+		align-items: flex-start;
+		padding: 8px 10px;
+		border-radius: var(--radius-m);
+		border: var(--border-width, 1px) solid color-mix(in srgb, var(--background-modifier-border) 80%, transparent);
+		background: color-mix(in srgb, var(--background-secondary) 92%, transparent);
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--background-primary) 60%, transparent);
+	}
+
+	.tt-dependency-lane-label {
+		font-size: 12px;
+		font-weight: 600;
+		line-height: 1.25;
+		color: var(--text-muted);
+	}
+
+	.tt-dependency-lane-count {
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--text-faint);
+		background: color-mix(in srgb, var(--background-modifier-border) 45%, transparent);
+		padding: 1px 6px;
+		border-radius: var(--radius-s);
 	}
 
 	.tt-graph-edge {

@@ -66,6 +66,12 @@ interface ComponentInfo {
 	isCycle: boolean;
 }
 
+interface LaneBand {
+	startRow: number;
+	endRow: number;
+	paths: string[];
+}
+
 /**
  * Get a numeric date key for task ordering.
  * Earlier dates = lower numbers (appear on the left).
@@ -109,6 +115,17 @@ function buildLaneAssignment(tasks: Task[]): Map<string | null, string[]> {
 	}
 
 	return lanesByKey;
+}
+
+function resolveNodeLaneKey(task: Task, taskByPath: Map<string, Task>): string | null {
+	if (task.type === 'project') {
+		return task.path;
+	}
+	const normalizedParent = normalizeTaskPath(task.parent_task);
+	if (normalizedParent && taskByPath.has(normalizedParent)) {
+		return normalizedParent;
+	}
+	return null;
 }
 
 const DEFAULT_NODE_WIDTH = 232;
@@ -224,6 +241,39 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 
 	assignComponentLevels(components);
 
+	// Temporal nudging: for components without strict dependency placement,
+	// push later-dated work to the right while preserving dependency order.
+	const componentDateKey = new Map<number, number>();
+	for (const component of components) {
+		let minDate = Infinity;
+		for (const path of component.paths) {
+			const task = taskByPath.get(path);
+			if (!task) continue;
+			minDate = Math.min(minDate, getDateKey(task));
+		}
+		componentDateKey.set(component.id, minDate);
+	}
+
+	const datedComponents = [...components]
+		.filter((component) => Number.isFinite(componentDateKey.get(component.id) ?? Infinity))
+		.sort((left, right) => {
+			const l = componentDateKey.get(left.id) ?? Infinity;
+			const r = componentDateKey.get(right.id) ?? Infinity;
+			return l - r || left.label.localeCompare(right.label) || left.id - right.id;
+		});
+
+	for (const [temporalRank, component] of datedComponents.entries()) {
+		component.level = Math.max(component.level, temporalRank);
+	}
+
+	// Re-apply dependency constraints after temporal nudging.
+	for (const component of [...components].sort((a, b) => a.level - b.level || a.id - b.id)) {
+		for (const nextId of component.outgoing) {
+			const next = components[nextId];
+			next.level = Math.max(next.level, component.level + 1);
+		}
+	}
+
 	// Compute chain groups from weakly-connected components so converging
 	// dependencies remain in the same visual chain cluster.
 	const chainGroups = computeChainGroups(components);
@@ -326,7 +376,11 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 			const orderedPaths = [...component.paths].sort((left, right) => {
 				const leftTask = taskByPath.get(left);
 				const rightTask = taskByPath.get(right);
-				return (leftTask?.name ?? left).localeCompare(rightTask?.name ?? right) || left.localeCompare(right);
+				const leftDate = leftTask ? getDateKey(leftTask) : Infinity;
+				const rightDate = rightTask ? getDateKey(rightTask) : Infinity;
+				return leftDate - rightDate
+					|| (leftTask?.name ?? left).localeCompare(rightTask?.name ?? right)
+					|| left.localeCompare(right);
 			});
 
 			for (const [index, path] of orderedPaths.entries()) {
@@ -337,7 +391,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 				nodes.push({
 					path,
 					task,
-					laneKey: task.parent_task ?? null,
+					laneKey: resolveNodeLaneKey(task, taskByPath),
 					column: level,
 					row,
 					x: padding + level * (nodeWidth + horizontalGap),
@@ -356,45 +410,58 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		}
 	}
 
-	// Lane compaction pass: remove empty row indices while preserving relative
-	// ordering/alignment produced by the chain + interchain sort.
-	if (nodes.length > 0) {
-		const usedRows = [...new Set(nodes.map((node) => node.row))].sort((left, right) => left - right);
-		const rowMap = new Map<number, number>();
-		for (const [index, row] of usedRows.entries()) {
-			rowMap.set(row, index);
-		}
+	// Lane compaction pass: make rows contiguous inside project lanes so lane
+	// headers are meaningful and edge crossings are reduced by local ordering.
+	const laneAssignments = buildLaneAssignment(visibleTasks);
+	const laneKeysSorted = [...laneAssignments.keys()].sort((left, right) => {
+		if (left === null) return 1;
+		if (right === null) return -1;
+		const leftLabel = taskByPath.get(left)?.name ?? left;
+		const rightLabel = taskByPath.get(right)?.name ?? right;
+		return leftLabel.localeCompare(rightLabel);
+	});
 
-		for (const node of nodes) {
-			const compactRow = rowMap.get(node.row) ?? node.row;
+	const laneBands = new Map<string | null, LaneBand>();
+	let laneRowCursor = 0;
+	for (const laneKey of laneKeysSorted) {
+		const laneNodes = nodes
+			.filter((node) => node.laneKey === laneKey)
+			.sort((left, right) => left.row - right.row || left.column - right.column || left.path.localeCompare(right.path));
+
+		if (laneNodes.length === 0) continue;
+
+		const startRow = laneRowCursor;
+		for (const [index, node] of laneNodes.entries()) {
+			const compactRow = laneRowCursor + index;
 			node.row = compactRow;
 			node.y = padding + compactRow * (nodeHeight + verticalGap);
 		}
 
-		maxRow = usedRows.length - 1;
+		const endRow = laneRowCursor + laneNodes.length - 1;
+		laneBands.set(laneKey, {
+			startRow,
+			endRow,
+			paths: laneNodes.map((node) => node.path),
+		});
+
+		// Leave one row gap between lanes for readability.
+		laneRowCursor = endRow + 2;
 	}
+
+	maxRow = Math.max(-1, laneRowCursor - 2);
 
 	nodes.sort((left, right) => left.column - right.column || left.row - right.row || left.path.localeCompare(right.path));
 
-	// Build lanes from grouped nodes
-	const lanesByKey = new Map<string | null, TaskGraphNode[]>();
-	for (const node of nodes) {
-		if (!lanesByKey.has(node.laneKey)) {
-			lanesByKey.set(node.laneKey, []);
-		}
-		lanesByKey.get(node.laneKey)?.push(node);
-	}
-
-	// Sort lanes: projects first (by name), then unassigned
+	// Build lanes from packed lane bands.
 	const lanes: GraphLane[] = [];
-	const projectLanes: [string, TaskGraphNode[]][] = [];
-	let unassignedLane: [string | null, TaskGraphNode[]] | null = null;
+	const projectLanes: [string, LaneBand][] = [];
+	let unassignedLane: [string | null, LaneBand] | null = null;
 
-	for (const [laneKey, laneNodes] of lanesByKey) {
+	for (const [laneKey, laneBand] of laneBands) {
 		if (laneKey === null) {
-			unassignedLane = [laneKey, laneNodes];
+			unassignedLane = [laneKey, laneBand];
 		} else {
-			projectLanes.push([laneKey, laneNodes]);
+			projectLanes.push([laneKey, laneBand]);
 		}
 	}
 
@@ -406,32 +473,26 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	});
 
 	// Build lane descriptors
-	for (const [laneKey, laneNodes] of projectLanes) {
-		const sortedByRow = [...laneNodes].sort((a, b) => a.row - b.row);
-		const startRow = Math.min(...sortedByRow.map((n) => n.row));
-		const endRow = Math.max(...sortedByRow.map((n) => n.row));
+	for (const [laneKey, laneBand] of projectLanes) {
 		const label = taskByPath.get(laneKey)?.name ?? laneKey;
 		lanes.push({
 			key: laneKey,
 			label,
-			taskPaths: sortedByRow.map((n) => n.path),
-			startRow,
-			endRow,
+			taskPaths: laneBand.paths,
+			startRow: laneBand.startRow,
+			endRow: laneBand.endRow,
 		});
 	}
 
 	if (unassignedLane) {
-		const [laneKey, laneNodes] = unassignedLane;
-		const sortedByRow = [...laneNodes].sort((a, b) => a.row - b.row);
-		const startRow = Math.min(...sortedByRow.map((n) => n.row), Infinity);
-		const endRow = Math.max(...sortedByRow.map((n) => n.row), -Infinity);
-		if (sortedByRow.length > 0) {
+		const [, laneBand] = unassignedLane;
+		if (laneBand.paths.length > 0) {
 			lanes.push({
 				key: null,
 				label: 'Unassigned',
-				taskPaths: sortedByRow.map((n) => n.path),
-				startRow,
-				endRow,
+				taskPaths: laneBand.paths,
+				startRow: laneBand.startRow,
+				endRow: laneBand.endRow,
 			});
 		}
 	}
