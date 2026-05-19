@@ -28,6 +28,7 @@
 	const DEPENDENCY_LANE_MIN_WIDTH = 112;
 	const DEPENDENCY_LANE_MAX_WIDTH = 148;
 	const DEPENDENCY_LANE_COMPACT_HEIGHT = 132;
+	const DEPENDENCY_LANE_ROTATE_LABEL_LENGTH = 14;
 	const DEPENDENCY_GRAPH_PADDING = DEPENDENCY_LANE_GUTTER + 20;
 	const OVERVIEW_PIXELS_PER_DAY = 54;
 	const HYBRID_ROW_HEIGHT = 34;
@@ -56,15 +57,20 @@
 
 	$: tasks = flattenTaskGroups($groups);
 	$: connectedDependencyPaths = resolveConnectedDependencyPaths(tasks);
-	$: dependencyGraphTasks = showIndependentInDependency || connectedDependencyPaths.size === 0
-		? tasks.filter((task) => task.type === 'task')
-		: tasks.filter((task) => {
-			if (task.type !== 'task') return false;
-			// Always include project-assigned tasks (part of a project lane)
-			if (task.parent_task) return true;
-			// For unassigned/independent tasks, only include if they have dependencies
-			return connectedDependencyPaths.has(task.path);
-		});
+	$: dependencyGraphTasks = (() => {
+		const projectRecords = tasks.filter((task) => task.type === 'project');
+		const dependencyTasks = (showIndependentInDependency || connectedDependencyPaths.size === 0
+			? tasks.filter((task) => task.type === 'task')
+			: tasks.filter((task) => {
+				if (task.type !== 'task') return false;
+				// Always include project-assigned tasks (part of a project lane)
+				if (task.parent_task) return true;
+				// For unassigned/independent tasks, only include if they have dependencies
+				return connectedDependencyPaths.has(task.path);
+			}));
+
+		return [...projectRecords, ...dependencyTasks];
+	})();
 	$: hiddenIndependentCount = Math.max(
 		0,
 		tasks
@@ -321,8 +327,10 @@
 		dependencyScrollLeft = target?.scrollLeft ?? 0;
 	}
 
-	function laneHeaderClass(lane: { heightPx: number }): string {
-		return lane.heightPx < DEPENDENCY_LANE_COMPACT_HEIGHT ? 'tt-dependency-lane-header is-compact' : 'tt-dependency-lane-header';
+	function laneHeaderClass(lane: { label: string; heightPx: number }): string {
+		const compact = lane.heightPx < DEPENDENCY_LANE_COMPACT_HEIGHT;
+		const rotate = compact || lane.label.length >= DEPENDENCY_LANE_ROTATE_LABEL_LENGTH;
+		return `tt-dependency-lane-header${compact ? ' is-compact' : ''}${rotate ? ' is-rotated' : ''}`;
 	}
 
 	function computeDependencyLaneWidth(lanes: Array<{ label: string }>): number {
@@ -1160,7 +1168,7 @@
 		gap: 6px;
 	}
 
-	.tt-dependency-lane-header.is-compact .tt-dependency-lane-label {
+	.tt-dependency-lane-header.is-rotated .tt-dependency-lane-label {
 		display: block;
 		line-height: 1.05;
 		max-height: none;

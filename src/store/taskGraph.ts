@@ -1,4 +1,6 @@
 import type { Task } from '../types';
+import { ensureMdExt } from '../utils/pathUtils';
+import { parseWikiLink } from '../utils/wikiLink';
 import { optimizeLaneOrderForCrossings } from './graphCrossingOptimizer';
 
 export interface TaskGraphNode {
@@ -284,16 +286,33 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		componentDateKey.set(component.id, minDate);
 	}
 
-	const datedComponents = [...components]
-		.filter((component) => Number.isFinite(componentDateKey.get(component.id) ?? Infinity))
-		.sort((left, right) => {
+	const datedComponentsByLane = new Map<string | null, ComponentInfo[]>();
+	for (const component of components) {
+		const dateKey = componentDateKey.get(component.id) ?? Infinity;
+		if (!Number.isFinite(dateKey)) continue;
+
+		const laneKeys = new Set<string | null>();
+		for (const path of component.paths) {
+			const componentTask = taskByPath.get(path);
+			if (!componentTask) continue;
+			laneKeys.add(resolveOwningProjectPath(componentTask, allTaskByPath));
+		}
+		const laneKey = laneKeys.size === 1 ? [...laneKeys][0] : null;
+		const bucket = datedComponentsByLane.get(laneKey) ?? [];
+		bucket.push(component);
+		datedComponentsByLane.set(laneKey, bucket);
+	}
+
+	for (const laneComponents of datedComponentsByLane.values()) {
+		laneComponents.sort((left, right) => {
 			const l = componentDateKey.get(left.id) ?? Infinity;
 			const r = componentDateKey.get(right.id) ?? Infinity;
 			return l - r || left.label.localeCompare(right.label) || left.id - right.id;
 		});
 
-	for (const [temporalRank, component] of datedComponents.entries()) {
-		component.level = Math.max(component.level, temporalRank);
+		for (const [temporalRank, component] of laneComponents.entries()) {
+			component.level = Math.max(component.level, temporalRank);
+		}
 	}
 
 	// Re-apply dependency constraints after temporal nudging.
@@ -685,7 +704,10 @@ function computeChainGroups(components: ComponentInfo[]): Map<number, number> {
 
 function normalizeTaskPath(path: string | null | undefined): string | null {
 	if (!path) return null;
-	return path.endsWith('.md') ? path : `${path}.md`;
+	const wikiPath = parseWikiLink(path);
+	const normalized = (wikiPath ?? path).trim();
+	if (!normalized) return null;
+	return ensureMdExt(normalized);
 }
 
 function dedupePaths(paths: string[]): string[] {

@@ -135,6 +135,19 @@ describe('buildTaskGraph', () => {
 		expect(workNode?.laneKey).toBe('Tasks/proj-a.md');
 	});
 
+	it('uses project name for lane labels when parent_task is stored as an aliased wikilink', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/1a2b3c-platform-refresh.md', name: 'Platform Refresh', type: 'project' }),
+			makeTask({ path: 'Tasks/work-a.md', name: 'Work A', parent_task: '[[Tasks/1a2b3c-platform-refresh|Platform Refresh]]' }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const laneByLabel = new Map(layout.lanes.map((lane) => [lane.label, lane]));
+
+		expect(laneByLabel.has('Platform Refresh')).toBe(true);
+		expect(laneByLabel.get('Platform Refresh')?.taskPaths).toContain('Tasks/work-a.md');
+	});
+
 	it('nudges independent tasks left-to-right by approximate date ordering', () => {
 		const tasks = [
 			makeTask({ path: 'Tasks/soon.md', name: 'Soon', due_date: '2026-06-02' }),
@@ -157,6 +170,21 @@ describe('buildTaskGraph', () => {
 		const columns = new Map(layout.nodes.map((node) => [node.path, node.column]));
 
 		expect(columns.get('Tasks/b.md')).toBeGreaterThan(columns.get('Tasks/a.md') ?? -1);
+	});
+
+	it('applies temporal left-right ordering per lane rather than globally across unrelated lanes', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/proj-a.md', name: 'Project A', type: 'project' }),
+			makeTask({ path: 'Tasks/proj-b.md', name: 'Project B', type: 'project' }),
+			makeTask({ path: 'Tasks/a.md', name: 'A', parent_task: 'Tasks/proj-a', due_date: '2026-06-01' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', parent_task: 'Tasks/proj-b', due_date: '2026-07-01' }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const columns = new Map(layout.nodes.map((node) => [node.path, node.column]));
+
+		expect(columns.get('Tasks/a.md')).toBe(0);
+		expect(columns.get('Tasks/b.md')).toBe(0);
 	});
 
 	it('reduces same-lane column-pair crossings for dense dependency patterns', () => {
