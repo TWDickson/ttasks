@@ -402,7 +402,7 @@
 		</div>
 		<p class="tt-graph-note">
 			{#if graphMode === 'dependency'}
-				Graph respects current filters. Amber paths have unfinished upstream dependencies. Red rings mark cycles. Independent tasks are hidden by default to keep the dependency map readable.
+				Graph respects current filters. Solid amber paths have unfinished upstream dependencies. Dashed gray paths show project containment. Red rings mark cycles. Independent tasks are hidden by default to keep the dependency map readable.
 			{:else}
 				Defined track shows dated/inferred windows. Underdefined track shows no-estimate tasks that anchor after resolved upstream work. Timeline opens focused around today; drag horizontally for history/future.
 			{/if}
@@ -428,6 +428,7 @@
 									class="tt-graph-edge"
 									class:is-cycle={edge.isCycle}
 									class:is-blocked={edge.isBlockedChain}
+									class:is-parent={edge.isParentEdge}
 									d={edgePath(edge)}
 									marker-end="url(#ttasks-graph-arrow)"
 								></path>
@@ -1019,6 +1020,13 @@
 		stroke: var(--color-orange);
 		color: var(--color-orange);
 		stroke-dasharray: 8 6;
+	}
+
+	.tt-graph-edge.is-parent {
+		stroke: color-mix(in srgb, var(--text-faint) 45%, transparent);
+		color: color-mix(in srgb, var(--text-faint) 45%, transparent);
+		stroke-dasharray: 4 4;
+		opacity: 0.55;
 	}
 
 	.tt-graph-edge.is-cycle {

@@ -22,6 +22,7 @@ export interface TaskGraphEdge {
 	to: string;
 	isCycle: boolean;
 	isBlockedChain: boolean;
+	isParentEdge: boolean;
 }
 
 export interface TaskGraphLayout {
@@ -68,8 +69,8 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	const verticalGap = options.verticalGap ?? DEFAULT_VERTICAL_GAP;
 	const padding = options.padding ?? DEFAULT_PADDING;
 
+	// Include all tasks and projects for graph visualization
 	const visibleTasks = [...tasks]
-		.filter((task) => task.type !== 'project')
 		.sort((left, right) => left.name.localeCompare(right.name) || left.path.localeCompare(right.path));
 
 	if (visibleTasks.length === 0) {
@@ -113,7 +114,25 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 				to: task.path,
 				isCycle: false,
 				isBlockedChain: false,
+				isParentEdge: false,
 			});
+		}
+
+		// Add parent-task containment edges
+		if (task.parent_task) {
+			const parentPath = normalizeTaskPath(task.parent_task);
+			if (parentPath && taskByPath.has(parentPath)) {
+				const parentTaskPath = parentPath;
+				// Parent edges don't affect topological ordering, so we don't add to adjacency/incoming
+				edges.push({
+					id: `${parentTaskPath}=>${task.path}`,
+					from: parentTaskPath,
+					to: task.path,
+					isCycle: false,
+					isBlockedChain: false,
+					isParentEdge: true,
+				});
+			}
 		}
 	}
 
@@ -166,6 +185,8 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 
 	const blockedPaths = new Set<string>();
 	for (const edge of edges) {
+		// Parent edges are containment relationships, not blocking dependencies
+		if (edge.isParentEdge) continue;
 		const dependencyTask = taskByPath.get(edge.from);
 		if (!dependencyTask) continue;
 		if (dependencyTask.is_complete) continue;
