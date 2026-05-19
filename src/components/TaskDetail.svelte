@@ -212,11 +212,65 @@
 		void saveImmediate({ status: nextStatus });
 	}
 
+	function onNameFieldChange(nextValue: string): void {
+		name = nextValue;
+		saveDebounced('name', { name: nextValue });
+	}
+
 	function onPriorityFieldChange(nextValue: string | string[]): void {
 		if (typeof nextValue !== 'string') return;
 		const nextPriority = nextValue as TaskPriority;
 		priority = nextPriority;
 		void saveImmediate({ priority: nextPriority });
+	}
+
+	function onAreaFieldChange(nextValue: string): void {
+		area = nextValue;
+		void saveImmediate({ area: nextValue || null });
+	}
+
+	function onLabelsFieldChange(nextValue: string): void {
+		selectedLabels = nextValue ? [nextValue] : [];
+		void saveImmediate({ labels: selectedLabels });
+	}
+
+	function onDueDateFieldChange(nextValue: string): void {
+		saveDueDate(nextValue);
+	}
+
+	function onStartDateFieldChange(nextValue: string): void {
+		saveStartDate(nextValue);
+	}
+
+	function onAssignedToFieldChange(nextValue: string): void {
+		assigned_to = nextValue;
+		saveDebounced('assigned_to', { assigned_to: nextValue });
+	}
+
+	function onEstimatedDaysFieldChange(nextValue: number | null): void {
+		estimated_days = normalizeEstDays(nextValue);
+		void saveImmediate({ estimated_days: estimated_days });
+	}
+
+	function onBlockedReasonFieldChange(nextValue: string): void {
+		blocked_reason = nextValue;
+		saveDebounced('blocked_reason', { blocked_reason: nextValue });
+	}
+
+	function onRecurrenceFieldChange(nextValue: string): void {
+		recurrence = nextValue || null;
+		if (!recurrence) recurrence_type = null;
+		void saveImmediate({ recurrence: recurrence || null, recurrence_type: recurrence_type || null });
+	}
+
+	function onRecurrenceTypeFieldChange(nextValue: string): void {
+		recurrence_type = nextValue || null;
+		void saveImmediate({ recurrence_type: recurrence_type || null });
+	}
+
+	function onReminderOverrideFieldChange(nextValue: string): void {
+		const reminderOverride = nextValue === 'urgent' || nextValue === 'mute' ? nextValue : null;
+		void saveImmediate({ reminder_override: reminderOverride });
 	}
 
 	function getInlineFieldProps(fieldName: keyof Task): FieldComponentProps | null {
@@ -344,6 +398,25 @@
 		activeTaskPath.set(resolved);
 	}
 
+	function openParentProject(): void {
+		openLinkedPath(parent_task_path);
+	}
+
+	function openTaskFromRelationships(path: string): void {
+		activeTaskPath.set(path);
+	}
+
+	function openTaskInEditor(): void {
+		if (!task) return;
+		store.openFile(task.path);
+	}
+
+	async function archiveTask(): Promise<void> {
+		if (!task || !task.is_complete) return;
+		await plugin.archiveService.archiveTask(task.path);
+		activeTaskPath.set(null);
+	}
+
 	// ── Dependency callbacks (passed to TaskDetailRelationships) ────────────────
 
 	async function addDependency(depPath: string): Promise<void> {
@@ -385,10 +458,7 @@
 				<TextField
 					{...nameFieldProps}
 					value={name}
-					onChange={(nextValue) => {
-						name = nextValue;
-						saveDebounced('name', { name: nextValue });
-					}}
+					onChange={onNameFieldChange}
 				/>
 			{/if}
 			{#if saving}
@@ -434,10 +504,7 @@
 					{...areaFieldProps}
 					value={area}
 					options={areaOptions}
-					onChange={(nextValue) => {
-						area = nextValue;
-						void saveImmediate({ area: nextValue || null });
-					}}
+					onChange={onAreaFieldChange}
 				/>
 			{/if}
 
@@ -456,7 +523,7 @@
 						<button
 							class="tt-parent-task-open"
 							title="Open parent project"
-							on:click={() => openLinkedPath(parent_task_path)}
+							on:click={openParentProject}
 							aria-label="Open parent project"
 						>↗</button>
 					{/if}
@@ -468,10 +535,7 @@
 						{...labelsFieldProps}
 						value={selectedLabels[0] ?? ''}
 						options={labelOptions}
-						onChange={(nextValue) => {
-							selectedLabels = nextValue ? [nextValue] : [];
-							void saveImmediate({ labels: selectedLabels });
-						}}
+						onChange={onLabelsFieldChange}
 					/>
 				{/if}
 			{/if}
@@ -481,9 +545,7 @@
 				<DateField
 					{...dueDateFieldProps}
 					value={due_date}
-					onChange={(nextValue) => {
-						saveDueDate(nextValue);
-					}}
+					onChange={onDueDateFieldChange}
 				/>
 			{/if}
 
@@ -492,9 +554,7 @@
 				<DateField
 					{...startDateFieldProps}
 					value={start_date}
-					onChange={(nextValue) => {
-						saveStartDate(nextValue);
-					}}
+					onChange={onStartDateFieldChange}
 				/>
 			{/if}
 
@@ -503,10 +563,7 @@
 				<TextField
 					{...assignedToFieldProps}
 					value={assigned_to}
-					onChange={(nextValue) => {
-						assigned_to = nextValue;
-						saveDebounced('assigned_to', { assigned_to: nextValue });
-					}}
+					onChange={onAssignedToFieldChange}
 				/>
 			{/if}
 
@@ -517,10 +574,7 @@
 					value={estimated_days}
 					min={0}
 					step={0.5}
-					onChange={(nextValue) => {
-						estimated_days = normalizeEstDays(nextValue);
-						void saveImmediate({ estimated_days: estimated_days });
-					}}
+					onChange={onEstimatedDaysFieldChange}
 				/>
 			{/if}
 
@@ -530,10 +584,7 @@
 					<TextField
 						{...blockedReasonFieldProps}
 						value={blocked_reason}
-						onChange={(nextValue) => {
-							blocked_reason = nextValue;
-							saveDebounced('blocked_reason', { blocked_reason: nextValue });
-						}}
+						onChange={onBlockedReasonFieldChange}
 					/>
 				{/if}
 			{/if}
@@ -545,11 +596,7 @@
 					value={recurrence ?? ''}
 					options={recurrenceOptions}
 					optionLabels={RECURRENCE_LABELS}
-					onChange={(nextValue) => {
-						recurrence = nextValue || null;
-						if (!recurrence) recurrence_type = null;
-						void saveImmediate({ recurrence: recurrence || null, recurrence_type: recurrence_type || null });
-					}}
+					onChange={onRecurrenceFieldChange}
 				/>
 			{/if}
 
@@ -560,10 +607,7 @@
 					value={recurrence_type ?? ''}
 					options={recurrenceTypeOptions}
 					optionLabels={RECURRENCE_TYPE_LABELS}
-					onChange={(nextValue) => {
-						recurrence_type = nextValue || null;
-						void saveImmediate({ recurrence_type: recurrence_type || null });
-					}}
+					onChange={onRecurrenceTypeFieldChange}
 				/>
 			{/if}
 
@@ -574,10 +618,7 @@
 					value={task.reminder_override ?? ''}
 					options={reminderOverrideOptions}
 					optionLabels={reminderOverrideLabels}
-					onChange={(nextValue) => {
-						const v = nextValue === 'urgent' || nextValue === 'mute' ? nextValue : null;
-						void saveImmediate({ reminder_override: v });
-					}}
+					onChange={onReminderOverrideFieldChange}
 				/>
 			{/if}
 		</div>
@@ -589,7 +630,7 @@
 				{plugin}
 				onAddDependency={addDependency}
 				onRemoveDependency={removeDependency}
-				onOpenTask={(path) => activeTaskPath.set(path)}
+				onOpenTask={openTaskFromRelationships}
 			/>
 		{/if}
 
@@ -598,12 +639,9 @@
 		<TaskDetailActions
 			{task}
 			onMarkComplete={markComplete}
-			onOpenInEditor={() => store.openFile(task.path)}
+			onOpenInEditor={openTaskInEditor}
 			onDelete={confirmDelete}
-			onArchive={task.is_complete ? async () => {
-				await plugin.archiveService.archiveTask(task.path);
-				activeTaskPath.set(null);
-			} : undefined}
+			onArchive={task.is_complete ? archiveTask : undefined}
 		/>
 
 	</div>
