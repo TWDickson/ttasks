@@ -2,7 +2,7 @@ import type { FieldDefinition } from '../schema/types';
 import type { TaskSettings } from '../schema/types';
 import { taskFields } from '../schema/taskFields';
 import { adaptFieldForModal } from '../schema/fieldAdapters';
-import { resolveOptionsForDefinition } from '../schema/optionResolver';
+import { resolveOptionColorsForDefinition, resolveOptionsForDefinition } from '../schema/optionResolver';
 import type { Task } from '../types';
 
 /**
@@ -131,9 +131,14 @@ export function getFieldOptions(
 /**
  * Get color for an option value
  */
-export function getOptionColor(value: string, field: FieldDefinition): string | null {
-	if (!field.optionColors) {
-		return null;
-	}
-	return field.optionColors[value] ?? null;
+/**
+ * Get color for an option value using the same resolver path as detail views.
+ */
+export function getOptionColor(
+	value: string,
+	field: FieldDefinition,
+	settings: TaskSettings
+): string | null {
+	const colors = resolveOptionColorsForDefinition(field, settings);
+	return colors[value] ?? null;
 }

@@ -7,7 +7,7 @@ import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYP
 import { PRIORITY_COLORS } from '../constants';
 import { localDateString } from '../utils/dateUtils';
 import { sortDependencyFirst } from '../components/dependencySort';
-import { getFieldsGroupedBySection, isFieldVisible, getFieldOptions, getOptionColor } from './modalFieldHelpers';
+import { getFieldOptions, getOptionColor } from './modalFieldHelpers';
 import { taskFields } from '../schema/taskFields';
 
 const MOBILE_QUICK_CREATE_PREF_KEY = 'ttasks.mobileQuickCreate';
@@ -55,11 +55,15 @@ export class CreateTaskModal extends Modal {
 	}
 
 	private get areas(): string[] {
-		return ['', ...(this.plugin.settings.areas ?? [])];
+		const areaDefinition = taskFields.find(f => f.name === 'area');
+		const areaOptions = areaDefinition ? getFieldOptions(areaDefinition, this.plugin.settings) : [];
+		return ['', ...areaOptions];
 	}
 
 	private get statuses(): TaskStatus[] {
-		return this.plugin.settings.statuses ?? ['Active'];
+		const statusDefinition = taskFields.find(f => f.name === 'status');
+		const statusOptions = statusDefinition ? getFieldOptions(statusDefinition, this.plugin.settings) : ['Active'];
+		return (statusOptions.length > 0 ? statusOptions : ['Active']) as TaskStatus[];
 	}
 
 	private get statusColors(): Record<string, string> {
@@ -621,7 +625,7 @@ export class CreateTaskModal extends Modal {
 	}
 
 	private applyOptionStyle(btn: HTMLButtonElement, value: string, field: any) {
-		const color = getOptionColor(value, field);
+		const color = getOptionColor(value, field, this.plugin.settings);
 		if (color) {
 			btn.style.background = color;
 			btn.style.borderColor = color;
