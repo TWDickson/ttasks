@@ -2,6 +2,7 @@ import { ItemView, WorkspaceLeaf } from 'obsidian';
 import type TTasksPlugin from '../main';
 import TaskBoard from '../components/TaskBoard.svelte';
 import { DEFAULT_KEYMAP, isInputFocused, resolveShortcut } from '../integration/boardKeymap';
+import { runArchiveAndClear } from '../integration/taskActionPorts';
 
 export const TASK_BOARD_VIEW_TYPE = 'ttasks-board';
 
@@ -65,8 +66,9 @@ export class TaskBoardView extends ItemView {
 				if (id === 'open') {
 					void this.plugin.taskStore.openDetail(path);
 				} else if (id === 'archive') {
-					void this.plugin.archiveService.archiveTask(path).then(() => {
-						this.plugin.activeTaskPath.set(null);
+					void runArchiveAndClear(path, {
+						archiveTask: (taskPath) => this.plugin.archiveService.archiveTask(taskPath),
+						setActiveTaskPath: (nextPath) => this.plugin.activeTaskPath.set(nextPath),
 					});
 				} else {
 					const action = id as 'start' | 'complete' | 'defer';

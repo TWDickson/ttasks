@@ -16,6 +16,7 @@ import { TaskLinkSuggestModal } from './editor/TaskLinkSuggestModal';
 import { buildAliasedLink } from './integration/relationshipLink';
 import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
 import { localDateString } from './utils/dateUtils';
+import { createTaskContextMenuDeps } from './integration/taskActionPorts';
 
 export type BoardViewMode = string;
 
@@ -221,35 +222,21 @@ export default class TTasksPlugin extends Plugin {
 	}
 
 	private buildContextCallbacks(): TaskContextMenuDeps {
-		return {
-			openTask: (path) => { void this.taskStore.openDetail(path); },
+		return createTaskContextMenuDeps({
+			openTaskDetail: (path) => this.taskStore.openDetail(path),
 			runQuickAction: (action, path) => this.runQuickAction(action, path),
-			convertToProject: async (path) => {
-				await this.taskStore.convertToProject(path);
-				new Notice('TTasks: converted to project');
-			},
-			duplicateTask: async (path) => {
-				const created = await this.taskStore.duplicate(path);
-				if (created) {
-					this.activeTaskPath.set(created.path);
-					new Notice(`TTasks: duplicated as "${created.name}"`);
-				}
-			},
-			deleteTask: (path) => this.taskStore.delete(path, { prompt: true }),
-			restoreTask: async (path) => {
-				await this.taskStore.restore(path);
-				new Notice('TTasks: task reopened');
-			},
-			createDependent: async (path) => {
+			convertToProject: (path) => this.taskStore.convertToProject(path),
+			duplicateTask: (path) => this.taskStore.duplicate(path),
+			deleteTask: (path, options) => this.taskStore.delete(path, options),
+			restoreTask: (path) => this.taskStore.restore(path),
+			archiveTask: (path) => this.archiveService.archiveTask(path),
+			setActiveTaskPath: (path) => this.activeTaskPath.set(path),
+			notice: (message) => { new Notice(message); },
+			createDependentTask: (path) => {
 				const depPath = path.replace(/\.md$/, '');
 				new CreateTaskModal(this.app, this, 'task', { initialDependsOn: [depPath] }).open();
 			},
-			archiveTask: async (path) => {
-				await this.archiveService.archiveTask(path);
-				this.activeTaskPath.set(null);
-				new Notice('TTasks: task archived.');
-			},
-		};
+		});
 	}
 
 	private startAutoArchive(): void {
