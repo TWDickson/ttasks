@@ -7,10 +7,10 @@
 	import { resolveCompletionStatus } from '../settings';
 	import { RECURRENCE_LABELS, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 	import { localDateString } from '../utils/dateUtils';
-	import { resolveFieldOptionColors, resolveFieldOptions } from '../schema/optionResolver';
 	import { isBlockedStatus } from '../schema/fieldVisibility';
 	import { getFieldByName } from '../schema/taskFields';
 	import { adaptFieldForDetail, type FieldComponentProps } from '../schema/fieldAdapters';
+	import { deriveTaskDetailOptionState } from './taskDetailOptions';
 	import TextField from './fields/TextField.svelte';
 	import SelectField from './fields/SelectField.svelte';
 	import DateField from './fields/DateField.svelte';
@@ -199,12 +199,6 @@
 		return value;
 	}
 
-	function withCurrentOption(base: string[], current: string | null): string[] {
-		if (!current) return base;
-		if (base.includes(current)) return base;
-		return [...base, current];
-	}
-
 	function onStatusFieldChange(nextValue: string | string[]): void {
 		if (typeof nextValue !== 'string') return;
 		const nextStatus = nextValue as TaskStatus;
@@ -330,15 +324,35 @@
 	};
 
 	// ── Constants ───────────────────────────────────────────────────────────────
-	let priorityOptions: TaskPriority[] = ['High', 'Medium', 'Low', 'None'];
+	let priorityOptions: TaskPriority[] = [];
+	let statusOptions: string[] = [];
+	let areaOptions: string[] = [];
+	let labelOptions: string[] = [];
+	let recurrenceOptions: string[] = [];
+	let recurrenceTypeOptions: string[] = [];
+	let reminderOverrideOptions: string[] = [];
+	let statusOptionColors: Record<string, string> = {};
+	let priorityOptionColors: Record<string, string> = {};
 
 	$: {
-		const resolvedPriorityOptions = resolveFieldOptions('priority', plugin.settings) as TaskPriority[];
-		priorityOptions = resolvedPriorityOptions.length > 0
-			? resolvedPriorityOptions
-			: ['High', 'Medium', 'Low', 'None'];
+		const detailOptions = deriveTaskDetailOptionState({
+			settings: plugin.settings,
+			status: status || null,
+			area: area || null,
+			selectedLabel: selectedLabels[0] ?? null,
+		});
+
+		priorityOptions = detailOptions.priorityOptions;
+		statusOptions = detailOptions.statusOptions;
+		areaOptions = detailOptions.areaOptions;
+		labelOptions = detailOptions.labelOptions;
+		recurrenceOptions = detailOptions.recurrenceOptions;
+		recurrenceTypeOptions = detailOptions.recurrenceTypeOptions;
+		reminderOverrideOptions = detailOptions.reminderOverrideOptions;
+		statusOptionColors = detailOptions.statusOptionColors;
+		priorityOptionColors = detailOptions.priorityOptionColors;
 	}
-	$: statusOptions = withCurrentOption(resolveFieldOptions('status', plugin.settings), status || null);
+
 	$: completionStatus = getCompletionStatus();
 	$: blockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
 	$: showBlockedReason = isBlockedStatus(status, blockStatus);
@@ -350,13 +364,6 @@
 	$: recurrenceTypeFieldProps = getInlineFieldProps('recurrence_type');
 	$: reminderOverrideFieldProps = getInlineFieldProps('reminder_override');
 	$: estimatedDaysFieldProps = getInlineFieldProps('estimated_days');
-	$: areaOptions = ['', ...withCurrentOption(resolveFieldOptions('area', plugin.settings), area || null)];
-	$: labelOptions = ['', ...withCurrentOption(resolveFieldOptions('labels', plugin.settings), selectedLabels[0] ?? null)];
-	$: recurrenceOptions = resolveFieldOptions('recurrence', plugin.settings);
-	$: recurrenceTypeOptions = resolveFieldOptions('recurrence_type', plugin.settings);
-	$: reminderOverrideOptions = resolveFieldOptions('reminder_override', plugin.settings);
-	$: statusOptionColors = resolveFieldOptionColors('status', plugin.settings);
-	$: priorityOptionColors = resolveFieldOptionColors('priority', plugin.settings);
 	$: areaFieldProps = getInlineFieldProps('area');
 	$: labelsFieldProps = getInlineFieldProps('labels');
 	$: dueDateFieldProps = getInlineFieldProps('due_date');
