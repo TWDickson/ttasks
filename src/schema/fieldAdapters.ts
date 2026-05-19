@@ -2,6 +2,7 @@ import type { FieldDefinition, FieldContext, TaskSettings } from './types';
 import type { Task } from '../types';
 import { getVisibleFields, sortDependencies } from './fieldRenderers';
 import { parseWikiLink } from '../utils/wikiLink';
+import { resolveOptionsForDefinition } from './optionResolver';
 
 /**
  * Props object for field component rendering
@@ -75,10 +76,11 @@ export function adaptFieldForModal(
 		const parentTaskPath = values.parent_task?.replace(/\.md$/, '');
 		options = sortDependencies(allTasks, parentTaskPath);
 	} else if (field.type === 'select' || field.type === 'chips') {
-		if (Array.isArray(field.options)) {
-			options = field.options;
-		}
-		// from-settings and computed options resolved by component
+		options = resolveOptionsForDefinition(field, settings, {
+			values,
+			allTasks,
+			settings,
+		});
 	}
 
 	return {
@@ -132,9 +134,11 @@ export function adaptFieldForDetail(
 		const parentTaskPath = values.parent_task?.replace(/\.md$/, '');
 		options = sortDependencies(allTasks, parentTaskPath);
 	} else if (field.type === 'select' || field.type === 'chips') {
-		if (Array.isArray(field.options)) {
-			options = field.options;
-		}
+		options = resolveOptionsForDefinition(field, settings, {
+			values,
+			allTasks,
+			settings,
+		});
 	}
 
 	return {

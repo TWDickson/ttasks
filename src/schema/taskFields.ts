@@ -1,5 +1,6 @@
 import type { FieldDefinition, ValidationRule } from './types';
 import type { Task } from '../types';
+import { isBlockedStatus } from './fieldVisibility';
 
 /**
  * Validation rules for fields.
@@ -230,7 +231,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		type: 'text',
 		section: 'advanced',
 		placeholder: 'Why is this task blocked?',
-		visible: (values) => values.status === 'Blocked',
+		visible: (values) => isBlockedStatus(values.status, values.blockStatus),
 	},
 
 	{

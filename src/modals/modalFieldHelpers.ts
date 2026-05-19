@@ -2,6 +2,7 @@ import type { FieldDefinition } from '../schema/types';
 import type { TaskSettings } from '../schema/types';
 import { taskFields } from '../schema/taskFields';
 import { adaptFieldForModal } from '../schema/fieldAdapters';
+import { resolveOptionsForDefinition } from '../schema/optionResolver';
 import type { Task } from '../types';
 
 /**
@@ -124,21 +125,7 @@ export function getFieldOptions(
 	field: FieldDefinition,
 	settings: TaskSettings
 ): string[] {
-	if (!Array.isArray(field.options)) {
-		// from-settings or computed
-		if (typeof field.options === 'object' && 'type' in field.options) {
-			if (field.options.type === 'from-settings') {
-				const key = field.options.settingsKey as keyof TaskSettings;
-				const opts = settings[key];
-				return Array.isArray(opts) ? opts : [];
-			}
-			if (field.options.type === 'computed') {
-				return field.options.compute(settings, {});
-			}
-		}
-		return [];
-	}
-	return field.options;
+	return resolveOptionsForDefinition(field, settings);
 }
 
 /**

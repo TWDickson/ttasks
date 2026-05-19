@@ -8,6 +8,13 @@
 	import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 	import { localDateString } from '../utils/dateUtils';
 	import { PRIORITY_COLORS } from '../constants';
+	import { resolveFieldOptions } from '../schema/optionResolver';
+	import { isBlockedStatus } from '../schema/fieldVisibility';
+	import { getFieldByName } from '../schema/taskFields';
+	import { adaptFieldForDetail, type FieldComponentProps } from '../schema/fieldAdapters';
+	import TextField from './fields/TextField.svelte';
+	import SelectField from './fields/SelectField.svelte';
+	import DateField from './fields/DateField.svelte';
 	import TaskDetailRelationships from './TaskDetailRelationships.svelte';
 	import TaskDetailNotes from './TaskDetailNotes.svelte';
 	import TaskDetailActions from './TaskDetailActions.svelte';
@@ -226,14 +233,64 @@
 		return [...base, current];
 	}
 
-	// ── Constants ───────────────────────────────────────────────────────────────
-	const PRIORITIES: TaskPriority[] = ['High', 'Medium', 'Low', 'None'];
+	function getInlineTextFieldProps(fieldName: keyof Task): FieldComponentProps | null {
+		const field = getFieldByName(fieldName);
+		if (!field) return null;
 
-	$: statusOptions = withCurrentOption(plugin.settings.statuses ?? [], status || null);
+		const props = adaptFieldForDetail(
+			field,
+			{
+				...(task ?? {}),
+				name,
+				status,
+				priority,
+				area,
+				labels: selectedLabels,
+				parent_task: parent_task_path || null,
+				due_date,
+				start_date,
+				assigned_to,
+				estimated_days,
+				blocked_reason,
+				recurrence,
+				recurrence_type,
+				blockStatus,
+			},
+			$tasks,
+			plugin.settings,
+			{}
+		);
+
+		return {
+			...props,
+			definition: {
+				...props.definition,
+				label: '',
+			},
+		};
+	}
+
+	// ── Constants ───────────────────────────────────────────────────────────────
+	let priorityOptions: TaskPriority[] = ['High', 'Medium', 'Low', 'None'];
+
+	$: {
+		const resolvedPriorityOptions = resolveFieldOptions('priority', plugin.settings) as TaskPriority[];
+		priorityOptions = resolvedPriorityOptions.length > 0
+			? resolvedPriorityOptions
+			: ['High', 'Medium', 'Low', 'None'];
+	}
+	$: statusOptions = withCurrentOption(resolveFieldOptions('status', plugin.settings), status || null);
 	$: completionStatus = getCompletionStatus();
 	$: blockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
-	$: categoryOptions = ['', ...withCurrentOption(plugin.settings.areas ?? [], area || null)];
-	$: taskTypeOptions = ['', ...withCurrentOption(plugin.settings.labelValues ?? [], selectedLabels[0] ?? null)];
+	$: showBlockedReason = isBlockedStatus(status, blockStatus);
+	$: areaOptions = ['', ...withCurrentOption(resolveFieldOptions('area', plugin.settings), area || null)];
+	$: labelOptions = ['', ...withCurrentOption(resolveFieldOptions('labels', plugin.settings), selectedLabels[0] ?? null)];
+	$: areaFieldProps = getInlineTextFieldProps('area');
+	$: labelsFieldProps = getInlineTextFieldProps('labels');
+	$: dueDateFieldProps = getInlineTextFieldProps('due_date');
+	$: startDateFieldProps = getInlineTextFieldProps('start_date');
+	$: assignedToFieldProps = getInlineTextFieldProps('assigned_to');
+	$: blockedReasonFieldProps = getInlineTextFieldProps('blocked_reason');
 	$: areaColors = plugin.settings.areaColors ?? {};
 	$: labelColors = plugin.settings.labelColors ?? {};
 	$: statusColors = plugin.settings.statusColors ?? {};
@@ -358,7 +415,7 @@
 		<div class="tt-field-group">
 			<span class="tt-label">Priority</span>
 			<div class="tt-chips">
-				{#each PRIORITIES as p}
+				{#each priorityOptions as p}
 					<button
 						class="tt-chip"
 						class:tt-chip-active={priority === p}
@@ -373,17 +430,18 @@
 
 		<!-- Fields grid -->
 		<div class="tt-fields">
-			<label class="tt-label" for="tt-area">Area</label>
-			<select
-				id="tt-area"
-				bind:value={area}
-				style={getSelectTintStyle(area ? areaColors[area] : undefined)}
-				on:change={() => saveImmediate({ area: area || null })}
-			>
-				{#each categoryOptions as c}
-					<option value={c}>{c || '— none —'}</option>
-				{/each}
-			</select>
+			<label class="tt-label" for="area">Area</label>
+			{#if areaFieldProps}
+				<SelectField
+					{...areaFieldProps}
+					value={area}
+					options={areaOptions}
+					onChange={(nextValue) => {
+						area = nextValue;
+						void saveImmediate({ area: nextValue || null });
+					}}
+				/>
+			{/if}
 
 			{#if task.type === 'task'}
 				<label class="tt-label" for="tt-parent-task">Project</label>
@@ -407,51 +465,53 @@
 					{/if}
 				</div>
 
-				<label class="tt-label" for="tt-task-type">Labels</label>
-				<select
-					id="tt-task-type"
-					value={selectedLabels[0] ?? ''}
-					style={getSelectTintStyle(selectedLabels[0] ? labelColors[selectedLabels[0]] : undefined)}
-					on:change={onLabelChange}
-				>
-					{#each taskTypeOptions as t}
-						<option value={t}>{t || '— none —'}</option>
-					{/each}
-				</select>
+				<label class="tt-label" for="labels">Labels</label>
+				{#if labelsFieldProps}
+					<SelectField
+						{...labelsFieldProps}
+						value={selectedLabels[0] ?? ''}
+						options={labelOptions}
+						onChange={(nextValue) => {
+							selectedLabels = nextValue ? [nextValue] : [];
+							void saveImmediate({ labels: selectedLabels });
+						}}
+					/>
+				{/if}
 			{/if}
 
-			<label class="tt-label" for="tt-due-date">Due Date</label>
-			<div class="tt-date-field">
-				<input
-					id="tt-due-date"
-					type="date"
-					bind:value={due_date}
-					on:input={onDueDateInput}
-					on:change={onDueDateInput}
+			<label class="tt-label" for="due_date">Due Date</label>
+			{#if dueDateFieldProps}
+				<DateField
+					{...dueDateFieldProps}
+					value={due_date}
+					onChange={(nextValue) => {
+						saveDueDate(nextValue);
+					}}
 				/>
-				<button class="tt-date-today" type="button" on:click={setDueDateToday}>Today</button>
-			</div>
+			{/if}
 
-			<label class="tt-label" for="tt-start-date">Start Date</label>
-			<div class="tt-date-field">
-				<input
-					id="tt-start-date"
-					type="date"
-					bind:value={start_date}
-					on:input={onStartDateInput}
-					on:change={onStartDateInput}
+			<label class="tt-label" for="start_date">Start Date</label>
+			{#if startDateFieldProps}
+				<DateField
+					{...startDateFieldProps}
+					value={start_date}
+					onChange={(nextValue) => {
+						saveStartDate(nextValue);
+					}}
 				/>
-				<button class="tt-date-today" type="button" on:click={setStartDateToday}>Today</button>
-			</div>
+			{/if}
 
 			<label class="tt-label" for="tt-assigned-to">Assigned To</label>
-			<input
-				id="tt-assigned-to"
-				type="text"
-				bind:value={assigned_to}
-				on:input={() => saveDebounced('assigned_to', { assigned_to })}
-				placeholder="—"
-			/>
+			{#if assignedToFieldProps}
+				<TextField
+					{...assignedToFieldProps}
+					value={assigned_to}
+					onChange={(nextValue) => {
+						assigned_to = nextValue;
+						saveDebounced('assigned_to', { assigned_to: nextValue });
+					}}
+				/>
+			{/if}
 
 			<label class="tt-label" for="tt-est-days">Est. Days</label>
 			<div class="tt-date-field">
@@ -472,15 +532,18 @@
 				{/if}
 			</div>
 
-			{#if status === blockStatus}
+			{#if showBlockedReason}
 				<label class="tt-label" for="tt-blocked-reason">Blocked Reason</label>
-				<input
-					id="tt-blocked-reason"
-					type="text"
-					bind:value={blocked_reason}
-					on:input={() => saveDebounced('blocked_reason', { blocked_reason })}
-					placeholder="Why is this blocked?"
-				/>
+				{#if blockedReasonFieldProps}
+					<TextField
+						{...blockedReasonFieldProps}
+						value={blocked_reason}
+						onChange={(nextValue) => {
+							blocked_reason = nextValue;
+							saveDebounced('blocked_reason', { blocked_reason: nextValue });
+						}}
+					/>
+				{/if}
 			{/if}
 
 			<label class="tt-label" for="tt-recurrence">Repeats</label>

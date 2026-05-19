@@ -2,20 +2,20 @@
 	import type { FieldDefinition } from '../../schema/types';
 	import { localDateString } from '../../utils/dateUtils';
 
-	interface Props {
-		definition: FieldDefinition;
-		value: string | null;
-		error?: string;
-		readonly?: boolean;
-		onChange?: (value: string) => void;
-		onBlur?: () => void;
-	}
-
-	let { definition, value = '', error, readonly = false, onChange, onBlur }: Props = $props();
+	export let definition: FieldDefinition;
+	export let value: string | null = '';
+	export let error: string | null = null;
+	export let readonly = false;
+	export let onChange: ((value: string) => void) | undefined = undefined;
+	export let onBlur: (() => void) | undefined = undefined;
 
 	const handleDateChange = (e: Event) => {
 		const input = e.target as HTMLInputElement;
 		onChange?.(input.value);
+	};
+
+	const handleBlur = () => {
+		onBlur?.();
 	};
 
 	const handleToday = () => {
@@ -43,16 +43,17 @@
 			class="tt-field-input"
 			value={value || ''}
 			disabled={readonly}
-			{onChange: handleDateChange}
-			{onBlur}
+			on:input={handleDateChange}
+			on:change={handleDateChange}
+			on:blur={handleBlur}
 			class:tt-field-error={!!error}
 		/>
 		{#if definition.dateHasButtons && !readonly}
 			<div class="tt-date-actions">
-				<button type="button" class="tt-date-btn" onClick={handleToday}>
+				<button type="button" class="tt-date-btn" on:click={handleToday}>
 					Today
 				</button>
-				<button type="button" class="tt-date-btn" onClick={handleClear}>
+				<button type="button" class="tt-date-btn" on:click={handleClear}>
 					Clear
 				</button>
 			</div>

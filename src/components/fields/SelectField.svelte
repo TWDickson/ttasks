@@ -1,22 +1,22 @@
 <script lang="ts">
 	import type { FieldDefinition } from '../../schema/types';
 
-	interface Props {
-		definition: FieldDefinition;
-		value: string | null;
-		options: string[];
-		optionLabels?: Record<string, string>;
-		error?: string;
-		readonly?: boolean;
-		onChange?: (value: string) => void;
-		onBlur?: () => void;
-	}
-
-	let { definition, value = '', options = [], optionLabels, error, readonly = false, onChange, onBlur }: Props = $props();
+	export let definition: FieldDefinition;
+	export let value: string | null = '';
+	export let options: string[] = [];
+	export let optionLabels: Record<string, string> | undefined = undefined;
+	export let error: string | null = null;
+	export let readonly = false;
+	export let onChange: ((value: string) => void) | undefined = undefined;
+	export let onBlur: (() => void) | undefined = undefined;
 
 	const handleChange = (e: Event) => {
 		const select = e.target as HTMLSelectElement;
 		onChange?.(select.value);
+	};
+
+	const handleBlur = () => {
+		onBlur?.();
 	};
 
 	const getOptionLabel = (opt: string): string => {
@@ -46,8 +46,8 @@
 		class="tt-field-select-input"
 		value={value || ''}
 		disabled={readonly}
-		{onChange: handleChange}
-		{onBlur}
+		on:change={handleChange}
+		on:blur={handleBlur}
 		class:tt-field-error={!!error}
 	>
 		{#if definition.selectAllowEmpty}

@@ -1,20 +1,20 @@
 <script lang="ts">
 	import type { FieldDefinition } from '../../schema/types';
 
-	interface Props {
-		definition: FieldDefinition;
-		value: string | null;
-		error?: string;
-		readonly?: boolean;
-		onChange?: (value: string) => void;
-		onBlur?: () => void;
-	}
-
-	let { definition, value = '', error, readonly = false, onChange, onBlur }: Props = $props();
+	export let definition: FieldDefinition;
+	export let value: string | null = '';
+	export let error: string | null = null;
+	export let readonly = false;
+	export let onChange: ((value: string) => void) | undefined = undefined;
+	export let onBlur: (() => void) | undefined = undefined;
 
 	const handleChange = (e: Event) => {
 		const input = e.target as HTMLInputElement;
 		onChange?.(input.value);
+	};
+
+	const handleBlur = () => {
+		onBlur?.();
 	};
 </script>
 
@@ -34,8 +34,8 @@
 		placeholder={definition.placeholder || ''}
 		value={value || ''}
 		disabled={readonly}
-		{onChange: handleChange}
-		{onBlur}
+		on:input={handleChange}
+		on:blur={handleBlur}
 		class:tt-field-error={!!error}
 	/>
 	{#if error}

@@ -120,6 +120,16 @@ describe('fieldAdapters', () => {
 			// Options should be sorted (same-project first)
 			expect(Array.isArray(props.options)).toBe(true);
 		});
+
+		it('resolves from-settings options for select fields', () => {
+			const field = taskFields.find((f: FieldDefinition) => f.name === 'area')!;
+			const values = { area: '' };
+			const errors = {};
+
+			const props = adaptFieldForModal(field, values, mockTasks, mockSettings, errors);
+
+			expect(props.options).toEqual(['Work', 'Personal']);
+		});
 	});
 
 	describe('adaptFieldForDetail', () => {
@@ -162,6 +172,16 @@ describe('fieldAdapters', () => {
 			const props = adaptFieldForDetail(field, values, mockTasks, mockSettings, errors);
 
 			expect(props.value).toBeNull();
+		});
+
+		it('resolves from-settings options for chips fields', () => {
+			const field = taskFields.find((f: FieldDefinition) => f.name === 'status')!;
+			const values = { status: 'Active' };
+			const errors = {};
+
+			const props = adaptFieldForDetail(field, values, mockTasks, mockSettings, errors);
+
+			expect(props.options).toEqual(['Active', 'In Progress', 'Done']);
 		});
 	});
 });

@@ -65,6 +65,18 @@ describe('Task Field Schema', () => {
 			expect(visibleWhenActive).toBe(false);
 		});
 
+		it('blocked_reason should be visible when configured block status is active', () => {
+			const field = TASK_FIELD_DEFINITIONS.find(f => f.name === 'blocked_reason');
+			expect(field).toBeDefined();
+			expect(field?.visible).toBeDefined();
+
+			const visibleWhenCustomBlocked = field!.visible!({ status: 'On Hold', blockStatus: 'On Hold' });
+			const visibleWhenCustomActive = field!.visible!({ status: 'Active', blockStatus: 'On Hold' });
+
+			expect(visibleWhenCustomBlocked).toBe(true);
+			expect(visibleWhenCustomActive).toBe(false);
+		});
+
 		it('estimated_days should not be visible if due_date is set', () => {
 			const field = TASK_FIELD_DEFINITIONS.find(f => f.name === 'estimated_days');
 			expect(field?.visible).toBeDefined();
