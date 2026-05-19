@@ -9,6 +9,7 @@ import { parseWikiLink } from '../utils/wikiLink';
 import { TaskWriter } from './TaskWriter';
 import { TaskMigrations, type MigratableField } from './TaskMigrations';
 import { TaskRelationships } from './TaskRelationships';
+import { TaskStoreSyncQueue } from './TaskStoreSyncQueue';
 
 export class TaskStore {
 	readonly tasks: Writable<Task[]> = writable([]);
@@ -17,16 +18,25 @@ export class TaskStore {
 	private writer: TaskWriter;
 	readonly migrations: TaskMigrations;
 	readonly relationships: TaskRelationships;
-	private changedTaskPaths = new Set<string>();
-	private changedFlushTimer: ReturnType<typeof setTimeout> | null = null;
-	private changedFlushInFlight = false;
-	private readonly changedFlushDelayMs = 80;
+	private syncQueue: TaskStoreSyncQueue<TFile>;
 
 	constructor(plugin: TTasksPlugin) {
 		this.plugin = plugin;
 		this.writer = new TaskWriter(plugin, this.tasks, this.folderPath);
 		this.migrations = new TaskMigrations(plugin);
 		this.relationships = new TaskRelationships(plugin);
+		this.syncQueue = new TaskStoreSyncQueue({
+			shouldTrackPath: (path, extension) => path.startsWith(this.folderPath + '/') && extension === 'md',
+			resolveFileByPath: (path) => {
+				const file = this.app.vault.getAbstractFileByPath(path);
+				if (!(file instanceof TFile)) return null;
+				return file;
+			},
+			parseFile: (file) => this.fileToTask(file),
+			applyParsedTasks: (parsed) => this.applyParsedTasks(parsed),
+			onTaskParsed: (task) => this.writer.syncParentChecklistFromChildPublic(task),
+			log: (message) => this.plugin.log(message),
+		});
 	}
 
 	get app() { return this.plugin.app; }
@@ -61,76 +71,33 @@ export class TaskStore {
 
 	// ── Watchers ─────────────────────────────────────────────────────────────
 
-	private queueChangedTask(file: TFile): void {
-		if (!file.path.startsWith(this.folderPath + '/')) return;
-		if (file.extension !== 'md') return;
-		this.changedTaskPaths.add(file.path);
-		this.scheduleChangedFlush();
-	}
+	private applyParsedTasks(parsed: Task[]): void {
+		this.tasks.update((all) => {
+			const next = [...all];
+			const indexByPath = new Map(next.map((task, idx) => [task.path, idx]));
 
-	private scheduleChangedFlush(): void {
-		if (this.changedFlushTimer) return;
-		this.changedFlushTimer = setTimeout(() => {
-			this.changedFlushTimer = null;
-			void this.flushChangedTasks();
-		}, this.changedFlushDelayMs);
-	}
-
-	private async flushChangedTasks(): Promise<void> {
-		if (this.changedFlushInFlight) return;
-		if (this.changedTaskPaths.size === 0) return;
-
-		this.changedFlushInFlight = true;
-		const startedAt = Date.now();
-
-		try {
-			// Atomic swap — avoids losing paths queued during an async yield
-			const paths = [...this.changedTaskPaths];
-			this.changedTaskPaths = new Set();
-
-			const files = paths
-				.map((path) => this.app.vault.getAbstractFileByPath(normalizePath(path)))
-				.filter((f): f is TFile => f instanceof TFile && f.extension === 'md');
-
-			if (files.length === 0) return;
-
-			const parsed = (await Promise.all(files.map((f) => this.fileToTask(f))))
-				.filter((t): t is Task => t !== null);
-
-			if (parsed.length === 0) return;
-
-			this.tasks.update((all) => {
-				const next = [...all];
-				const indexByPath = new Map(next.map((task, idx) => [task.path, idx]));
-
-				for (const task of parsed) {
-					const existingIdx = indexByPath.get(task.path);
-					if (existingIdx === undefined) {
-						next.push(task);
-						indexByPath.set(task.path, next.length - 1);
-					} else {
-						next[existingIdx] = task;
-					}
+			for (const task of parsed) {
+				const existingIdx = indexByPath.get(task.path);
+				if (existingIdx === undefined) {
+					next.push(task);
+					indexByPath.set(task.path, next.length - 1);
+				} else {
+					next[existingIdx] = task;
 				}
+			}
 
-				return next;
-			});
-
-			await Promise.all(parsed.map((task) => this.writer.syncParentChecklistFromChildPublic(task)));
-			this.plugin.log(`flushed ${parsed.length} changed task(s) in ${Date.now() - startedAt}ms`);
-		} finally {
-			this.changedFlushInFlight = false;
-		}
-
-		if (this.changedTaskPaths.size > 0) {
-			this.scheduleChangedFlush();
-		}
+			return next;
+		});
 	}
 
 	register(): void {
+		this.plugin.register(() => {
+			this.syncQueue.dispose();
+		});
+
 		this.plugin.registerEvent(
 			this.app.metadataCache.on('changed', (file) => {
-				this.queueChangedTask(file);
+				this.syncQueue.queueFile(file);
 			})
 		);
 
@@ -138,7 +105,7 @@ export class TaskStore {
 			this.app.vault.on('delete', (file) => {
 				if (!(file instanceof TFile)) return;
 				if (!file.path.startsWith(this.folderPath + '/')) return;
-				this.changedTaskPaths.delete(file.path);
+				this.syncQueue.dropPath(file.path);
 				this.tasks.update(all => all.filter(t => t.path !== file.path));
 				void this.removeRelationshipReferences(file.path);
 			})
@@ -147,10 +114,10 @@ export class TaskStore {
 		this.plugin.registerEvent(
 			this.app.vault.on('rename', (file, oldPath) => {
 				if (!(file instanceof TFile)) return;
-				this.changedTaskPaths.delete(oldPath);
+				this.syncQueue.dropPath(oldPath);
 				this.tasks.update(all => all.filter(t => t.path !== oldPath));
 				if (file.path.startsWith(this.folderPath + '/')) {
-					this.queueChangedTask(file);
+					this.syncQueue.queueFile(file);
 				}
 				// Update relationship references (depends_on, blocks, parent_task)
 				// in other tasks that pointed to the old path.
