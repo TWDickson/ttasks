@@ -1,4 +1,4 @@
-﻿import { AbstractInputSuggest, App, Modal, Notice, PluginSettingTab, Setting, TFolder, setIcon } from 'obsidian';
+﻿import { AbstractInputSuggest, App, Notice, PluginSettingTab, Setting, TFolder, setIcon } from 'obsidian';
 import type TTasksPlugin from '../main';
 import type {
 	FabPosition,
@@ -28,14 +28,14 @@ import {
 	resolveTaskViewIcon,
 } from '../views/viewRegistry';
 import { QueryEditorModal } from '../modals/QueryEditorModal';
+import { ValueMigrationModal } from './ValueMigrationModal';
+import {
+	createManagedListItem,
+	getRenameMappings,
+	type ManagedListItem,
+	normalizeManagedListValues,
+} from './managedListUtils';
 type ManagedListField = 'status' | 'area' | 'label';
-
-interface ManagedListItem {
-	id: number;
-	originalValue: string | null;
-	value: string;
-	color: string;
-}
 
 interface ManagedListConfig {
 	name: string;
@@ -53,140 +53,6 @@ interface ManagedListConfig {
 	getDefaultMigrationTarget: (nextValues: string[]) => string | null;
 }
 
-interface ValueMigrationModalOptions {
-	title: string;
-	description: string;
-	removedValues: string[];
-	targetOptions: string[];
-	defaultTarget: string | null;
-	allowClear: boolean;
-	clearLabel: string;
-}
-
-let nextManagedListItemId = 1;
-
-
-function createManagedListItem(value: string, color: string, originalValue: string | null = value): ManagedListItem {
-	return {
-		id: nextManagedListItemId++,
-		originalValue,
-		value,
-		color,
-	};
-}
-
-function normalizeManagedListValues(items: ManagedListItem[], requireOne = false): { values: string[]; colors: Record<string, string>; error?: string } {
-	const values: string[] = [];
-	const colors: Record<string, string> = {};
-	const seen = new Set<string>();
-
-	for (const item of items) {
-		const value = item.value.trim();
-		if (!value) {
-			return { values: [], colors: {}, error: 'Remove blank items or give them a value before saving.' };
-		}
-		if (seen.has(value)) {
-			return { values: [], colors: {}, error: `Duplicate value: ${value}` };
-		}
-		seen.add(value);
-		values.push(value);
-		if (item.color) {
-			colors[value] = item.color;
-		}
-	}
-
-	if (requireOne && values.length === 0) {
-		return { values: [], colors: {}, error: 'At least one item is required.' };
-	}
-
-	return { values, colors };
-}
-
-function getRenameMappings(items: ManagedListItem[]): Record<string, string> {
-	const mappings: Record<string, string> = {};
-	for (const item of items) {
-		const nextValue = item.value.trim();
-		if (!item.originalValue || !nextValue) continue;
-		if (item.originalValue !== nextValue) {
-			mappings[item.originalValue] = nextValue;
-		}
-	}
-	return mappings;
-}
-
-class ValueMigrationModal extends Modal {
-	private readonly options: ValueMigrationModalOptions;
-	private readonly selections = new Map<string, string | null>();
-	private resolver: ((value: Record<string, string | null> | null) => void) | null = null;
-	private settled = false;
-
-	constructor(app: App, options: ValueMigrationModalOptions) {
-		super(app);
-		this.options = options;
-		for (const removedValue of options.removedValues) {
-			this.selections.set(removedValue, options.defaultTarget);
-		}
-	}
-
-	openAndWait(): Promise<Record<string, string | null> | null> {
-		return new Promise((resolve) => {
-			this.resolver = resolve;
-			this.open();
-		});
-	}
-
-	onOpen(): void {
-		const { contentEl } = this;
-		contentEl.empty();
-		contentEl.createEl('h2', { text: this.options.title });
-		contentEl.createEl('p', { text: this.options.description });
-
-		for (const removedValue of this.options.removedValues) {
-			new Setting(contentEl)
-				.setName(removedValue)
-				.setDesc('Choose where existing tasks should move this value.')
-				.addDropdown((dd) => {
-					if (this.options.allowClear) {
-						dd.addOption('__clear__', this.options.clearLabel);
-					}
-					for (const target of this.options.targetOptions) {
-						dd.addOption(target, target);
-					}
-					dd.setValue(this.selections.get(removedValue) ?? '__clear__');
-					dd.onChange((value) => {
-						this.selections.set(removedValue, value === '__clear__' ? null : value);
-					});
-				});
-		}
-
-		const actionsEl = contentEl.createDiv({ cls: 'modal-button-container' });
-		actionsEl.createEl('button', { text: 'Cancel' }).addEventListener('click', () => {
-			this.finish(null);
-			this.close();
-		});
-		actionsEl.createEl('button', { text: 'Apply migration', cls: 'mod-cta' }).addEventListener('click', () => {
-			const result: Record<string, string | null> = {};
-			for (const removedValue of this.options.removedValues) {
-				result[removedValue] = this.selections.get(removedValue) ?? null;
-			}
-			this.finish(result);
-			this.close();
-		});
-	}
-
-	onClose(): void {
-		super.onClose();
-		this.contentEl.empty();
-		this.finish(null);
-	}
-
-	private finish(result: Record<string, string | null> | null): void {
-		if (this.settled) return;
-		this.settled = true;
-		this.resolver?.(result);
-		this.resolver = null;
-	}
-}
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
 	private inputEl: HTMLInputElement;
