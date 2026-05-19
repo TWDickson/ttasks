@@ -5,6 +5,7 @@
 	import type { TaskGroup } from '../query/types';
 	import type TTasksPlugin from '../main';
 	import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, type HybridTimelineGrouping, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
+	import { computeEdgePath, sortIncomingEdges, sortOutgoingEdges } from '../store/graphEdgeRouting';
 	import { buildLaneHeaders } from '../store/graphLaneLayout';
 	import { PRIORITY_COLORS } from '../constants';
 	import { flattenTaskGroups } from './viewAdapters';
@@ -101,9 +102,11 @@
 	$: edgeYOffsets = (() => {
 		const offsets = new Map<string, { startY: number; endY: number }>();
 		for (const node of layout.nodes) {
-			const out = layout.edges
-				.filter((e) => e.from === node.path)
-				.sort((a, b) => (nodesByPath.get(a.to)?.y ?? 0) - (nodesByPath.get(b.to)?.y ?? 0));
+			const out = sortOutgoingEdges(
+				node,
+				layout.edges.filter((e) => e.from === node.path),
+				nodesByPath,
+			);
 			const nOut = out.length;
 			for (const [i, edge] of out.entries()) {
 				const startY = node.y + node.height * (i + 1) / (nOut + 1);
@@ -112,9 +115,11 @@
 			}
 		}
 		for (const node of layout.nodes) {
-			const inc = layout.edges
-				.filter((e) => e.to === node.path)
-				.sort((a, b) => (nodesByPath.get(a.from)?.y ?? 0) - (nodesByPath.get(b.from)?.y ?? 0));
+			const inc = sortIncomingEdges(
+				node,
+				layout.edges.filter((e) => e.to === node.path),
+				nodesByPath,
+			);
 			const nInc = inc.length;
 			for (const [i, edge] of inc.entries()) {
 				const endY = node.y + node.height * (i + 1) / (nInc + 1);
@@ -207,19 +212,9 @@
 		if (!from || !to) return '';
 
 		const offset = edgeYOffsets.get(edge.id);
-		const startX = from.x + from.width;
 		const startY = offset?.startY ?? (from.y + from.height / 2);
-		const endX = to.x;
 		const endY = offset?.endY ?? (to.y + to.height / 2);
-		const deltaX = endX - startX;
-		const curve = Math.max(42, Math.abs(deltaX) * 0.45);
-
-		if (deltaX >= 0) {
-			return `M ${startX} ${startY} C ${startX + curve} ${startY}, ${endX - curve} ${endY}, ${endX} ${endY}`;
-		}
-
-		const midY = Math.min(startY, endY) - 48;
-		return `M ${startX} ${startY} C ${startX + 64} ${startY}, ${startX + 64} ${midY}, ${startX + 22} ${midY} S ${endX - 64} ${midY}, ${endX} ${endY}`;
+		return computeEdgePath(edge, from, to, startY, endY);
 	}
 
 	function toggleIndependentVisibility(): void {
