@@ -162,6 +162,12 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	}
 
 	const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
+	const resolvedTemporalDates = resolveTaskDates(visibleTasks.filter((task) => task.type === 'task'));
+	const getTemporalKeyForTask = (task: Task): number => {
+		const resolved = resolvedTemporalDates.get(task.path);
+		if (resolved) return resolved.start.getTime();
+		return getDateKey(task);
+	};
 	const adjacency = new Map<string, string[]>();
 	const incoming = new Map<string, string[]>();
 	const edges: TaskGraphEdge[] = [];
@@ -249,7 +255,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		for (const path of component.paths) {
 			const task = taskByPath.get(path);
 			if (!task) continue;
-			minDate = Math.min(minDate, getDateKey(task));
+			minDate = Math.min(minDate, getTemporalKeyForTask(task));
 		}
 		componentDateKey.set(component.id, minDate);
 	}
@@ -376,8 +382,8 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 			const orderedPaths = [...component.paths].sort((left, right) => {
 				const leftTask = taskByPath.get(left);
 				const rightTask = taskByPath.get(right);
-				const leftDate = leftTask ? getDateKey(leftTask) : Infinity;
-				const rightDate = rightTask ? getDateKey(rightTask) : Infinity;
+				const leftDate = leftTask ? getTemporalKeyForTask(leftTask) : Infinity;
+				const rightDate = rightTask ? getTemporalKeyForTask(rightTask) : Infinity;
 				return leftDate - rightDate
 					|| (leftTask?.name ?? left).localeCompare(rightTask?.name ?? right)
 					|| left.localeCompare(right);
