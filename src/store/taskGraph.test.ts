@@ -105,12 +105,16 @@ describe('buildTaskGraph', () => {
 		expect(lanesByLabel.has('Project B')).toBe(true);
 		expect(lanesByLabel.has('Unassigned')).toBe(true);
 
-		expect(lanesByLabel.get('Project A')?.taskPaths).toContain('Tasks/proj-a.md');
+		expect(lanesByLabel.get('Project A')?.taskPaths).not.toContain('Tasks/proj-a.md');
 		expect(lanesByLabel.get('Project A')?.taskPaths).toContain('Tasks/a1.md');
 		expect(lanesByLabel.get('Project A')?.taskPaths).toContain('Tasks/a2.md');
-		expect(lanesByLabel.get('Project B')?.taskPaths).toContain('Tasks/proj-b.md');
+		expect(lanesByLabel.get('Project B')?.taskPaths).not.toContain('Tasks/proj-b.md');
 		expect(lanesByLabel.get('Project B')?.taskPaths).toContain('Tasks/b1.md');
 		expect(lanesByLabel.get('Unassigned')?.taskPaths).toContain('Tasks/orphan.md');
+
+		const nodePaths = new Set(layout.nodes.map((node) => node.path));
+		expect(nodePaths.has('Tasks/proj-a.md')).toBe(false);
+		expect(nodePaths.has('Tasks/proj-b.md')).toBe(false);
 	});
 
 	it('nudges independent tasks left-to-right by approximate date ordering', () => {

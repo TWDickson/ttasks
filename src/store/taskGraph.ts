@@ -99,7 +99,10 @@ function buildLaneAssignment(tasks: Task[]): Map<string | null, string[]> {
 			projectPaths.add(task.path);
 		}
 		if (task.parent_task) {
-			projectPaths.add(task.parent_task);
+			const normalizedParent = normalizeTaskPath(task.parent_task);
+			if (normalizedParent) {
+				projectPaths.add(normalizedParent);
+			}
 		}
 	}
 
@@ -111,19 +114,16 @@ function buildLaneAssignment(tasks: Task[]): Map<string | null, string[]> {
 
 	// Assign tasks to lanes
 	for (const task of tasks) {
-		const laneKey = task.parent_task ?? null;
+		const laneKey = normalizeTaskPath(task.parent_task) ?? null;
 		lanesByKey.get(laneKey)?.push(task.path);
 	}
 
 	return lanesByKey;
 }
 
-function resolveNodeLaneKey(task: Task, taskByPath: Map<string, Task>): string | null {
-	if (task.type === 'project') {
-		return task.path;
-	}
+function resolveNodeLaneKey(task: Task, allTaskByPath: Map<string, Task>): string | null {
 	const normalizedParent = normalizeTaskPath(task.parent_task);
-	if (normalizedParent && taskByPath.has(normalizedParent)) {
+	if (normalizedParent && allTaskByPath.has(normalizedParent)) {
 		return normalizedParent;
 	}
 	return null;
@@ -142,9 +142,11 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	const verticalGap = options.verticalGap ?? DEFAULT_VERTICAL_GAP;
 	const padding = options.padding ?? DEFAULT_PADDING;
 
-	// Include all tasks and projects for graph visualization
-	const visibleTasks = [...tasks]
+	// Hide project records from graph nodes; project lanes are still derived
+	// from parent_task links and project metadata in allTaskByPath.
+	const allTasks = [...tasks]
 		.sort((left, right) => left.name.localeCompare(right.name) || left.path.localeCompare(right.path));
+	const visibleTasks = allTasks.filter((task) => task.type !== 'project');
 
 	if (visibleTasks.length === 0) {
 		return {
@@ -162,6 +164,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		};
 	}
 
+	const allTaskByPath = new Map(allTasks.map((task) => [task.path, task]));
 	const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
 	const resolvedTemporalDates = resolveTaskDates(visibleTasks.filter((task) => task.type === 'task'));
 	const getTemporalKeyForTask = (task: Task): number => {
@@ -398,7 +401,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 				nodes.push({
 					path,
 					task,
-					laneKey: resolveNodeLaneKey(task, taskByPath),
+					laneKey: resolveNodeLaneKey(task, allTaskByPath),
 					column: level,
 					row,
 					x: padding + level * (nodeWidth + horizontalGap),
@@ -423,8 +426,8 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	const laneKeysSorted = [...laneAssignments.keys()].sort((left, right) => {
 		if (left === null) return 1;
 		if (right === null) return -1;
-		const leftLabel = taskByPath.get(left)?.name ?? left;
-		const rightLabel = taskByPath.get(right)?.name ?? right;
+		const leftLabel = allTaskByPath.get(left)?.name ?? left;
+		const rightLabel = allTaskByPath.get(right)?.name ?? right;
 		return leftLabel.localeCompare(rightLabel);
 	});
 
@@ -483,14 +486,14 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 
 	// Sort project lanes by name
 	projectLanes.sort((a, b) => {
-		const aLabel = taskByPath.get(a[0])?.name ?? a[0];
-		const bLabel = taskByPath.get(b[0])?.name ?? b[0];
+		const aLabel = allTaskByPath.get(a[0])?.name ?? a[0];
+		const bLabel = allTaskByPath.get(b[0])?.name ?? b[0];
 		return aLabel.localeCompare(bLabel);
 	});
 
 	// Build lane descriptors
 	for (const [laneKey, laneBand] of projectLanes) {
-		const label = taskByPath.get(laneKey)?.name ?? laneKey;
+		const label = allTaskByPath.get(laneKey)?.name ?? laneKey;
 		lanes.push({
 			key: laneKey,
 			label,

@@ -53,10 +53,11 @@
 	$: tasks = flattenTaskGroups($groups);
 	$: connectedDependencyPaths = resolveConnectedDependencyPaths(tasks);
 	$: dependencyGraphTasks = showIndependentInDependency || connectedDependencyPaths.size === 0
-		? tasks
+		? tasks.filter((task) => task.type === 'task')
 		: tasks.filter((task) => {
-			// Always include projects and tasks with parent_task (part of a project lane)
-			if (task.type === 'project' || task.parent_task) return true;
+			if (task.type !== 'task') return false;
+			// Always include project-assigned tasks (part of a project lane)
+			if (task.parent_task) return true;
 			// For unassigned/independent tasks, only include if they have dependencies
 			return connectedDependencyPaths.has(task.path);
 		});
@@ -1091,27 +1092,35 @@
 		flex-direction: column;
 		justify-content: space-between;
 		align-items: flex-start;
-		padding: 8px 10px;
+		padding: 10px 10px 10px 12px;
 		border-radius: var(--radius-m);
-		border: var(--border-width, 1px) solid color-mix(in srgb, var(--background-modifier-border) 80%, transparent);
-		background: color-mix(in srgb, var(--background-secondary) 92%, transparent);
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--background-primary) 60%, transparent);
+		border: var(--border-width, 1px) solid color-mix(in srgb, var(--text-accent) 30%, var(--background-modifier-border));
+		background: linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--background-secondary) 86%, var(--background-primary)),
+			color-mix(in srgb, var(--background-secondary-alt) 92%, var(--background-primary))
+		);
+		box-shadow:
+			inset 3px 0 0 color-mix(in srgb, var(--interactive-accent) 62%, transparent),
+			inset 0 0 0 1px color-mix(in srgb, var(--background-primary) 35%, transparent),
+			0 1px 0 color-mix(in srgb, var(--text-faint) 18%, transparent);
 	}
 
 	.tt-dependency-lane-label {
 		font-size: 12px;
 		font-weight: 600;
 		line-height: 1.25;
-		color: var(--text-muted);
+		color: color-mix(in srgb, var(--text-normal) 88%, var(--text-muted));
 	}
 
 	.tt-dependency-lane-count {
 		font-size: 11px;
-		font-weight: 600;
-		color: var(--text-faint);
-		background: color-mix(in srgb, var(--background-modifier-border) 45%, transparent);
+		font-weight: 700;
+		color: color-mix(in srgb, var(--text-normal) 75%, var(--text-faint));
+		background: color-mix(in srgb, var(--interactive-accent) 20%, var(--background-modifier-border));
 		padding: 1px 6px;
 		border-radius: var(--radius-s);
+		border: 1px solid color-mix(in srgb, var(--interactive-accent) 22%, transparent);
 	}
 
 	.tt-graph-edge {
