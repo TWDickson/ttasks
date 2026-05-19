@@ -5,7 +5,7 @@
 	import type { Task, TaskStatus, TaskPriority } from '../types';
 	import type { TaskStore } from '../store/TaskStore';
 	import { resolveCompletionStatus } from '../settings';
-	import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
+	import { RECURRENCE_LABELS, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 	import { localDateString } from '../utils/dateUtils';
 	import { resolveFieldOptionColors, resolveFieldOptions } from '../schema/optionResolver';
 	import { isBlockedStatus } from '../schema/fieldVisibility';
@@ -163,12 +163,6 @@
 		});
 	}
 
-	function onLabelChange(e: Event): void {
-		const val = (e.target as HTMLSelectElement).value;
-		selectedLabels = val ? [val] : [];
-		saveImmediate({ labels: selectedLabels });
-	}
-
 	async function onParentTaskChange() {
 		if (!task) return;
 		beginSave();
@@ -190,10 +184,6 @@
 		return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 	}
 
-	function todayDateString(): string {
-		return localDateString();
-	}
-
 	function saveDueDate(nextValue: string): void {
 		due_date = nextValue;
 		void saveImmediate({ due_date: normalizeDateValue(nextValue) });
@@ -202,22 +192,6 @@
 	function saveStartDate(nextValue: string): void {
 		start_date = nextValue;
 		void saveImmediate({ start_date: normalizeDateValue(nextValue) });
-	}
-
-	function onDueDateInput(event: Event): void {
-		saveDueDate((event.currentTarget as HTMLInputElement).value);
-	}
-
-	function onStartDateInput(event: Event): void {
-		saveStartDate((event.currentTarget as HTMLInputElement).value);
-	}
-
-	function setDueDateToday(): void {
-		saveDueDate(todayDateString());
-	}
-
-	function setStartDateToday(): void {
-		saveStartDate(todayDateString());
 	}
 
 	function normalizeEstDays(value: number | null): number | null {
@@ -364,24 +338,10 @@
 		return found ? found.path : normalized;
 	}
 
-	function taskLabelFromPath(pathLike: string | null | undefined): string {
-		const normalized = normalizeTaskPath(pathLike);
-		if (!normalized) return 'Unknown';
-		const resolved = linkedTask(normalized);
-		if (resolved) return resolved.name;
-		return normalized.split('/').pop()?.replace(/^[a-f0-9]+-/, '').replace(/\.md$/, '') ?? normalized;
-	}
-
 	function openLinkedPath(pathLike: string): void {
 		const resolved = resolveTaskPath(pathLike);
 		if (!resolved) return;
 		activeTaskPath.set(resolved);
-	}
-
-	function getSelectTintStyle(color: string | undefined): string {
-		return color
-			? `--tt-select-color:${color};background:color-mix(in srgb, ${color} 10%, var(--background-primary));border-color:color-mix(in srgb, ${color} 42%, var(--background-modifier-border));color:${color};`
-			: '';
 	}
 
 	// ── Dependency callbacks (passed to TaskDetailRelationships) ────────────────
