@@ -8,8 +8,8 @@
 	import { RECURRENCE_LABELS, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 	import { localDateString } from '../utils/dateUtils';
 	import { isBlockedStatus } from '../schema/fieldVisibility';
-	import { getFieldByName } from '../schema/taskFields';
-	import { adaptFieldForDetail, type FieldComponentProps } from '../schema/fieldAdapters';
+	import type { FieldComponentProps } from '../schema/fieldAdapters';
+	import { deriveTaskDetailFieldProps } from './taskDetailFieldProps';
 	import { deriveTaskDetailOptionState } from './taskDetailOptions';
 	import TextField from './fields/TextField.svelte';
 	import SelectField from './fields/SelectField.svelte';
@@ -267,57 +267,6 @@
 		void saveImmediate({ reminder_override: reminderOverride });
 	}
 
-	function getInlineFieldProps(fieldName: keyof Task): FieldComponentProps | null {
-		const field = getFieldByName(fieldName);
-		if (!field) return null;
-
-		const props = adaptFieldForDetail(
-			field,
-			{
-				...(task ?? {}),
-				name,
-				status,
-				priority,
-				area,
-				labels: selectedLabels,
-				parent_task: parent_task_path || null,
-				due_date,
-				start_date,
-				assigned_to,
-				estimated_days,
-				blocked_reason,
-				recurrence,
-				recurrence_type,
-				blockStatus,
-			},
-			$tasks,
-			plugin.settings,
-			{}
-		);
-
-		return {
-			...props,
-			definition: {
-				...props.definition,
-				label: '',
-			},
-		};
-	}
-
-	function getHeaderFieldProps(fieldName: keyof Task): FieldComponentProps | null {
-		const props = getInlineFieldProps(fieldName);
-		if (!props) return null;
-
-		return {
-			...props,
-			definition: {
-				...props.definition,
-				label: '',
-				placeholder: 'Task name',
-			},
-		};
-	}
-
 	const reminderOverrideLabels: Record<string, string> = {
 		urgent: 'Urgent — bypass quiet hours',
 		mute: 'Mute — never remind',
@@ -333,6 +282,20 @@
 	let reminderOverrideOptions: string[] = [];
 	let statusOptionColors: Record<string, string> = {};
 	let priorityOptionColors: Record<string, string> = {};
+	let nameFieldProps: FieldComponentProps | null = null;
+	let statusFieldProps: FieldComponentProps | null = null;
+	let priorityFieldProps: FieldComponentProps | null = null;
+	let parentTaskFieldProps: FieldComponentProps | null = null;
+	let recurrenceFieldProps: FieldComponentProps | null = null;
+	let recurrenceTypeFieldProps: FieldComponentProps | null = null;
+	let reminderOverrideFieldProps: FieldComponentProps | null = null;
+	let estimatedDaysFieldProps: FieldComponentProps | null = null;
+	let areaFieldProps: FieldComponentProps | null = null;
+	let labelsFieldProps: FieldComponentProps | null = null;
+	let dueDateFieldProps: FieldComponentProps | null = null;
+	let startDateFieldProps: FieldComponentProps | null = null;
+	let assignedToFieldProps: FieldComponentProps | null = null;
+	let blockedReasonFieldProps: FieldComponentProps | null = null;
 
 	$: {
 		const detailOptions = deriveTaskDetailOptionState({
@@ -353,23 +316,48 @@
 		priorityOptionColors = detailOptions.priorityOptionColors;
 	}
 
+	$: {
+		const detailFieldProps = deriveTaskDetailFieldProps({
+			task,
+			allTasks: $tasks,
+			settings: plugin.settings,
+			blockStatus,
+			values: {
+				name,
+				status,
+				priority,
+				area,
+				labels: selectedLabels,
+				parent_task_path,
+				due_date,
+				start_date,
+				assigned_to,
+				estimated_days,
+				blocked_reason,
+				recurrence,
+				recurrence_type,
+			},
+		});
+
+		nameFieldProps = detailFieldProps.nameFieldProps;
+		statusFieldProps = detailFieldProps.statusFieldProps;
+		priorityFieldProps = detailFieldProps.priorityFieldProps;
+		parentTaskFieldProps = detailFieldProps.parentTaskFieldProps;
+		recurrenceFieldProps = detailFieldProps.recurrenceFieldProps;
+		recurrenceTypeFieldProps = detailFieldProps.recurrenceTypeFieldProps;
+		reminderOverrideFieldProps = detailFieldProps.reminderOverrideFieldProps;
+		estimatedDaysFieldProps = detailFieldProps.estimatedDaysFieldProps;
+		areaFieldProps = detailFieldProps.areaFieldProps;
+		labelsFieldProps = detailFieldProps.labelsFieldProps;
+		dueDateFieldProps = detailFieldProps.dueDateFieldProps;
+		startDateFieldProps = detailFieldProps.startDateFieldProps;
+		assignedToFieldProps = detailFieldProps.assignedToFieldProps;
+		blockedReasonFieldProps = detailFieldProps.blockedReasonFieldProps;
+	}
+
 	$: completionStatus = getCompletionStatus();
 	$: blockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
 	$: showBlockedReason = isBlockedStatus(status, blockStatus);
-	$: nameFieldProps = getHeaderFieldProps('name');
-	$: statusFieldProps = getInlineFieldProps('status');
-	$: priorityFieldProps = getInlineFieldProps('priority');
-	$: parentTaskFieldProps = getInlineFieldProps('parent_task');
-	$: recurrenceFieldProps = getInlineFieldProps('recurrence');
-	$: recurrenceTypeFieldProps = getInlineFieldProps('recurrence_type');
-	$: reminderOverrideFieldProps = getInlineFieldProps('reminder_override');
-	$: estimatedDaysFieldProps = getInlineFieldProps('estimated_days');
-	$: areaFieldProps = getInlineFieldProps('area');
-	$: labelsFieldProps = getInlineFieldProps('labels');
-	$: dueDateFieldProps = getInlineFieldProps('due_date');
-	$: startDateFieldProps = getInlineFieldProps('start_date');
-	$: assignedToFieldProps = getInlineFieldProps('assigned_to');
-	$: blockedReasonFieldProps = getInlineFieldProps('blocked_reason');
 	$: parentProjectTasks = $tasks
 		.filter(t => t.type === 'project' && t.path !== task?.path)
 		.sort((a, b) => a.name.localeCompare(b.name));
