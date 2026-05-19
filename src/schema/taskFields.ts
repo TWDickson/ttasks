@@ -314,3 +314,8 @@ export function getVisibleFields(
 		return true;
 	});
 }
+
+/**
+ * Export field definitions array for use in schema module.
+ */
+export { TASK_FIELD_DEFINITIONS as taskFields };

@@ -7,8 +7,8 @@ import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYP
 import { PRIORITY_COLORS } from '../constants';
 import { localDateString } from '../utils/dateUtils';
 import { sortDependencyFirst } from '../components/dependencySort';
-
-const PRIORITIES: TaskPriority[]    = ['None', 'Low', 'Medium', 'High'];
+import { getFieldsGroupedBySection, isFieldVisible, getFieldOptions, getOptionColor } from './modalFieldHelpers';
+import { taskFields } from '../schema/taskFields';
 
 const MOBILE_QUICK_CREATE_PREF_KEY = 'ttasks.mobileQuickCreate';
 const MOBILE_QUICK_CREATE_HINT_DISMISSED_KEY = 'ttasks.mobileQuickCreateHintDismissed';
@@ -16,21 +16,25 @@ const MOBILE_QUICK_CREATE_HINT_DISMISSED_KEY = 'ttasks.mobileQuickCreateHintDism
 export class CreateTaskModal extends Modal {
 	private plugin: TTasksPlugin;
 
-	private name                       = '';
-	private type: TaskRecordType;
-	private status: TaskStatus;
-	private priority: TaskPriority     = 'None';
-	private area                       = '';
-	private selectedLabels: string[]   = [];
-	private depends_on: string[]       = [];
-	private parent_task: string | null = null;
-	private due_date                   = '';
-	private start_date                 = '';
-	private estimated_days: number | null = null;
-	private notes                      = '';
-	private recurrence: string | null  = null;
-	private recurrence_type: string | null = null;
-	private submitting                 = false;
+	// Schema-driven form state
+	private formValues: Record<string, any> = {
+		name: '',
+		type: 'task' as TaskRecordType,
+		status: '',
+		priority: 'None' as TaskPriority,
+		area: '',
+		labels: [] as string[],
+		depends_on: [] as string[],
+		parent_task: null as string | null,
+		due_date: '',
+		start_date: '',
+		estimated_days: null as number | null,
+		notes: '',
+		recurrence: null as string | null,
+		recurrence_type: null as string | null,
+	};
+
+	private submitting = false;
 	private notesRenderComponent: Component | null = null;
 	private notesRenderFrame: number | null = null;
 	private createBtnEl: HTMLButtonElement | null = null;
@@ -43,19 +47,15 @@ export class CreateTaskModal extends Modal {
 	) {
 		super(app);
 		this.plugin = plugin;
-		this.type = defaultType;
-		this.status = resolveEmergencyStatus(this.plugin.settings.statuses);
+		this.formValues.type = defaultType;
+		this.formValues.status = resolveEmergencyStatus(this.plugin.settings.statuses);
 		if (options?.initialDependsOn?.length) {
-			this.depends_on = options.initialDependsOn.map(p => p.replace(/\.md$/, ''));
+			this.formValues.depends_on = options.initialDependsOn.map(p => p.replace(/\.md$/, ''));
 		}
 	}
 
-	private get categories(): string[] {
+	private get areas(): string[] {
 		return ['', ...(this.plugin.settings.areas ?? [])];
-	}
-
-	private get taskTypes(): string[] {
-		return ['', ...(this.plugin.settings.labelValues ?? [])];
 	}
 
 	private get statuses(): TaskStatus[] {
@@ -98,11 +98,11 @@ export class CreateTaskModal extends Modal {
 			cls: 'tt-modal-name',
 			attr: {
 				type: 'text',
-				placeholder: this.type === 'project' ? 'Project name…' : 'Task name…',
+				placeholder: this.formValues.type === 'project' ? 'Project name…' : 'Task name…',
 			},
 		});
 		nameInput.focus();
-		nameInput.addEventListener('input', () => { this.name = nameInput.value; });
+		nameInput.addEventListener('input', () => { this.formValues.name = nameInput.value; });
 		nameInput.addEventListener('keydown', (e: KeyboardEvent) => {
 			if (e.key === 'Enter') { e.preventDefault(); void this.submit(); }
 		});
@@ -122,10 +122,10 @@ export class CreateTaskModal extends Modal {
 		for (const [val, label] of [['task', 'Task'], ['project', 'Project']] as [TaskRecordType, string][]) {
 			const btn = typeGroup.createEl('button', {
 				text: label,
-				cls: `tt-modal-type-btn${val === this.type ? ' tt-chip-active' : ''}`,
+				cls: `tt-modal-type-btn${val === this.formValues.type ? ' tt-chip-active' : ''}`,
 			});
 			btn.addEventListener('click', () => {
-				this.type = val;
+				this.formValues.type = val;
 				typeGroup.querySelectorAll('.tt-modal-type-btn').forEach(b => b.removeClass('tt-chip-active'));
 				btn.addClass('tt-chip-active');
 				// Gray out task type — keeps layout stable, communicates inapplicability
@@ -141,15 +141,19 @@ export class CreateTaskModal extends Modal {
 		// ── Priority ────────────────────────────────────────────────────────────
 		const priorityField = this.field(basicsSection, 'Priority');
 		const priorityChips = priorityField.createDiv('tt-modal-chips');
+		const priorityDefinition = taskFields.find(f => f.name === 'priority')!;
+		const priorityOptions = getFieldOptions(priorityDefinition, this.plugin.settings);
 
-		for (const p of PRIORITIES) {
+		for (const p of priorityOptions as string[]) {
 			const btn = priorityChips.createEl('button', {
 				text: p,
-				cls: `tt-modal-chip${p === 'None' ? ' tt-chip-active' : ''}`,
+				cls: `tt-modal-chip${p === this.formValues.priority ? ' tt-chip-active' : ''}`,
 			});
-			if (p === 'None') this.applyPriorityStyle(btn, p);
+			if (p === this.formValues.priority) {
+				this.applyOptionStyle(btn, p, priorityDefinition);
+			}
 			btn.addEventListener('click', () => {
-				this.priority = p;
+				this.formValues.priority = p as TaskPriority;
 				priorityChips.querySelectorAll<HTMLButtonElement>('.tt-modal-chip').forEach(b => {
 					b.removeClass('tt-chip-active');
 					b.style.removeProperty('background');
@@ -157,7 +161,7 @@ export class CreateTaskModal extends Modal {
 					b.style.removeProperty('color');
 				});
 				btn.addClass('tt-chip-active');
-				this.applyPriorityStyle(btn, p);
+				this.applyOptionStyle(btn, p, priorityDefinition);
 			});
 		}
 
@@ -208,17 +212,20 @@ export class CreateTaskModal extends Modal {
 			quickToggle.addEventListener('click', () => applyQuickMode(!quickCreateMode));
 		}
 
-		// ── Task Type dropdown (grayed out for project) ─────────────────────────
-		if (this.type === 'project') {
+		// Task Type (labels) dropdown for tasks only
+		if (this.formValues.type === 'project') {
 			taskTypeField.style.opacity       = '0.35';
 			taskTypeField.style.pointerEvents = 'none';
 		}
 		const taskTypeSelect = taskTypeField.createEl('select', { cls: 'tt-modal-select' });
-		for (const t of this.taskTypes) {
-			taskTypeSelect.createEl('option', { text: t || '— none —', value: t });
+		const labelDefinition = taskFields.find(f => f.name === 'labels')!;
+		const labelOptions = getFieldOptions(labelDefinition, this.plugin.settings);
+		taskTypeSelect.createEl('option', { text: '— none —', value: '' });
+		for (const t of labelOptions as string[]) {
+			taskTypeSelect.createEl('option', { text: t, value: t });
 		}
 		const applyTaskTypeTint = () => {
-			const selectedLabel = this.selectedLabels[0] ?? '';
+			const selectedLabel = this.formValues.labels[0] ?? '';
 			const color = selectedLabel ? this.labelColors[selectedLabel] : undefined;
 			if (!color) {
 				taskTypeSelect.style.removeProperty('background');
@@ -232,7 +239,7 @@ export class CreateTaskModal extends Modal {
 		};
 		applyTaskTypeTint();
 		taskTypeSelect.addEventListener('change', () => {
-			this.selectedLabels = taskTypeSelect.value ? [taskTypeSelect.value] : [];
+			this.formValues.labels = taskTypeSelect.value ? [taskTypeSelect.value] : [];
 			applyTaskTypeTint();
 		});
 
@@ -262,16 +269,16 @@ export class CreateTaskModal extends Modal {
 
 		const renderDepsChips = () => {
 			depsChipsEl.empty();
-			for (const depPath of this.depends_on) {
+			for (const depPath of this.formValues.depends_on) {
 				const depTask = allTasks.find(t => t.path.replace(/\.md$/, '') === depPath);
 				const label = depTask?.name ?? depPath.split('/').pop() ?? depPath;
 				const chip = depsChipsEl.createEl('span', { cls: 'tt-modal-chip tt-chip-active', text: label });
 				const removeBtn = chip.createEl('span', { text: ' ×', cls: 'tt-modal-chip-remove' });
 				removeBtn.addEventListener('click', () => {
-					this.depends_on = this.depends_on.filter(d => d !== depPath);
+					this.formValues.depends_on = this.formValues.depends_on.filter((d: string) => d !== depPath);
 					renderDepsChips();
 					renderAfterTaskOptions();
-					if (this.depends_on.length === 0) {
+					if (this.formValues.depends_on.length === 0) {
 						startDateInput.disabled = false;
 						startTodayBtn.disabled = false;
 					}
@@ -283,8 +290,8 @@ export class CreateTaskModal extends Modal {
 			afterTaskSelect.empty();
 			afterTaskSelect.createEl('option', { text: '+ Add dependency…', value: '' });
 			const availableTasks = allTasks
-				.filter(t => !this.depends_on.includes(t.path.replace(/\.md$/, '')))
-				.sort((a, b) => sortDependencyFirst(a, b, this.parent_task));
+				.filter(t => !this.formValues.depends_on.includes(t.path.replace(/\.md$/, '')))
+				.sort((a, b) => sortDependencyFirst(a, b, this.formValues.parent_task));
 			for (const t of availableTasks) {
 				const path = t.path.replace(/\.md$/, '');
 				afterTaskSelect.createEl('option', { text: t.name, value: path });
@@ -295,15 +302,15 @@ export class CreateTaskModal extends Modal {
 		renderDepsChips();
 
 		// Disable start-date fields when deps are pre-filled
-		if (this.depends_on.length > 0) {
+		if (this.formValues.depends_on.length > 0) {
 			startDateInput.disabled = true;
 			startTodayBtn.disabled = true;
 		}
 
 		startDateInput.addEventListener('change', () => {
-			this.start_date = startDateInput.value;
+			this.formValues.start_date = startDateInput.value;
 			if (startDateInput.value) {
-				this.depends_on = [];
+				this.formValues.depends_on = [];
 				renderDepsChips();
 				renderAfterTaskOptions();
 				afterTaskSelect.disabled = true;
@@ -315,8 +322,8 @@ export class CreateTaskModal extends Modal {
 		startTodayBtn.addEventListener('click', () => {
 			const today = localDateString();
 			startDateInput.value = today;
-			this.start_date = today;
-			this.depends_on = [];
+			this.formValues.start_date = today;
+			this.formValues.depends_on = [];
 			renderDepsChips();
 			renderAfterTaskOptions();
 			afterTaskSelect.disabled = true;
@@ -324,21 +331,21 @@ export class CreateTaskModal extends Modal {
 
 		startClearBtn.addEventListener('click', () => {
 			startDateInput.value = '';
-			this.start_date = '';
+			this.formValues.start_date = '';
 			afterTaskSelect.disabled = false;
 		});
 
 		afterTaskSelect.addEventListener('change', () => {
 			const val = afterTaskSelect.value;
 			if (!val) return;
-			this.depends_on = [...this.depends_on, val];
+			this.formValues.depends_on = [...this.formValues.depends_on, val];
 			afterTaskSelect.value = '';
 			renderDepsChips();
 			renderAfterTaskOptions();
-			this.start_date          = '';
-			startDateInput.value     = '';
-			startDateInput.disabled  = true;
-			startTodayBtn.disabled   = true;
+			this.formValues.start_date = '';
+			startDateInput.value        = '';
+			startDateInput.disabled     = true;
+			startTodayBtn.disabled      = true;
 		});
 
 		// ── Due Date | Est. Days (mutually exclusive) ────────────────────────────
@@ -367,9 +374,9 @@ export class CreateTaskModal extends Modal {
 		});
 
 		dueDateInput.addEventListener('change', () => {
-			this.due_date = dueDateInput.value;
+			this.formValues.due_date = dueDateInput.value;
 			if (dueDateInput.value) {
-				this.estimated_days  = null;
+				this.formValues.estimated_days  = null;
 				estInput.value       = '';
 				estInput.disabled    = true;
 			} else {
@@ -379,12 +386,12 @@ export class CreateTaskModal extends Modal {
 
 		estInput.addEventListener('change', () => {
 			const parsed = estInput.value ? parseFloat(estInput.value) : null;
-			this.estimated_days = parsed !== null && Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+			this.formValues.estimated_days = parsed !== null && Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 			if (parsed !== null && (!Number.isFinite(parsed) || parsed < 0)) {
 				estInput.value = '';
 			}
 			if (estInput.value) {
-				this.due_date           = '';
+				this.formValues.due_date           = '';
 				dueDateInput.value      = '';
 				dueDateInput.disabled   = true;
 				dueTodayBtn.disabled    = true;
@@ -397,15 +404,15 @@ export class CreateTaskModal extends Modal {
 		dueTodayBtn.addEventListener('click', () => {
 			const today = localDateString();
 			dueDateInput.value = today;
-			this.due_date = today;
-			this.estimated_days = null;
+			this.formValues.due_date = today;
+			this.formValues.estimated_days = null;
 			estInput.value = '';
 			estInput.disabled = true;
 		});
 
 		dueClearBtn.addEventListener('click', () => {
 			dueDateInput.value = '';
-			this.due_date = '';
+			this.formValues.due_date = '';
 			estInput.disabled = false;
 			dueTodayBtn.disabled = false;
 		});
@@ -422,7 +429,7 @@ export class CreateTaskModal extends Modal {
 		const renderNotes = async () => {
 			if (!this.notesRenderComponent) return;
 			notesPreview.innerHTML = '';
-			await MarkdownRenderer.render(this.app, this.notes || '_No notes yet._', notesPreview, this.plugin.manifest.id, this.notesRenderComponent);
+			await MarkdownRenderer.render(this.app, this.formValues.notes || '_No notes yet._', notesPreview, this.plugin.manifest.id, this.notesRenderComponent);
 		};
 
 		const scheduleRenderNotes = () => {
@@ -434,7 +441,7 @@ export class CreateTaskModal extends Modal {
 		};
 
 		notesEl.addEventListener('input', () => {
-			this.notes = notesEl.value;
+			this.formValues.notes = notesEl.value;
 			scheduleRenderNotes();
 		});
 		void renderNotes();
@@ -444,37 +451,35 @@ export class CreateTaskModal extends Modal {
 
 		const statusField = this.field(details, 'Status');
 		const statusChips = statusField.createDiv('tt-modal-chips');
+		const statusDefinition = taskFields.find(f => f.name === 'status')!;
+
 		for (const s of this.statuses) {
 			const btn = statusChips.createEl('button', {
 				text: s,
-				cls: `tt-modal-chip${s === this.status ? ' tt-chip-active' : ''}`,
+				cls: `tt-modal-chip${s === this.formValues.status ? ' tt-chip-active' : ''}`,
 			});
-			if (s === this.status && this.statusColors[s]) {
-				btn.style.background = this.statusColors[s];
-				btn.style.borderColor = this.statusColors[s];
+			if (s === this.formValues.status) {
+				this.applyOptionStyle(btn, s, statusDefinition);
 			}
 			btn.addEventListener('click', () => {
-				this.status = s;
+				this.formValues.status = s as TaskStatus;
 				statusChips.querySelectorAll<HTMLButtonElement>('.tt-modal-chip').forEach(b => {
 					b.removeClass('tt-chip-active');
 					b.style.removeProperty('background');
 					b.style.removeProperty('border-color');
 				});
 				btn.addClass('tt-chip-active');
-				if (this.statusColors[s]) {
-					btn.style.background = this.statusColors[s];
-					btn.style.borderColor = this.statusColors[s];
-				}
+				this.applyOptionStyle(btn, s, statusDefinition);
 			});
 		}
 
 		const categoryField = this.field(details, 'Area');
 		const categorySelect = categoryField.createEl('select', { cls: 'tt-modal-select' });
-		for (const c of this.categories) {
+		for (const c of this.areas) {
 			categorySelect.createEl('option', { text: c || '— none —', value: c });
 		}
 		const applyCategoryTint = () => {
-			const color = this.area ? this.areaColors[this.area] : undefined;
+			const color = this.formValues.area ? this.areaColors[this.formValues.area] : undefined;
 			if (!color) {
 				categorySelect.style.removeProperty('background');
 				categorySelect.style.removeProperty('border-color');
@@ -487,7 +492,7 @@ export class CreateTaskModal extends Modal {
 		};
 		applyCategoryTint();
 		categorySelect.addEventListener('change', () => {
-			this.area = categorySelect.value;
+			this.formValues.area = categorySelect.value;
 			applyCategoryTint();
 		});
 
@@ -501,7 +506,7 @@ export class CreateTaskModal extends Modal {
 			parentTaskSelect.createEl('option', { text: p.name, value: path });
 		}
 		parentTaskSelect.addEventListener('change', () => {
-			this.parent_task = parentTaskSelect.value || null;
+			this.formValues.parent_task = parentTaskSelect.value || null;
 			renderAfterTaskOptions();
 		});
 
@@ -523,11 +528,11 @@ export class CreateTaskModal extends Modal {
 		recurrenceTypeSelect.style.display = 'none';
 
 		recurrenceSelect.addEventListener('change', () => {
-			this.recurrence = recurrenceSelect.value || null;
-			recurrenceTypeSelect.style.display = this.recurrence ? '' : 'none';
+			this.formValues.recurrence = recurrenceSelect.value || null;
+			recurrenceTypeSelect.style.display = this.formValues.recurrence ? '' : 'none';
 		});
 		recurrenceTypeSelect.addEventListener('change', () => {
-			this.recurrence_type = recurrenceTypeSelect.value || null;
+			this.formValues.recurrence_type = recurrenceTypeSelect.value || null;
 		});
 
 		// ── Buttons ──────────────────────────────────────────────────────────────
@@ -536,10 +541,11 @@ export class CreateTaskModal extends Modal {
 			.addEventListener('click', () => this.close());
 		const primaryBtn = btnRow.createEl('button', { text: 'Create task', cls: 'tt-modal-btn tt-modal-btn-primary' });
 		this.createBtnEl = primaryBtn;
-		primaryBtn.disabled = !this.name.trim();
+		primaryBtn.disabled = !this.formValues.name.trim();
+				primaryBtn.disabled = !this.formValues.name.trim();
 		nameInput.addEventListener('input', () => {
-			this.name = nameInput.value;
-			primaryBtn.disabled = this.submitting || !this.name.trim();
+			this.formValues.name = nameInput.value;
+			primaryBtn.disabled = this.submitting || !this.formValues.name.trim();
 		});
 		primaryBtn.addEventListener('click', () => void this.submit(primaryBtn));
 	}
@@ -614,23 +620,34 @@ export class CreateTaskModal extends Modal {
 		return body;
 	}
 
-	private applyPriorityStyle(btn: HTMLButtonElement, p: TaskPriority) {
-		btn.style.background  = PRIORITY_COLORS[p];
-		btn.style.borderColor = PRIORITY_COLORS[p];
-		btn.style.color       = '#fff';
+	private applyOptionStyle(btn: HTMLButtonElement, value: string, field: any) {
+		const color = getOptionColor(value, field);
+		if (color) {
+			btn.style.background = color;
+			btn.style.borderColor = color;
+			btn.style.color = '#fff';
+		} else if (field.name === 'priority') {
+			// Fallback for priority field
+			const priorityColor = PRIORITY_COLORS[value as TaskPriority];
+			if (priorityColor) {
+				btn.style.background = priorityColor;
+				btn.style.borderColor = priorityColor;
+				btn.style.color = '#fff';
+			}
+		}
 	}
 
 	// ── Submit ───────────────────────────────────────────────────────────────────
 
 	private async submit(primaryBtn?: HTMLButtonElement) {
 		if (this.submitting) return;
-		const name = this.name.trim();
+		const name = this.formValues.name.trim();
 		if (!name) {
-			new Notice(`${this.type === 'project' ? 'Project' : 'Task'} name is required.`);
+						new Notice(`${this.formValues.type === 'project' ? 'Project' : 'Task'} name is required.`);
 			return;
 		}
-		const startDate = this.depends_on.length > 0 ? null : (this.start_date || null);
-		const dueDate = this.estimated_days !== null ? null : (this.due_date || null);
+		const startDate = this.formValues.depends_on.length > 0 ? null : (this.formValues.start_date || null);
+		const dueDate = this.formValues.estimated_days !== null ? null : (this.formValues.due_date || null);
 
 		this.submitting = true;
 		if (primaryBtn) {
@@ -639,26 +656,26 @@ export class CreateTaskModal extends Modal {
 		}
 		try {
 			const task = await this.plugin.taskStore.create({
-				type:           this.type,
+				type:           this.formValues.type,
 				name,
-				area:           this.area || null,
-				status:         this.status,
-				priority:       this.priority,
-				labels:         this.selectedLabels,
+				area:           this.formValues.area || null,
+				status:         this.formValues.status,
+				priority:       this.formValues.priority,
+				labels:         this.formValues.labels,
 				due_time:       null,
-				parent_task:    this.parent_task,
-				depends_on:     this.depends_on,
+				parent_task:    this.formValues.parent_task,
+				depends_on:     this.formValues.depends_on,
 				blocked_reason: '',
 				assigned_to:    '',
 				source:         '',
 				start_date:     startDate,
 				due_date:       dueDate,
-				estimated_days:  this.estimated_days,
+				estimated_days:  this.formValues.estimated_days,
 				created:         localDateString(),
 				completed:       null,
-				notes:           this.notes,
-				recurrence:      this.recurrence,
-				recurrence_type: this.recurrence_type,
+				notes:           this.formValues.notes,
+				recurrence:      this.formValues.recurrence,
+				recurrence_type: this.formValues.recurrence_type,
 			});
 			this.close();
 			await this.plugin.taskStore.openDetail(task.path);
@@ -668,8 +685,8 @@ export class CreateTaskModal extends Modal {
 		} finally {
 			this.submitting = false;
 			if (primaryBtn) {
-				primaryBtn.disabled = !this.name.trim();
-				primaryBtn.setText(this.type === 'project' ? 'Create project' : 'Create task');
+				primaryBtn.disabled = !this.formValues.name.trim();
+				primaryBtn.setText(this.formValues.type === 'project' ? 'Create project' : 'Create task');
 			}
 		}
 	}
