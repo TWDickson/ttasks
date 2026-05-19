@@ -16,6 +16,7 @@
 	import BatchActionBar from './BatchActionBar.svelte';
 	import { batchEligibility, clearSelection, selectAll, toggleSelection } from '../store/taskSelection';
 	import { localDateString } from '../utils/dateUtils';
+	import { runBatchArchive, runBatchComplete, runBatchDelete } from './taskBoardBatchActions';
 	import { buildBoardQuery } from './boardQuery';
 	import type { FilterCondition } from '../query/types';
 	import {
@@ -65,29 +66,30 @@
 	}
 
 	async function batchComplete(): Promise<void> {
-		const completionStatus = plugin.settings.completionStatus;
-		const today = localDateString();
-		for (const path of selectedPaths) {
-			await plugin.taskStore.update(path, { status: completionStatus, completed: today });
-		}
-		selectedPaths = clearSelection();
+		selectedPaths = await runBatchComplete({
+			selectedPaths,
+			completionStatus: plugin.settings.completionStatus,
+			today: localDateString(),
+			updateTask: (path, updates) => plugin.taskStore.update(path, updates),
+			clearSelection,
+		});
 	}
 
 	async function batchArchive(): Promise<void> {
-		for (const path of selectedPaths) {
-			await plugin.archiveService.archiveTask(path);
-		}
-		selectedPaths = clearSelection();
+		selectedPaths = await runBatchArchive({
+			selectedPaths,
+			archiveTask: (path) => plugin.archiveService.archiveTask(path),
+			clearSelection,
+		});
 	}
 
 	async function batchDelete(): Promise<void> {
-		const count = selectedPaths.size;
-		// Re-use Obsidian's confirm via a simple window.confirm
-		if (!confirm(`Delete ${count} task${count === 1 ? '' : 's'}? This cannot be undone.`)) return;
-		for (const path of selectedPaths) {
-			await plugin.taskStore.delete(path);
-		}
-		selectedPaths = clearSelection();
+		selectedPaths = await runBatchDelete({
+			selectedPaths,
+			confirmDelete: (count) => confirm(`Delete ${count} task${count === 1 ? '' : 's'}? This cannot be undone.`),
+			deleteTask: (path) => plugin.taskStore.delete(path),
+			clearSelection,
+		});
 	}
 
 	// ── Filter state (routed through the query engine) ────────────────────────
