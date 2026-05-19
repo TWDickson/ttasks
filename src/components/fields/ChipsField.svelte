@@ -1,18 +1,15 @@
 <script lang="ts">
 	import type { FieldDefinition } from '../../schema/types';
 
-	interface Props {
-		definition: FieldDefinition;
-		value: string | string[] | null;
-		options: string[];
-		optionLabels?: Record<string, string>;
-		error?: string;
-		readonly?: boolean;
-		onChange?: (value: string | string[]) => void;
-		onBlur?: () => void;
-	}
-
-	let { definition, value = [], options = [], optionLabels, error, readonly = false, onChange, onBlur }: Props = $props();
+	export let definition: FieldDefinition;
+	export let value: string | string[] | null = [];
+	export let options: string[] = [];
+	export let optionLabels: Record<string, string> | undefined = undefined;
+	export let optionColors: Record<string, string> | undefined = undefined;
+	export let error: string | null = null;
+	export let readonly = false;
+	export let onChange: ((value: string | string[]) => void) | undefined = undefined;
+	export let onBlur: (() => void) | undefined = undefined;
 
 	const isMulti = definition.chipsType === 'multi';
 	const values = Array.isArray(value) ? value : value ? [value] : [];
@@ -32,6 +29,9 @@
 	};
 
 	const getOptionColor = (opt: string): string | undefined => {
+		if (optionColors?.[opt]) {
+			return optionColors[opt];
+		}
 		if (typeof definition.optionColors === 'object' && !('type' in definition.optionColors)) {
 			return (definition.optionColors as Record<string, string>)?.[opt];
 		}
@@ -42,16 +42,20 @@
 		if (optionLabels?.[opt]) return optionLabels[opt];
 		return opt;
 	};
+
+	const handleBlur = () => {
+		onBlur?.();
+	};
 </script>
 
 <div class="tt-field tt-field-chips">
 	{#if definition.label}
-		<label>
+		<span class="tt-field-label">
 			{definition.label}
 			{#if definition.required}
 				<span class="tt-field-required">*</span>
 			{/if}
-		</label>
+		</span>
 	{/if}
 	<div class="tt-chips-container" class:tt-field-error={!!error}>
 		{#each options as opt}
@@ -67,7 +71,8 @@
 					: color
 						? `border-color: ${color}; color: ${color};`
 						: ''}
-				onClick={() => handleChipClick(opt)}
+				on:click={() => handleChipClick(opt)}
+				on:blur={handleBlur}
 				disabled={readonly}
 			>
 				{getOptionLabel(opt)}
@@ -86,7 +91,7 @@
 		gap: 0.5rem;
 	}
 
-	label {
+	.tt-field-label {
 		font-size: 0.875rem;
 		font-weight: 500;
 		color: var(--text-normal);

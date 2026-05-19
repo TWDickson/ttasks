@@ -7,14 +7,14 @@
 	import { resolveCompletionStatus } from '../settings';
 	import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 	import { localDateString } from '../utils/dateUtils';
-	import { PRIORITY_COLORS } from '../constants';
-	import { resolveFieldOptions } from '../schema/optionResolver';
+	import { resolveFieldOptionColors, resolveFieldOptions } from '../schema/optionResolver';
 	import { isBlockedStatus } from '../schema/fieldVisibility';
 	import { getFieldByName } from '../schema/taskFields';
 	import { adaptFieldForDetail, type FieldComponentProps } from '../schema/fieldAdapters';
 	import TextField from './fields/TextField.svelte';
 	import SelectField from './fields/SelectField.svelte';
 	import DateField from './fields/DateField.svelte';
+	import ChipsField from './fields/ChipsField.svelte';
 	import TaskDetailRelationships from './TaskDetailRelationships.svelte';
 	import TaskDetailNotes from './TaskDetailNotes.svelte';
 	import TaskDetailActions from './TaskDetailActions.svelte';
@@ -113,16 +113,6 @@
 	}
 
 	// ── Field handlers ──────────────────────────────────────────────────────────
-	function setStatus(s: TaskStatus) {
-		status = s;
-		saveImmediate({ status: s });
-	}
-
-	function setPriority(p: TaskPriority) {
-		priority = p;
-		saveImmediate({ priority: p });
-	}
-
 	function getCompletionStatus(): TaskStatus {
 		return resolveCompletionStatus(plugin.settings.statuses, plugin.settings.completionStatus);
 	}
@@ -233,7 +223,21 @@
 		return [...base, current];
 	}
 
-	function getInlineTextFieldProps(fieldName: keyof Task): FieldComponentProps | null {
+	function onStatusFieldChange(nextValue: string | string[]): void {
+		if (typeof nextValue !== 'string') return;
+		const nextStatus = nextValue as TaskStatus;
+		status = nextStatus;
+		void saveImmediate({ status: nextStatus });
+	}
+
+	function onPriorityFieldChange(nextValue: string | string[]): void {
+		if (typeof nextValue !== 'string') return;
+		const nextPriority = nextValue as TaskPriority;
+		priority = nextPriority;
+		void saveImmediate({ priority: nextPriority });
+	}
+
+	function getInlineFieldProps(fieldName: keyof Task): FieldComponentProps | null {
 		const field = getFieldByName(fieldName);
 		if (!field) return null;
 
@@ -283,17 +287,18 @@
 	$: completionStatus = getCompletionStatus();
 	$: blockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
 	$: showBlockedReason = isBlockedStatus(status, blockStatus);
+	$: statusFieldProps = getInlineFieldProps('status');
+	$: priorityFieldProps = getInlineFieldProps('priority');
 	$: areaOptions = ['', ...withCurrentOption(resolveFieldOptions('area', plugin.settings), area || null)];
 	$: labelOptions = ['', ...withCurrentOption(resolveFieldOptions('labels', plugin.settings), selectedLabels[0] ?? null)];
-	$: areaFieldProps = getInlineTextFieldProps('area');
-	$: labelsFieldProps = getInlineTextFieldProps('labels');
-	$: dueDateFieldProps = getInlineTextFieldProps('due_date');
-	$: startDateFieldProps = getInlineTextFieldProps('start_date');
-	$: assignedToFieldProps = getInlineTextFieldProps('assigned_to');
-	$: blockedReasonFieldProps = getInlineTextFieldProps('blocked_reason');
-	$: areaColors = plugin.settings.areaColors ?? {};
-	$: labelColors = plugin.settings.labelColors ?? {};
-	$: statusColors = plugin.settings.statusColors ?? {};
+	$: statusOptionColors = resolveFieldOptionColors('status', plugin.settings);
+	$: priorityOptionColors = resolveFieldOptionColors('priority', plugin.settings);
+	$: areaFieldProps = getInlineFieldProps('area');
+	$: labelsFieldProps = getInlineFieldProps('labels');
+	$: dueDateFieldProps = getInlineFieldProps('due_date');
+	$: startDateFieldProps = getInlineFieldProps('start_date');
+	$: assignedToFieldProps = getInlineFieldProps('assigned_to');
+	$: blockedReasonFieldProps = getInlineFieldProps('blocked_reason');
 	$: parentProjectOptions = [
 		{ value: '', label: '— none —' },
 		...$tasks
@@ -399,31 +404,29 @@
 		<!-- Status chips -->
 		<div class="tt-field-group">
 			<span class="tt-label">Status</span>
-			<div class="tt-chips">
-				{#each statusOptions as s}
-					<button
-						class="tt-chip"
-						class:tt-chip-active={status === s}
-						style={status === s && statusColors[s] ? `background:${statusColors[s]};border-color:${statusColors[s]}` : ''}
-						on:click={() => setStatus(s)}
-					>{s}</button>
-				{/each}
-			</div>
+			{#if statusFieldProps}
+				<ChipsField
+					{...statusFieldProps}
+					value={status}
+					options={statusOptions}
+					optionColors={statusOptionColors}
+					onChange={onStatusFieldChange}
+				/>
+			{/if}
 		</div>
 
 		<!-- Priority chips -->
 		<div class="tt-field-group">
 			<span class="tt-label">Priority</span>
-			<div class="tt-chips">
-				{#each priorityOptions as p}
-					<button
-						class="tt-chip"
-						class:tt-chip-active={priority === p}
-						style={priority === p ? `background:${PRIORITY_COLORS[p]};border-color:${PRIORITY_COLORS[p]};color:var(--text-on-accent)` : ''}
-						on:click={() => setPriority(p)}
-					>{p}</button>
-				{/each}
-			</div>
+			{#if priorityFieldProps}
+				<ChipsField
+					{...priorityFieldProps}
+					value={priority}
+					options={priorityOptions}
+					optionColors={priorityOptionColors}
+					onChange={onPriorityFieldChange}
+				/>
+			{/if}
 		</div>
 
 		<hr class="tt-divider" />
@@ -771,35 +774,6 @@
 	.tt-fields select:focus {
 		outline: none;
 		border-color: var(--interactive-accent);
-	}
-
-	.tt-chips {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 6px;
-	}
-
-	.tt-chip {
-		padding: var(--size-4-1, 4px) var(--size-4-3, 12px);
-		border-radius: 999px;
-		border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
-		background: var(--interactive-normal, var(--background-secondary));
-		color: var(--text-muted);
-		font-size: 0.8rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 0.12s;
-	}
-
-	.tt-chip:hover {
-		border-color: var(--text-muted);
-		color: var(--text-normal);
-	}
-
-	.tt-chip-active {
-		background: var(--interactive-accent);
-		border-color: var(--interactive-accent);
-		color: var(--text-on-accent);
 	}
 
 	/* Relationship, notes, and action CSS live in their own sub-components. */
