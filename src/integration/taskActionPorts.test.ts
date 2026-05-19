@@ -64,6 +64,26 @@ describe('runArchiveAndClear', () => {
 });
 
 describe('createTaskContextMenuDeps', () => {
+	it('passes through openTask to openTaskDetail', () => {
+		const ports = makePorts();
+		const deps = createTaskContextMenuDeps(ports);
+
+		deps.openTask('Tasks/a.md');
+
+		expect(ports.openTaskDetail).toHaveBeenCalledWith('Tasks/a.md');
+	});
+
+	it('passes through quick actions', async () => {
+		const ports = makePorts({
+			runQuickAction: vi.fn(async (_action, _path) => true),
+		});
+		const deps = createTaskContextMenuDeps(ports);
+
+		await deps.runQuickAction('start', 'Tasks/a.md');
+
+		expect(ports.runQuickAction).toHaveBeenCalledWith('start', 'Tasks/a.md');
+	});
+
 	it('wraps convertToProject with migration notice', async () => {
 		const ports = makePorts();
 		const deps = createTaskContextMenuDeps(ports);

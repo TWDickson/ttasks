@@ -1,4 +1,5 @@
 import type { Task, TaskStatus } from '../types';
+import { runArchiveAndClear } from '../integration/taskActionPorts';
 
 export interface MarkCompleteFlowDeps {
 	task: Task;
@@ -47,6 +48,8 @@ export interface ArchiveFlowDeps {
 export async function runArchiveFlow(deps: ArchiveFlowDeps): Promise<void> {
 	const { task, archiveTask, setActiveTaskPath } = deps;
 	if (!task.is_complete) return;
-	await archiveTask(task.path);
-	setActiveTaskPath(null);
+	await runArchiveAndClear(task.path, {
+		archiveTask,
+		setActiveTaskPath,
+	});
 }
