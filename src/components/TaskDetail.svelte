@@ -16,6 +16,7 @@
 	import DateField from './fields/DateField.svelte';
 	import ChipsField from './fields/ChipsField.svelte';
 	import WikiLinkField from './fields/WikiLinkField.svelte';
+	import NumberField from './fields/NumberField.svelte';
 	import TaskDetailRelationships from './TaskDetailRelationships.svelte';
 	import TaskDetailNotes from './TaskDetailNotes.svelte';
 	import TaskDetailActions from './TaskDetailActions.svelte';
@@ -305,6 +306,7 @@
 	$: recurrenceFieldProps = getInlineFieldProps('recurrence');
 	$: recurrenceTypeFieldProps = getInlineFieldProps('recurrence_type');
 	$: reminderOverrideFieldProps = getInlineFieldProps('reminder_override');
+	$: estimatedDaysFieldProps = getInlineFieldProps('estimated_days');
 	$: areaOptions = ['', ...withCurrentOption(resolveFieldOptions('area', plugin.settings), area || null)];
 	$: labelOptions = ['', ...withCurrentOption(resolveFieldOptions('labels', plugin.settings), selectedLabels[0] ?? null)];
 	$: recurrenceOptions = resolveFieldOptions('recurrence', plugin.settings);
@@ -531,23 +533,18 @@
 			{/if}
 
 			<label class="tt-label" for="tt-est-days">Est. Days</label>
-			<div class="tt-date-field">
-				<input
-					id="tt-est-days"
-					type="number"
-					bind:value={estimated_days}
-					min="0"
-					step="0.5"
-					on:change={() => saveImmediate({ estimated_days: normalizeEstDays(estimated_days) })}
-					placeholder="—"
+			{#if estimatedDaysFieldProps}
+				<NumberField
+					{...estimatedDaysFieldProps}
+					value={estimated_days}
+					min={0}
+					step={0.5}
+					onChange={(nextValue) => {
+						estimated_days = normalizeEstDays(nextValue);
+						void saveImmediate({ estimated_days: estimated_days });
+					}}
 				/>
-				{#if estimated_days != null && !isNaN(estimated_days)}
-					<button class="tt-date-today" type="button" on:click={() => {
-						estimated_days = null;
-						void saveImmediate({ estimated_days: null });
-					}}>Clear</button>
-				{/if}
-			</div>
+			{/if}
 
 			{#if showBlockedReason}
 				<label class="tt-label" for="tt-blocked-reason">Blocked Reason</label>
@@ -727,52 +724,6 @@
 		grid-template-columns: auto 1fr;
 		gap: 8px 12px;
 		align-items: center;
-	}
-
-	.tt-fields input {
-		width: 100%;
-		box-sizing: border-box;
-		font-size: 0.88rem;
-		padding: var(--size-2-3, 6px) var(--size-4-2, 8px);
-		min-height: var(--input-height, 38px);
-		border-radius: var(--input-radius, var(--radius-m, 8px));
-		border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
-		background: var(--background-modifier-form-field);
-		color: var(--text-normal);
-		caret-color: var(--caret-color, var(--interactive-accent));
-	}
-
-	.tt-date-field {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-
-	.tt-date-field input {
-		flex: 1;
-	}
-
-	.tt-date-today {
-		border: var(--border-width, 1px) solid var(--background-modifier-border);
-		background: var(--interactive-normal, var(--background-secondary));
-		color: var(--text-muted);
-		border-radius: var(--button-radius, var(--radius-m, 8px));
-		padding: var(--size-2-3, 6px) var(--size-4-3, 12px);
-		font-size: 0.78rem;
-		font-weight: 600;
-		cursor: pointer;
-		white-space: nowrap;
-	}
-
-	.tt-date-today:hover {
-		background: var(--interactive-hover, var(--background-modifier-hover));
-		color: var(--text-normal);
-	}
-
-	.tt-fields input:focus,
-	.tt-fields input:focus {
-		outline: none;
-		border-color: var(--interactive-accent);
 	}
 
 	/* Relationship, notes, and action CSS live in their own sub-components. */
