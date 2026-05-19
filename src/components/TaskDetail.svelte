@@ -1,5 +1,6 @@
 ﻿<script lang="ts">
 	import { Modal, Notice } from 'obsidian';
+	import { onDestroy } from 'svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
 	import type { Task, TaskStatus, TaskPriority } from '../types';
@@ -12,6 +13,7 @@
 	import { deriveTaskDetailFieldProps } from './taskDetailFieldProps';
 	import { resolveLinkedTaskPath } from './taskDetailLinks';
 	import { deriveTaskDetailOptionState } from './taskDetailOptions';
+	import { createTaskDetailSaveController, normalizeDateValue } from './taskDetailSaveController';
 	import TextField from './fields/TextField.svelte';
 	import SelectField from './fields/SelectField.svelte';
 	import DateField from './fields/DateField.svelte';
@@ -49,9 +51,19 @@
 	let formTaskPath: string | null = null;
 	let pendingSaves = 0;
 	let saving = false;
+	const saveController = createTaskDetailSaveController({
+		updateTask: async (taskPath, updates) => {
+			await store.update(taskPath, updates);
+		},
+		getActiveTaskPath: () => task?.path ?? null,
+		onPendingChange: (pendingCount) => {
+			pendingSaves = pendingCount;
+		},
+	});
 
-	type DebounceKey = 'name' | 'assigned_to' | 'blocked_reason';
-	const saveTimers: Partial<Record<DebounceKey, ReturnType<typeof setTimeout>>> = {};
+	onDestroy(() => {
+		saveController.dispose();
+	});
 
 	$: saving = pendingSaves > 0;
 
@@ -74,47 +86,6 @@
 		formTaskPath    = task.path;
 	}
 
-	// ── Save helpers ────────────────────────────────────────────────────────────
-	function beginSave(): void {
-		pendingSaves += 1;
-	}
-
-	function endSave(): void {
-		pendingSaves = Math.max(0, pendingSaves - 1);
-	}
-
-	function clearSaveTimer(key: DebounceKey): void {
-		const timer = saveTimers[key];
-		if (timer) {
-			clearTimeout(timer);
-			delete saveTimers[key];
-		}
-	}
-
-	async function saveImmediateForPath(taskPath: string, updates: Partial<Task>) {
-		beginSave();
-		try {
-			await store.update(taskPath, updates);
-		} finally {
-			endSave();
-		}
-	}
-
-	async function saveImmediate(updates: Partial<Task>) {
-		if (!task) return;
-		await saveImmediateForPath(task.path, updates);
-	}
-
-	function saveDebounced(key: DebounceKey, updates: Partial<Task>) {
-		if (!task) return;
-		const taskPath = task.path;
-		clearSaveTimer(key);
-		saveTimers[key] = setTimeout(() => {
-			void saveImmediateForPath(taskPath, updates);
-			delete saveTimers[key];
-		}, 600);
-	}
-
 	// ── Field handlers ──────────────────────────────────────────────────────────
 	function getCompletionStatus(): TaskStatus {
 		return resolveCompletionStatus(plugin.settings.statuses, plugin.settings.completionStatus);
@@ -132,7 +103,7 @@
 			}
 		} else {
 			const today = localDateString();
-			await saveImmediate({ status: completeStatus, completed: today });
+			await saveController.saveImmediate({ status: completeStatus, completed: today });
 		}
 	}
 
@@ -166,12 +137,9 @@
 
 	async function onParentTaskChange() {
 		if (!task) return;
-		beginSave();
-		try {
+		await saveController.runWithPending(async () => {
 			await store.updateParentTask(task.path, parent_task_path || null);
-		} finally {
-			endSave();
-		}
+		});
 	}
 
 	async function onParentTaskFieldChange(nextValue: string | string[]): Promise<void> {
@@ -180,19 +148,14 @@
 		await onParentTaskChange();
 	}
 
-	function normalizeDateValue(value: string): string | null {
-		if (!value) return null;
-		return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-	}
-
 	function saveDueDate(nextValue: string): void {
 		due_date = nextValue;
-		void saveImmediate({ due_date: normalizeDateValue(nextValue) });
+		void saveController.saveImmediate({ due_date: normalizeDateValue(nextValue) });
 	}
 
 	function saveStartDate(nextValue: string): void {
 		start_date = nextValue;
-		void saveImmediate({ start_date: normalizeDateValue(nextValue) });
+		void saveController.saveImmediate({ start_date: normalizeDateValue(nextValue) });
 	}
 
 	function normalizeEstDays(value: number | null): number | null {
@@ -204,29 +167,29 @@
 		if (typeof nextValue !== 'string') return;
 		const nextStatus = nextValue as TaskStatus;
 		status = nextStatus;
-		void saveImmediate({ status: nextStatus });
+		void saveController.saveImmediate({ status: nextStatus });
 	}
 
 	function onNameFieldChange(nextValue: string): void {
 		name = nextValue;
-		saveDebounced('name', { name: nextValue });
+		saveController.saveDebounced('name', { name: nextValue });
 	}
 
 	function onPriorityFieldChange(nextValue: string | string[]): void {
 		if (typeof nextValue !== 'string') return;
 		const nextPriority = nextValue as TaskPriority;
 		priority = nextPriority;
-		void saveImmediate({ priority: nextPriority });
+		void saveController.saveImmediate({ priority: nextPriority });
 	}
 
 	function onAreaFieldChange(nextValue: string): void {
 		area = nextValue;
-		void saveImmediate({ area: nextValue || null });
+		void saveController.saveImmediate({ area: nextValue || null });
 	}
 
 	function onLabelsFieldChange(nextValue: string): void {
 		selectedLabels = nextValue ? [nextValue] : [];
-		void saveImmediate({ labels: selectedLabels });
+		void saveController.saveImmediate({ labels: selectedLabels });
 	}
 
 	function onDueDateFieldChange(nextValue: string): void {
@@ -239,33 +202,33 @@
 
 	function onAssignedToFieldChange(nextValue: string): void {
 		assigned_to = nextValue;
-		saveDebounced('assigned_to', { assigned_to: nextValue });
+		saveController.saveDebounced('assigned_to', { assigned_to: nextValue });
 	}
 
 	function onEstimatedDaysFieldChange(nextValue: number | null): void {
 		estimated_days = normalizeEstDays(nextValue);
-		void saveImmediate({ estimated_days: estimated_days });
+		void saveController.saveImmediate({ estimated_days: estimated_days });
 	}
 
 	function onBlockedReasonFieldChange(nextValue: string): void {
 		blocked_reason = nextValue;
-		saveDebounced('blocked_reason', { blocked_reason: nextValue });
+		saveController.saveDebounced('blocked_reason', { blocked_reason: nextValue });
 	}
 
 	function onRecurrenceFieldChange(nextValue: string): void {
 		recurrence = nextValue || null;
 		if (!recurrence) recurrence_type = null;
-		void saveImmediate({ recurrence: recurrence || null, recurrence_type: recurrence_type || null });
+		void saveController.saveImmediate({ recurrence: recurrence || null, recurrence_type: recurrence_type || null });
 	}
 
 	function onRecurrenceTypeFieldChange(nextValue: string): void {
 		recurrence_type = nextValue || null;
-		void saveImmediate({ recurrence_type: recurrence_type || null });
+		void saveController.saveImmediate({ recurrence_type: recurrence_type || null });
 	}
 
 	function onReminderOverrideFieldChange(nextValue: string): void {
 		const reminderOverride = nextValue === 'urgent' || nextValue === 'mute' ? nextValue : null;
-		void saveImmediate({ reminder_override: reminderOverride });
+		void saveController.saveImmediate({ reminder_override: reminderOverride });
 	}
 
 	const reminderOverrideLabels: Record<string, string> = {
@@ -392,22 +355,16 @@
 
 	async function addDependency(depPath: string): Promise<void> {
 		if (!task) return;
-		beginSave();
-		try {
+		await saveController.runWithPending(async () => {
 			await store.addDependency(task.path, depPath.replace(/\.md$/, ''));
-		} finally {
-			endSave();
-		}
+		});
 	}
 
 	async function removeDependency(depPath: string): Promise<void> {
 		if (!task) return;
-		beginSave();
-		try {
+		await saveController.runWithPending(async () => {
 			await store.removeDependency(task.path, depPath.replace(/\.md$/, ''));
-		} finally {
-			endSave();
-		}
+		});
 	}
 
 </script>
