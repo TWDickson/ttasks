@@ -3,6 +3,7 @@ import type { Task } from '../types';
 export interface TaskGraphNode {
 	path: string;
 	task: Task;
+	laneKey: string | null;  // Project path or null for unassigned/independent
 	column: number;
 	row: number;
 	x: number;
@@ -25,9 +26,18 @@ export interface TaskGraphEdge {
 	isParentEdge: boolean;
 }
 
+export interface GraphLane {
+	key: string | null;  // Project path or null for independent
+	label: string;       // Project name or "Unassigned"
+	taskPaths: string[];  // All task paths in this lane
+	startRow: number;
+	endRow: number;
+}
+
 export interface TaskGraphLayout {
 	nodes: TaskGraphNode[];
 	edges: TaskGraphEdge[];
+	lanes: GraphLane[];  // Project-based lane structure
 	columns: number;
 	rows: number;
 	width: number;
@@ -56,6 +66,51 @@ interface ComponentInfo {
 	isCycle: boolean;
 }
 
+/**
+ * Get a numeric date key for task ordering.
+ * Earlier dates = lower numbers (appear on the left).
+ * Returns timestamp for start_date, due_date, or created, or Infinity if none available.
+ */
+function getDateKey(task: Task): number {
+	if (task.start_date) return new Date(task.start_date).getTime();
+	if (task.due_date) return new Date(task.due_date).getTime();
+	if (task.created) return new Date(task.created).getTime();
+	return Infinity;
+}
+
+/**
+ * Group tasks by lane (parent_task), preserving project nodes.
+ * Returns lanes sorted: projects first (by name), then unassigned/independent.
+ */
+function buildLaneAssignment(tasks: Task[]): Map<string | null, string[]> {
+	const lanesByKey = new Map<string | null, string[]>();
+
+	// First pass: collect all unique parent_task values
+	const projectPaths = new Set<string>();
+	for (const task of tasks) {
+		if (task.type === 'project') {
+			projectPaths.add(task.path);
+		}
+		if (task.parent_task) {
+			projectPaths.add(task.parent_task);
+		}
+	}
+
+	// Initialize lanes for each project + one for unassigned
+	for (const projectPath of projectPaths) {
+		lanesByKey.set(projectPath, []);
+	}
+	lanesByKey.set(null, []);  // Unassigned/independent lane
+
+	// Assign tasks to lanes
+	for (const task of tasks) {
+		const laneKey = task.parent_task ?? null;
+		lanesByKey.get(laneKey)?.push(task.path);
+	}
+
+	return lanesByKey;
+}
+
 const DEFAULT_NODE_WIDTH = 232;
 const DEFAULT_NODE_HEIGHT = 92;
 const DEFAULT_HORIZONTAL_GAP = 88;
@@ -77,6 +132,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		return {
 			nodes: [],
 			edges: [],
+			lanes: [],
 			columns: 0,
 			rows: 0,
 			width: padding * 2,
@@ -281,6 +337,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 				nodes.push({
 					path,
 					task,
+					laneKey: task.parent_task ?? null,
 					column: level,
 					row,
 					x: padding + level * (nodeWidth + horizontalGap),
@@ -319,11 +376,72 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 
 	nodes.sort((left, right) => left.column - right.column || left.row - right.row || left.path.localeCompare(right.path));
 
+	// Build lanes from grouped nodes
+	const lanesByKey = new Map<string | null, TaskGraphNode[]>();
+	for (const node of nodes) {
+		if (!lanesByKey.has(node.laneKey)) {
+			lanesByKey.set(node.laneKey, []);
+		}
+		lanesByKey.get(node.laneKey)?.push(node);
+	}
+
+	// Sort lanes: projects first (by name), then unassigned
+	const lanes: GraphLane[] = [];
+	const projectLanes: [string, TaskGraphNode[]][] = [];
+	let unassignedLane: [string | null, TaskGraphNode[]] | null = null;
+
+	for (const [laneKey, laneNodes] of lanesByKey) {
+		if (laneKey === null) {
+			unassignedLane = [laneKey, laneNodes];
+		} else {
+			projectLanes.push([laneKey, laneNodes]);
+		}
+	}
+
+	// Sort project lanes by name
+	projectLanes.sort((a, b) => {
+		const aLabel = taskByPath.get(a[0])?.name ?? a[0];
+		const bLabel = taskByPath.get(b[0])?.name ?? b[0];
+		return aLabel.localeCompare(bLabel);
+	});
+
+	// Build lane descriptors
+	for (const [laneKey, laneNodes] of projectLanes) {
+		const sortedByRow = [...laneNodes].sort((a, b) => a.row - b.row);
+		const startRow = Math.min(...sortedByRow.map((n) => n.row));
+		const endRow = Math.max(...sortedByRow.map((n) => n.row));
+		const label = taskByPath.get(laneKey)?.name ?? laneKey;
+		lanes.push({
+			key: laneKey,
+			label,
+			taskPaths: sortedByRow.map((n) => n.path),
+			startRow,
+			endRow,
+		});
+	}
+
+	if (unassignedLane) {
+		const [laneKey, laneNodes] = unassignedLane;
+		const sortedByRow = [...laneNodes].sort((a, b) => a.row - b.row);
+		const startRow = Math.min(...sortedByRow.map((n) => n.row), Infinity);
+		const endRow = Math.max(...sortedByRow.map((n) => n.row), -Infinity);
+		if (sortedByRow.length > 0) {
+			lanes.push({
+				key: null,
+				label: 'Unassigned',
+				taskPaths: sortedByRow.map((n) => n.path),
+				startRow,
+				endRow,
+			});
+		}
+	}
+
 	const rows = Math.max(0, maxRow + 1);
 	const columns = Math.max(1, sortedLevels.length);
 	return {
 		nodes,
 		edges,
+		lanes,
 		columns,
 		rows,
 		width: padding * 2 + columns * nodeWidth + Math.max(0, columns - 1) * horizontalGap,

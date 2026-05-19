@@ -47,8 +47,23 @@
 	$: connectedDependencyPaths = resolveConnectedDependencyPaths(tasks);
 	$: dependencyGraphTasks = showIndependentInDependency || connectedDependencyPaths.size === 0
 		? tasks
-		: tasks.filter((task) => task.type === 'project' || connectedDependencyPaths.has(task.path));
-	$: hiddenIndependentCount = Math.max(0, tasks.filter((task) => task.type === 'task').length - connectedDependencyPaths.size);
+		: tasks.filter((task) => {
+			// Always include projects and tasks with parent_task (part of a project lane)
+			if (task.type === 'project' || task.parent_task) return true;
+			// For unassigned/independent tasks, only include if they have dependencies
+			return connectedDependencyPaths.has(task.path);
+		});
+	$: hiddenIndependentCount = Math.max(
+		0,
+		tasks
+			.filter(
+				(task) =>
+					task.type === 'task' &&
+					!task.parent_task &&
+					!connectedDependencyPaths.has(task.path),
+			)
+			.length,
+	);
 
 	$: layout = buildTaskGraph(dependencyGraphTasks, {
 		nodeWidth: 226,
