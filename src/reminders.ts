@@ -209,14 +209,8 @@ export class ReminderService {
 	private isQuietHours(): boolean {
 		const r = this.plugin.settings.reminders;
 		if (!r.quietHoursEnabled) return false;
-		const hour = new Date().getHours(); // 0–23 local time
-		if (r.quietStart <= r.quietEnd) {
-			// e.g. 9–17: quiet during a daytime window
-			return hour >= r.quietStart && hour < r.quietEnd;
-		} else {
-			// e.g. 22–8: wraps midnight
-			return hour >= r.quietStart || hour < r.quietEnd;
-		}
+		const hour = new Date().getHours();
+		return isInQuietHoursWindow(r.quietStart, r.quietEnd, hour);
 	}
 
 	// ---------------------------------------------------------------------------
@@ -224,7 +218,7 @@ export class ReminderService {
 	// ---------------------------------------------------------------------------
 
 	private makeKey(path: string, rule: RuleId, date: string): FiredKey {
-		return `${path}|${rule}|${date}`;
+		return buildReminderKey(path, rule, date);
 	}
 
 	/** Returns true and marks the key if this reminder has not yet fired today. */
@@ -237,12 +231,7 @@ export class ReminderService {
 
 	/** Remove keys for dates older than today to keep the stored set bounded. */
 	private pruneStaleKeys(today: string): void {
-		for (const key of this.firedKeys) {
-			const date = key.split('|')[2];
-			if (date !== undefined && date < today) {
-				this.firedKeys.delete(key);
-			}
-		}
+		this.firedKeys = pruneOldReminderKeys(this.firedKeys, today);
 	}
 
 	// ---------------------------------------------------------------------------
@@ -282,5 +271,30 @@ export class ReminderService {
 
 function todayString(): string {
 	return localDateString();
+}
+
+/** Pure: check if `hour` (0–23) falls within a quiet-hours window.
+ *  Supports wrap-around ranges (e.g. 22–8 = overnight silence). */
+export function isInQuietHoursWindow(quietStart: number, quietEnd: number, hour: number): boolean {
+	if (quietStart <= quietEnd) {
+		return hour >= quietStart && hour < quietEnd;
+	} else {
+		return hour >= quietStart || hour < quietEnd;
+	}
+}
+
+/** Pure: build the deduplication key for a fired reminder. */
+export function buildReminderKey(path: string, rule: string, date: string): string {
+	return `${path}|${rule}|${date}`;
+}
+
+/** Pure: return a new Set with keys for dates before `today` removed. */
+export function pruneOldReminderKeys(keys: Set<string>, today: string): Set<string> {
+	const result = new Set<string>();
+	for (const key of keys) {
+		const date = key.split('|')[2];
+		if (date !== undefined && date >= today) result.add(key);
+	}
+	return result;
 }
 

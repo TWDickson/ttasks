@@ -100,6 +100,11 @@ const GROUP_FIELDS = new Set<GroupField>([
 
 const TASK_VIEW_RENDERERS = new Set<TaskViewRenderer>(['list', 'kanban', 'agenda', 'graph', 'archive']);
 
+function parseFromSet<T extends string>(value: unknown, allowedSet: Set<T>): T | null {
+	if (typeof value !== 'string') return null;
+	return allowedSet.has(value as T) ? (value as T) : null;
+}
+
 const EMPTY_FILTER_SPEC: FilterGroup = { logic: 'and', conditions: [] };
 
 const EMPTY_QUERY_SPEC: QuerySpec = {
@@ -251,16 +256,10 @@ function normalizeFilterValue(value: unknown): FilterCondition['value'] | undefi
 function normalizeFilterCondition(value: unknown): FilterCondition | null {
 	const root = asRecord(value);
 	if (!root) return null;
-	const field = asString(root.field);
-	const operator = asString(root.operator);
-	if (!field || !FILTER_FIELDS.has(field as FilterField)) return null;
-	if (!operator || !FILTER_OPERATORS.has(operator as FilterOperator)) return null;
-
-	return {
-		field: field as FilterField,
-		operator: operator as FilterOperator,
-		value: normalizeFilterValue(root.value),
-	};
+	const field    = parseFromSet(root.field,    FILTER_FIELDS);
+	const operator = parseFromSet(root.operator, FILTER_OPERATORS);
+	if (!field || !operator) return null;
+	return { field, operator, value: normalizeFilterValue(root.value) };
 }
 
 function normalizeFilterGroup(value: unknown): FilterGroup | null {
@@ -287,11 +286,11 @@ function normalizeSortSpec(value: unknown): SortSpec {
 		.map((entry) => {
 			const root = asRecord(entry);
 			if (!root) return null;
-			const field = asString(root.field);
+			const field     = parseFromSet(root.field, SORT_FIELDS);
 			const direction = asString(root.direction);
-			if (!field || !SORT_FIELDS.has(field as SortField)) return null;
+			if (!field) return null;
 			if (direction !== 'asc' && direction !== 'desc') return null;
-			return { field: field as SortField, direction };
+			return { field, direction };
 		})
 		.filter((entry): entry is SortSpec[number] => entry !== null);
 }
@@ -299,9 +298,8 @@ function normalizeSortSpec(value: unknown): SortSpec {
 function normalizeGroupSpec(value: unknown): GroupSpec {
 	if (value === null) return { kind: 'none' };
 	if (typeof value === 'string') {
-		return GROUP_FIELDS.has(value as GroupField)
-			? { kind: 'field', field: value as GroupField }
-			: { kind: 'none' };
+		const field = parseFromSet(value, GROUP_FIELDS);
+		return field ? { kind: 'field', field } : { kind: 'none' };
 	}
 
 	const root = asRecord(value);
@@ -310,11 +308,8 @@ function normalizeGroupSpec(value: unknown): GroupSpec {
 	const kind = asString(root.kind);
 	if (kind === 'none') return { kind: 'none' };
 	if (kind === 'field') {
-		const field = asString(root.field);
-		if (field && GROUP_FIELDS.has(field as GroupField)) {
-			return { kind: 'field', field: field as GroupField };
-		}
-		return { kind: 'none' };
+		const field = parseFromSet(root.field, GROUP_FIELDS);
+		return field ? { kind: 'field', field } : { kind: 'none' };
 	}
 	if (kind === 'date_buckets') {
 		const field = asString(root.field);

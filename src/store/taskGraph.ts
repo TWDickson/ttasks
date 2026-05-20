@@ -705,6 +705,11 @@ function computeChainGroups(components: ComponentInfo[]): Map<number, number> {
 	return chainGroup;
 }
 
+function pathLeaf(path: string): string {
+	const leaf = path.split('/').pop() ?? path;
+	return leaf.replace(/\.md$/, '').replace(/^[a-f0-9]+-/, '');
+}
+
 export function normalizeTaskPath(path: string | null | undefined): string | null {
 	if (!path) return null;
 	const wikiPath = parseWikiLink(path);
