@@ -31,4 +31,21 @@ describe('architecture boundaries', () => {
 		expect(content).toContain("from './integration/taskActionPorts'");
 		expect(content).toContain('createTaskContextMenuDeps');
 	});
+
+	it('SettingsTab delegates section rendering to extracted settings modules', () => {
+		const content = readWorkspaceFile('src/settings/SettingsTab.ts');
+
+		expect(content).toContain("from './viewsSettingsSection'");
+		expect(content).toContain("from './quickActionsSettingsSection'");
+		expect(content).toContain("from './remindersSettingsSection'");
+		expect(content).toContain("from './kanbanSettingsSection'");
+		expect(content).toContain("from './archiveSettingsSection'");
+		expect(content).toContain("from './managedListSettingsSection'");
+		expect(content).toContain('renderViewsSettingsSection({');
+		expect(content).toContain('renderQuickActionsSettingsSection({');
+		expect(content).toContain('renderRemindersSettingsSection({');
+		expect(content).toContain('renderKanbanSettingsSection({');
+		expect(content).toContain('renderArchiveSettingsSection({');
+		expect(content).toContain('renderManagedListSettingSection({');
+	});
 });
