@@ -11,8 +11,11 @@
 	export let onChange: ((value: string | string[]) => void) | undefined = undefined;
 	export let onBlur: (() => void) | undefined = undefined;
 
-	const isMulti = definition.chipsType === 'multi';
-	const values = Array.isArray(value) ? value : value ? [value] : [];
+	let isMulti = false;
+	let values: string[] = [];
+
+	$: isMulti = definition.chipsType === 'multi';
+	$: values = Array.isArray(value) ? value : value ? [value] : [];
 
 	const handleChipClick = (opt: string) => {
 		if (readonly) return;
