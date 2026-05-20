@@ -349,6 +349,30 @@ describe('resolveTaskDates', () => {
 		expect(resolvedB!.start.toISOString().slice(0, 10)).toBe('2026-04-13'); // Monday
 		expect(resolvedB!.end.toISOString().slice(0, 10)).toBe('2026-04-15'); // Tuesday is a holiday
 	});
+
+	it('skips configured holidays for estimated durations even when workweek mode is off', () => {
+		const project = makeTask({
+			path: 'Tasks/proj.md',
+			name: 'Project',
+			type: 'project',
+			workweek_only: false,
+			holiday_dates: ['2026-04-14'],
+		});
+		const task = makeTask({
+			path: 'Tasks/a.md',
+			name: 'A',
+			parent_task: 'Tasks/proj',
+			start_date: '2026-04-13',
+			estimated_days: 2,
+		});
+
+		const result = resolveTaskDates([task], { allTasks: [project, task] });
+		const resolvedTask = result.get('Tasks/a.md');
+
+		expect(resolvedTask).toBeDefined();
+		expect(resolvedTask!.start.toISOString().slice(0, 10)).toBe('2026-04-13');
+		expect(resolvedTask!.end.toISOString().slice(0, 10)).toBe('2026-04-15');
+	});
 });
 
 describe('buildHybridTimeline', () => {
@@ -444,29 +468,27 @@ describe('buildHybridTimeline', () => {
 		expect(a1.groupKey).not.toBe(b1.groupKey);
 	});
 
-	it('uses parent task name as group label when the parent is a visible task', () => {
-		// When the parent_task is itself a visible task (type='task'), its name is used as label.
-		// Projects (type='project') are filtered out of visibleTasks, so they fall back to path leaf.
-		const parentTask = makeTask({ path: 'Tasks/parent.md', name: 'Parent Task', type: 'task', due_date: '2026-06-01' });
-		const childTask = makeTask({ path: 'Tasks/child.md', name: 'Child', parent_task: 'Tasks/parent', due_date: '2026-06-10' });
-
-		const model = buildHybridTimeline([parentTask, childTask], { grouping: 'project' });
-
-		const child = model.defined.find(i => i.path === 'Tasks/child.md')!;
-		expect(child.groupLabel).toBe('Parent Task');
-	});
-
-	it('falls back to path leaf as group label when parent is a project (excluded from task list)', () => {
-		// Project tasks are excluded from visibleTasks; the resolver falls back to pathLeaf
+	it('uses owning project name as group label for project grouping', () => {
 		const project = makeTask({ path: 'Tasks/my-proj.md', name: 'My Project', type: 'project' });
 		const task = makeTask({ path: 'Tasks/t.md', name: 'T', parent_task: 'Tasks/my-proj', due_date: '2026-06-01' });
 
 		const model = buildHybridTimeline([project, task], { grouping: 'project' });
 
 		const item = model.defined.find(i => i.path === 'Tasks/t.md')!;
-		// Falls back to the last segment of the parent path (no '.md' because normalizeTaskPath strips it)
-		expect(item.groupLabel).toBeTruthy();
+		expect(item.groupLabel).toBe('My Project');
 		expect(item.groupKey).toBe('project:Tasks/my-proj.md');
+	});
+
+	it('uses owning project name when task parent points to an intermediate task', () => {
+		const project = makeTask({ path: 'Tasks/my-proj.md', name: 'My Project', type: 'project' });
+		const parentTask = makeTask({ path: 'Tasks/epic.md', name: 'Epic', parent_task: 'Tasks/my-proj', due_date: '2026-06-01' });
+		const childTask = makeTask({ path: 'Tasks/child.md', name: 'Child', parent_task: 'Tasks/epic', due_date: '2026-06-10' });
+
+		const model = buildHybridTimeline([project, parentTask, childTask], { grouping: 'project' });
+
+		const child = model.defined.find(i => i.path === 'Tasks/child.md')!;
+		expect(child.groupLabel).toBe('My Project');
+		expect(child.groupKey).toBe('project:Tasks/my-proj.md');
 	});
 
 	it('assigns "No project" label to orphan tasks when grouping=project', () => {

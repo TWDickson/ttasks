@@ -459,7 +459,6 @@
 								<div
 									class={getLaneHeaderClass(lane)}
 									style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
-									title={lane.label}
 								>
 									<span class="tt-dependency-lane-label">{lane.label}</span>
 									<span class="tt-dependency-lane-count">{lane.taskCount}</span>
@@ -525,7 +524,7 @@
 			<div class="tt-overview-scroll" bind:this={overviewScrollEl} on:scroll={onOverviewScroll}>
 				<div class="tt-overview-axis" style={`width:${overviewCanvasWidth}px;`}>
 					{#each nonWorkingBands as band (band.id)}
-						<div class="tt-overview-nonworking" class:is-weekend={band.kind === 'weekend'} class:is-holiday={band.kind === 'holiday'} style={`left:${band.leftPercent.toFixed(3)}%;width:${band.widthPercent.toFixed(3)}%;`} title={band.label}></div>
+						<div class="tt-overview-nonworking" class:is-weekend={band.kind === 'weekend'} class:is-holiday={band.kind === 'holiday'} style={`left:${band.leftPercent.toFixed(3)}%;width:${band.widthPercent.toFixed(3)}%;`}></div>
 					{/each}
 					{#each timelineTicks as tick}
 						<div class="tt-overview-tick" class:is-start={tick.position === 'start'} class:is-end={tick.position === 'end'} style={`left:${tick.leftPercent.toFixed(3)}%;`}>
@@ -538,7 +537,7 @@
 				<div class="tt-hybrid-shell" style={`width:${overviewCanvasWidth}px;--tt-link-canvas-height:${linkCanvasHeightPx}px;`}>
 					<div class="tt-hybrid-calendar-overlay" aria-hidden="true">
 						{#each nonWorkingBands as band (band.id)}
-							<div class="tt-hybrid-calendar-band" class:is-weekend={band.kind === 'weekend'} class:is-holiday={band.kind === 'holiday'} style={`left:${band.leftPercent.toFixed(3)}%;width:${band.widthPercent.toFixed(3)}%;`} title={band.label}></div>
+							<div class="tt-hybrid-calendar-band" class:is-weekend={band.kind === 'weekend'} class:is-holiday={band.kind === 'holiday'} style={`left:${band.leftPercent.toFixed(3)}%;width:${band.widthPercent.toFixed(3)}%;`}></div>
 						{/each}
 					</div>
 					<div class="tt-hybrid-today-line" style={`left:${todayPercent.toFixed(3)}%;`}></div>
@@ -568,7 +567,7 @@
 											class="tt-hybrid-lane-header"
 											style={`top:${header.topPx}px;height:${header.heightPx}px;`}
 										>
-											<span class="tt-lane-title" title={header.label}>{header.label}</span>
+											<span class="tt-lane-title">{header.label}</span>
 											<span class="tt-lane-count">{header.taskCount}</span>
 										</div>
 									{/each}
@@ -586,7 +585,6 @@
 										class:is-active={$activeTaskPath === item.path}
 										class:is-inferred={item.isInferred}
 										style={definedBarStyle(item)}
-										title={`${item.task.name} | ${formatDateISO(item.start)} → ${formatDateISO(item.end)}${item.isInferred ? ' (inferred)' : ''}`}
 										tabindex="0"
 										aria-label="{item.task.name} — {formatDateISO(item.start)} to {formatDateISO(item.end)}{item.isInferred ? ' (estimated)' : ''}"
 										aria-pressed={$activeTaskPath === item.path}
@@ -621,7 +619,7 @@
 											class="tt-hybrid-lane-header"
 											style={`top:${header.topPx}px;height:${header.heightPx}px;`}
 										>
-											<span class="tt-lane-title" title={header.label}>{header.label}</span>
+											<span class="tt-lane-title">{header.label}</span>
 											<span class="tt-lane-count">{header.taskCount}</span>
 										</div>
 									{/each}
@@ -638,7 +636,6 @@
 										class:is-done={item.task.is_complete}
 										class:is-active={$activeTaskPath === item.path}
 										style={underdefinedCardStyle(item)}
-										title={`${item.task.name} | follows ${item.anchorPath.replace(/\.md$/, '')}`}
 										tabindex="0"
 										aria-label="{item.task.name} — follows {item.anchorPath.replace(/\.md$/, '').split('/').pop()}"
 										aria-pressed={$activeTaskPath === item.path}
@@ -808,9 +805,8 @@
 		fill: none;
 		stroke: color-mix(in srgb, var(--color-orange) 78%, var(--text-faint));
 		color: color-mix(in srgb, var(--color-orange) 78%, var(--text-faint));
-		stroke-width: 2;
-		stroke-dasharray: 6 6;
-		opacity: 0.78;
+		stroke-width: 1.5;
+		opacity: 0.46;
 	}
 
 	.tt-hybrid-track {

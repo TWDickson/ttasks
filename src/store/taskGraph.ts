@@ -765,12 +765,17 @@ function isWeekend(date: Date): boolean {
 }
 
 function isNonWorkingDay(date: Date, calendar: WorkingCalendar): boolean {
+	if (calendar.holidayDates.has(toIsoDate(date))) return true;
 	if (!calendar.workweekOnly) return false;
-	return isWeekend(date) || calendar.holidayDates.has(toIsoDate(date));
+	return isWeekend(date);
 }
 
 function addCalendarDays(date: Date, days: number, calendar: WorkingCalendar): Date {
-	if (!calendar.workweekOnly || days === 0) {
+	if (days === 0) {
+		return inferAddDays(date, days);
+	}
+
+	if (!calendar.workweekOnly && calendar.holidayDates.size === 0) {
 		return inferAddDays(date, days);
 	}
 
@@ -993,7 +998,7 @@ export function buildHybridTimeline(tasks: Task[], options: BuildHybridTimelineO
 	const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
 	const resolved = resolveTaskDates(visibleTasks, { allTasks: tasks });
 	const resolveCalendar = createWorkingCalendarResolver(visibleTasks, { allTasks: tasks });
-	const resolveGroup = createTimelineGroupingResolver(grouping, visibleTasks);
+	const resolveGroup = createTimelineGroupingResolver(grouping, visibleTasks, tasks);
 
 	const resolvedEntries = [...resolved.entries()]
 		.map(([path, dates]) => ({ path, task: taskByPath.get(path), dates }))
@@ -1134,11 +1139,14 @@ export function buildHybridTimeline(tasks: Task[], options: BuildHybridTimelineO
 
 		const anchorResolved = definedByPath.get(item.anchorPath);
 		if (anchorResolved) {
+			const anchorEndDays = Math.round((anchorResolved.end.getTime() - rangeStart.getTime()) / INFER_DAY_MS) + 1;
+			const anchorEndPercent = Math.min(99, (Math.max(0, anchorEndDays) / spanDays) * 100);
+			const fromPercent = Math.min(anchorEndPercent, Math.max(0, item.leftPercent - 0.35));
 			links.push({
 				id: `${item.anchorPath}->${item.path}`,
 				fromPath: item.anchorPath,
 				toPath: item.path,
-				fromPercent: Math.min(99, anchorResolved.leftPercent + anchorResolved.widthPercent),
+				fromPercent,
 				toPercent: item.leftPercent,
 				fromRow: anchorResolved.row,
 				toRow: item.row,
@@ -1174,20 +1182,21 @@ function resolveUnderdefinedWidthPercent(task: Task): number {
 function createTimelineGroupingResolver(
 	mode: HybridTimelineGrouping,
 	visibleTasks: Task[],
+	allTasks: Task[],
 ): (task: Task) => { key: string; label: string } {
 	if (mode === 'none') {
 		return () => ({ key: '__all__', label: 'All tasks' });
 	}
 
 	if (mode === 'project') {
-		const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
+		const allTaskByPath = new Map(allTasks.map((task) => [task.path, task]));
 		return (task) => {
-			const parent = normalizeTaskPath(task.parent_task ?? null);
-			if (!parent) return { key: '__no_project__', label: 'No project' };
-			const project = taskByPath.get(parent);
+			const owningProjectPath = resolveOwningProjectPath(task, allTaskByPath);
+			if (!owningProjectPath) return { key: '__no_project__', label: 'No project' };
+			const project = allTaskByPath.get(owningProjectPath);
 			return {
-				key: `project:${parent}`,
-				label: project?.name ?? pathLeaf(parent),
+				key: `project:${owningProjectPath}`,
+				label: project?.name ?? pathLeaf(owningProjectPath),
 			};
 		};
 	}
