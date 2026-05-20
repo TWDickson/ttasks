@@ -240,7 +240,9 @@
 	$: virtualEndPercent = Math.min(100, visibleEndPercent + 8);
 	$: visibleDefined = hybridTimeline.defined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
 	$: visibleUnderdefined = hybridTimeline.underdefined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
-	$: visibleLinks = hybridTimeline.links.filter((link) => intersectsViewport(Math.min(link.fromPercent, link.toPercent), Math.abs(link.toPercent - link.fromPercent), virtualStartPercent, virtualEndPercent));
+	$: visibleLinks = hybridTimeline.links
+		.filter((link) => link.toPercent > link.fromPercent + 0.15)
+		.filter((link) => intersectsViewport(Math.min(link.fromPercent, link.toPercent), Math.abs(link.toPercent - link.fromPercent), virtualStartPercent, virtualEndPercent));
 	$: timelineTicks = buildTimelineTicks(normalizedOverviewRange.start, normalizedOverviewRange.end);
 	$: overviewHolidayDates = collectProjectHolidayDates(overviewTasks);
 	$: nonWorkingBands = buildTimelineNonWorkingBands(normalizedOverviewRange.start, normalizedOverviewRange.end, overviewHolidayDates);
@@ -347,6 +349,7 @@
 	}
 
 	function hybridLinkPath(link: { fromPercent: number; toPercent: number; fromRow: number; toRow: number }): string {
+		if (link.toPercent <= link.fromPercent + 0.15) return '';
 		const startY = HYBRID_TRACK_PADDING + link.fromRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP) + HYBRID_ROW_HEIGHT;
 		const endY = definedTrackHeightPx + 54 + HYBRID_TRACK_PADDING + link.toRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
 		const deltaX = Math.abs(link.toPercent - link.fromPercent);
@@ -543,7 +546,9 @@
 					<div class="tt-hybrid-today-line" style={`left:${todayPercent.toFixed(3)}%;`}></div>
 					<svg class="tt-hybrid-links" viewBox={`0 0 100 ${linkCanvasHeightPx}`} preserveAspectRatio="none" aria-hidden="true">
 						{#each visibleLinks as link (link.id)}
-							<path class="tt-hybrid-link" d={hybridLinkPath(link)}></path>
+							{#if hybridLinkPath(link)}
+								<path class="tt-hybrid-link" d={hybridLinkPath(link)} fill="none"></path>
+							{/if}
 						{/each}
 					</svg>
 
@@ -802,11 +807,18 @@
 	}
 
 	.tt-hybrid-link {
-		fill: none;
+		fill: none !important;
 		stroke: color-mix(in srgb, var(--color-orange) 78%, var(--text-faint));
 		color: color-mix(in srgb, var(--color-orange) 78%, var(--text-faint));
 		stroke-width: 1.5;
 		opacity: 0.46;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		vector-effect: non-scaling-stroke;
+		marker: none;
+		marker-start: none;
+		marker-mid: none;
+		marker-end: none;
 	}
 
 	.tt-hybrid-track {
