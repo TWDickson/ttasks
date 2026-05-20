@@ -450,7 +450,9 @@
 		<div class="tt-detail-name-row">
 			{#if nameFieldProps}
 				<TextField
-					{...nameFieldProps}
+					definition={nameFieldProps.definition}
+					error={nameFieldProps.error}
+					readonly={nameFieldProps.readonly}
 					value={name}
 					onChange={onNameFieldChange}
 				/>
@@ -482,7 +484,10 @@
 				<div class="tt-parent-task-row">
 					{#if parentTaskFieldProps}
 						<WikiLinkField
-							{...parentTaskFieldProps}
+							definition={parentTaskFieldProps.definition}
+							error={parentTaskFieldProps.error}
+							readonly={parentTaskFieldProps.readonly}
+							context={parentTaskFieldProps.context}
 							value={parent_task_path || ''}
 							options={parentProjectTasks}
 							onChange={onParentTaskFieldChange}
@@ -523,7 +528,9 @@
 			<label class="tt-label" for="area">Area</label>
 			{#if areaFieldProps}
 				<SelectField
-					{...areaFieldProps}
+					definition={areaFieldProps.definition}
+					error={areaFieldProps.error}
+					readonly={areaFieldProps.readonly}
 					value={area}
 					options={areaOptions}
 					onChange={onAreaFieldChange}
@@ -534,7 +541,9 @@
 				<label class="tt-label" for="labels">Labels</label>
 				{#if labelsFieldProps}
 					<SelectField
-						{...labelsFieldProps}
+						definition={labelsFieldProps.definition}
+						error={labelsFieldProps.error}
+						readonly={labelsFieldProps.readonly}
 						value={selectedLabels[0] ?? ''}
 						options={labelOptions}
 						onChange={onLabelsFieldChange}
@@ -569,7 +578,9 @@
 			<label class="tt-label" for="due_date">Due Date</label>
 			{#if dueDateFieldProps}
 				<DateField
-					{...dueDateFieldProps}
+					definition={dueDateFieldProps.definition}
+					error={dueDateFieldProps.error}
+					readonly={dueDateFieldProps.readonly}
 					value={due_date}
 					onChange={onDueDateFieldChange}
 				/>
@@ -578,7 +589,9 @@
 			<label class="tt-label" for="start_date">Start Date</label>
 			{#if startDateFieldProps}
 				<DateField
-					{...startDateFieldProps}
+					definition={startDateFieldProps.definition}
+					error={startDateFieldProps.error}
+					readonly={startDateFieldProps.readonly}
 					value={start_date}
 					onChange={onStartDateFieldChange}
 				/>
@@ -587,7 +600,9 @@
 			<label class="tt-label" for="tt-assigned-to">Assigned To</label>
 			{#if assignedToFieldProps}
 				<TextField
-					{...assignedToFieldProps}
+					definition={assignedToFieldProps.definition}
+					error={assignedToFieldProps.error}
+					readonly={assignedToFieldProps.readonly}
 					value={assigned_to}
 					onChange={onAssignedToFieldChange}
 				/>
@@ -596,7 +611,9 @@
 			<label class="tt-label" for="tt-est-days">Est. Days</label>
 			{#if estimatedDaysFieldProps}
 				<NumberField
-					{...estimatedDaysFieldProps}
+					definition={estimatedDaysFieldProps.definition}
+					error={estimatedDaysFieldProps.error}
+					readonly={estimatedDaysFieldProps.readonly}
 					value={estimated_days}
 					min={0}
 					step={0.5}
@@ -608,7 +625,9 @@
 				<label class="tt-label" for="tt-blocked-reason">Blocked Reason</label>
 				{#if blockedReasonFieldProps}
 					<TextField
-						{...blockedReasonFieldProps}
+						definition={blockedReasonFieldProps.definition}
+						error={blockedReasonFieldProps.error}
+						readonly={blockedReasonFieldProps.readonly}
 						value={blocked_reason}
 						onChange={onBlockedReasonFieldChange}
 					/>
@@ -618,7 +637,9 @@
 			<label class="tt-label" for="tt-recurrence">Repeats</label>
 			{#if recurrenceFieldProps}
 				<SelectField
-					{...recurrenceFieldProps}
+					definition={recurrenceFieldProps.definition}
+					error={recurrenceFieldProps.error}
+					readonly={recurrenceFieldProps.readonly}
 					value={recurrence ?? ''}
 					options={recurrenceOptions}
 					optionLabels={RECURRENCE_LABELS}
@@ -629,7 +650,9 @@
 			{#if recurrence && recurrenceTypeFieldProps}
 				<label class="tt-label" for="recurrence_type">Repeat Type</label>
 				<SelectField
-					{...recurrenceTypeFieldProps}
+					definition={recurrenceTypeFieldProps.definition}
+					error={recurrenceTypeFieldProps.error}
+					readonly={recurrenceTypeFieldProps.readonly}
 					value={recurrence_type ?? ''}
 					options={recurrenceTypeOptions}
 					optionLabels={RECURRENCE_TYPE_LABELS}
@@ -640,7 +663,9 @@
 			<label class="tt-label" for="reminder_override">Reminders</label>
 			{#if reminderOverrideFieldProps}
 				<SelectField
-					{...reminderOverrideFieldProps}
+					definition={reminderOverrideFieldProps.definition}
+					error={reminderOverrideFieldProps.error}
+					readonly={reminderOverrideFieldProps.readonly}
 					value={task.reminder_override ?? ''}
 					options={reminderOverrideOptions}
 					optionLabels={reminderOverrideLabels}
