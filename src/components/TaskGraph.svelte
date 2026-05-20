@@ -240,9 +240,11 @@
 	$: virtualEndPercent = Math.min(100, visibleEndPercent + 8);
 	$: visibleDefined = hybridTimeline.defined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
 	$: visibleUnderdefined = hybridTimeline.underdefined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
+	$: visibleDefinedPaths = new Set(visibleDefined.map((item) => item.path));
+	$: visibleUnderdefinedPaths = new Set(visibleUnderdefined.map((item) => item.path));
 	$: visibleLinks = hybridTimeline.links
 		.filter((link) => link.toPercent > link.fromPercent + 0.15)
-		.filter((link) => intersectsViewport(Math.min(link.fromPercent, link.toPercent), Math.abs(link.toPercent - link.fromPercent), virtualStartPercent, virtualEndPercent));
+		.filter((link) => visibleDefinedPaths.has(link.fromPath) && visibleUnderdefinedPaths.has(link.toPath));
 	$: timelineTicks = buildTimelineTicks(normalizedOverviewRange.start, normalizedOverviewRange.end);
 	$: overviewHolidayDates = collectProjectHolidayDates(overviewTasks);
 	$: nonWorkingBands = buildTimelineNonWorkingBands(normalizedOverviewRange.start, normalizedOverviewRange.end, overviewHolidayDates);
