@@ -36,8 +36,8 @@ export function deriveTaskDetailOptionState(input: TaskDetailOptionInput): TaskD
 	return {
 		priorityOptions: resolvedPriorityOptions.length > 0 ? resolvedPriorityOptions : DEFAULT_PRIORITY_OPTIONS,
 		statusOptions: withCurrentOption(resolveFieldOptions('status', settings), status),
-		areaOptions: ['', ...withCurrentOption(resolveFieldOptions('area', settings), area)],
-		labelOptions: ['', ...withCurrentOption(resolveFieldOptions('labels', settings), selectedLabel)],
+		areaOptions: withCurrentOption(resolveFieldOptions('area', settings), area),
+		labelOptions: withCurrentOption(resolveFieldOptions('labels', settings), selectedLabel),
 		recurrenceOptions: resolveFieldOptions('recurrence', settings),
 		recurrenceTypeOptions: resolveFieldOptions('recurrence_type', settings),
 		reminderOverrideOptions: resolveFieldOptions('reminder_override', settings),

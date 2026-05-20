@@ -29,6 +29,8 @@ export class CreateTaskModal extends Modal {
 		due_date: '',
 		start_date: '',
 		estimated_days: null as number | null,
+		workweek_only: false,
+		holiday_dates: [] as string[],
 		notes: '',
 		recurrence: null as string | null,
 		recurrence_type: null as string | null,
@@ -57,7 +59,7 @@ export class CreateTaskModal extends Modal {
 	private get areas(): string[] {
 		const areaDefinition = taskFields.find(f => f.name === 'area');
 		const areaOptions = areaDefinition ? getFieldOptions(areaDefinition, this.plugin.settings) : [];
-		return ['', ...areaOptions];
+		return areaOptions;
 	}
 
 	private get statuses(): TaskStatus[] {
@@ -82,6 +84,7 @@ export class CreateTaskModal extends Modal {
 		const { contentEl } = this;
 		const isMobile = window.matchMedia('(max-width: 768px)').matches;
 		let quickCreateMode = this.getInitialQuickCreateMode(isMobile);
+		const allTasks = get(this.plugin.taskStore.tasks);
 		contentEl.addClass('tt-modal');
 		this.modalEl.addClass('tt-create-modal');
 		this.notesRenderComponent = new Component();
@@ -114,14 +117,51 @@ export class CreateTaskModal extends Modal {
 		const basicsSection = this.createModalSection(sectionsRoot, 'Basics', true);
 		const schedulingSection = this.createModalSection(sectionsRoot, 'Scheduling', !isMobile);
 		const notesSection = this.createModalSection(sectionsRoot, 'Notes', !isMobile);
-		const advancedSection = this.createModalSection(sectionsRoot, 'Advanced', false);
+		const recurrenceSection = this.createModalSection(sectionsRoot, 'Repeats', false);
 		const schedulingSectionEl = schedulingSection.closest('.tt-modal-section') as HTMLElement;
 		const notesSectionEl = notesSection.closest('.tt-modal-section') as HTMLElement;
-		const advancedSectionEl = advancedSection.closest('.tt-modal-section') as HTMLElement;
+		const recurrenceSectionEl = recurrenceSection.closest('.tt-modal-section') as HTMLElement;
 
 		// ── Type — full-width segmented ──────────────────────────────────────────
 		const typeGroup = basicsSection.createDiv('tt-modal-type-group');
-		const taskTypeField = this.field(basicsSection, 'Task Type');
+		const labelsField = this.field(basicsSection, 'Labels');
+		const projectCalendarField = this.field(basicsSection, 'Workweek Schedule');
+		const projectCalendarToggle = projectCalendarField.createEl('input', {
+			attr: { type: 'checkbox', id: 'tt-project-workweek-only' },
+		});
+		const projectCalendarToggleLabel = projectCalendarField.createEl('label', {
+			text: 'Project runs on workdays only (skip weekends)',
+			attr: { for: 'tt-project-workweek-only' },
+		});
+		projectCalendarToggleLabel.addClass('tt-modal-inline-label');
+
+		const projectHolidaysField = this.field(basicsSection, 'Project Holidays');
+		const projectHolidaysInput = projectHolidaysField.createEl('input', {
+			cls: 'tt-modal-input',
+			attr: {
+				type: 'text',
+				placeholder: 'YYYY-MM-DD, YYYY-MM-DD',
+			},
+		});
+
+		const syncProjectCalendarVisibility = () => {
+			const isProject = this.formValues.type === 'project';
+			projectCalendarField.toggleClass('tt-hidden', !isProject);
+			projectHolidaysField.toggleClass('tt-hidden', !isProject || !this.formValues.workweek_only);
+		};
+
+		projectCalendarToggle.addEventListener('change', () => {
+			this.formValues.workweek_only = projectCalendarToggle.checked;
+			if (!this.formValues.workweek_only) {
+				this.formValues.holiday_dates = [];
+				projectHolidaysInput.value = '';
+			}
+			syncProjectCalendarVisibility();
+		});
+
+		projectHolidaysInput.addEventListener('change', () => {
+			this.formValues.holiday_dates = this.parseHolidayDates(projectHolidaysInput.value);
+		});
 
 		for (const [val, label] of [['task', 'Task'], ['project', 'Project']] as [TaskRecordType, string][]) {
 			const btn = typeGroup.createEl('button', {
@@ -130,17 +170,64 @@ export class CreateTaskModal extends Modal {
 			});
 			btn.addEventListener('click', () => {
 				this.formValues.type = val;
+				if (val !== 'project') {
+					this.formValues.workweek_only = false;
+					this.formValues.holiday_dates = [];
+					projectCalendarToggle.checked = false;
+					projectHolidaysInput.value = '';
+				}
 				typeGroup.querySelectorAll('.tt-modal-type-btn').forEach(b => b.removeClass('tt-chip-active'));
 				btn.addClass('tt-chip-active');
-				// Gray out task type — keeps layout stable, communicates inapplicability
-				taskTypeField.style.opacity       = val === 'project' ? '0.35' : '';
-				taskTypeField.style.pointerEvents = val === 'project' ? 'none'  : '';
+				// Gray out labels for projects to keep layout stable.
+				labelsField.style.opacity       = val === 'project' ? '0.35' : '';
+				labelsField.style.pointerEvents = val === 'project' ? 'none'  : '';
 				nameInput.placeholder = val === 'project' ? 'Project name…' : 'Task name…';
 				// Update create button label
 				const createBtn = contentEl.querySelector<HTMLButtonElement>('.tt-modal-btn-primary');
 				if (createBtn) createBtn.setText(val === 'project' ? 'Create project' : 'Create task');
+				syncProjectCalendarVisibility();
 			});
 		}
+		syncProjectCalendarVisibility();
+
+		// ── Status ───────────────────────────────────────────────────────────────
+		const statusField = this.field(basicsSection, 'Status');
+		const statusChips = statusField.createDiv('tt-modal-chips');
+		const statusDefinition = taskFields.find(f => f.name === 'status')!;
+
+		for (const s of this.statuses) {
+			const btn = statusChips.createEl('button', {
+				text: s,
+				cls: `tt-modal-chip${s === this.formValues.status ? ' tt-chip-active' : ''}`,
+			});
+			if (s === this.formValues.status) {
+				this.applyOptionStyle(btn, s, statusDefinition);
+			}
+			btn.addEventListener('click', () => {
+				this.formValues.status = s as TaskStatus;
+				statusChips.querySelectorAll<HTMLButtonElement>('.tt-modal-chip').forEach(b => {
+					b.removeClass('tt-chip-active');
+					b.style.removeProperty('background');
+					b.style.removeProperty('border-color');
+				});
+				btn.addClass('tt-chip-active');
+				this.applyOptionStyle(btn, s, statusDefinition);
+			});
+		}
+
+		// ── Parent Task (Project) ─────────────────────────────────────────────
+		const parentTaskField = this.field(basicsSection, 'Parent Project');
+		const parentTaskSelect = parentTaskField.createEl('select', { cls: 'tt-modal-select' });
+		const projects = allTasks.filter(t => t.type === 'project');
+		parentTaskSelect.createEl('option', { text: '— none —', value: '' });
+		for (const p of projects.sort((a, b) => a.name.localeCompare(b.name))) {
+			const path = p.path.replace(/\.md$/, '');
+			parentTaskSelect.createEl('option', { text: p.name, value: path });
+		}
+		parentTaskSelect.addEventListener('change', () => {
+			this.formValues.parent_task = parentTaskSelect.value || null;
+			renderAfterTaskOptions();
+		});
 
 		// ── Priority ────────────────────────────────────────────────────────────
 		const priorityField = this.field(basicsSection, 'Priority');
@@ -168,6 +255,31 @@ export class CreateTaskModal extends Modal {
 				this.applyOptionStyle(btn, p, priorityDefinition);
 			});
 		}
+
+		// ── Area ────────────────────────────────────────────────────────────────
+		const areaField = this.field(basicsSection, 'Area');
+		const areaSelect = areaField.createEl('select', { cls: 'tt-modal-select' });
+		areaSelect.createEl('option', { text: '— none —', value: '' });
+		for (const areaOption of this.areas) {
+			areaSelect.createEl('option', { text: areaOption, value: areaOption });
+		}
+		const applyAreaTint = () => {
+			const color = this.formValues.area ? this.areaColors[this.formValues.area] : undefined;
+			if (!color) {
+				areaSelect.style.removeProperty('background');
+				areaSelect.style.removeProperty('border-color');
+				areaSelect.style.removeProperty('color');
+				return;
+			}
+			areaSelect.style.background = `color-mix(in srgb, ${color} 10%, var(--background-primary))`;
+			areaSelect.style.borderColor = `color-mix(in srgb, ${color} 42%, var(--background-modifier-border))`;
+			areaSelect.style.color = color;
+		};
+		applyAreaTint();
+		areaSelect.addEventListener('change', () => {
+			this.formValues.area = areaSelect.value;
+			applyAreaTint();
+		});
 
 		if (isMobile) {
 			const quickRow = sectionsRoot.createDiv('tt-modal-quick-row');
@@ -200,15 +312,15 @@ export class CreateTaskModal extends Modal {
 				quickToggle.setText(enabled ? 'Quick create on' : 'Quick create off');
 				quickToggle.setAttribute('aria-pressed', String(enabled));
 				quickToggle.toggleClass('tt-chip-active', enabled);
-				taskTypeField.toggleClass('tt-hidden', enabled);
+				labelsField.toggleClass('tt-hidden', enabled);
 				priorityField.toggleClass('tt-hidden', enabled);
 				schedulingSectionEl.toggleClass('tt-hidden', enabled);
 				notesSectionEl.toggleClass('tt-hidden', enabled);
-				advancedSectionEl.toggleClass('tt-hidden', enabled);
+				recurrenceSectionEl.toggleClass('tt-hidden', enabled);
 				if (enabled) {
 					this.setSectionOpen(schedulingSectionEl, false);
 					this.setSectionOpen(notesSectionEl, false);
-					this.setSectionOpen(advancedSectionEl, false);
+					this.setSectionOpen(recurrenceSectionEl, false);
 				}
 			};
 
@@ -216,35 +328,35 @@ export class CreateTaskModal extends Modal {
 			quickToggle.addEventListener('click', () => applyQuickMode(!quickCreateMode));
 		}
 
-		// Task Type (labels) dropdown for tasks only
+		// Labels dropdown for tasks only
 		if (this.formValues.type === 'project') {
-			taskTypeField.style.opacity       = '0.35';
-			taskTypeField.style.pointerEvents = 'none';
+			labelsField.style.opacity       = '0.35';
+			labelsField.style.pointerEvents = 'none';
 		}
-		const taskTypeSelect = taskTypeField.createEl('select', { cls: 'tt-modal-select' });
+		const labelsSelect = labelsField.createEl('select', { cls: 'tt-modal-select' });
 		const labelDefinition = taskFields.find(f => f.name === 'labels')!;
 		const labelOptions = getFieldOptions(labelDefinition, this.plugin.settings);
-		taskTypeSelect.createEl('option', { text: '— none —', value: '' });
+		labelsSelect.createEl('option', { text: '— none —', value: '' });
 		for (const t of labelOptions as string[]) {
-			taskTypeSelect.createEl('option', { text: t, value: t });
+			labelsSelect.createEl('option', { text: t, value: t });
 		}
-		const applyTaskTypeTint = () => {
+		const applyLabelTint = () => {
 			const selectedLabel = this.formValues.labels[0] ?? '';
 			const color = selectedLabel ? this.labelColors[selectedLabel] : undefined;
 			if (!color) {
-				taskTypeSelect.style.removeProperty('background');
-				taskTypeSelect.style.removeProperty('border-color');
-				taskTypeSelect.style.removeProperty('color');
+				labelsSelect.style.removeProperty('background');
+				labelsSelect.style.removeProperty('border-color');
+				labelsSelect.style.removeProperty('color');
 				return;
 			}
-			taskTypeSelect.style.background = `color-mix(in srgb, ${color} 10%, var(--background-primary))`;
-			taskTypeSelect.style.borderColor = `color-mix(in srgb, ${color} 42%, var(--background-modifier-border))`;
-			taskTypeSelect.style.color = color;
+			labelsSelect.style.background = `color-mix(in srgb, ${color} 10%, var(--background-primary))`;
+			labelsSelect.style.borderColor = `color-mix(in srgb, ${color} 42%, var(--background-modifier-border))`;
+			labelsSelect.style.color = color;
 		};
-		applyTaskTypeTint();
-		taskTypeSelect.addEventListener('change', () => {
-			this.formValues.labels = taskTypeSelect.value ? [taskTypeSelect.value] : [];
-			applyTaskTypeTint();
+		applyLabelTint();
+		labelsSelect.addEventListener('change', () => {
+			this.formValues.labels = labelsSelect.value ? [labelsSelect.value] : [];
+			applyLabelTint();
 		});
 
 		// ── Start Date | After Task (mutually exclusive) ─────────────────────────
@@ -267,7 +379,6 @@ export class CreateTaskModal extends Modal {
 		});
 
 		const afterTaskField = this.field(startRow, 'After Task(s)');
-		const allTasks = get(this.plugin.taskStore.tasks);
 		const depsChipsEl = afterTaskField.createDiv('tt-modal-chips');
 		const afterTaskSelect = afterTaskField.createEl('select', { cls: 'tt-modal-select' });
 
@@ -450,69 +561,8 @@ export class CreateTaskModal extends Modal {
 		});
 		void renderNotes();
 
-		// ── More options (Status + Category) ────────────────────────────────────
-		const details = advancedSection.createDiv('tt-modal-details');
-
-		const statusField = this.field(details, 'Status');
-		const statusChips = statusField.createDiv('tt-modal-chips');
-		const statusDefinition = taskFields.find(f => f.name === 'status')!;
-
-		for (const s of this.statuses) {
-			const btn = statusChips.createEl('button', {
-				text: s,
-				cls: `tt-modal-chip${s === this.formValues.status ? ' tt-chip-active' : ''}`,
-			});
-			if (s === this.formValues.status) {
-				this.applyOptionStyle(btn, s, statusDefinition);
-			}
-			btn.addEventListener('click', () => {
-				this.formValues.status = s as TaskStatus;
-				statusChips.querySelectorAll<HTMLButtonElement>('.tt-modal-chip').forEach(b => {
-					b.removeClass('tt-chip-active');
-					b.style.removeProperty('background');
-					b.style.removeProperty('border-color');
-				});
-				btn.addClass('tt-chip-active');
-				this.applyOptionStyle(btn, s, statusDefinition);
-			});
-		}
-
-		const categoryField = this.field(details, 'Area');
-		const categorySelect = categoryField.createEl('select', { cls: 'tt-modal-select' });
-		for (const c of this.areas) {
-			categorySelect.createEl('option', { text: c || '— none —', value: c });
-		}
-		const applyCategoryTint = () => {
-			const color = this.formValues.area ? this.areaColors[this.formValues.area] : undefined;
-			if (!color) {
-				categorySelect.style.removeProperty('background');
-				categorySelect.style.removeProperty('border-color');
-				categorySelect.style.removeProperty('color');
-				return;
-			}
-			categorySelect.style.background = `color-mix(in srgb, ${color} 10%, var(--background-primary))`;
-			categorySelect.style.borderColor = `color-mix(in srgb, ${color} 42%, var(--background-modifier-border))`;
-			categorySelect.style.color = color;
-		};
-		applyCategoryTint();
-		categorySelect.addEventListener('change', () => {
-			this.formValues.area = categorySelect.value;
-			applyCategoryTint();
-		});
-
-		// ── Parent Task (Project) ────────────────────────────────────────────────────
-		const parentTaskField = this.field(details, 'Parent Project');
-		const parentTaskSelect = parentTaskField.createEl('select', { cls: 'tt-modal-select' });
-		const projects = allTasks.filter(t => t.type === 'project');
-		parentTaskSelect.createEl('option', { text: '— none —', value: '' });
-		for (const p of projects.sort((a, b) => a.name.localeCompare(b.name))) {
-			const path = p.path.replace(/\.md$/, '');
-			parentTaskSelect.createEl('option', { text: p.name, value: path });
-		}
-		parentTaskSelect.addEventListener('change', () => {
-			this.formValues.parent_task = parentTaskSelect.value || null;
-			renderAfterTaskOptions();
-		});
+		// ── Repeats ─────────────────────────────────────────────────────────────
+		const details = recurrenceSection.createDiv('tt-modal-details');
 
 		// ── Recurrence ───────────────────────────────────────────────────────────
 		const recurrenceField = this.field(details, 'Repeats');
@@ -675,6 +725,8 @@ export class CreateTaskModal extends Modal {
 				start_date:     startDate,
 				due_date:       dueDate,
 				estimated_days:  this.formValues.estimated_days,
+				workweek_only:   this.formValues.type === 'project' ? this.formValues.workweek_only === true : false,
+				holiday_dates:   this.formValues.type === 'project' ? this.formValues.holiday_dates : [],
 				created:         localDateString(),
 				completed:       null,
 				notes:           this.formValues.notes,
@@ -693,6 +745,16 @@ export class CreateTaskModal extends Modal {
 				primaryBtn.setText(this.formValues.type === 'project' ? 'Create project' : 'Create task');
 			}
 		}
+	}
+
+	private parseHolidayDates(raw: string): string[] {
+		const seen = new Set<string>();
+		for (const part of raw.split(',')) {
+			const trimmed = part.trim();
+			if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) continue;
+			seen.add(trimmed);
+		}
+		return [...seen].sort();
 	}
 
 	onClose() {

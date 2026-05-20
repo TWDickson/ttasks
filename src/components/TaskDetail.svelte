@@ -46,10 +46,13 @@
 	let start_date = '';
 	let assigned_to = '';
 	let estimated_days: number | null = null;
+	let workweek_only = false;
+	let holiday_dates_text = '';
 	let blocked_reason = '';
 	let recurrence: string | null = null;
 	let recurrence_type: string | null = null;
 	let formTaskPath: string | null = null;
+	let formTaskSnapshotKey: string | null = null;
 	let pendingSaves = 0;
 	let saving = false;
 	const saveController = createTaskDetailSaveController({
@@ -67,10 +70,30 @@
 	});
 
 	$: saving = pendingSaves > 0;
+	$: taskSnapshotKey = task
+		? JSON.stringify([
+			task.name,
+			task.status,
+			task.priority,
+			task.area,
+			task.labels,
+			task.parent_task,
+			task.due_date,
+			task.start_date,
+			task.assigned_to,
+			task.estimated_days,
+			task.workweek_only,
+			task.holiday_dates,
+			task.blocked_reason,
+			task.recurrence,
+			task.recurrence_type,
+		])
+		: null;
 
 	$: if (!task) {
 		formTaskPath = null;
-	} else if (task.path !== formTaskPath) {
+		formTaskSnapshotKey = null;
+	} else if (task.path !== formTaskPath || (taskSnapshotKey !== formTaskSnapshotKey && !saving)) {
 		name          = task.name;
 		status        = task.status;
 		priority      = task.priority;
@@ -81,10 +104,13 @@
 		start_date    = task.start_date ?? '';
 		assigned_to   = task.assigned_to ?? '';
 		estimated_days = task.estimated_days;
+		workweek_only = task.workweek_only === true;
+		holiday_dates_text = (task.holiday_dates ?? []).join(', ');
 		blocked_reason  = task.blocked_reason ?? '';
 		recurrence      = task.recurrence ?? null;
 		recurrence_type = task.recurrence_type ?? null;
 		formTaskPath    = task.path;
+		formTaskSnapshotKey = taskSnapshotKey;
 	}
 
 	// ── Field handlers ──────────────────────────────────────────────────────────
@@ -221,6 +247,35 @@
 	function onBlockedReasonFieldChange(nextValue: string): void {
 		blocked_reason = nextValue;
 		saveController.saveDebounced('blocked_reason', { blocked_reason: nextValue });
+	}
+
+	function parseHolidayDates(raw: string): string[] {
+		const seen = new Set<string>();
+		for (const part of raw.split(',')) {
+			const trimmed = part.trim();
+			if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) continue;
+			seen.add(trimmed);
+		}
+		return [...seen].sort();
+	}
+
+	function onWorkweekOnlyToggleChange(event: Event): void {
+		const checked = (event.currentTarget as HTMLInputElement).checked;
+		workweek_only = checked;
+		if (!checked) {
+			holiday_dates_text = '';
+			void saveController.saveImmediate({ workweek_only: false, holiday_dates: [] });
+			return;
+		}
+		void saveController.saveImmediate({
+			workweek_only: true,
+			holiday_dates: parseHolidayDates(holiday_dates_text),
+		});
+	}
+
+	function onHolidayDatesChange(nextValue: string): void {
+		holiday_dates_text = nextValue;
+		void saveController.saveImmediate({ holiday_dates: parseHolidayDates(nextValue) });
 	}
 
 	function onRecurrenceFieldChange(nextValue: string): void {
@@ -419,6 +474,30 @@
 			{/if}
 		</div>
 
+		{#if task.type === 'task'}
+			<div class="tt-field-group">
+				<span class="tt-label">Project</span>
+				<div class="tt-parent-task-row">
+					{#if parentTaskFieldProps}
+						<WikiLinkField
+							{...parentTaskFieldProps}
+							value={parent_task_path || ''}
+							options={parentProjectTasks}
+							onChange={onParentTaskFieldChange}
+						/>
+					{/if}
+					{#if parent_task_path}
+						<button
+							class="tt-parent-task-open"
+							title="Open parent project"
+							on:click={openParentProject}
+							aria-label="Open parent project"
+						>↗</button>
+					{/if}
+				</div>
+			</div>
+		{/if}
+
 		<!-- Priority chips -->
 		<div class="tt-field-group">
 			<span class="tt-label">Priority</span>
@@ -448,26 +527,6 @@
 			{/if}
 
 			{#if task.type === 'task'}
-				<label class="tt-label" for="parent_task">Project</label>
-				<div class="tt-parent-task-row">
-					{#if parentTaskFieldProps}
-						<WikiLinkField
-							{...parentTaskFieldProps}
-							value={parent_task_path || ''}
-							options={parentProjectTasks}
-							onChange={onParentTaskFieldChange}
-						/>
-					{/if}
-					{#if parent_task_path}
-						<button
-							class="tt-parent-task-open"
-							title="Open parent project"
-							on:click={openParentProject}
-							aria-label="Open parent project"
-						>↗</button>
-					{/if}
-				</div>
-
 				<label class="tt-label" for="labels">Labels</label>
 				{#if labelsFieldProps}
 					<SelectField
@@ -475,6 +534,30 @@
 						value={selectedLabels[0] ?? ''}
 						options={labelOptions}
 						onChange={onLabelsFieldChange}
+					/>
+				{/if}
+			{/if}
+
+			{#if task.type === 'project'}
+				<label class="tt-label" for="tt-workweek-only">Workweek Only</label>
+				<div class="tt-checkbox-row">
+					<input
+						id="tt-workweek-only"
+						type="checkbox"
+						checked={workweek_only}
+						on:change={onWorkweekOnlyToggleChange}
+					/>
+					<span>Skip weekends in inferred schedule</span>
+				</div>
+
+				{#if workweek_only}
+					<label class="tt-label" for="tt-holiday-dates">Holiday Dates</label>
+					<TextField
+						value={holiday_dates_text}
+						onChange={onHolidayDatesChange}
+						definition={{ name: 'holiday_dates', label: '', type: 'text', placeholder: 'YYYY-MM-DD, YYYY-MM-DD' }}
+						error={null}
+						readonly={false}
 					/>
 				{/if}
 			{/if}
@@ -665,6 +748,14 @@
 	.tt-parent-task-open:hover {
 		color: var(--text-normal);
 		border-color: var(--color-accent);
+	}
+
+	.tt-checkbox-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 0.9rem;
+		color: var(--text-normal);
 	}
 
 	.tt-saving {

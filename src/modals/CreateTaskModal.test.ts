@@ -86,11 +86,10 @@ describe('CreateTaskModal', () => {
 			expect(modal).toBeDefined();
 		});
 
-		it('should render advanced section with blocked_reason, assigned_to, source', () => {
-			// Advanced section should contain:
-			// - blocked_reason (hidden by default, shown if status=Blocked)
-			// - assigned_to (text input)
-			// - source (text input)
+		it('should render repeats section with recurrence controls', () => {
+			// Repeats section should contain:
+			// - repeats cadence selector
+			// - repeat type selector when a cadence is chosen
 			expect(modal).toBeDefined();
 		});
 	});
@@ -134,8 +133,8 @@ describe('CreateTaskModal', () => {
 			// - priority, labels
 			// - scheduling section
 			// - notes section
-			// - advanced section
-			// Showing only: name, area, status
+			// - repeats section
+			// Keeping core capture fields visible in Basics.
 			expect(modal).toBeDefined();
 		});
 

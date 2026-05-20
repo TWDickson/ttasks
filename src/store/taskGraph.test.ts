@@ -300,6 +300,55 @@ describe('resolveTaskDates', () => {
 		expect(c!.start.toISOString().slice(0, 10)).toBe('2026-04-11');
 		expect(c!.end.toISOString().slice(0, 10)).toBe('2026-04-12');
 	});
+
+	it('skips weekends for inferred starts and estimated duration when parent project is workweek-only', () => {
+		const project = makeTask({
+			path: 'Tasks/proj.md',
+			name: 'Project',
+			type: 'project',
+			workweek_only: true,
+		});
+		const a = makeTask({ path: 'Tasks/a.md', name: 'A', parent_task: 'Tasks/proj', due_date: '2026-04-10' }); // Friday
+		const b = makeTask({
+			path: 'Tasks/b.md',
+			name: 'B',
+			parent_task: 'Tasks/proj',
+			depends_on: ['Tasks/a'],
+			estimated_days: 3,
+		});
+
+		const result = resolveTaskDates([a, b], { allTasks: [project, a, b] });
+		const resolvedB = result.get('Tasks/b.md');
+
+		expect(resolvedB).toBeDefined();
+		expect(resolvedB!.start.toISOString().slice(0, 10)).toBe('2026-04-13'); // Monday
+		expect(resolvedB!.end.toISOString().slice(0, 10)).toBe('2026-04-15'); // Wednesday
+	});
+
+	it('skips configured project holiday dates when inferring schedule', () => {
+		const project = makeTask({
+			path: 'Tasks/proj.md',
+			name: 'Project',
+			type: 'project',
+			workweek_only: true,
+			holiday_dates: ['2026-04-14'],
+		});
+		const a = makeTask({ path: 'Tasks/a.md', name: 'A', parent_task: 'Tasks/proj', due_date: '2026-04-10' }); // Friday
+		const b = makeTask({
+			path: 'Tasks/b.md',
+			name: 'B',
+			parent_task: 'Tasks/proj',
+			depends_on: ['Tasks/a'],
+			estimated_days: 2,
+		});
+
+		const result = resolveTaskDates([a, b], { allTasks: [project, a, b] });
+		const resolvedB = result.get('Tasks/b.md');
+
+		expect(resolvedB).toBeDefined();
+		expect(resolvedB!.start.toISOString().slice(0, 10)).toBe('2026-04-13'); // Monday
+		expect(resolvedB!.end.toISOString().slice(0, 10)).toBe('2026-04-15'); // Tuesday is a holiday
+	});
 });
 
 describe('buildHybridTimeline', () => {

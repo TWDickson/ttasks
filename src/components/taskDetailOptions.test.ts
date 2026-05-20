@@ -38,8 +38,8 @@ describe('deriveTaskDetailOptionState', () => {
 		});
 
 		expect(state.statusOptions).toEqual(['Active', 'Done', 'Blocked']);
-		expect(state.areaOptions).toEqual(['', 'engineering', 'operations']);
-		expect(state.labelOptions).toEqual(['', 'feature', 'bug']);
+		expect(state.areaOptions).toEqual(['engineering', 'operations']);
+		expect(state.labelOptions).toEqual(['feature', 'bug']);
 	});
 
 	it('resolves priority options and color maps from schema/settings', () => {

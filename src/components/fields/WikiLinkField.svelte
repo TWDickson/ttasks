@@ -200,7 +200,9 @@
 	}
 
 	.tt-field-select-input {
-		padding: 0.5rem 0.75rem;
+		padding: 0.45rem 0.75rem;
+		min-height: var(--input-height, 36px);
+		line-height: 1.35;
 		border: 1px solid var(--background-modifier-border);
 		border-radius: 4px;
 		background-color: var(--background-primary);

@@ -212,6 +212,7 @@
 	width: 100%;
 	box-sizing: border-box;
 	font-size: 0.9rem;
+	line-height: 1.35;
 	min-height: var(--tt-control-height);
 	border-radius: var(--tt-control-radius);
 	border: var(--tt-border-width) solid var(--background-modifier-border);
@@ -220,7 +221,7 @@
 }
 
 .tt-modal-select {
-	padding: var(--dropdown-padding, var(--tt-space-2) var(--tt-space-3));
+	padding: var(--dropdown-padding, 0.45rem var(--tt-space-3));
 	background: var(--dropdown-background, var(--background-modifier-form-field));
 }
 

@@ -188,7 +188,9 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 
 	const allTaskByPath = new Map(allTasks.map((task) => [task.path, task]));
 	const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
-	const resolvedTemporalDates = resolveTaskDates(visibleTasks.filter((task) => task.type === 'task'));
+	const resolvedTemporalDates = resolveTaskDates(visibleTasks.filter((task) => task.type === 'task'), {
+		allTasks,
+	});
 	const getTemporalKeyForTask = (task: Task): number => {
 		const resolved = resolvedTemporalDates.get(task.path);
 		if (resolved) return resolved.start.getTime();
@@ -727,6 +729,15 @@ export interface ResolvedTaskDate {
 	isInferred: boolean;
 }
 
+interface WorkingCalendar {
+	workweekOnly: boolean;
+	holidayDates: Set<string>;
+}
+
+export interface ResolveTaskDatesOptions {
+	allTasks?: Task[];
+}
+
 const INFER_DAY_MS = 24 * 60 * 60 * 1000;
 
 function inferParseDate(value: string | null | undefined): Date | null {
@@ -737,6 +748,71 @@ function inferParseDate(value: string | null | undefined): Date | null {
 
 function inferAddDays(date: Date, days: number): Date {
 	return new Date(date.getTime() + days * INFER_DAY_MS);
+}
+
+function toIsoDate(date: Date): string {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}
+
+function isWeekend(date: Date): boolean {
+	const day = date.getDay();
+	return day === 0 || day === 6;
+}
+
+function isNonWorkingDay(date: Date, calendar: WorkingCalendar): boolean {
+	if (!calendar.workweekOnly) return false;
+	return isWeekend(date) || calendar.holidayDates.has(toIsoDate(date));
+}
+
+function addCalendarDays(date: Date, days: number, calendar: WorkingCalendar): Date {
+	if (!calendar.workweekOnly || days === 0) {
+		return inferAddDays(date, days);
+	}
+
+	let cursor = new Date(date.getTime());
+	let remaining = Math.abs(days);
+	const step = days > 0 ? 1 : -1;
+
+	while (remaining > 0) {
+		cursor = inferAddDays(cursor, step);
+		if (isNonWorkingDay(cursor, calendar)) continue;
+		remaining -= 1;
+	}
+
+	return cursor;
+}
+
+function parseHolidayDates(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	return value.filter((entry): entry is string => typeof entry === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry));
+}
+
+function createWorkingCalendarResolver(tasks: Task[], options?: ResolveTaskDatesOptions): (task: Task) => WorkingCalendar {
+	const allTasks = options?.allTasks ?? tasks;
+	const allTaskByPath = new Map(allTasks.map((task) => [task.path, task]));
+	const projectCalendarByPath = new Map<string, WorkingCalendar>();
+
+	for (const candidate of allTasks) {
+		if (candidate.type !== 'project') continue;
+		projectCalendarByPath.set(candidate.path, {
+			workweekOnly: candidate.workweek_only === true,
+			holidayDates: new Set(parseHolidayDates(candidate.holiday_dates)),
+		});
+	}
+
+	const defaultCalendar: WorkingCalendar = {
+		workweekOnly: false,
+		holidayDates: new Set<string>(),
+	};
+
+	return (task: Task): WorkingCalendar => {
+		const projectPath = resolveOwningProjectPath(task, allTaskByPath);
+		if (!projectPath) return defaultCalendar;
+		return projectCalendarByPath.get(projectPath) ?? defaultCalendar;
+	};
 }
 
 /**
@@ -752,8 +828,9 @@ function inferAddDays(date: Date, days: number): Date {
  * be established — either an explicit start_date / due_date, or a start
  * inferred from a resolved upstream dependency.
  */
-export function resolveTaskDates(tasks: Task[]): Map<string, ResolvedTaskDate> {
+export function resolveTaskDates(tasks: Task[], options?: ResolveTaskDatesOptions): Map<string, ResolvedTaskDate> {
 	const taskByPath = new Map(tasks.map((t) => [t.path, t]));
+	const resolveCalendar = createWorkingCalendarResolver(tasks, options);
 
 	// Build normalized depends_on map for each task
 	const depsOf = new Map<string, string[]>();
@@ -788,6 +865,7 @@ export function resolveTaskDates(tasks: Task[]): Map<string, ResolvedTaskDate> {
 		const path = queue.shift()!;
 		const task = taskByPath.get(path);
 		if (!task) continue;
+		const calendar = resolveCalendar(task);
 
 		const deps = depsOf.get(path) ?? [];
 
@@ -808,7 +886,7 @@ export function resolveTaskDates(tasks: Task[]): Map<string, ResolvedTaskDate> {
 		let isInferred = false;
 
 		if (!start && latestDepEnd) {
-			start = inferAddDays(latestDepEnd, 1);
+			start = addCalendarDays(latestDepEnd, 1, calendar);
 			isInferred = true;
 		}
 		if (!start && explicitDue) {
@@ -821,7 +899,7 @@ export function resolveTaskDates(tasks: Task[]): Map<string, ResolvedTaskDate> {
 			if (!end) {
 				const estDays = task.estimated_days;
 				if (estDays && estDays > 0) {
-					end = inferAddDays(start, Math.max(0, Math.round(estDays) - 1));
+					end = addCalendarDays(start, Math.max(0, Math.round(estDays) - 1), calendar);
 				}
 			}
 			if (!end) end = new Date(start.getTime()); // point bar
@@ -911,7 +989,8 @@ export function buildHybridTimeline(tasks: Task[], options: BuildHybridTimelineO
 
 	const visibleTasks = tasks.filter((task) => task.type === 'task');
 	const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
-	const resolved = resolveTaskDates(visibleTasks);
+	const resolved = resolveTaskDates(visibleTasks, { allTasks: tasks });
+	const resolveCalendar = createWorkingCalendarResolver(visibleTasks, { allTasks: tasks });
 	const resolveGroup = createTimelineGroupingResolver(grouping, visibleTasks);
 
 	const resolvedEntries = [...resolved.entries()]
@@ -1009,7 +1088,7 @@ export function buildHybridTimeline(tasks: Task[], options: BuildHybridTimelineO
 		}
 
 		if (!anchorPath || !Number.isFinite(anchorEndMs)) continue;
-		const anchorDate = new Date(anchorEndMs + INFER_DAY_MS);
+		const anchorDate = addCalendarDays(new Date(anchorEndMs), 1, resolveCalendar(task));
 		const leftDays = Math.max(0, Math.round((anchorDate.getTime() - rangeStart.getTime()) / INFER_DAY_MS));
 		const leftPercent = Math.min(98, (leftDays / spanDays) * 100);
 		const widthPercent = resolveUnderdefinedWidthPercent(task);
