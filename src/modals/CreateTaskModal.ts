@@ -9,6 +9,7 @@ import { localDateString } from '../utils/dateUtils';
 import { sortDependencyFirst } from '../components/dependencySort';
 import { getFieldOptions, getOptionColor } from './modalFieldHelpers';
 import { taskFields } from '../schema/taskFields';
+import { withCurrentOption } from './chipSelection';
 
 const MOBILE_QUICK_CREATE_PREF_KEY = 'ttasks.mobileQuickCreate';
 const MOBILE_QUICK_CREATE_HINT_DISMISSED_KEY = 'ttasks.mobileQuickCreateHintDismissed';
@@ -194,26 +195,15 @@ export class CreateTaskModal extends Modal {
 		const statusField = this.field(basicsSection, 'Status');
 		const statusChips = statusField.createDiv('tt-modal-chips');
 		const statusDefinition = taskFields.find(f => f.name === 'status')!;
-
-		for (const s of this.statuses) {
-			const btn = statusChips.createEl('button', {
-				text: s,
-				cls: `tt-modal-chip${s === this.formValues.status ? ' tt-chip-active' : ''}`,
-			});
-			if (s === this.formValues.status) {
-				this.applyOptionStyle(btn, s, statusDefinition);
-			}
-			btn.addEventListener('click', () => {
-				this.formValues.status = s as TaskStatus;
-				statusChips.querySelectorAll<HTMLButtonElement>('.tt-modal-chip').forEach(b => {
-					b.removeClass('tt-chip-active');
-					b.style.removeProperty('background');
-					b.style.removeProperty('border-color');
-				});
-				btn.addClass('tt-chip-active');
-				this.applyOptionStyle(btn, s, statusDefinition);
-			});
-		}
+		this.renderSingleSelectChipGroup({
+			container: statusChips,
+			options: withCurrentOption(this.statuses, this.formValues.status),
+			selected: this.formValues.status,
+			field: statusDefinition,
+			onSelect: (value) => {
+				this.formValues.status = value as TaskStatus;
+			},
+		});
 
 		// ── Parent Task (Project) ─────────────────────────────────────────────
 		const parentTaskField = this.field(basicsSection, 'Parent Project');
@@ -233,28 +223,23 @@ export class CreateTaskModal extends Modal {
 		const priorityField = this.field(basicsSection, 'Priority');
 		const priorityChips = priorityField.createDiv('tt-modal-chips');
 		const priorityDefinition = taskFields.find(f => f.name === 'priority')!;
-		const priorityOptions = getFieldOptions(priorityDefinition, this.plugin.settings);
+		const schemaPriorityOptions = getFieldOptions(priorityDefinition, this.plugin.settings);
+		const fallbackPriorityOptions = Array.isArray(priorityDefinition.options)
+			? (priorityDefinition.options as string[])
+			: [];
+		const priorityOptions = schemaPriorityOptions.length > 0
+			? schemaPriorityOptions
+			: fallbackPriorityOptions;
 
-		for (const p of priorityOptions as string[]) {
-			const btn = priorityChips.createEl('button', {
-				text: p,
-				cls: `tt-modal-chip${p === this.formValues.priority ? ' tt-chip-active' : ''}`,
-			});
-			if (p === this.formValues.priority) {
-				this.applyOptionStyle(btn, p, priorityDefinition);
-			}
-			btn.addEventListener('click', () => {
-				this.formValues.priority = p as TaskPriority;
-				priorityChips.querySelectorAll<HTMLButtonElement>('.tt-modal-chip').forEach(b => {
-					b.removeClass('tt-chip-active');
-					b.style.removeProperty('background');
-					b.style.removeProperty('border-color');
-					b.style.removeProperty('color');
-				});
-				btn.addClass('tt-chip-active');
-				this.applyOptionStyle(btn, p, priorityDefinition);
-			});
-		}
+		this.renderSingleSelectChipGroup({
+			container: priorityChips,
+			options: withCurrentOption(priorityOptions, this.formValues.priority),
+			selected: this.formValues.priority,
+			field: priorityDefinition,
+			onSelect: (value) => {
+				this.formValues.priority = value as TaskPriority;
+			},
+		});
 
 		// ── Area ────────────────────────────────────────────────────────────────
 		const areaField = this.field(basicsSection, 'Area');
@@ -689,6 +674,45 @@ export class CreateTaskModal extends Modal {
 				btn.style.color = '#fff';
 			}
 		}
+	}
+
+	private renderSingleSelectChipGroup(args: {
+		container: HTMLElement;
+		options: string[];
+		selected: string;
+		field: any;
+		onSelect: (value: string) => void;
+	}): void {
+		const { container, options, selected, field, onSelect } = args;
+		const buttons = new Map<string, HTMLButtonElement>();
+
+		const setSelected = (nextSelected: string) => {
+			buttons.forEach((button) => {
+				button.removeClass('tt-chip-active');
+				button.style.removeProperty('background');
+				button.style.removeProperty('border-color');
+				button.style.removeProperty('color');
+			});
+
+			const selectedButton = buttons.get(nextSelected);
+			if (!selectedButton) return;
+			selectedButton.addClass('tt-chip-active');
+			this.applyOptionStyle(selectedButton, nextSelected, field);
+		};
+
+		for (const option of options) {
+			const btn = container.createEl('button', {
+				text: option,
+				cls: 'tt-modal-chip',
+			});
+			buttons.set(option, btn);
+			btn.addEventListener('click', () => {
+				onSelect(option);
+				setSelected(option);
+			});
+		}
+
+		setSelected(selected);
 	}
 
 	// ── Submit ───────────────────────────────────────────────────────────────────
