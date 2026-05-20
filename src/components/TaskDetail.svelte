@@ -465,7 +465,9 @@
 			<span class="tt-label">Status</span>
 			{#if statusFieldProps}
 				<ChipsField
-					{...statusFieldProps}
+					definition={statusFieldProps.definition}
+					error={statusFieldProps.error}
+					readonly={statusFieldProps.readonly}
 					value={status}
 					options={statusOptions}
 					optionColors={statusOptionColors}
@@ -503,7 +505,9 @@
 			<span class="tt-label">Priority</span>
 			{#if priorityFieldProps}
 				<ChipsField
-					{...priorityFieldProps}
+					definition={priorityFieldProps.definition}
+					error={priorityFieldProps.error}
+					readonly={priorityFieldProps.readonly}
 					value={priority}
 					options={priorityOptions}
 					optionColors={priorityOptionColors}
