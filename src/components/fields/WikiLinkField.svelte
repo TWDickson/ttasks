@@ -13,11 +13,11 @@
 	export let onBlur: (() => void) | undefined = undefined;
 
 	const isMulti = definition.chipsType === 'multi';
-	const values = Array.isArray(value) ? value.map(v => v.replace(/\.md$/, '')) : value ? [value.replace(/\.md$/, '')] : [];
+	$: values = Array.isArray(value) ? value.map(v => v.replace(/\.md$/, '')) : value ? [value.replace(/\.md$/, '')] : [];
 
 	// Sort options by parent_task (same-project first)
-	const parentTaskPath = context?.values?.parent_task || null;
-	const sortedOptions = [...options].sort((a, b) => sortDependencyFirst(a, b, parentTaskPath));
+	$: parentTaskPath = context?.values?.parent_task || null;
+	$: sortedOptions = [...options].sort((a, b) => sortDependencyFirst(a, b, parentTaskPath));
 
 	const handleRemoveChip = (path: string) => {
 		if (readonly) return;
