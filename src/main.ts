@@ -4,7 +4,7 @@ import { type QuickActionId, type TTasksSettings, DEFAULT_SETTINGS, TTasksSettin
 import { TaskStore } from './store/TaskStore';
 import { TaskBoardView, TASK_BOARD_VIEW_TYPE } from './views/TaskBoardView';
 import { CreateTaskModal } from './modals/CreateTaskModal';
-import { ReminderService } from './reminders';
+import { ReminderService } from './store/ReminderService';
 import type { Task } from './types';
 import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration/contextMenu';
 import { resolveQuickAction } from './integration/quickActions';

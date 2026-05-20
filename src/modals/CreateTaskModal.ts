@@ -6,7 +6,7 @@ import { resolveEmergencyStatus } from '../settings';
 import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 import { PRIORITY_COLORS } from '../constants';
 import { localDateString } from '../utils/dateUtils';
-import { sortDependencyFirst } from '../components/dependencySort';
+import { sortDependencyFirst } from '../utils/dependencySort';
 import { getFieldOptions, getOptionColor } from './modalFieldHelpers';
 import { taskFields } from '../schema/taskFields';
 import { withCurrentOption } from './chipSelection';

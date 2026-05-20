@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Task } from '../types';
+import type { Task } from '../../types';
 import {
 	buildTimelineNonWorkingBands,
 	buildTimelineTicks,

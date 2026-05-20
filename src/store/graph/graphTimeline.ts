@@ -1,4 +1,4 @@
-import type { Task } from '../types';
+import type { Task } from '../../types';
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_FUTURE_DAYS = 28;

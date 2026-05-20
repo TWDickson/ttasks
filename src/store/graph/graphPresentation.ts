@@ -1,4 +1,4 @@
-import type { HybridTimelineGrouping } from '../store/taskGraph';
+import type { HybridTimelineGrouping } from './taskGraph';
 
 export function laneHeaderClass(
 	lane: { label: string; heightPx: number },

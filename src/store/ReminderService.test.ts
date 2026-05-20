@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isInQuietHoursWindow, buildReminderKey, pruneOldReminderKeys } from './reminders';
+import { isInQuietHoursWindow, buildReminderKey, pruneOldReminderKeys } from './ReminderService';
 
 // ---------------------------------------------------------------------------
 // isInQuietHoursWindow

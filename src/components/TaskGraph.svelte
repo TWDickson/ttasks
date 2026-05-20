@@ -4,10 +4,10 @@
 	import type { Task } from '../types';
 	import type { TaskGroup } from '../query/types';
 	import type TTasksPlugin from '../main';
-	import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, type HybridTimelineGrouping, type TaskGraphEdge, type TaskGraphNode } from '../store/taskGraph';
-	import { computeEdgePath, sortIncomingEdges, sortOutgoingEdges } from '../store/graphEdgeRouting';
-	import { computeGraphQualityMetrics } from '../store/graphQualityMetrics';
-	import { buildLaneHeaders } from '../store/graphLaneLayout';
+	import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, type HybridTimelineGrouping, type TaskGraphEdge, type TaskGraphNode } from '../store/graph/taskGraph';
+	import { computeEdgePath, sortIncomingEdges, sortOutgoingEdges } from '../store/graph/graphEdgeRouting';
+	import { computeGraphQualityMetrics } from '../store/graph/graphQualityMetrics';
+	import { buildLaneHeaders } from '../store/graph/graphLaneLayout';
 	import { PRIORITY_COLORS } from '../constants';
 	import { flattenTaskGroups } from './viewAdapters';
 	import { formatHumanDate } from './taskDateMeta';
@@ -21,8 +21,8 @@
 		normalizeTimelineRange,
 		percentAtDate,
 		startOfToday,
-	} from './graphTimeline';
-	import { computeDependencyLaneWidth, groupingLabel, laneHeaderClass } from './graphPresentation';
+	} from '../store/graph/graphTimeline';
+	import { computeDependencyLaneWidth, groupingLabel, laneHeaderClass } from '../store/graph/graphPresentation';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;

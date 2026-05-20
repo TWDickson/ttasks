@@ -1,5 +1,5 @@
-import type { Task } from '../types';
-import { DAY_MS, addDays, formatDateISO, isWeekend } from '../components/graphTimeline';
+import type { Task } from '../../types';
+import { DAY_MS, addDays, formatDateISO, isWeekend } from './graphTimeline';
 import { normalizeTaskPath, resolveOwningProjectPath, dedupePaths } from './taskGraph';
 
 // ---------------------------------------------------------------------------

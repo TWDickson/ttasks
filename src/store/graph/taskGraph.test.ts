@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Task } from '../types';
+import type { Task } from '../../types';
 import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, resolveTaskDates } from './taskGraph';
 import { countCrossingsByColumnPairs } from './graphCrossingOptimizer';
 

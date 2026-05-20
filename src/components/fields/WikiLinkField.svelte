@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { FieldDefinition, FieldContext } from '../../schema/types';
 	import type { Task } from '../../types';
-	import { sortDependencyFirst } from '../dependencySort';
+	import { sortDependencyFirst } from '../../utils/dependencySort';
 
 	export let definition: FieldDefinition;
 	export let value: string | string[] | null = [];

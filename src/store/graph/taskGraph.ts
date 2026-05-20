@@ -1,6 +1,6 @@
-import type { Task } from '../types';
-import { ensureMdExt } from '../utils/pathUtils';
-import { parseWikiLink } from '../utils/wikiLink';
+import type { Task } from '../../types';
+import { ensureMdExt } from '../../utils/pathUtils';
+import { parseWikiLink } from '../../utils/wikiLink';
 import { optimizeLaneOrderForCrossings } from './graphCrossingOptimizer';
 import { resolveTaskDates } from './taskGraphDates';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Task } from '../types';
+import type { Task } from '../../types';
 import type { GraphLane, TaskGraphEdge, TaskGraphNode } from './taskGraph';
 import { computeGraphQualityMetrics } from './graphQualityMetrics';
 

@@ -3,8 +3,8 @@
 	import type { Task } from '../types';
 	import type { FieldDefinition } from '../schema/types';
 	import { getFieldByName } from '../schema/taskFields';
-	import { buildTaskGraph } from '../store/taskGraph';
-	import { sortDependencyFirst } from './dependencySort';
+	import { buildTaskGraph } from '../store/graph/taskGraph';
+	import { sortDependencyFirst } from '../utils/dependencySort';
 	import WikiLinkField from './fields/WikiLinkField.svelte';
 
 	export let task: Task;

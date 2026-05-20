@@ -1,11 +1,11 @@
 import { Notice } from 'obsidian';
 import { get } from 'svelte/store';
-import type TTasksPlugin from './main';
-import { resolveConfiguredStatus, DEFAULT_SETTINGS } from './settings';
-import type { Task } from './types';
-import { localDateString, daysBetweenLocal } from './utils/dateUtils';
-import { resolveStaleDate } from './store/statusChanged';
-import { isSnoozed, purgeSnoozed, snoozeTask, type SnoozedState } from './store/reminderSnooze';
+import type TTasksPlugin from '../main';
+import { resolveConfiguredStatus, DEFAULT_SETTINGS } from '../settings';
+import type { Task } from '../types';
+import { localDateString, daysBetweenLocal } from '../utils/dateUtils';
+import { resolveStaleDate } from './statusChanged';
+import { isSnoozed, purgeSnoozed, snoozeTask, type SnoozedState } from './reminderSnooze';
 
 // Keys are `{path}|{rule}|{YYYY-MM-DD}`.
 // Pipe cannot appear in vault paths on any OS and is not used in rule IDs.
