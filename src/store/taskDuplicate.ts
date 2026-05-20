@@ -41,6 +41,8 @@ export function buildDuplicateInput(
 		due_date:        task.due_date,
 		due_time:        task.due_time,
 		estimated_days:  task.estimated_days,
+		workweek_only:   task.workweek_only ?? false,
+		holiday_dates:   [...(task.holiday_dates ?? [])],
 		created:         today,
 		completed:       null,
 		notes:           task.notes,

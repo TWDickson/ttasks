@@ -492,6 +492,11 @@ export class TaskStore {
 			? labelsRaw.filter((v): v is string => typeof v === 'string')
 			: [];
 
+		const holidayDatesRaw = fm.holiday_dates;
+		const holiday_dates: string[] = Array.isArray(holidayDatesRaw)
+			? holidayDatesRaw.filter((v): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v))
+			: [];
+
 		return {
 			id, slug,
 			path: file.path,
@@ -511,6 +516,8 @@ export class TaskStore {
 			due_date:       fm.due_date       ?? null,
 			due_time:       typeof fm.due_time === 'string' ? fm.due_time : null,
 			estimated_days: fm.estimated_days ?? null,
+			workweek_only: fm.workweek_only === true,
+			holiday_dates,
 			created:         fm.created         ?? null,
 			completed:       fm.completed       ?? null,
 			status_changed:  typeof fm.status_changed === 'string' ? fm.status_changed : null,

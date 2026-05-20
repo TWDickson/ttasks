@@ -15,6 +15,7 @@ import { localDateString } from '../utils/dateUtils';
 import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
 import { parseWikiLink, extractChecklistLink } from '../utils/wikiLink';
 import { buildRestoreInput } from './taskRestore';
+import { linkReferencesTaskPath } from './relationshipLinkMatch';
 
 export class TaskWriter {
 	private plugin: TTasksPlugin;
@@ -90,6 +91,7 @@ export class TaskWriter {
 				'name', 'status', 'priority', 'area', 'labels',
 				'blocked_reason', 'assigned_to', 'source', 'due_time',
 				'start_date', 'due_date', 'estimated_days', 'completed',
+				'workweek_only', 'holiday_dates',
 				'recurrence', 'recurrence_type', 'reminder_override',
 			];
 			for (const key of fields) {
@@ -163,7 +165,7 @@ export class TaskWriter {
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			const current: unknown[] = Array.isArray(fm.depends_on) ? fm.depends_on : [];
-			const already = current.some(v => String(v ?? '').includes(depPathWithoutExt));
+			const already = current.some((v) => this.linkTargetsPath(v, depPathWithoutExt, file.path));
 			if (!already) fm.depends_on = [...current, depLink];
 		});
 
@@ -176,7 +178,7 @@ export class TaskWriter {
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			if (!Array.isArray(fm.depends_on)) return;
-			fm.depends_on = fm.depends_on.filter((v: unknown) => !String(v ?? '').includes(depPathWithoutExt));
+			fm.depends_on = fm.depends_on.filter((v: unknown) => !this.linkTargetsPath(v, depPathWithoutExt, file.path));
 		});
 
 		// Remove from blocks on the dependency target
@@ -185,7 +187,7 @@ export class TaskWriter {
 			const selfClean = taskPath.replace(/\.md$/, '');
 			await this.app.fileManager.processFrontMatter(depFile, (fm) => {
 				if (!Array.isArray(fm.blocks)) return;
-				fm.blocks = fm.blocks.filter((v: unknown) => !String(v ?? '').includes(selfClean));
+				fm.blocks = fm.blocks.filter((v: unknown) => !this.linkTargetsPath(v, selfClean, depFile.path));
 			});
 		}
 	}
@@ -414,8 +416,20 @@ export class TaskWriter {
 		const thisLink = this.buildAliasedTaskLink(cleanPath, thisName, depFile.path);
 		await this.app.fileManager.processFrontMatter(depFile, (fm) => {
 			const current: unknown[] = Array.isArray(fm.blocks) ? fm.blocks : [];
-			const already = current.some(b => String(b ?? '').includes(cleanPath));
+			const already = current.some((b) => this.linkTargetsPath(b, cleanPath, depFile.path));
 			if (!already) fm.blocks = [...current, thisLink];
+		});
+	}
+
+	private linkTargetsPath(rawValue: unknown, targetPathWithoutExt: string, sourcePath: string): boolean {
+		return linkReferencesTaskPath({
+			rawValue,
+			targetPathWithoutExt,
+			sourcePath,
+			resolveLinkpathDest: (linkpath, source) => {
+				const resolved = this.app.metadataCache.getFirstLinkpathDest(linkpath, source);
+				return resolved?.path ?? null;
+			},
 		});
 	}
 
@@ -434,6 +448,13 @@ export class TaskWriter {
 
 		const labelsYaml = task.labels.length
 			? `\n${task.labels.map(l => `  - "${esc(l)}"`).join('\n')}`
+			: ' []';
+
+		const holidayDates = Array.isArray(task.holiday_dates)
+			? task.holiday_dates.filter((value): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value))
+			: [];
+		const holidayDatesYaml = holidayDates.length
+			? `\n${holidayDates.map((date) => `  - '${date}'`).join('\n')}`
 			: ' []';
 
 		return [
@@ -455,6 +476,8 @@ export class TaskWriter {
 			`due_date: ${task.due_date ? `'${task.due_date}'` : 'null'}`,
 			`due_time: ${task.due_time ? `'${task.due_time}'` : 'null'}`,
 			`estimated_days: ${task.estimated_days ?? 'null'}`,
+			`workweek_only: ${task.workweek_only === true ? 'true' : 'false'}`,
+			`holiday_dates:${holidayDatesYaml}`,
 			`created: '${task.created}'`,
 			`completed: null`,
 			`status_changed: '${task.created}'`,

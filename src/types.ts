@@ -33,6 +33,10 @@ export interface Task {
 	due_date: string | null;
 	due_time: string | null;
 	estimated_days: number | null;
+	// Project-only scheduling controls. When enabled, inferred scheduling uses
+	// working days (Mon-Fri) and skips project holiday dates.
+	workweek_only?: boolean;
+	holiday_dates?: string[];
 	created: string | null;
 	completed: string | null;
 	// Set whenever status changes; used by stale-in-progress reminder (more reliable than start_date proxy)
