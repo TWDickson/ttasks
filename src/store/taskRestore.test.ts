@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRestoreInput, resolveRestoreStatus } from './taskRestore';
+import { buildRestoreInput } from './taskRestore';
 import { resolveQuickAction } from '../integration/quickActions';
 import type { Task } from '../types';
 
@@ -17,28 +17,9 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 	};
 }
 
-describe('resolveRestoreStatus', () => {
-	it('defaults to Active for any completed task', () => {
-		expect(resolveRestoreStatus({ status: 'Completed', completed: '2026-04-30', is_complete: true })).toBe('Active');
-		expect(resolveRestoreStatus({ status: 'Completed', completed: null, is_complete: true })).toBe('Active');
-	});
-
-	it('defaults to Active regardless of what the prior status was', () => {
-		expect(resolveRestoreStatus({ status: 'Done', completed: '2026-05-14', is_complete: true })).toBe('Active');
-	});
-});
-
 describe('buildRestoreInput', () => {
-	it('clears completion state and resets status', () => {
-		const task = {
-			status: 'Completed',
-			completed: '2026-04-30',
-			is_complete: true,
-		};
-
-		const restore = buildRestoreInput(task);
-
-		expect(restore).toEqual({
+	it('clears completion state and resets status to Active', () => {
+		expect(buildRestoreInput()).toEqual({
 			status: 'Active',
 			is_complete: false,
 			completed: null,
@@ -47,9 +28,7 @@ describe('buildRestoreInput', () => {
 	});
 
 	it('clears blocked_reason to avoid stale block message after reopening', () => {
-		const task = { status: 'Done', completed: '2026-05-14', is_complete: true };
-		const restore = buildRestoreInput(task);
-		expect(restore.blocked_reason).toBe('');
+		expect(buildRestoreInput().blocked_reason).toBe('');
 	});
 });
 
@@ -75,8 +54,7 @@ describe('complete/uncomplete status cycle', () => {
 	});
 
 	it('restore produces Active status and clears completed date', () => {
-		const completedTask = { status: 'Done', completed: '2026-05-14', is_complete: true };
-		const restored = buildRestoreInput(completedTask);
+		const restored = buildRestoreInput();
 		expect(restored.status).toBe('Active');
 		expect(restored.completed).toBeNull();
 		expect(restored.is_complete).toBe(false);
@@ -90,8 +68,7 @@ describe('complete/uncomplete status cycle', () => {
 		expect(step1.kind).toBe('updates');
 
 		// Step 2: restore (uncomplete)
-		const completedState = { status: 'Done', completed: '2026-05-14', is_complete: true };
-		const restored = buildRestoreInput(completedState);
+		const restored = buildRestoreInput();
 		expect(restored.status).toBe('Active');
 
 		// Step 3: complete again (task is back to Active)

@@ -107,7 +107,7 @@ export class TaskStore {
 				if (!file.path.startsWith(this.folderPath + '/')) return;
 				this.syncQueue.dropPath(file.path);
 				this.tasks.update(all => all.filter(t => t.path !== file.path));
-				void this.removeRelationshipReferences(file.path);
+				void this.removeRelationshipReferences(file.path).catch((err: unknown) => this.plugin.log(`removeRelationshipReferences failed: ${String(err)}`));
 			})
 		);
 
@@ -122,7 +122,7 @@ export class TaskStore {
 				// Update relationship references (depends_on, blocks, parent_task)
 				// in other tasks that pointed to the old path.
 				if (oldPath.startsWith(this.folderPath + '/')) {
-					void this.rewriteRelationshipReferences(oldPath, file.path);
+					void this.rewriteRelationshipReferences(oldPath, file.path).catch((err: unknown) => this.plugin.log(`rewriteRelationshipReferences failed: ${String(err)}`));
 				}
 			})
 		);

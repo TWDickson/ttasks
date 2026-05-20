@@ -265,7 +265,7 @@ export class TaskWriter {
 		const task = all.find(t => t.path === normalizePath(path));
 		if (!task) return;
 
-		const restoreInput = buildRestoreInput(task);
+		const restoreInput = buildRestoreInput();
 		await this.update(path, restoreInput);
 	}
 

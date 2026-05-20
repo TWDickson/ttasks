@@ -1,11 +1,11 @@
 import type { Task } from '../types';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+export const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_FUTURE_DAYS = 28;
 const MIN_PAST_DAYS = 14;
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
-function addDays(date: Date, days: number): Date {
+export function addDays(date: Date, days: number): Date {
 	const next = new Date(date.getTime());
 	next.setDate(next.getDate() + days);
 	return next;
@@ -37,7 +37,7 @@ function parseIsoDate(value: string): Date | null {
 	return parsed;
 }
 
-function isWeekend(date: Date): boolean {
+export function isWeekend(date: Date): boolean {
 	const day = date.getDay();
 	return day === 0 || day === 6;
 }

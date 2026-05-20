@@ -154,7 +154,7 @@ export default class TTasksPlugin extends Plugin {
 			});
 			this.registerEvent(resolvedRef);
 			// Start reminders after tasks are loaded so the first check has data.
-			void this.reminderService.start();
+			void this.reminderService.start().catch((err: unknown) => this.log(`reminderService.start failed: ${String(err)}`));
 			// Scheduled auto-archive: check once on load, then hourly.
 			this.startAutoArchive();
 		});
@@ -162,6 +162,10 @@ export default class TTasksPlugin extends Plugin {
 
 	onunload() {
 		this.app.workspace.detachLeavesOfType(TASK_BOARD_VIEW_TYPE);
+	}
+
+	openNewTask(): void {
+		new CreateTaskModal(this.app, this).open();
 	}
 
 	async openBoard(): Promise<void> {
@@ -242,7 +246,7 @@ export default class TTasksPlugin extends Plugin {
 	private startAutoArchive(): void {
 		if (this.settings.archive.mode !== 'scheduled') return;
 		const run = () => {
-			void this.archiveService.archiveEligibleTasks(this.settings.archive.daysAfterComplete);
+			void this.archiveService.archiveEligibleTasks(this.settings.archive.daysAfterComplete).catch((err: unknown) => this.log(`auto-archive failed: ${String(err)}`));
 		};
 		run(); // check on startup
 		// Check hourly — registered interval cleaned up automatically on plugin unload

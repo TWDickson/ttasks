@@ -49,7 +49,7 @@ export class TaskBoardView extends ItemView {
 	private handleShortcut(id: string): void {
 		switch (id) {
 			case 'newTask':
-				(this.plugin as any).openNewTask?.();
+				this.plugin.openNewTask();
 				break;
 			case 'escape':
 				this.plugin.activeTaskPath.set(null);

@@ -8,6 +8,7 @@ import {
 	SORT_FIELDS,
 	emptyFilterCondition,
 	emptyFilterGroup,
+	isKnownGroupField,
 	operatorsForField,
 	parseQuerySpecFromJson,
 	selectOptionsForField,
@@ -554,8 +555,10 @@ export class QueryEditorModal extends Modal {
 				if (v === 'none') {
 					this.query = { ...this.query, group: { kind: 'none' } };
 				} else if (v.startsWith('field:')) {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					this.query = { ...this.query, group: { kind: 'field', field: v.slice(6) as any } };
+					const field = v.slice(6);
+					if (isKnownGroupField(field)) {
+						this.query = { ...this.query, group: { kind: 'field', field } };
+					}
 				} else if (v === 'date_buckets:agenda') {
 					this.query = { ...this.query, group: { kind: 'date_buckets', field: 'due_date', preset: 'agenda' } };
 				}

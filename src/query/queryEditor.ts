@@ -153,7 +153,7 @@ function isKnownSortField(v: unknown): v is SortField {
 	return typeof v === 'string' && SORT_FIELDS.includes(v as SortField);
 }
 
-function isKnownGroupField(v: unknown): v is GroupField {
+export function isKnownGroupField(v: unknown): v is GroupField {
 	return typeof v === 'string' && GROUP_FIELDS.includes(v as GroupField);
 }
 
