@@ -5,9 +5,6 @@ import type {
 	LogbookRendererMode,
 	OverviewGraphGrouping,
 	QuickActionId,
-	TTasksSettings,
-	QuickActionsSettings,
-	RemindersSettings,
 } from './types';
 import {
 	DEFAULT_SETTINGS,
@@ -20,6 +17,7 @@ import {
 	resolveConfiguredStatus,
 } from './defaults';
 import { ValueMigrationModal } from './ValueMigrationModal';
+import { renderQuickActionsSettingsSection } from './quickActionsSettingsSection';
 import { renderViewsSettingsSection } from './viewsSettingsSection';
 import {
 	createManagedListItem,
@@ -215,64 +213,16 @@ export class TTasksSettingTab extends PluginSettingTab {
 			app: this.app,
 			rerender: () => this.display(),
 		});
-		this.renderQuickActionsSettings(containerEl);
+		renderQuickActionsSettingsSection({
+			containerEl,
+			plugin: this.plugin,
+		});
 		this.renderRemindersSettings(containerEl);
 		this.renderKanbanSettings(containerEl);
 		this.renderArchiveSettings(containerEl);
 	}
 
 
-	private renderQuickActionsSettings(containerEl: HTMLElement): void {
-		containerEl.createEl('h2', { text: 'Quick Actions' });
-		containerEl.createEl('p', {
-			text: 'Quick actions update task status and due dates. On mobile, touch-and-hold opens a thumb menu that uses these preferences.',
-			cls: 'setting-item-description',
-			attr: { style: 'margin-bottom: 12px;' },
-		});
-
-		const statuses = this.plugin.settings.statuses ?? [];
-		const qa = this.plugin.settings.quickActions;
-
-		new Setting(containerEl)
-			.setName('Start status')
-			.setDesc('Status applied by Start from the quick actions menu.')
-			.addDropdown(dd => {
-				for (const s of statuses) dd.addOption(s, s);
-				dd.setValue(statuses.includes(qa.startStatus) ? qa.startStatus : (statuses[0] ?? ''));
-				dd.onChange(async (v) => {
-					this.plugin.settings.quickActions.startStatus = v;
-					await this.plugin.saveSettings();
-				});
-			});
-
-		new Setting(containerEl)
-			.setName('Block status')
-			.setDesc('Status applied by Block from the quick actions menu.')
-			.addDropdown(dd => {
-				for (const s of statuses) dd.addOption(s, s);
-				dd.setValue(statuses.includes(qa.blockStatus) ? qa.blockStatus : (statuses[0] ?? ''));
-				dd.onChange(async (v) => {
-					this.plugin.settings.quickActions.blockStatus = v;
-					await this.plugin.saveSettings();
-				});
-			});
-
-		new Setting(containerEl)
-			.setName('Defer days')
-			.setDesc('Default days used when the defer action does not receive a specific preset date. If there is no due date, today is used as the base.')
-			.addText(text => text
-				.setPlaceholder('1')
-				.setValue(String(qa.deferDays))
-				.onChange(async (v) => {
-					const n = parseInt(v, 10);
-					if (!isNaN(n) && n >= 1 && n <= 365) {
-						this.plugin.settings.quickActions.deferDays = n;
-						await this.plugin.saveSettings();
-					}
-				})
-			);
-
-	}
 
 	private renderRemindersSettings(containerEl: HTMLElement): void {
 		containerEl.createEl('h2', { text: 'Reminders' });
