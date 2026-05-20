@@ -219,12 +219,10 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 	};
 }
 
-function buildModal(allTasks: Task[] = [], options?: { initialDependsOn?: string[] }) {
-	setupGlobals(false);
-
+function buildPluginMock(allTasks: Task[] = []) {
 	const create = vi.fn().mockResolvedValue({ path: 'Planner/Tasks/new-task.md' });
 	const openDetail = vi.fn().mockResolvedValue(undefined);
-	const plugin = {
+	return {
 		settings: {
 			tasksFolder: 'Planner/Tasks',
 			statuses: ['Active', 'In Progress', 'Done'],
@@ -235,12 +233,15 @@ function buildModal(allTasks: Task[] = [], options?: { initialDependsOn?: string
 			labelColors: { feature: '#3b82f6', bug: '#ef4444' },
 		},
 		manifest: { id: 'ttasks' },
-		taskStore: {
-			tasks: writable(allTasks),
-			create,
-			openDetail,
-		},
+		taskStore: { tasks: writable(allTasks), create, openDetail },
 	} as unknown as TTasksPlugin;
+}
+
+function buildModal(allTasks: Task[] = [], options?: { initialDependsOn?: string[]; mobile?: boolean }) {
+	setupGlobals(options?.mobile ?? false);
+
+	const plugin = buildPluginMock(allTasks);
+	const { create, openDetail } = (plugin as any).taskStore;
 
 	const modal = new CreateTaskModal(new App(), plugin, 'task', options);
 	const contentEl = new FakeElement('div');
@@ -389,5 +390,105 @@ describe('CreateTaskModal DOM behavior', () => {
 		expect(createBtn.textContent).toBe('Create project');
 		expect(labelsField.style.opacity).toBe('0.35');
 		expect(labelsField.style.pointerEvents).toBe('none');
+
 	});
+});
+
+describe('CreateTaskModal mobile quick-create mode', () => {
+		beforeEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		it('hides secondary fields when quick-create is enabled by default', () => {
+			const { contentEl } = buildModal([], { mobile: true });
+
+			const labelsLabel = findButtonByText(contentEl, 'Labels');
+			const labelsField = labelsLabel?.closest('.tt-modal-field');
+			if (!labelsField) throw new Error('Expected labels field container');
+
+			const priorityLabel = findButtonByText(contentEl, 'Priority');
+			const priorityField = priorityLabel?.closest('.tt-modal-field');
+			if (!priorityField) throw new Error('Expected priority field container');
+
+			const sections = contentEl.querySelectorAll('.tt-modal-section');
+			const schedulingSection = sections.find((s) => s.findByText('Scheduling') !== null);
+			const notesSection = sections.find((s) => s.findByText('Notes') !== null);
+			const recurrenceSection = sections.find((s) => s.findByText('Repeats') !== null);
+
+			expect(labelsField.hasClass('tt-hidden')).toBe(true);
+			expect(priorityField.hasClass('tt-hidden')).toBe(true);
+			expect(schedulingSection?.hasClass('tt-hidden')).toBe(true);
+			expect(notesSection?.hasClass('tt-hidden')).toBe(true);
+			expect(recurrenceSection?.hasClass('tt-hidden')).toBe(true);
+		});
+
+		it('toggle button carries tt-chip-active and correct label when quick-create is on', () => {
+			const { contentEl } = buildModal([], { mobile: true });
+
+			const toggleBtn = contentEl.querySelectorAll('.tt-modal-quick-toggle')[0];
+			if (!toggleBtn) throw new Error('Expected .tt-modal-quick-toggle button');
+
+			expect(toggleBtn.hasClass('tt-chip-active')).toBe(true);
+			expect(toggleBtn.textContent).toBe('Quick create on');
+		});
+
+		it('restores fields when toggle is clicked to disable quick-create', async () => {
+			const { contentEl } = buildModal([], { mobile: true });
+
+			const toggleBtn = contentEl.querySelectorAll('.tt-modal-quick-toggle')[0];
+			if (!toggleBtn) throw new Error('Expected .tt-modal-quick-toggle button');
+
+			await toggleBtn.trigger('click');
+
+			const labelsLabel = findButtonByText(contentEl, 'Labels');
+			const labelsField = labelsLabel?.closest('.tt-modal-field');
+			const priorityLabel = findButtonByText(contentEl, 'Priority');
+			const priorityField = priorityLabel?.closest('.tt-modal-field');
+			const sections = contentEl.querySelectorAll('.tt-modal-section');
+			const schedulingSection = sections.find((s) => s.findByText('Scheduling') !== null);
+
+			expect(labelsField?.hasClass('tt-hidden')).toBe(false);
+			expect(priorityField?.hasClass('tt-hidden')).toBe(false);
+			expect(schedulingSection?.hasClass('tt-hidden')).toBe(false);
+			expect(toggleBtn.hasClass('tt-chip-active')).toBe(false);
+			expect(toggleBtn.textContent).toBe('Quick create off');
+		});
+
+		it('persists quick-create preference to localStorage on each toggle', async () => {
+			const { contentEl } = buildModal([], { mobile: true });
+			// Default: ON → initial applyQuickMode(true) already persisted '1'
+			expect(localStorage.getItem('ttasks.mobileQuickCreate')).toBe('1');
+
+			const toggleBtn = contentEl.querySelectorAll('.tt-modal-quick-toggle')[0];
+			if (!toggleBtn) throw new Error('Expected .tt-modal-quick-toggle button');
+
+			await toggleBtn.trigger('click');
+			expect(localStorage.getItem('ttasks.mobileQuickCreate')).toBe('0');
+
+			await toggleBtn.trigger('click');
+			expect(localStorage.getItem('ttasks.mobileQuickCreate')).toBe('1');
+		});
+
+		it('starts with quick-create OFF when saved preference is 0', () => {
+			setupGlobals(true);
+			localStorage.setItem('ttasks.mobileQuickCreate', '0');
+
+			const plugin = buildPluginMock();
+			const modal = new CreateTaskModal(new App(), plugin, 'task');
+			const contentEl = new FakeElement('div');
+			const modalEl = new FakeElement('div');
+			(modal as any).contentEl = contentEl;
+			(modal as any).modalEl = modalEl;
+			modal.onOpen();
+
+			const toggleBtn = contentEl.querySelectorAll('.tt-modal-quick-toggle')[0];
+			if (!toggleBtn) throw new Error('Expected .tt-modal-quick-toggle button');
+
+			expect(toggleBtn.hasClass('tt-chip-active')).toBe(false);
+			expect(toggleBtn.textContent).toBe('Quick create off');
+
+			const labelsLabel = findButtonByText(contentEl, 'Labels');
+			const labelsField = labelsLabel?.closest('.tt-modal-field');
+			expect(labelsField?.hasClass('tt-hidden')).toBe(false);
+		});
 });
