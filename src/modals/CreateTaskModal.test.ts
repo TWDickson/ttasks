@@ -1,217 +1,393 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { App } from 'obsidian';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { writable } from 'svelte/store';
+import { App } from 'obsidian';
 import type TTasksPlugin from '../main';
 import type { Task } from '../types';
-import type { TaskSettings } from '../schema/types';
 import { CreateTaskModal } from './CreateTaskModal';
 
-/**
- * Integration tests for CreateTaskModal schema-driven rendering.
- * Verifies that modal renders all visible fields from schema,
- * respects visibility rules, and uses adapters for consistent props.
- */
-describe('CreateTaskModal', () => {
-	let mockApp: Partial<App>;
-	let mockPlugin: Partial<TTasksPlugin>;
-	let modal: CreateTaskModal;
+class FakeStyle {
+	[key: string]: unknown;
+	removeProperty(name: string): void {
+		delete this[name];
+	}
+}
 
+class FakeElement {
+	tag: string;
+	textContent = '';
+	innerHTML = '';
+	value = '';
+	checked = false;
+	disabled = false;
+	parent: FakeElement | null = null;
+	children: FakeElement[] = [];
+	classNames = new Set<string>();
+	attributes = new Map<string, string>();
+	listeners = new Map<string, Array<(event?: any) => void | Promise<void>>>();
+	style = new FakeStyle();
+
+	constructor(tag: string, cls?: string) {
+		this.tag = tag;
+		if (cls) {
+			for (const name of cls.split(/\s+/).filter(Boolean)) {
+				this.classNames.add(name);
+			}
+		}
+	}
+
+	createEl(tag: string, options?: { text?: string; cls?: string; attr?: Record<string, string> }): FakeElement {
+		const child = new FakeElement(tag, options?.cls);
+		child.parent = this;
+		if (options?.text) child.textContent = options.text;
+		if (options?.attr) {
+			for (const [key, val] of Object.entries(options.attr)) {
+				child.setAttribute(key, val);
+			}
+		}
+		this.children.push(child);
+		return child;
+	}
+
+	createDiv(options?: string | { cls?: string }): FakeElement {
+		const cls = typeof options === 'string' ? options : options?.cls;
+		return this.createEl('div', { cls });
+	}
+
+	createSpan(options?: { text?: string; cls?: string }): FakeElement {
+		return this.createEl('span', { text: options?.text, cls: options?.cls });
+	}
+
+	addEventListener(type: string, handler: (event?: any) => void | Promise<void>): void {
+		const existing = this.listeners.get(type) ?? [];
+		existing.push(handler);
+		this.listeners.set(type, existing);
+	}
+
+	async trigger(type: string, event: Record<string, unknown> = {}): Promise<void> {
+		const payload = {
+			target: this,
+			currentTarget: this,
+			...event,
+		};
+		for (const handler of this.listeners.get(type) ?? []) {
+			await handler(payload);
+		}
+	}
+
+	setText(text: string): void {
+		this.textContent = text;
+	}
+
+	empty(): void {
+		this.children = [];
+		this.textContent = '';
+		this.innerHTML = '';
+	}
+
+	focus(): void {}
+
+	setAttribute(name: string, value: string): void {
+		this.attributes.set(name, value);
+		if (name === 'value') this.value = value;
+	}
+
+	getAttribute(name: string): string | null {
+		return this.attributes.get(name) ?? null;
+	}
+
+	addClass(name: string): void {
+		this.classNames.add(name);
+	}
+
+	removeClass(name: string): void {
+		this.classNames.delete(name);
+	}
+
+	toggleClass(name: string, force?: boolean): void {
+		if (force === undefined) {
+			if (this.classNames.has(name)) this.classNames.delete(name);
+			else this.classNames.add(name);
+			return;
+		}
+		if (force) this.classNames.add(name);
+		else this.classNames.delete(name);
+	}
+
+	hasClass(name: string): boolean {
+		return this.classNames.has(name);
+	}
+
+	closest(selector: string): FakeElement | null {
+		if (!selector.startsWith('.')) return null;
+		const className = selector.slice(1);
+		let current: FakeElement | null = this;
+		while (current) {
+			if (current.hasClass(className)) return current;
+			current = current.parent;
+		}
+		return null;
+	}
+
+	remove(): void {
+		if (!this.parent) return;
+		this.parent.children = this.parent.children.filter((child) => child !== this);
+		this.parent = null;
+	}
+
+	querySelector(selector: string): FakeElement | null {
+		return this.querySelectorAll(selector)[0] ?? null;
+	}
+
+	querySelectorAll(selector: string): FakeElement[] {
+		const matches: FakeElement[] = [];
+		const matcher = (el: FakeElement): boolean => {
+			if (selector.startsWith('.')) return el.hasClass(selector.slice(1));
+			return el.tag === selector;
+		};
+
+		const visit = (el: FakeElement): void => {
+			if (matcher(el)) matches.push(el);
+			for (const child of el.children) visit(child);
+		};
+
+		for (const child of this.children) visit(child);
+		return matches;
+	}
+
+	findByText(text: string): FakeElement | null {
+		if (this.textContent === text) return this;
+		for (const child of this.children) {
+			const match = child.findByText(text);
+			if (match) return match;
+		}
+		return null;
+	}
+}
+
+function flushPromises(): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function setupGlobals(isMobile = false): void {
+	const storage = new Map<string, string>();
+	(globalThis as any).localStorage = {
+		getItem: (key: string) => storage.get(key) ?? null,
+		setItem: (key: string, value: string) => {
+			storage.set(key, value);
+		},
+	};
+	(globalThis as any).window = {
+		matchMedia: () => ({ matches: isMobile }),
+	};
+	(globalThis as any).requestAnimationFrame = (cb: (t: number) => void) => {
+		cb(0);
+		return 1;
+	};
+	(globalThis as any).cancelAnimationFrame = () => {};
+}
+
+function makeTask(overrides: Partial<Task> = {}): Task {
+	return {
+		id: 'abc123',
+		slug: 'task',
+		path: 'Planner/Tasks/abc123-task.md',
+		type: 'task',
+		name: 'Task',
+		area: null,
+		status: 'Active',
+		priority: 'None',
+		labels: [],
+		parent_task: null,
+		depends_on: [],
+		blocks: [],
+		blocked_reason: '',
+		assigned_to: '',
+		source: '',
+		start_date: null,
+		due_date: null,
+		due_time: null,
+		estimated_days: null,
+		created: '2026-05-20',
+		completed: null,
+		status_changed: '2026-05-20',
+		recurrence: null,
+		recurrence_type: null,
+		notes: '',
+		is_complete: false,
+		is_inbox: false,
+		...overrides,
+	};
+}
+
+function buildModal(allTasks: Task[] = [], options?: { initialDependsOn?: string[] }) {
+	setupGlobals(false);
+
+	const create = vi.fn().mockResolvedValue({ path: 'Planner/Tasks/new-task.md' });
+	const openDetail = vi.fn().mockResolvedValue(undefined);
+	const plugin = {
+		settings: {
+			tasksFolder: 'Planner/Tasks',
+			statuses: ['Active', 'In Progress', 'Done'],
+			areas: ['Work', 'Personal'],
+			labelValues: ['feature', 'bug'],
+			statusColors: { Active: '#3b82f6', 'In Progress': '#f59e0b', Done: '#10b981' },
+			areaColors: { Work: '#3b82f6', Personal: '#8b5cf6' },
+			labelColors: { feature: '#3b82f6', bug: '#ef4444' },
+		},
+		manifest: { id: 'ttasks' },
+		taskStore: {
+			tasks: writable(allTasks),
+			create,
+			openDetail,
+		},
+	} as unknown as TTasksPlugin;
+
+	const modal = new CreateTaskModal(new App(), plugin, 'task', options);
+	const contentEl = new FakeElement('div');
+	const modalEl = new FakeElement('div');
+	(modal as any).contentEl = contentEl;
+	(modal as any).modalEl = modalEl;
+
+	modal.onOpen();
+
+	return { modal, contentEl, create, openDetail };
+}
+
+function findInputByClass(root: FakeElement, className: string, index = 0): FakeElement {
+	const all = root.querySelectorAll(`.${className}`);
+	const found = all[index];
+	if (!found) throw new Error(`Expected .${className} at index ${index}`);
+	return found;
+}
+
+function findButtonByText(root: FakeElement, text: string): FakeElement {
+	const found = root.findByText(text);
+	if (!found) throw new Error(`Expected button with text ${text}`);
+	return found;
+}
+
+function findSelectContainingOption(root: FakeElement, optionText: string): FakeElement {
+	const selects = root.querySelectorAll('select');
+	const found = selects.find((select) => select.querySelectorAll('option').some((opt) => opt.textContent === optionText));
+	if (!found) throw new Error(`Expected select containing option ${optionText}`);
+	return found;
+}
+
+describe('CreateTaskModal DOM behavior', () => {
 	beforeEach(() => {
-		// Mock Obsidian App
-		mockApp = {
-			vault: {},
-		} as Partial<App>;
-
-		// Mock TTasks plugin
-		mockPlugin = {
-			settings: {
-				tasksFolder: 'Planner/Tasks',
-				statuses: ['Active', 'In Progress', 'Done'],
-				areas: ['Work', 'Personal', 'Home'],
-				labelValues: ['feature', 'bug', 'research'],
-				statusColors: {
-					Active: '#3b82f6',
-					'In Progress': '#f59e0b',
-					Done: '#10b981',
-				},
-				areaColors: {
-					Work: '#3b82f6',
-					Personal: '#8b5cf6',
-					Home: '#10b981',
-				},
-				labelColors: {
-					feature: '#3b82f6',
-					bug: '#ef4444',
-					research: '#8b5cf6',
-				},
-			} as TaskSettings,
-			taskStore: {
-				tasks: [],
-				create: vi.fn(),
-				openDetail: vi.fn(),
-			},
-		} as unknown as TTasksPlugin;
-
-		modal = new CreateTaskModal(mockApp as App, mockPlugin as unknown as TTasksPlugin, 'task');
+		vi.restoreAllMocks();
 	});
 
-	describe('field rendering', () => {
-		it('should render name field with required indicator', () => {
-			// Modal.onOpen() should create name input
-			// This test verifies the field is created and accessible
-			expect(modal).toBeDefined();
-		});
+	it('renders status and priority chip groups with expected active defaults', () => {
+		const { contentEl } = buildModal();
+		const chipGroups = contentEl.querySelectorAll('.tt-modal-chips');
 
-		it('should render basics section with name, priority, area, labels', () => {
-			// Basics section should contain:
-			// - name (required text input)
-			// - type (task/project toggle)
-			// - priority (chips)
-			// - area (select or chips)
-			// - labels (multi-select chips)
-			expect(modal).toBeDefined();
-		});
+		expect(chipGroups.length).toBeGreaterThanOrEqual(2);
 
-		it('should render scheduling section with start_date, due_date, depends_on', () => {
-			// Scheduling section should contain:
-			// - start_date (date + Today/Clear buttons)
-			// - due_date (date + Today/Clear buttons)
-			// - depends_on (multi-select chips + dropdown)
-			// - estimated_days (optional if no due_date)
-			expect(modal).toBeDefined();
-		});
-
-		it('should render notes section with notes field', () => {
-			// Notes section should contain:
-			// - notes (textarea)
-			expect(modal).toBeDefined();
-		});
-
-		it('should render repeats section with recurrence controls', () => {
-			// Repeats section should contain:
-			// - repeats cadence selector
-			// - repeat type selector when a cadence is chosen
-			expect(modal).toBeDefined();
-		});
+		const statusActive = chipGroups[0].querySelector('.tt-chip-active');
+		const priorityActive = chipGroups[1].querySelector('.tt-chip-active');
+		expect(statusActive?.textContent).toBe('Active');
+		expect(priorityActive?.textContent).toBe('None');
 	});
 
-	describe('visibility rules', () => {
-		it('should hide blocked_reason when status is not Blocked', () => {
-			// blocked_reason field should only be visible when status === 'Blocked'
-			// Initially status = first status in settings
-			expect(modal).toBeDefined();
-		});
+	it('updates active state when status and priority chips are clicked', async () => {
+		const { contentEl } = buildModal();
+		const chipGroups = contentEl.querySelectorAll('.tt-modal-chips');
+		const statusDone = findButtonByText(chipGroups[0], 'Done');
+		const priorityHigh = findButtonByText(chipGroups[1], 'High');
 
-		it('should show blocked_reason when status is set to Blocked', () => {
-			// When user changes status to Blocked, blocked_reason should appear
-			expect(modal).toBeDefined();
-		});
+		await statusDone.trigger('click');
+		await priorityHigh.trigger('click');
 
-		it('should hide estimated_days when due_date is set', () => {
-			// estimated_days should only be visible when !due_date
-			expect(modal).toBeDefined();
-		});
-
-		it('should show estimated_days when due_date is cleared', () => {
-			// When due_date is cleared, estimated_days should appear
-			expect(modal).toBeDefined();
-		});
-
-		it('should hide start_date when depends_on has items', () => {
-			// start_date should be disabled when depends_on.length > 0
-			expect(modal).toBeDefined();
-		});
-
-		it('should show start_date when depends_on is cleared', () => {
-			// When all dependencies are removed, start_date should be enabled
-			expect(modal).toBeDefined();
-		});
+		expect(chipGroups[0].querySelector('.tt-chip-active')?.textContent).toBe('Done');
+		expect(chipGroups[1].querySelector('.tt-chip-active')?.textContent).toBe('High');
 	});
 
-	describe('quick-create mode (mobile)', () => {
-		it('should toggle field visibility with quick-create toggle', () => {
-			// On mobile, quick-create toggle should hide:
-			// - priority, labels
-			// - scheduling section
-			// - notes section
-			// - repeats section
-			// Keeping core capture fields visible in Basics.
-			expect(modal).toBeDefined();
-		});
+	it('submits create payload with chip selections and opens detail', async () => {
+		const { contentEl, create, openDetail } = buildModal();
+		const chipGroups = contentEl.querySelectorAll('.tt-modal-chips');
+		const nameInput = findInputByClass(contentEl, 'tt-modal-name');
+		const createBtn = findInputByClass(contentEl, 'tt-modal-btn-primary');
 
-		it('should persist quick-create preference to localStorage', () => {
-			// Quick-create mode setting should be saved per device
-			expect(modal).toBeDefined();
-		});
+		nameInput.value = 'Ship modal tests';
+		await nameInput.trigger('input');
+		await findButtonByText(chipGroups[0], 'In Progress').trigger('click');
+		await findButtonByText(chipGroups[1], 'Medium').trigger('click');
+		await createBtn.trigger('click');
+		await flushPromises();
+
+		expect(create).toHaveBeenCalledTimes(1);
+		expect(create).toHaveBeenCalledWith(expect.objectContaining({
+			name: 'Ship modal tests',
+			status: 'In Progress',
+			priority: 'Medium',
+			type: 'task',
+		}));
+		expect(openDetail).toHaveBeenCalledWith('Planner/Tasks/new-task.md');
 	});
 
-	describe('submission', () => {
-		it('should require name field', () => {
-			// Empty name should show error and not submit
-			expect(modal).toBeDefined();
-		});
+	it('enforces due-date vs estimated-days exclusivity in submit payload', async () => {
+		const { contentEl, create } = buildModal();
+		const nameInput = findInputByClass(contentEl, 'tt-modal-name');
+		const createBtn = findInputByClass(contentEl, 'tt-modal-btn-primary');
+		const dateInputs = contentEl.querySelectorAll('input').filter((el) => el.getAttribute('type') === 'date');
+		const dueDateInput = dateInputs[1];
+		const estDaysInput = contentEl.querySelectorAll('input').find((el) => el.getAttribute('type') === 'number');
+		if (!dueDateInput || !estDaysInput) throw new Error('Expected due date and est days inputs');
 
-		it('should call taskStore.create with all field values', () => {
-			// Submit should gather all field values and pass to taskStore.create
-			expect(modal).toBeDefined();
-		});
+		dueDateInput.value = '2026-05-31';
+		await dueDateInput.trigger('change');
+		expect(estDaysInput.disabled).toBe(true);
 
-		it('should clear estimated_days if due_date is set', () => {
-			// Mutually exclusive: due_date XOR estimated_days
-			expect(modal).toBeDefined();
-		});
+		nameInput.value = 'Due date wins';
+		await nameInput.trigger('input');
+		await createBtn.trigger('click');
+		await flushPromises();
 
-		it('should clear start_date if depends_on has items', () => {
-			// Mutually exclusive: start_date XOR depends_on
-			expect(modal).toBeDefined();
-		});
-
-		it('should sort depends_on options by parent_task folder', () => {
-			// Dependencies from same project should appear first
-			expect(modal).toBeDefined();
-		});
+		expect(create).toHaveBeenCalledWith(expect.objectContaining({
+			due_date: '2026-05-31',
+			estimated_days: null,
+		}));
 	});
 
-	describe('schema integration', () => {
-		it('should use taskFields schema for field definitions', () => {
-			// Modal should import { taskFields } and loop through fields
-			expect(modal).toBeDefined();
-		});
+	it('disables start date when dependency is selected and submits with null start_date', async () => {
+		const dependency = makeTask({ path: 'Planner/Tasks/dep123-blocker.md', name: 'Blocker Task' });
+		const { contentEl, create } = buildModal([dependency]);
+		const nameInput = findInputByClass(contentEl, 'tt-modal-name');
+		const createBtn = findInputByClass(contentEl, 'tt-modal-btn-primary');
+		const dateInputs = contentEl.querySelectorAll('input').filter((el) => el.getAttribute('type') === 'date');
+		const startDateInput = dateInputs[0];
+		if (!startDateInput) throw new Error('Expected start date input');
 
-		it('should use adaptFieldForModal() for consistent props', () => {
-			// Each field should use adapter to get props (value, options, error, etc.)
-			expect(modal).toBeDefined();
-		});
+		const dependencySelect = findSelectContainingOption(contentEl, '+ Add dependency…');
+		dependencySelect.value = 'Planner/Tasks/dep123-blocker';
+		await dependencySelect.trigger('change');
 
-		it('should respect field.visible rules from schema', () => {
-			// Visibility determined by FieldDefinition.visible, not hardcoded
-			expect(modal).toBeDefined();
-		});
+		expect(startDateInput.disabled).toBe(true);
 
-		it('should use field.options from schema', () => {
-			// Priority, status, area, labels all come from schema definitions
-			expect(modal).toBeDefined();
-		});
+		nameInput.value = 'Dependency flow';
+		await nameInput.trigger('input');
+		await createBtn.trigger('click');
+		await flushPromises();
 
-		it('should apply field.optionColors from schema', () => {
-			// Color tints should come from FieldDefinition.optionColors
-			expect(modal).toBeDefined();
-		});
+		expect(create).toHaveBeenCalledWith(expect.objectContaining({
+			depends_on: ['Planner/Tasks/dep123-blocker'],
+			start_date: null,
+		}));
 	});
 
-	describe('type switching (task vs project)', () => {
-		it('should hide labels field when type = project', () => {
-			// Project type hides: labels, priority (or reduces visibility)
-			expect(modal).toBeDefined();
-		});
+	it('updates create button label and task-specific field state when switching to project', async () => {
+		const { contentEl } = buildModal();
+		const projectBtn = findButtonByText(contentEl, 'Project');
+		const createBtn = findInputByClass(contentEl, 'tt-modal-btn-primary');
+		const labelsLabel = findButtonByText(contentEl, 'Labels');
+		const labelsField = labelsLabel.closest('.tt-modal-field');
+		if (!labelsField) throw new Error('Expected labels field container');
 
-		it('should update create button text on type change', () => {
-			// "Create task" → "Create project"
-			expect(modal).toBeDefined();
-		});
+		await projectBtn.trigger('click');
 
-		it('should gray out task-specific fields for projects', () => {
-			// Labels field should be visually disabled (opacity: 0.35)
-			expect(modal).toBeDefined();
-		});
+		expect(createBtn.textContent).toBe('Create project');
+		expect(labelsField.style.opacity).toBe('0.35');
+		expect(labelsField.style.pointerEvents).toBe('none');
 	});
 });
