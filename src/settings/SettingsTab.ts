@@ -17,6 +17,7 @@ import {
 	resolveConfiguredStatus,
 } from './defaults';
 import { ValueMigrationModal } from './ValueMigrationModal';
+import { renderKanbanSettingsSection } from './kanbanSettingsSection';
 import { renderQuickActionsSettingsSection } from './quickActionsSettingsSection';
 import { renderRemindersSettingsSection } from './remindersSettingsSection';
 import { renderViewsSettingsSection } from './viewsSettingsSection';
@@ -222,41 +223,14 @@ export class TTasksSettingTab extends PluginSettingTab {
 			containerEl,
 			plugin: this.plugin,
 		});
-		this.renderKanbanSettings(containerEl);
+		renderKanbanSettingsSection({
+			containerEl,
+			plugin: this.plugin,
+		});
 		this.renderArchiveSettings(containerEl);
 	}
 
 
-
-	private renderKanbanSettings(containerEl: HTMLElement): void {
-		containerEl.createEl('h2', { text: 'Kanban cards' });
-
-		new Setting(containerEl)
-			.setName('Visible card fields')
-			.setDesc('Choose which fields appear as badges on Kanban cards. All fields are shown by default.');
-
-		const fields: import('./types').KanbanCardField[] = ['area', 'dueDate', 'labels', 'depCount'];
-		const labels: Record<string, string> = {
-			area: 'Area',
-			dueDate: 'Due date',
-			labels: 'Labels',
-			depCount: 'Dependency count',
-		};
-
-		for (const field of fields) {
-			new Setting(containerEl)
-				.setName(labels[field])
-				.addToggle(t => t
-					.setValue(this.plugin.settings.kanbanCardFields.includes(field))
-					.onChange(async (on) => {
-						const current = this.plugin.settings.kanbanCardFields;
-						this.plugin.settings.kanbanCardFields = on
-							? [...current, field]
-							: current.filter(f => f !== field);
-						await this.plugin.saveSettings();
-					}));
-		}
-	}
 
 	private renderArchiveSettings(containerEl: HTMLElement): void {
 		containerEl.createEl('h2', { text: 'Archive' });
