@@ -352,6 +352,23 @@ describe('resolveTaskDates', () => {
 });
 
 describe('buildHybridTimeline', () => {
+	it('extends the timeline range to keep a future-looking window around today', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', due_date: '2026-05-05' }),
+		];
+
+		const model = buildHybridTimeline(tasks);
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const minPast = new Date(today.getTime());
+		minPast.setDate(minPast.getDate() - 14);
+		const minFuture = new Date(today.getTime());
+		minFuture.setDate(minFuture.getDate() + 28);
+
+		expect(model.rangeStart.getTime()).toBeLessThanOrEqual(minPast.getTime());
+		expect(model.rangeEnd.getTime()).toBeGreaterThanOrEqual(minFuture.getTime());
+	});
+
 	it('splits dated or inferred tasks into defined track and no-estimate dependents into underdefined track', () => {
 		const tasks = [
 			makeTask({ path: 'Tasks/a.md', name: 'A', due_date: '2026-04-05' }),

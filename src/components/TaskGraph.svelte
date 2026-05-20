@@ -12,10 +12,13 @@
 	import { flattenTaskGroups } from './viewAdapters';
 	import { formatHumanDate } from './taskDateMeta';
 	import {
+		buildTimelineNonWorkingBands,
 		buildTimelineTicks,
+		collectProjectHolidayDates,
 		diffDays,
 		formatDateISO,
 		intersectsViewport,
+		normalizeTimelineRange,
 		percentAtDate,
 		startOfToday,
 	} from './graphTimeline';
@@ -224,12 +227,13 @@
 		? tasks
 		: tasks.filter((task) => task.type !== 'task' || !task.is_complete);
 	$: hybridTimeline = buildHybridTimeline(overviewTasks, { grouping: overviewGrouping });
+	$: normalizedOverviewRange = normalizeTimelineRange(hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
 	$: timelineTaskCount = hybridTimeline.defined.length + hybridTimeline.underdefined.length;
 	$: hiddenCompletedCount = Math.max(0, tasks.filter((task) => task.type === 'task' && task.is_complete).length - overviewTasks.filter((task) => task.type === 'task' && task.is_complete).length);
 	$: timelineEmpty = timelineTaskCount === 0;
-	$: overviewSpanDays = Math.max(1, diffDays(hybridTimeline.rangeStart, hybridTimeline.rangeEnd) + 1);
+	$: overviewSpanDays = Math.max(1, diffDays(normalizedOverviewRange.start, normalizedOverviewRange.end) + 1);
 	$: overviewCanvasWidth = Math.max(overviewViewportWidth, Math.round(overviewSpanDays * OVERVIEW_PIXELS_PER_DAY));
-	$: todayPercent = percentAtDate(startOfToday(), hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
+	$: todayPercent = percentAtDate(startOfToday(), normalizedOverviewRange.start, normalizedOverviewRange.end);
 	$: visibleStartPercent = overviewCanvasWidth > 0 ? (overviewScrollLeft / overviewCanvasWidth) * 100 : 0;
 	$: visibleEndPercent = overviewCanvasWidth > 0 ? ((overviewScrollLeft + overviewViewportWidth) / overviewCanvasWidth) * 100 : 100;
 	$: virtualStartPercent = Math.max(0, visibleStartPercent - 8);
@@ -237,7 +241,9 @@
 	$: visibleDefined = hybridTimeline.defined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
 	$: visibleUnderdefined = hybridTimeline.underdefined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
 	$: visibleLinks = hybridTimeline.links.filter((link) => intersectsViewport(Math.min(link.fromPercent, link.toPercent), Math.abs(link.toPercent - link.fromPercent), virtualStartPercent, virtualEndPercent));
-	$: timelineTicks = buildTimelineTicks(hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
+	$: timelineTicks = buildTimelineTicks(normalizedOverviewRange.start, normalizedOverviewRange.end);
+	$: overviewHolidayDates = collectProjectHolidayDates(overviewTasks);
+	$: nonWorkingBands = buildTimelineNonWorkingBands(normalizedOverviewRange.start, normalizedOverviewRange.end, overviewHolidayDates);
 	$: definedTrackHeightPx = Math.max(42, hybridTimeline.definedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.definedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
 	$: underdefinedTrackHeightPx = Math.max(42, hybridTimeline.underdefinedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.underdefinedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
 	$: linkCanvasHeightPx = definedTrackHeightPx + underdefinedTrackHeightPx + 78;
@@ -298,7 +304,7 @@
 		const viewportWidth = overviewScrollEl.clientWidth;
 		if (viewportWidth <= 0) return;
 		const todayX = (todayPercent / 100) * overviewCanvasWidth;
-		const target = Math.max(0, Math.min(overviewCanvasWidth - viewportWidth, todayX - viewportWidth * 0.25));
+		const target = Math.max(0, Math.min(overviewCanvasWidth - viewportWidth, todayX - viewportWidth * 0.33));
 		overviewScrollEl.scrollLeft = target;
 		overviewScrollLeft = target;
 	}
@@ -518,8 +524,11 @@
 		{:else}
 			<div class="tt-overview-scroll" bind:this={overviewScrollEl} on:scroll={onOverviewScroll}>
 				<div class="tt-overview-axis" style={`width:${overviewCanvasWidth}px;`}>
+					{#each nonWorkingBands as band (band.id)}
+						<div class="tt-overview-nonworking" class:is-weekend={band.kind === 'weekend'} class:is-holiday={band.kind === 'holiday'} style={`left:${band.leftPercent.toFixed(3)}%;width:${band.widthPercent.toFixed(3)}%;`} title={band.label}></div>
+					{/each}
 					{#each timelineTicks as tick}
-						<div class="tt-overview-tick" style={`left:${tick.leftPercent.toFixed(3)}%;`}>
+						<div class="tt-overview-tick" class:is-start={tick.position === 'start'} class:is-end={tick.position === 'end'} style={`left:${tick.leftPercent.toFixed(3)}%;`}>
 							<span>{tick.label}</span>
 						</div>
 					{/each}
@@ -527,15 +536,15 @@
 				</div>
 
 				<div class="tt-hybrid-shell" style={`width:${overviewCanvasWidth}px;--tt-link-canvas-height:${linkCanvasHeightPx}px;`}>
+					<div class="tt-hybrid-calendar-overlay" aria-hidden="true">
+						{#each nonWorkingBands as band (band.id)}
+							<div class="tt-hybrid-calendar-band" class:is-weekend={band.kind === 'weekend'} class:is-holiday={band.kind === 'holiday'} style={`left:${band.leftPercent.toFixed(3)}%;width:${band.widthPercent.toFixed(3)}%;`} title={band.label}></div>
+						{/each}
+					</div>
 					<div class="tt-hybrid-today-line" style={`left:${todayPercent.toFixed(3)}%;`}></div>
 					<svg class="tt-hybrid-links" viewBox={`0 0 100 ${linkCanvasHeightPx}`} preserveAspectRatio="none" aria-hidden="true">
-						<defs>
-							<marker id="ttasks-hybrid-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
-								<path d="M 0 0 L 8 4 L 0 8 z" fill="currentColor"></path>
-							</marker>
-						</defs>
 						{#each visibleLinks as link (link.id)}
-							<path class="tt-hybrid-link" d={hybridLinkPath(link)} marker-end="url(#ttasks-hybrid-arrow)"></path>
+							<path class="tt-hybrid-link" d={hybridLinkPath(link)}></path>
 						{/each}
 					</svg>
 
@@ -553,7 +562,7 @@
 						<div class="tt-hybrid-track-body">
 							<!-- Lane sidebar: named project headers positioned at each band's row -->
 							{#if definedLaneHeaders.length > 1}
-								<div class="tt-hybrid-lane-sidebar" style={`height:${definedTrackHeightPx}px;`} aria-hidden="true">
+								<div class="tt-hybrid-lane-sidebar" style={`height:${definedTrackHeightPx}px;transform:translateX(${overviewScrollLeft}px);`} aria-hidden="true">
 									{#each definedLaneHeaders as header (header.key)}
 										<div
 											class="tt-hybrid-lane-header"
@@ -606,7 +615,7 @@
 						</div>
 						<div class="tt-hybrid-track-body">
 							{#if underdefinedLaneHeaders.length > 1}
-								<div class="tt-hybrid-lane-sidebar" style={`height:${underdefinedTrackHeightPx}px;`} aria-hidden="true">
+								<div class="tt-hybrid-lane-sidebar" style={`height:${underdefinedTrackHeightPx}px;transform:translateX(${overviewScrollLeft}px);`} aria-hidden="true">
 									{#each underdefinedLaneHeaders as header (header.key)}
 										<div
 											class="tt-hybrid-lane-header"
@@ -759,6 +768,30 @@
 		padding-bottom: 8px;
 	}
 
+	.tt-hybrid-calendar-overlay {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 30px;
+		bottom: 8px;
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	.tt-hybrid-calendar-band {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+	}
+
+	.tt-hybrid-calendar-band.is-weekend {
+		background: color-mix(in srgb, var(--background-modifier-border) 24%, transparent);
+	}
+
+	.tt-hybrid-calendar-band.is-holiday {
+		background: color-mix(in srgb, var(--color-red) 14%, transparent);
+	}
+
 	.tt-hybrid-links {
 		position: absolute;
 		left: 0;
@@ -826,6 +859,7 @@
 		border-radius: var(--radius-m, 8px) 0 0 var(--radius-m, 8px);
 		background: var(--background-primary-alt, var(--background-secondary));
 		overflow: hidden;
+		z-index: 4;
 	}
 
 	.tt-hybrid-lane-header {
@@ -922,6 +956,21 @@
 		z-index: 2;
 	}
 
+	.tt-overview-nonworking {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		pointer-events: none;
+	}
+
+	.tt-overview-nonworking.is-weekend {
+		background: color-mix(in srgb, var(--background-modifier-border) 22%, transparent);
+	}
+
+	.tt-overview-nonworking.is-holiday {
+		background: color-mix(in srgb, var(--color-red) 16%, transparent);
+	}
+
 	.tt-overview-today {
 		position: absolute;
 		top: 0;
@@ -956,9 +1005,17 @@
 		position: absolute;
 		top: 3px;
 		transform: translateX(-50%);
-		font-size: 0.68rem;
+		font-size: 0.66rem;
 		color: var(--text-faint);
 		white-space: nowrap;
+	}
+
+	.tt-overview-tick.is-start {
+		transform: translateX(0);
+	}
+
+	.tt-overview-tick.is-end {
+		transform: translateX(-100%);
 	}
 
 	.tt-overview-tick::after {

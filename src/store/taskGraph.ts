@@ -739,6 +739,8 @@ export interface ResolveTaskDatesOptions {
 }
 
 const INFER_DAY_MS = 24 * 60 * 60 * 1000;
+const OVERVIEW_MIN_PAST_DAYS = 14;
+const OVERVIEW_MIN_FUTURE_DAYS = 28;
 
 function inferParseDate(value: string | null | undefined): Date | null {
 	if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -1005,8 +1007,12 @@ export function buildHybridTimeline(tasks: Task[], options: BuildHybridTimelineO
 
 	const starts = resolvedEntries.map((entry) => entry.dates.start.getTime());
 	const ends = resolvedEntries.map((entry) => entry.dates.end.getTime());
-	const rangeStart = starts.length > 0 ? new Date(Math.min(...starts)) : fallbackStart;
-	const rangeEnd = ends.length > 0 ? new Date(Math.max(...ends)) : fallbackEnd;
+	const baseRangeStart = starts.length > 0 ? new Date(Math.min(...starts)) : fallbackStart;
+	const baseRangeEnd = ends.length > 0 ? new Date(Math.max(...ends)) : fallbackEnd;
+	const minRangeStart = inferAddDays(today, -OVERVIEW_MIN_PAST_DAYS);
+	const minRangeEnd = inferAddDays(today, OVERVIEW_MIN_FUTURE_DAYS);
+	const rangeStart = baseRangeStart.getTime() <= minRangeStart.getTime() ? baseRangeStart : minRangeStart;
+	const rangeEnd = baseRangeEnd.getTime() >= minRangeEnd.getTime() ? baseRangeEnd : minRangeEnd;
 	const spanDays = Math.max(1, Math.round((rangeEnd.getTime() - rangeStart.getTime()) / INFER_DAY_MS) + 1);
 
 	const definedRowEndsByGroup = new Map<string, number[]>();
