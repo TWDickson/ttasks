@@ -30,6 +30,8 @@
 	export let selected = false;
 	/** Called when the checkbox state changes. */
 	export let onSelect: ((path: string) => void) | undefined = undefined;
+	/** Whether this row is keyboard-focused in board navigation. */
+	export let keyboardFocused = false;
 
 	let cachedToday = localDateString();
 
@@ -90,6 +92,8 @@
 	class="tt-task"
 	class:is-overdue={isOverdue(task)}
 	class:is-active={active}
+	class:is-keyboard-focused={keyboardFocused}
+	data-task-path={task.path}
 	style:padding-left={indent > 0 ? `${indent * 20}px` : undefined}
 >
 	{#if selectable}
@@ -116,6 +120,7 @@
 		type="button"
 		class="tt-task-btn"
 		class:is-active={active}
+		data-task-path={task.path}
 		on:click={handleOpen}
 		on:mouseenter={handleHoverPreview}
 		on:contextmenu={handleContextMenu}
@@ -248,6 +253,11 @@
 		background: var(--background-modifier-hover);
 		border-left: 2px solid var(--interactive-accent);
 		padding-left: 10px;
+	}
+
+	.tt-task.is-keyboard-focused .tt-task-btn {
+		outline: 2px solid var(--interactive-accent);
+		outline-offset: -2px;
 	}
 
 	.tt-task-btn.is-active .tt-task-name {

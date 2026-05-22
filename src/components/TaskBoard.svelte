@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { Menu, Notice, setIcon } from 'obsidian';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
@@ -15,6 +16,11 @@
 	import TaskArchiveView from './TaskArchiveView.svelte';
 	import BatchActionBar from './BatchActionBar.svelte';
 	import { batchEligibility, clearSelection, selectAll, toggleSelection } from '../store/taskSelection';
+	import {
+		type BoardStateStores,
+		clearSelectionOnViewChange,
+		createBoardStateService,
+	} from '../store/BoardStateService';
 	import { localDateString } from '../utils/dateUtils';
 	import { runBatchArchive, runBatchComplete, runBatchDelete } from './taskBoardBatchActions';
 	import { buildBoardQuery } from './boardQuery';
@@ -28,27 +34,39 @@
 	} from '../views/viewRegistry';
 
 	export let plugin: TTasksPlugin;
+	export let boardState: BoardStateStores | undefined = undefined;
 
 	// Destructure stores for Svelte reactivity
-	const activeTaskPath = plugin.activeTaskPath;
+	const resolvedBoardState = boardState ?? createBoardStateService({
+		defaultViewId: resolveTaskViewId(plugin.settings, null),
+		activeTaskPath: plugin.activeTaskPath,
+		focusedTaskPath: plugin.focusedTaskPath,
+	});
+	const activeTaskPath = resolvedBoardState.activeTaskPath;
+	const focusedTaskPath = resolvedBoardState.focusedTaskPath;
+	const currentViewId = resolvedBoardState.currentViewId;
+	const searchQuery = resolvedBoardState.searchQuery;
+	const selectedPaths = resolvedBoardState.selectedPaths;
 	const tasks          = plugin.taskStore.tasks;
 
 	let registeredViews = getRegisteredTaskViews(plugin.settings);
 	$: builtinViews = registeredViews.filter((view) => view.source === 'builtin');
 	$: smartListViews = registeredViews.filter((view) => view.source === 'custom');
-	let currentViewId = resolveTaskViewId(plugin.settings, null);
-	let currentView = resolveTaskViewDefinition(plugin.settings, currentViewId) ?? registeredViews[0];
+	let currentView = resolveTaskViewDefinition(plugin.settings, $currentViewId) ?? registeredViews[0];
 	$: registeredViews = getRegisteredTaskViews(plugin.settings);
-	$: currentViewId = resolveTaskViewId(plugin.settings, currentViewId);
-	$: currentView = resolveTaskViewDefinition(plugin.settings, currentViewId) ?? registeredViews[0];
+	$: currentViewId.set(resolveTaskViewId(plugin.settings, $currentViewId));
+	$: currentView = resolveTaskViewDefinition(plugin.settings, $currentViewId) ?? registeredViews[0];
 
 	// Allow external callers (e.g. ReminderService) to switch the active view.
 	plugin.activeViewMode.subscribe(mode => {
 		if (mode !== null) {
-			currentViewId = resolveTaskViewId(plugin.settings, mode);
+			currentViewId.set(resolveTaskViewId(plugin.settings, mode));
 			plugin.activeViewMode.set(null);
 		}
 	});
+
+	const unsubscribeSelectionReset = clearSelectionOnViewChange(currentViewId, selectedPaths);
+	onDestroy(unsubscribeSelectionReset);
 
 	// Panel open state is decoupled from task selection so the panel can show
 	// an empty state (e.g. after deletion) without collapsing.
@@ -56,44 +74,43 @@
 	$: if ($activeTaskPath !== null) panelOpen = true;
 
 	// ── Multi-select ──────────────────────────────────────────────────────────
-	let selectedPaths: Set<string> = new Set();
-	// Clear selection when switching views
-	$: { if (currentView) selectedPaths = clearSelection(); }
-	$: eligibility = batchEligibility(selectedPaths, $tasks);
+	$: eligibility = batchEligibility($selectedPaths, $tasks);
 
 	function handleSelect(path: string): void {
-		selectedPaths = toggleSelection(selectedPaths, path);
+		selectedPaths.update((current) => toggleSelection(current, path));
 	}
 
 	async function batchComplete(): Promise<void> {
-		selectedPaths = await runBatchComplete({
-			selectedPaths,
+		const nextSelection = await runBatchComplete({
+			selectedPaths: $selectedPaths,
 			completionStatus: plugin.settings.completionStatus,
 			today: localDateString(),
 			updateTask: (path, updates) => plugin.taskStore.update(path, updates),
 			clearSelection,
 		});
+		selectedPaths.set(nextSelection);
 	}
 
 	async function batchArchive(): Promise<void> {
-		selectedPaths = await runBatchArchive({
-			selectedPaths,
+		const nextSelection = await runBatchArchive({
+			selectedPaths: $selectedPaths,
 			archiveTask: (path) => plugin.archiveService.archiveTask(path),
 			clearSelection,
 		});
+		selectedPaths.set(nextSelection);
 	}
 
 	async function batchDelete(): Promise<void> {
-		selectedPaths = await runBatchDelete({
-			selectedPaths,
+		const nextSelection = await runBatchDelete({
+			selectedPaths: $selectedPaths,
 			confirmDelete: (count) => confirm(`Delete ${count} task${count === 1 ? '' : 's'}? This cannot be undone.`),
 			deleteTask: (path) => plugin.taskStore.delete(path),
 			clearSelection,
 		});
+		selectedPaths.set(nextSelection);
 	}
 
 	// ── Filter state (routed through the query engine) ────────────────────────
-	let searchQuery    = '';
 	let filterPriority = '';
 	let filterArea     = '';
 	let showCompletedByViewId: Record<string, boolean> = {};
@@ -105,7 +122,7 @@
 		$tasks.map(t => t.area).filter((a): a is string => !!a)
 	)].sort();
 
-	$: hasActiveFilters = !!searchQuery || !!filterPriority || !!filterArea;
+	$: hasActiveFilters = !!$searchQuery || !!filterPriority || !!filterArea;
 	$: canToggleCompletedForCurrentView = canToggleBuiltinCompleted(currentView);
 	$: showCompleted = showCompletedByViewId[currentView.id] ?? defaultCompletedVisibility(currentView);
 	$: currentRenderer = resolveViewRenderer(currentView.id, currentView.renderer, logbookRendererModeByViewId);
@@ -138,7 +155,7 @@
 		query.update(q => ({
 			...q,
 			filter: { logic: currentBoardQuery.filter.logic, conditions },
-			search: searchQuery || currentBoardQuery.search || undefined,
+			search: $searchQuery || currentBoardQuery.search || undefined,
 			sort: currentBoardQuery.sort,
 			group: currentBoardQuery.group,
 			limit: currentBoardQuery.limit,
@@ -147,7 +164,7 @@
 	}
 
 	function clearFilters() {
-		searchQuery    = '';
+		searchQuery.set('');
 		filterPriority = '';
 		filterArea     = '';
 	}
@@ -177,6 +194,10 @@
 	$: configuredTaskTypeColors = plugin.settings.labelColors ?? {};
 	$: configuredBlockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
 
+	$: if ($focusedTaskPath && !$tasks.some((task) => task.path === $focusedTaskPath)) {
+		focusedTaskPath.set(null);
+	}
+
 	function openNewTask()    { new CreateTaskModal(plugin.app, plugin).open(); }
 	function openNewProject() { new CreateTaskModal(plugin.app, plugin, 'project').open(); }
 	function closeDetail()    { panelOpen = false; activeTaskPath.set(null); }
@@ -192,7 +213,7 @@
 		plugin.settings.customViews = [...plugin.settings.customViews, created];
 		await plugin.saveSettings();
 		registeredViews = getRegisteredTaskViews(plugin.settings);
-		currentViewId = created.id;
+		currentViewId.set(created.id);
 		new QueryEditorModal(
 			plugin.app,
 			created.name,
@@ -211,7 +232,7 @@
 				));
 				await plugin.saveSettings();
 				registeredViews = getRegisteredTaskViews(plugin.settings);
-				currentViewId = created.id;
+				currentViewId.set(created.id);
 			},
 		).open();
 		new Notice(`Created Smart List: ${created.name}. Use Edit View to customize query and type.`);
@@ -242,13 +263,13 @@
 				));
 				await plugin.saveSettings();
 				registeredViews = getRegisteredTaskViews(plugin.settings);
-				currentViewId = viewId;
+				currentViewId.set(viewId);
 			},
 			async () => {
 				plugin.settings.customViews = plugin.settings.customViews.filter((view) => view.id !== viewId);
 				await plugin.saveSettings();
 				registeredViews = getRegisteredTaskViews(plugin.settings);
-				currentViewId = resolveTaskViewId(plugin.settings, null);
+				currentViewId.set(resolveTaskViewId(plugin.settings, null));
 				new Notice('Smart List deleted.');
 			},
 		).open();
@@ -284,8 +305,8 @@
 			{#each builtinViews as view}
 				<button
 					class="tt-rail-item"
-					class:is-active={currentViewId === view.id}
-					on:click={() => currentViewId = view.id}
+					class:is-active={$currentViewId === view.id}
+					on:click={() => currentViewId.set(view.id)}
 					aria-label={view.name}
 				>
 					<span class="tt-rail-icon" use:icon={resolveTaskViewIcon(view)}></span>
@@ -300,8 +321,8 @@
 			{#each smartListViews as view}
 				<button
 					class="tt-rail-item tt-rail-item--smart"
-					class:is-active={currentViewId === view.id}
-					on:click={() => currentViewId = view.id}
+					class:is-active={$currentViewId === view.id}
+					on:click={() => currentViewId.set(view.id)}
 					on:contextmenu={(event) => openSmartListMenu(view.id, event)}
 					aria-label={view.name}
 					title="Right-click for Smart List options"
@@ -345,8 +366,8 @@
 				{#each registeredViews as view}
 					<button
 						class="tt-tab-btn"
-						class:is-active={currentViewId === view.id}
-						on:click={() => currentViewId = view.id}
+						class:is-active={$currentViewId === view.id}
+						on:click={() => currentViewId.set(view.id)}
 					>{view.name}</button>
 				{/each}
 			</div>
@@ -359,10 +380,10 @@
 						class="tt-search-input"
 						type="text"
 						placeholder="Search tasks…"
-						bind:value={searchQuery}
+						bind:value={$searchQuery}
 					/>
-					{#if searchQuery}
-						<button class="tt-search-clear" on:click={() => searchQuery = ''} aria-label="Clear search">
+					{#if $searchQuery}
+						<button class="tt-search-clear" on:click={() => searchQuery.set('')} aria-label="Clear search">
 							<span use:icon={'x'}></span>
 						</button>
 					{/if}
@@ -425,22 +446,26 @@
 						areaColors={configuredCategoryColors}
 						labelColors={configuredTaskTypeColors}
 						{activeTaskPath}
-						onOpen={(path) => plugin.taskStore.openDetail(path)}
+						focusedTaskPath={$focusedTaskPath}
+						onOpen={(path) => {
+							focusedTaskPath.set(path);
+							plugin.taskStore.openDetail(path);
+						}}
 						onRestore={currentView.id === 'logbook' ? ((path) => plugin.taskStore.restore(path)) : undefined}
 						onContextMenu={openContextMenu}
 						onNewTask={openNewTask}
 						selectable={true}
-						{selectedPaths}
+						selectedPaths={$selectedPaths}
 						onSelect={handleSelect}
 					/>
-					{#if selectedPaths.size > 0}
+					{#if $selectedPaths.size > 0}
 						<BatchActionBar
-							selectedCount={selectedPaths.size}
+							selectedCount={$selectedPaths.size}
 							{eligibility}
 							onArchive={batchArchive}
 							onComplete={batchComplete}
 							onDelete={batchDelete}
-							onClear={() => { selectedPaths = clearSelection(); }}
+							onClear={() => { selectedPaths.set(clearSelection()); }}
 						/>
 					{/if}
 				{:else if currentRenderer === 'kanban'}
@@ -455,7 +480,10 @@
 						kanbanCardFields={plugin.settings.kanbanCardFields}
 						{activeTaskPath}
 						store={plugin.taskStore}
-						onOpen={(path) => plugin.taskStore.openDetail(path)}
+						onOpen={(path) => {
+							focusedTaskPath.set(path);
+							plugin.taskStore.openDetail(path);
+						}}
 						onContextMenu={openContextMenu}
 					/>
 				{:else if currentRenderer === 'graph'}
@@ -465,7 +493,10 @@
 						defaultGraphMode={currentView.presentation.graphMode}
 						statusColors={configuredStatusColors}
 						{activeTaskPath}
-						onOpen={(path) => plugin.taskStore.openDetail(path)}
+						onOpen={(path) => {
+							focusedTaskPath.set(path);
+							plugin.taskStore.openDetail(path);
+						}}
 						onContextMenu={openContextMenu}
 					/>
 				{:else if currentRenderer === 'archive'}
@@ -477,7 +508,10 @@
 						areaColors={configuredCategoryColors}
 						labelColors={configuredTaskTypeColors}
 						{activeTaskPath}
-						onOpen={(path) => plugin.taskStore.openDetail(path)}
+						onOpen={(path) => {
+							focusedTaskPath.set(path);
+							plugin.taskStore.openDetail(path);
+						}}
 						onContextMenu={openContextMenu}
 					/>
 				{/if}

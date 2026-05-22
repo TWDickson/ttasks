@@ -20,6 +20,7 @@
 	export let selectable = false;
 	export let selectedPaths: Set<string> = new Set();
 	export let onSelect: ((path: string) => void) | undefined = undefined;
+	export let focusedTaskPath: string | null = null;
 
 	let collapsedPaths = new Set<string>();
 
@@ -103,6 +104,7 @@
 								onRestore={onRestore}
 								{selectable}
 								selected={selectedPaths.has(row.task.path)}
+								keyboardFocused={focusedTaskPath === row.task.path}
 								{onSelect}
 							/>
 						{/each}

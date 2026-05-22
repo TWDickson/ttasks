@@ -48,4 +48,11 @@ describe('architecture boundaries', () => {
 		expect(content).toContain('renderArchiveSettingsSection({');
 		expect(content).toContain('renderManagedListSettingSection({');
 	});
+
+	it('BoardStateService stays pure and free of Obsidian imports', () => {
+		const content = readWorkspaceFile('src/store/BoardStateService.ts');
+
+		expect(content).not.toContain("from 'obsidian'");
+		expect(content).not.toContain('from "obsidian"');
+	});
 });

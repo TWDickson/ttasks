@@ -26,6 +26,7 @@ export default class TTasksPlugin extends Plugin {
 	archiveService!: ArchiveService;
 	reminderService!: ReminderService;
 	activeTaskPath: Writable<string | null> = writable(null);
+	focusedTaskPath: Writable<string | null> = writable(null);
 	activeViewMode: Writable<BoardViewMode | null> = writable(null);
 	private statusBarEl: HTMLElement | null = null;
 	private isApplyingExternalSettings = false;
