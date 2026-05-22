@@ -123,7 +123,6 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 2. **Stream E** — Productivity: multi-select batch ops (E1), in-board keyboard shortcuts (E2)
 3. **Stream F** — Graph polish: lane sidebar headers + accessibility (F1)
 4. **Stream G** — Reminder improvements: snooze + per-task override (G1)
-5. TickTick data import (~19 tasks remaining in TickTick)
 
 PRDs: `Scripts/TASK_D1–D2.md`, `Scripts/TASK_E1–E2.md`, `Scripts/TASK_F1.md`, `Scripts/TASK_G1.md`
 
@@ -152,6 +151,16 @@ PRDs: `Scripts/TASK_D1–D2.md`, `Scripts/TASK_E1–E2.md`, `Scripts/TASK_F1.md`
 - Frontmatter built as a raw string **only** at file creation time
 - `blocks` is always derived/synced — never set manually by the user
 - Settings accessed via `this.plugin.settings.tasksFolder`
+
+## Architecture Rules
+
+**Plugin coupling** — new components must not import `TTasksPlugin` or `TaskStore` directly. Pass specific callbacks or service references as props. Components that follow this are testable with `@testing-library/svelte`.
+
+**No Obsidian imports in pure modules** — `src/query/`, `src/utils/`, `src/store/` helpers, and all `src/integration/` pure modules must stay free of Obsidian dependencies. This is enforced by `src/integration/architectureBoundaries.test.ts`. When you create a new pure module, add it to that file's boundary list in the same commit.
+
+**Performance** — wrap the `applyQuery()` call in `src/query/useTaskQuery.ts` with `console.time('applyQuery')` / `console.timeEnd('applyQuery')` in dev mode. Keeps regressions visible before they accumulate.
+
+**Mobile testing** — before closing any feature that touches the UI, test the golden path on iOS or a narrow-viewport browser. Note mobile-specific gotchas in the PRD's Gotchas section.
 
 ## CSS Notes
 
