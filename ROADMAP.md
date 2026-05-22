@@ -4,6 +4,30 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
+## Progress Notes (2026-05-22)
+
+Streams D-G are now complete, with E2 keyboard behavior finalized in the board view. Build clean and full suite green (926 tests passing).
+
+### E2 finalization
+
+- Added `src/integration/boardFocus.ts` with pure focus movement logic and TDD coverage in `boardFocus.test.ts`.
+- Task board keyboard shortcuts now drive a dedicated focused-task path, separate from active detail state.
+- `TaskBoardView` now supports deterministic `next`/`prev` list navigation using visible row paths.
+- Escape behavior refined: close detail first, otherwise clear focused task.
+
+### Status checkpoint
+
+- Stream D complete: Kanban card fields + dependency badge, column collapse.
+- Stream E complete: multi-select batch ops + in-board keyboard shortcuts.
+- Stream F complete: graph lane sidebar headers + accessibility polish.
+- Stream G complete: reminder snooze + per-task override.
+
+### Workflow/tooling
+
+- Added dedicated npm scripts for scoped verification without CLI arg pass-through:
+  - `npm run test:board`
+  - `npm run test:reminders`
+
 ## Progress Notes (2026-04-29)
 
 Phase 6 Smart Lists slice is now functional and hardened. Build clean, zero TypeScript errors, 379 tests passing.

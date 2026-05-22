@@ -7,7 +7,9 @@
     "dev": "node esbuild.config.mjs",
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:board": "vitest run src/integration/boardFocus.test.ts src/integration/boardKeymap.test.ts src/integration/boardViewBehavior.test.ts",
+    "test:reminders": "vitest run src/store/reminderSnooze.test.ts src/store/ReminderService.test.ts"
   },
   "devDependencies": {
     "@tsconfig/svelte": "^5.0.4",

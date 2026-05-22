@@ -119,12 +119,19 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 ## Current Priorities
 
-1. **Stream D** — Kanban enhancements: dep count badge + card field visibility (D1), column collapse (D2)
-2. **Stream E** — Productivity: multi-select batch ops (E1), in-board keyboard shortcuts (E2)
-3. **Stream F** — Graph polish: lane sidebar headers + accessibility (F1)
-4. **Stream G** — Reminder improvements: snooze + per-task override (G1)
+1. **Stream H** — Architecture hardening: Svelte component tests (H1), BoardStateService extraction (H2)
+2. **Stream I** — Follow-on board and data-model hardening (I1-I5)
+3. **Stream J** — Productivity and quality-of-life slices (J1-J6)
 
-PRDs: `Scripts/TASK_D1–D2.md`, `Scripts/TASK_E1–E2.md`, `Scripts/TASK_F1.md`, `Scripts/TASK_G1.md`
+PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`, `Scripts/TASK_I1.md`-`Scripts/TASK_I5.md`, `Scripts/TASK_J1.md`-`Scripts/TASK_J6.md`
+
+## Recent Updates (2026-05-22)
+
+- **Streams D-G COMPLETE** — D1/D2, E1/E2, F1, and G1 are now implemented and test-covered.
+- **E2 final wiring complete** — list keyboard focus navigation now supports `j`/`k` and arrow navigation with clamped movement and focused task state.
+- **Board keyboard internals improved** — focused task state is separate from active detail state to keep navigation behavior predictable.
+- **Tooling QoL** — dedicated test scripts added: `npm run test:board` and `npm run test:reminders` to avoid approval-heavy `npm run test -- ...` workflows.
+- Validation status: production build passing; **test suite: 926 passing (78 files)**.
 
 ## Recent Updates (2026-05-14)
 
