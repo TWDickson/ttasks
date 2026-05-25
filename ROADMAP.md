@@ -27,9 +27,16 @@ Stream H is now complete, and Stream I has started with the pure parsing layer l
 - Added settings UI section for capture source defaults and per-source editing (`src/settings/captureSourcesSettingsSection.ts`) and wired it into `SettingsTab`.
 - Plugin load now auto-detects daily/periodic folders and merges missing sources without overwriting existing user configs.
 
+### I3 scan engine groundwork
+
+- Added `src/integration/types.ts` with the new `ExternalTask` shape and source-location metadata.
+- Added pure scanner module `src/integration/fileScanner.ts` with `scanFileForCapturableTasks` and `isInCaptureScope`, plus dedicated tests.
+- Added `src/integration/ScanEngine.ts` to orchestrate full scan + file rescans + previous-day surface flow.
+- Wired captured task stream into `TaskBoard` query input and added captured/from-yesterday badges in `TaskRow` with source-note open behavior.
+
 ### Validation status
 
-- Full suite passing: 1018 tests across 87 files.
+- Full suite passing: 1032 tests across 88 files.
 - Production build passing.
 
 ## Progress Notes (2026-05-22)

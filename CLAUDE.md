@@ -119,7 +119,7 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 ## Current Priorities
 
-1. **Stream I** — Follow-on board and data-model hardening (I2-I5)
+1. **Stream I** — Follow-on board and data-model hardening (I3-I5)
 2. **Stream J** — Productivity and quality-of-life slices (J1-J6)
 3. **Follow-on hardening** — continue narrowing board/data-model debt after I/J slices land
 
@@ -132,7 +132,8 @@ PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`, `Scripts/TASK_I1.md`-`Scripts/
 - **TaskDetail render coverage added** — component tests now exercise empty state, conditional task/project sections, blocked state, completed actions, and active-task switching.
 - **I1 parsing layer landed** — `checkboxParser`, `emojiFieldParser`, and `filenameDateParser` are in `src/integration/` with pure tests and boundary coverage.
 - **I2 capture source configuration landed** — settings schema now includes `captureSources`, default capture behavior, lazy auto-detection/merge of daily-periodic folders, rollover detection helper, and a dedicated settings section for source editing.
-- Validation status: production build passing; **test suite: 1018 passing (87 files)**.
+- **I3 scan foundation landed** — added `ExternalTask` model, pure `fileScanner` (`scanFileForCapturableTasks` + `isInCaptureScope`) with tests, `ScanEngine` orchestration scaffolding, and board/row wiring to surface captured tasks.
+- Validation status: production build passing; **test suite: 1032 passing (88 files)**.
 
 ## Recent Updates (2026-05-22)
 
