@@ -34,9 +34,16 @@ Stream H is now complete, and Stream I has started with the pure parsing layer l
 - Added `src/integration/ScanEngine.ts` to orchestrate full scan + file rescans + previous-day surface flow.
 - Wired captured task stream into `TaskBoard` query input and added captured/from-yesterday badges in `TaskRow` with source-note open behavior.
 
+### I4 promote + completion sync
+
+- Added `src/integration/promoteTask.ts` and `src/integration/completionSync.ts` with focused TDD coverage.
+- Wired captured-row Promote action in list view (`TaskRow`/`TaskList`/`TaskBoard`) to create a real task note and replace the source checkbox text with an unchecked task wikilink.
+- Hooked completion/uncompletion sync into `TaskWriter.update()` so tasks with `source` update `[ ]`/`[x]` in their originating source line.
+- Extended architecture boundary coverage so I4 integration helpers remain free of Obsidian imports.
+
 ### Validation status
 
-- Full suite passing: 1032 tests across 88 files.
+- Full suite passing: 1050 tests across 90 files.
 - Production build passing.
 
 ## Progress Notes (2026-05-22)
