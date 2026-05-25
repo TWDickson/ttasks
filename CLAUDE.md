@@ -119,11 +119,19 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 ## Current Priorities
 
-1. **Stream H** — Architecture hardening: Svelte component tests (H1), BoardStateService extraction (H2)
-2. **Stream I** — Follow-on board and data-model hardening (I1-I5)
-3. **Stream J** — Productivity and quality-of-life slices (J1-J6)
+1. **Stream I** — Follow-on board and data-model hardening (I1-I5)
+2. **Stream J** — Productivity and quality-of-life slices (J1-J6)
+3. **Follow-on hardening** — continue narrowing board/data-model debt after I/J slices land
 
 PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`, `Scripts/TASK_I1.md`-`Scripts/TASK_I5.md`, `Scripts/TASK_J1.md`-`Scripts/TASK_J6.md`
+
+## Recent Updates (2026-05-25)
+
+- **Stream H COMPLETE** — H1 component coverage and H2 BoardStateService extraction are now both landed.
+- **Scoped component test runner fixed** — `npm run test:components` now uses a dedicated Vitest config instead of a Windows-fragile CLI glob.
+- **TaskDetail render coverage added** — component tests now exercise empty state, conditional task/project sections, blocked state, completed actions, and active-task switching.
+- **I1 parsing layer landed** — `checkboxParser`, `emojiFieldParser`, and `filenameDateParser` are in `src/integration/` with pure tests and boundary coverage.
+- Validation status: production build passing; **test suite: 1009 passing (86 files)**.
 
 ## Recent Updates (2026-05-22)
 

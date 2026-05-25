@@ -4,6 +4,27 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
+## Progress Notes (2026-05-25)
+
+Stream H is now complete, and Stream I has started with the pure parsing layer landed. The remaining TaskDetail render-level coverage landed, the scoped component suite now runs through a dedicated Vitest config, and the downstream ecosystem-integration parsers now exist as pure modules.
+
+### H1 completion
+
+- Added `src/components/TaskDetail.component.test.ts` to cover empty state, task vs. project conditional sections, blocked reason visibility, completed-task actions, and active-task switching.
+- Added `vitest.components.config.ts` so component tests run under `jsdom` without relying on shell-dependent file globs.
+- `npm run test:components` now validates the component slice consistently on Windows.
+
+### I1 foundation
+
+- Added `src/integration/checkboxParser.ts`, `emojiFieldParser.ts`, and `filenameDateParser.ts` with pure-function test coverage.
+- Added parser tests for checkbox status extraction, Obsidian Tasks emoji metadata parsing, and filename date inference.
+- Extended `architectureBoundaries.test.ts` so the new parsing helpers stay free of Obsidian imports.
+
+### Validation status
+
+- Full suite passing: 1009 tests across 86 files.
+- Production build passing.
+
 ## Progress Notes (2026-05-22)
 
 Streams D-G are now complete, with E2 keyboard behavior finalized in the board view. Build clean and full suite green (961 tests passing).
