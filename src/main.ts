@@ -31,6 +31,8 @@ import { createTaskContextMenuDeps } from './integration/taskActionPorts';
 import { ScanEngine } from './integration/ScanEngine';
 import type { ExternalTask } from './integration/types';
 import { AUTO_ARCHIVE_CHECK_INTERVAL_MS, METADATA_CACHE_TIMEOUT_MS } from './constants';
+import type { ExtendedWorkspace, HoverLinkPayload } from './types/obsidianExtended';
+import type { SettingsHost } from './types/settingsHost';
 
 export type BoardViewMode = string;
 
@@ -46,6 +48,10 @@ export default class TTasksPlugin extends Plugin {
 	private statusBarEl: HTMLElement | null = null;
 	private isApplyingExternalSettings = false;
 	private reminderStartTimeoutId: number | null = null;
+
+	private get extendedWorkspace(): ExtendedWorkspace {
+		return this.app.workspace as ExtendedWorkspace;
+	}
 
 	async onload() {
 		await this.loadSettings();
@@ -313,7 +319,7 @@ export default class TTasksPlugin extends Plugin {
 	triggerTaskHoverPreview(pathLike: string, event: MouseEvent): void {
 		const linktext = pathToLinktext(pathLike);
 		const sourcePath = this.app.workspace.getActiveFile()?.path ?? `${linktext}.md`;
-		const payload = {
+		const payload: HoverLinkPayload = {
 			event,
 			source: 'ttasks-board',
 			hoverParent: this,
@@ -321,21 +327,11 @@ export default class TTasksPlugin extends Plugin {
 			linktext,
 			sourcePath,
 		};
-		(this.app.workspace as any).trigger('hover-link', payload);
+		this.extendedWorkspace.trigger('hover-link', payload);
 	}
 
 	openPluginSettings(): void {
-		type SettingsHost = {
-			setting?: {
-				open?: () => void;
-				openTabById?: (id: string) => void;
-			};
-			commands?: {
-				executeCommandById?: (id: string) => void;
-			};
-		};
-
-		const host = this.app as unknown as SettingsHost;
+		const host = this.app as SettingsHost;
 		if (host.setting?.open && host.setting.openTabById) {
 			host.setting.open();
 			host.setting.openTabById(this.manifest.id);
@@ -353,10 +349,19 @@ export default class TTasksPlugin extends Plugin {
 
 		const leaf = this.app.workspace.getLeaf('tab');
 		await leaf.openFile(file);
-		const editor = (leaf.view as any)?.editor;
+		const editor = this.extractEditor(leaf.view);
 		if (editor?.setCursor) {
 			editor.setCursor({ line: Math.max(0, task.location.line - 1), ch: 0 });
 		}
+	}
+
+	private extractEditor(view: unknown): { setCursor?: (pos: { line: number; ch: number }) => void } | null {
+		if (!view || typeof view !== 'object') return null;
+		const maybeEditor = (view as { editor?: unknown }).editor;
+		if (!maybeEditor || typeof maybeEditor !== 'object') return null;
+		const setCursor = (maybeEditor as { setCursor?: unknown }).setCursor;
+		if (typeof setCursor !== 'function') return null;
+		return { setCursor: setCursor as (pos: { line: number; ch: number }) => void };
 	}
 
 	private getTaskByPath(path: string): Task | null {
@@ -389,7 +394,7 @@ export default class TTasksPlugin extends Plugin {
 			addForTask(menu, task);
 		}));
 
-		this.registerEvent((this.app.workspace as any).on('editor-menu', (menu: Menu, _editor: unknown, view: { file?: TFile } | null) => {
+		this.registerEvent(this.extendedWorkspace.on('editor-menu', (menu: Menu, _editor, view) => {
 			const file = view?.file;
 			if (!(file instanceof TFile)) return;
 			const task = this.getTaskByPath(file.path);
@@ -397,7 +402,7 @@ export default class TTasksPlugin extends Plugin {
 			addForTask(menu, task);
 		}));
 
-		this.registerEvent((this.app.workspace as any).on('files-menu', (menu: Menu, files: unknown[]) => {
+		this.registerEvent(this.extendedWorkspace.on('files-menu', (menu: Menu, files) => {
 			const taskFiles = files
 				.filter((file): file is TFile => file instanceof TFile)
 				.map((file) => this.getTaskByPath(file.path))
