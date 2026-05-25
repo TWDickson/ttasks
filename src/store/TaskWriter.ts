@@ -17,6 +17,7 @@ import { parseWikiLink, extractChecklistLink } from '../utils/wikiLink';
 import { buildRestoreInput } from './taskRestore';
 import { linkReferencesTaskPath } from './relationshipLinkMatch';
 import { syncCompletionToSource } from '../integration/completionSync';
+import { mutateLinkArray } from '../utils/arrayUtils';
 
 export class TaskWriter {
 	private plugin: TTasksPlugin;
@@ -197,9 +198,9 @@ export class TaskWriter {
 		const depLink = this.buildAliasedTaskLink(depPathWithoutExt, depName, file.path);
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
-			const current: unknown[] = Array.isArray(fm.depends_on) ? fm.depends_on : [];
+			const current = this.extractLinkStrings(fm.depends_on);
 			const already = current.some((v) => this.linkTargetsPath(v, depPathWithoutExt, file.path));
-			if (!already) fm.depends_on = [...current, depLink];
+			if (!already) fm.depends_on = mutateLinkArray(current, [depLink], []);
 		});
 
 		await this.addToBlocks(depPathWithoutExt, taskPath, selfName);
@@ -210,8 +211,9 @@ export class TaskWriter {
 		if (!(file instanceof TFile)) return;
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
-			if (!Array.isArray(fm.depends_on)) return;
-			fm.depends_on = fm.depends_on.filter((v: unknown) => !this.linkTargetsPath(v, depPathWithoutExt, file.path));
+			const current = this.extractLinkStrings(fm.depends_on);
+			const remove = current.filter((v) => this.linkTargetsPath(v, depPathWithoutExt, file.path));
+			fm.depends_on = mutateLinkArray(current, [], remove);
 		});
 
 		// Remove from blocks on the dependency target
@@ -219,8 +221,9 @@ export class TaskWriter {
 		if (depFile instanceof TFile) {
 			const selfClean = taskPath.replace(/\.md$/, '');
 			await this.app.fileManager.processFrontMatter(depFile, (fm) => {
-				if (!Array.isArray(fm.blocks)) return;
-				fm.blocks = fm.blocks.filter((v: unknown) => !this.linkTargetsPath(v, selfClean, depFile.path));
+				const current = this.extractLinkStrings(fm.blocks);
+				const remove = current.filter((v) => this.linkTargetsPath(v, selfClean, depFile.path));
+				fm.blocks = mutateLinkArray(current, [], remove);
 			});
 		}
 	}
@@ -445,10 +448,15 @@ export class TaskWriter {
 		const cleanPath = thisPath.replace(/\.md$/, '');
 		const thisLink = this.buildAliasedTaskLink(cleanPath, thisName, depFile.path);
 		await this.app.fileManager.processFrontMatter(depFile, (fm) => {
-			const current: unknown[] = Array.isArray(fm.blocks) ? fm.blocks : [];
+			const current = this.extractLinkStrings(fm.blocks);
 			const already = current.some((b) => this.linkTargetsPath(b, cleanPath, depFile.path));
-			if (!already) fm.blocks = [...current, thisLink];
+			if (!already) fm.blocks = mutateLinkArray(current, [thisLink], []);
 		});
+	}
+
+	private extractLinkStrings(value: unknown): string[] {
+		if (!Array.isArray(value)) return [];
+		return value.filter((entry): entry is string => typeof entry === 'string');
 	}
 
 	private linkTargetsPath(rawValue: unknown, targetPathWithoutExt: string, sourcePath: string): boolean {
