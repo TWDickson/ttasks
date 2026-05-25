@@ -360,8 +360,7 @@ export default class TTasksPlugin extends Plugin {
 	}
 
 	private getTaskByPath(path: string): Task | null {
-		const normalized = path.endsWith('.md') ? path : `${path}.md`;
-		return get(this.taskStore.tasks).find(task => task.path === normalized) ?? null;
+		return this.taskStore.getByPath(path) ?? null;
 	}
 
 	private registerProtocolHandler(): void {
@@ -488,7 +487,7 @@ export default class TTasksPlugin extends Plugin {
 			return false;
 		}
 
-		const task = get(this.taskStore.tasks).find(t => t.path === resolvedPath);
+		const task = this.taskStore.getByPath(resolvedPath);
 		if (!task) {
 			if (showNotice) new Notice('TTasks: selected task not found.');
 			return false;

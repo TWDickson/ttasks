@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { writable, type Writable } from 'svelte/store';
+import { get, writable, type Writable } from 'svelte/store';
 import TaskDetail from './TaskDetail.svelte';
 import type { Task } from '../types';
 
@@ -81,6 +81,7 @@ function renderDetail(options: {
 		removeDependency: vi.fn(async () => {}),
 		openFile: vi.fn(),
 		updateNotes: vi.fn(async (_taskPath: string, notes: string) => notes),
+		getByPath: vi.fn((path: string) => get(tasks).find((task) => task.path === path) ?? null),
 	} as any;
 
 	render(TaskDetail, {

@@ -3,6 +3,7 @@ import type TTasksPlugin from '../main';
 import { parseWikiLink } from '../utils/wikiLink';
 import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
 import { buildAliasedLink } from '../integration/relationshipLink';
+import { withConcurrencyLimit } from '../utils/concurrency';
 
 // ── Pure helpers (exported for testing) ─────────────────────────────────────
 
@@ -76,13 +77,13 @@ export class TaskRelationships {
 			}
 		}
 
-		for (const file of files) {
+		await withConcurrencyLimit(files.map((file) => async () => {
 			const cleanPath = file.path.replace(/\.md$/, '');
 			const blockers = reverseMap.get(cleanPath) ?? [];
 			await this.app.fileManager.processFrontMatter(file, (fm) => {
 				fm.blocks = blockers.map(b => this.buildAliasedTaskLink(b.path, b.name, file.path));
 			});
-		}
+		}), 5);
 
 		this.plugin.log(`SyncBlocks complete — ${files.length} files processed`);
 	}
@@ -102,13 +103,13 @@ export class TaskRelationships {
 		const oldPattern = oldClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 		const linkRegex = new RegExp(`\\[\\[${oldPattern}(\\|[^\\]]+)?\\]\\]`, 'g');
 
-		for (const file of files) {
+		await withConcurrencyLimit(files.map((file) => async () => {
 			const cache = this.app.metadataCache.getFileCache(file);
 			const fm = cache?.frontmatter;
-			if (!fm) continue;
+			if (!fm) return;
 
 			const raw = JSON.stringify(fm);
-			if (!raw.includes(oldClean)) continue;
+			if (!raw.includes(oldClean)) return;
 
 			try {
 				await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
@@ -131,9 +132,8 @@ export class TaskRelationships {
 				});
 			} catch (error) {
 				this.plugin.log(`Failed to rewrite relationships in ${file.path}: ${String(error)}`);
-				continue;
 			}
-		}
+		}), 5);
 
 		this.plugin.log(`Rewrote relationship references: ${oldClean} → ${newClean}`);
 	}
@@ -148,13 +148,13 @@ export class TaskRelationships {
 		);
 
 		let touched = 0;
-		for (const file of files) {
+		await withConcurrencyLimit(files.map((file) => async () => {
 			const cache = this.app.metadataCache.getFileCache(file);
 			const fm = cache?.frontmatter;
-			if (!fm) continue;
+			if (!fm) return;
 
 			const raw = JSON.stringify(fm);
-			if (!raw.includes(deletedClean)) continue;
+			if (!raw.includes(deletedClean)) return;
 
 			let changed = false;
 			try {
@@ -180,11 +180,11 @@ export class TaskRelationships {
 				});
 			} catch (error) {
 				this.plugin.log(`Failed to remove relationships in ${file.path}: ${String(error)}`);
-				continue;
+				return;
 			}
 
 			if (changed) touched += 1;
-		}
+		}), 5);
 
 		if (touched > 0) {
 			this.plugin.log(`Removed relationship references to deleted task: ${deletedClean} (${touched} file(s))`);

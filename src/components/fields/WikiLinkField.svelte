@@ -55,7 +55,7 @@
 	};
 
 	const getTaskLabel = (path: string): string => {
-		const task = options.find(t => t.path.replace(/\.md$/, '') === path);
+		const task = options.find((t) => t.path === path || t.path.replace(/\.md$/, '') === path);
 		if (task) return task.name;
 		return path.split('/').pop() || path;
 	};

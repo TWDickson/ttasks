@@ -109,7 +109,7 @@
 
 	function moveDraggingTaskTo(colId: TaskStatus) {
 		if (!draggingPath) return;
-		const task = allTasks.find(t => t.path === draggingPath);
+		const task = store.getByPath(draggingPath);
 		draggingPath = null;
 		if (!task || task.status === colId) return;
 		store.update(task.path, { status: colId });

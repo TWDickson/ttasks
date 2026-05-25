@@ -32,7 +32,7 @@
 
 	// ── Derived task ────────────────────────────────────────────────────────────
 	$: task = $activeTaskPath
-		? ($tasks.find(t => t.path === $activeTaskPath) ?? null)
+		? (store.getByPath($activeTaskPath) ?? null)
 		: null;
 
 	// ── Local editable state (mirrors task, reset when task changes) ─────────

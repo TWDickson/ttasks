@@ -370,7 +370,7 @@ export class CreateTaskModal extends Modal {
 		const renderDepsChips = () => {
 			depsChipsEl.empty();
 			for (const depPath of this.formValues.depends_on) {
-				const depTask = allTasks.find(t => t.path.replace(/\.md$/, '') === depPath);
+				const depTask = this.plugin.taskStore.getByPath(depPath);
 				const label = depTask?.name ?? depPath.split('/').pop() ?? depPath;
 				const chip = depsChipsEl.createEl('span', { cls: 'tt-modal-chip tt-chip-active', text: label });
 				const removeBtn = chip.createEl('span', { text: ' ×', cls: 'tt-modal-chip-remove' });

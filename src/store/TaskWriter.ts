@@ -22,11 +22,13 @@ export class TaskWriter {
 	private plugin: TTasksPlugin;
 	private tasks: Writable<Task[]>;
 	private folderPath: string;
+	private getTaskByPath: (path: string) => Task | undefined;
 
-	constructor(plugin: TTasksPlugin, tasks: Writable<Task[]>, folderPath: string) {
+	constructor(plugin: TTasksPlugin, tasks: Writable<Task[]>, folderPath: string, getTaskByPath: (path: string) => Task | undefined) {
 		this.plugin = plugin;
 		this.tasks = tasks;
 		this.folderPath = folderPath;
+		this.getTaskByPath = getTaskByPath;
 	}
 
 	get app(): App { return this.plugin.app; }
@@ -188,10 +190,9 @@ export class TaskWriter {
 		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(depPathWithoutExt + '.md'));
 		if (!(depFile instanceof TFile)) return;
 
-		const all = get(this.tasks);
-		const depTask = all.find(t => t.path.replace(/\.md$/, '') === depPathWithoutExt);
+		const depTask = this.getTaskByPath(depPathWithoutExt);
 		const depName = depTask?.name ?? depPathWithoutExt.split('/').pop() ?? depPathWithoutExt;
-		const selfTask = all.find(t => t.path === taskPath);
+		const selfTask = this.getTaskByPath(taskPath);
 		const selfName = selfTask?.name ?? taskPath.replace(/\.md$/, '').split('/').pop() ?? taskPath;
 		const depLink = this.buildAliasedTaskLink(depPathWithoutExt, depName, file.path);
 
@@ -233,8 +234,7 @@ export class TaskWriter {
 				fm.parent_task = null;
 				return;
 			}
-			const all = get(this.tasks);
-			const parent = all.find(t => t.path.replace(/\.md$/, '') === parentPath);
+			const parent = this.getTaskByPath(parentPath);
 			const name = parent?.name ?? parentPath.split('/').pop() ?? parentPath;
 			fm.parent_task = this.buildAliasedTaskLink(parentPath, name, file.path);
 		});
@@ -282,8 +282,7 @@ export class TaskWriter {
 	}
 
 	async duplicate(path: string): Promise<Task | null> {
-		const all = get(this.tasks);
-		const task = all.find(t => t.path === normalizePath(path));
+		const task = this.getTaskByPath(normalizePath(path));
 		if (!task) return null;
 
 		const today = localDateString();
@@ -293,8 +292,7 @@ export class TaskWriter {
 	}
 
 	async restore(path: string): Promise<void> {
-		const all = get(this.tasks);
-		const task = all.find(t => t.path === normalizePath(path));
+		const task = this.getTaskByPath(normalizePath(path));
 		if (!task) return;
 
 		const restoreInput = buildRestoreInput();
@@ -425,7 +423,7 @@ export class TaskWriter {
 
 	private async materializeChecklistChildrenFromBody(parentPath: string, body: string): Promise<string> {
 		if (!body) return body;
-		const parent = get(this.tasks).find(t => t.path === parentPath);
+		const parent = this.getTaskByPath(parentPath);
 		if (!parent) return body;
 
 		return materializeChecklistChildren({
@@ -484,8 +482,7 @@ export class TaskWriter {
 	}
 
 	private resolveNameForPath(pathWithoutExt: string): string {
-		const all = get(this.tasks);
-		const match = all.find(t => t.path === pathWithoutExt + '.md' || t.path.replace(/\.md$/, '') === pathWithoutExt);
+		const match = this.getTaskByPath(pathWithoutExt);
 		if (match) return match.name;
 		return pathWithoutExt.split('/').pop()?.replace(/^[a-f0-9]+-/, '') ?? pathWithoutExt;
 	}

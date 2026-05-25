@@ -13,6 +13,7 @@ import { TaskStoreSyncQueue } from './TaskStoreSyncQueue';
 
 export class TaskStore {
 	readonly tasks: Writable<Task[]> = writable([]);
+	private taskMap: Map<string, Task> = new Map();
 
 	private plugin: TTasksPlugin;
 	private writer: TaskWriter;
@@ -22,7 +23,10 @@ export class TaskStore {
 
 	constructor(plugin: TTasksPlugin) {
 		this.plugin = plugin;
-		this.writer = new TaskWriter(plugin, this.tasks, this.folderPath);
+		this.tasks.subscribe((tasks) => {
+			this.taskMap = new Map(tasks.map((task) => [normalizePath(task.path), task]));
+		});
+		this.writer = new TaskWriter(plugin, this.tasks, this.folderPath, (path) => this.getByPath(path));
 		this.migrations = new TaskMigrations(plugin);
 		this.relationships = new TaskRelationships(plugin);
 		this.syncQueue = new TaskStoreSyncQueue({
@@ -43,6 +47,15 @@ export class TaskStore {
 
 	get folderPath(): string {
 		return normalizePath(this.plugin.settings.tasksFolder);
+	}
+
+	getByPath(path: string): Task | undefined {
+		const normalized = normalizePath(path.endsWith('.md') ? path : `${path}.md`);
+		return this.taskMap.get(normalized);
+	}
+
+	getAll(): Task[] {
+		return get(this.tasks);
 	}
 
 	// ── Load ────────────────────────────────────────────────────────────────────

@@ -233,7 +233,7 @@ function buildPluginMock(allTasks: Task[] = []) {
 			labelColors: { feature: '#3b82f6', bug: '#ef4444' },
 		},
 		manifest: { id: 'ttasks' },
-		taskStore: { tasks: writable(allTasks), create, openDetail },
+		taskStore: { tasks: writable(allTasks), create, openDetail, getByPath: (path: string) => allTasks.find((task) => task.path === path) ?? null },
 	} as unknown as TTasksPlugin;
 }
 
