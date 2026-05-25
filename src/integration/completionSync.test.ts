@@ -126,4 +126,39 @@ describe('syncCompletionToSource', () => {
 		await syncCompletionToSource(buildTask({ status: 'Completed' }), app, 'Completed');
 		expect(app.vault.modify).toHaveBeenCalledWith(file, '- [x] [[Planner/Tasks/abc123-task|Task]]');
 	});
+
+	it('uses resolver fallback in runtime sync when direct path compare does not match', async () => {
+		const file = { path: 'Daily/2026-05-25.md' };
+		const resolver = vi.fn((linkPath: string, normalizedTaskPath: string, sourceFilePath: string) => {
+			expect(sourceFilePath).toBe('Daily/2026-05-25.md');
+			return linkPath === 'Encoded/Path' && normalizedTaskPath === 'Planner/Tasks/abc123-task';
+		});
+		const app = {
+			vault: {
+				getAbstractFileByPath: vi.fn(() => file),
+				read: vi.fn(async () => '- [ ] [[Encoded/Path|Task]]'),
+				modify: vi.fn(async () => {}),
+			},
+		} as any;
+
+		await syncCompletionToSource(buildTask({ status: 'Completed' }), app, 'Completed', { resolver });
+
+		expect(resolver).toHaveBeenCalledTimes(1);
+		expect(app.vault.modify).toHaveBeenCalledWith(file, '- [x] [[Encoded/Path|Task]]');
+	});
+
+	it('does not modify source when direct compare fails and no resolver is provided', async () => {
+		const file = { path: 'Daily/2026-05-25.md' };
+		const app = {
+			vault: {
+				getAbstractFileByPath: vi.fn(() => file),
+				read: vi.fn(async () => '- [ ] [[Encoded/Path|Task]]'),
+				modify: vi.fn(async () => {}),
+			},
+		} as any;
+
+		await syncCompletionToSource(buildTask({ status: 'Completed' }), app, 'Completed');
+
+		expect(app.vault.modify).not.toHaveBeenCalled();
+	});
 });

@@ -138,6 +138,13 @@ export class TaskWriter {
 					{ ...currentTask, status: updates.status },
 					this.app,
 					completionStatus,
+					{
+						resolver: (wikilinkPath, normalizedTaskPath, sourceFilePath) => {
+							const resolved = this.app.metadataCache.getFirstLinkpathDest(wikilinkPath, sourceFilePath);
+							if (!resolved?.path) return false;
+							return stripMdExt(normalizePath(resolved.path)) === normalizedTaskPath;
+						},
+					},
 				);
 			} catch (error) {
 				this.plugin.log(`syncCompletionToSource failed for ${normalizedPath}: ${String(error)}`);
