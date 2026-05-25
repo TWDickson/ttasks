@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import { derived } from 'svelte/store';
 	import { Menu, Notice, setIcon } from 'obsidian';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
@@ -47,7 +48,14 @@
 	const currentViewId = resolvedBoardState.currentViewId;
 	const searchQuery = resolvedBoardState.searchQuery;
 	const selectedPaths = resolvedBoardState.selectedPaths;
-	const tasks          = plugin.taskStore.tasks;
+	const nativeTasks    = plugin.taskStore.tasks;
+	const capturedTasks = plugin.scanEngine.tasks;
+	const tasks = derived([nativeTasks, capturedTasks], ([$native, $captured]) => [
+		...$captured
+			.slice()
+			.sort((a, b) => (a.fromPreviousDay === b.fromPreviousDay ? 0 : a.fromPreviousDay ? -1 : 1)),
+		...$native,
+	]);
 
 	let registeredViews = getRegisteredTaskViews(plugin.settings);
 	$: builtinViews = registeredViews.filter((view) => view.source === 'builtin');

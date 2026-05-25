@@ -3,6 +3,7 @@
 	import { localDateString } from '../utils/dateUtils';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
+	import type { ExternalTask } from '../integration/types';
 	import { PRIORITY_COLORS } from '../constants';
 	import { getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
 	import { canShowInlineReopen } from './taskRowActions';
@@ -65,6 +66,10 @@
 	}
 
 	function handleOpen(): void {
+		if (isCapturedTask(task)) {
+			void plugin.openCapturedTask(task);
+			return;
+		}
 		onOpen(task.path);
 	}
 
@@ -86,6 +91,13 @@
 	}
 
 	$: showInlineReopen = canShowInlineReopen(viewId, task) && !!onRestore;
+
+	function isCapturedTask(candidate: Task): candidate is ExternalTask {
+		return (candidate as ExternalTask).external === true;
+	}
+
+	$: isCaptured = isCapturedTask(task);
+	$: isFromPreviousDay = isCaptured && !!task.fromPreviousDay;
 </script>
 
 <li
@@ -97,6 +109,7 @@
 	style:padding-left={indent > 0 ? `${indent * 20}px` : undefined}
 >
 	{#if selectable}
+		{#if !isCaptured}
 		<input
 			type="checkbox"
 			class="tt-task-checkbox"
@@ -105,6 +118,7 @@
 			on:click|stopPropagation
 			on:change|stopPropagation={() => onSelect?.(task.path)}
 		/>
+		{/if}
 	{/if}
 	{#if expandable}
 		<button
@@ -134,6 +148,12 @@
 			<span class="tt-task-name">{task.name}</span>
 		</div>
 		<div class="tt-task-meta">
+			{#if isCaptured}
+				<span class="tt-badge tt-badge-captured">captured</span>
+			{/if}
+			{#if isFromPreviousDay}
+				<span class="tt-badge tt-badge-previous-day">from yesterday</span>
+			{/if}
 			{#if task.area}
 				<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!areaColors?.[task.area]} style={getBadgeStyle(areaColors?.[task.area])}>{task.area}</span>
 			{/if}
@@ -336,6 +356,16 @@
 
 	.tt-badge-type {
 		background: var(--background-secondary);
+	}
+
+	.tt-badge-captured {
+		background: color-mix(in srgb, var(--color-cyan) 82%, var(--background-primary));
+		color: var(--text-on-accent);
+	}
+
+	.tt-badge-previous-day {
+		background: color-mix(in srgb, var(--color-orange) 82%, var(--background-primary));
+		color: var(--text-on-accent);
 	}
 
 	@media (max-width: 768px) {

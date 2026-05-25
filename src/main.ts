@@ -28,6 +28,8 @@ import { buildAliasedLink } from './integration/relationshipLink';
 import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
 import { localDateString } from './utils/dateUtils';
 import { createTaskContextMenuDeps } from './integration/taskActionPorts';
+import { ScanEngine } from './integration/ScanEngine';
+import type { ExternalTask } from './integration/types';
 
 export type BoardViewMode = string;
 
@@ -36,6 +38,7 @@ export default class TTasksPlugin extends Plugin {
 	taskStore!: TaskStore;
 	archiveService!: ArchiveService;
 	reminderService!: ReminderService;
+	scanEngine!: ScanEngine;
 	activeTaskPath: Writable<string | null> = writable(null);
 	focusedTaskPath: Writable<string | null> = writable(null);
 	activeViewMode: Writable<BoardViewMode | null> = writable(null);
@@ -48,6 +51,7 @@ export default class TTasksPlugin extends Plugin {
 		this.taskStore = new TaskStore(this);
 		this.taskStore.register();
 		this.archiveService = new ArchiveService(this);
+		this.scanEngine = new ScanEngine();
 		this.registerEditorSuggest(new TaskLinkEditorSuggest(this.app, this));
 
 		this.registerView(
@@ -154,6 +158,7 @@ export default class TTasksPlugin extends Plugin {
 		this.initializeStatusBar();
 
 		this.reminderService = new ReminderService(this);
+		this.scanEngine.onload(this, this.app);
 
 		this.app.workspace.onLayoutReady(() => {
 			this.taskStore.load();
@@ -307,6 +312,21 @@ export default class TTasksPlugin extends Plugin {
 			return;
 		}
 		host.commands?.executeCommandById?.('app:open-settings');
+	}
+
+	async openCapturedTask(task: ExternalTask): Promise<void> {
+		const file = this.app.vault.getFileByPath(task.location.filePath);
+		if (!file) {
+			new Notice(`Could not open source note: ${task.location.filePath}`);
+			return;
+		}
+
+		const leaf = this.app.workspace.getLeaf('tab');
+		await leaf.openFile(file);
+		const editor = (leaf.view as any)?.editor;
+		if (editor?.setCursor) {
+			editor.setCursor({ line: Math.max(0, task.location.line - 1), ch: 0 });
+		}
 	}
 
 	private getTaskByPath(path: string): Task | null {
