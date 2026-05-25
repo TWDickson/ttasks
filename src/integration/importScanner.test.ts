@@ -137,4 +137,87 @@ describe('collectAllCapturableTasks', () => {
 			}),
 		);
 	});
+
+	it('preserves deterministic file and line ordering under shuffled completion timing', async () => {
+		vi.useFakeTimers();
+		const files = [
+			{ path: 'Daily/A.md' },
+			{ path: 'Daily/B.md' },
+			{ path: 'Daily/C.md' },
+		];
+		const contentByPath: Record<string, string> = {
+			'Daily/A.md': '- [ ] A1\n- [ ] A2',
+			'Daily/B.md': '- [ ] B1',
+			'Daily/C.md': '- [ ] C1\n- [ ] C2',
+		};
+		const delayByPath: Record<string, number> = {
+			'Daily/A.md': 40,
+			'Daily/B.md': 5,
+			'Daily/C.md': 20,
+		};
+
+		const app = {
+			vault: {
+				getMarkdownFiles: () => files,
+				cachedRead: vi.fn((file: { path: string }) => new Promise<string>((resolve) => {
+					setTimeout(() => resolve(contentByPath[file.path]), delayByPath[file.path]);
+				})),
+			},
+		};
+		const settings = {
+			...DEFAULT_SETTINGS,
+			captureSources: [normalizeCaptureSource({ path: 'Daily' })],
+		};
+
+		const run = collectAllCapturableTasks(app as any, settings, { concurrency: 2 });
+		await vi.runAllTimersAsync();
+		const tasks = await run;
+
+		expect(tasks.map((task) => task.name)).toEqual(['A1', 'A2', 'B1', 'C1', 'C2']);
+		expect(tasks.map((task) => `${task.location.filePath}#${task.location.line}`)).toEqual([
+			'Daily/A.md#1',
+			'Daily/A.md#2',
+			'Daily/B.md#1',
+			'Daily/C.md#1',
+			'Daily/C.md#2',
+		]);
+		vi.useRealTimers();
+	});
+
+	it('respects bounded concurrency cap while scanning', async () => {
+		vi.useFakeTimers();
+		let active = 0;
+		let maxActive = 0;
+		const files = [
+			{ path: 'Daily/A.md' },
+			{ path: 'Daily/B.md' },
+			{ path: 'Daily/C.md' },
+			{ path: 'Daily/D.md' },
+		];
+
+		const app = {
+			vault: {
+				getMarkdownFiles: () => files,
+				cachedRead: vi.fn(() => new Promise<string>((resolve) => {
+					active += 1;
+					maxActive = Math.max(maxActive, active);
+					setTimeout(() => {
+						active -= 1;
+						resolve('- [ ] task');
+					}, 20);
+				})),
+			},
+		};
+		const settings = {
+			...DEFAULT_SETTINGS,
+			captureSources: [normalizeCaptureSource({ path: 'Daily' })],
+		};
+
+		const run = collectAllCapturableTasks(app as any, settings, { concurrency: 2 });
+		await vi.runAllTimersAsync();
+		await run;
+
+		expect(maxActive).toBe(2);
+		vi.useRealTimers();
+	});
 });
