@@ -8,6 +8,15 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 Stream H is now complete, and Stream I has started with the pure parsing layer landed. The remaining TaskDetail render-level coverage landed, the scoped component suite now runs through a dedicated Vitest config, and the downstream ecosystem-integration parsers now exist as pure modules.
 
+### I5 bulk import completion
+
+- Added `src/integration/importScanner.ts` and shared capture-file resolution helper `src/integration/captureSourceFiles.ts` to collect capturable tasks across all configured sources while excluding native task-folder files.
+- Added shared promote workflow `src/integration/promoteTaskToTTasks.ts`; TaskBoard captured Promote button now uses the shared flow.
+- Added `src/modals/ImportConfirmModal.ts` with confirmation counts + 5-item preview and promise-based confirm/cancel contract.
+- Added Settings -> Advanced -> Migration section (`src/settings/migrationSettingsSection.ts`) with one-shot import action, re-entry guard, sequential promotion loop, and persistent progress notice for large imports.
+- Added tests: `src/integration/importScanner.test.ts`, `src/modals/ImportConfirmModal.test.ts`, and boundary checks for new pure integration modules.
+- Validation status now: full suite passing at **1060 tests across 92 files**; production build passing.
+
 ### H1 completion
 
 - Added `src/components/TaskDetail.component.test.ts` to cover empty state, task vs. project conditional sections, blocked reason visibility, completed-task actions, and active-task switching.
