@@ -5,6 +5,7 @@
 	import { getFieldByName } from '../schema/taskFields';
 	import { buildTaskGraph } from '../store/graph/taskGraph';
 	import { sortDependencyFirst } from '../utils/dependencySort';
+	import { MAX_REL_TREE_DEPTH, MAX_REL_TREE_NODES } from '../constants';
 	import WikiLinkField from './fields/WikiLinkField.svelte';
 
 	export let task: Task;
@@ -77,9 +78,6 @@
 		depth: number;
 		nodes: RelationshipTreeNode[];
 	}
-
-	const MAX_REL_TREE_DEPTH = 5;
-	const MAX_REL_TREE_NODES = 60;
 
 	function normalizeTaskPaths(paths: string[]): string[] {
 		const seen = new Set<string>();

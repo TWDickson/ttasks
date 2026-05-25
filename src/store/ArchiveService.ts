@@ -4,6 +4,7 @@ import type TTasksPlugin from '../main';
 import { localDateString } from '../utils/dateUtils';
 import { archiveEligible, deriveArchiveFolder, getArchivePath, isArchivedPath } from './archiveUtils';
 import { safeRead } from '../utils/vaultSafe';
+import { ARCHIVE_HISTORY_MAX_ENTRIES } from '../constants';
 
 export interface ArchivedTaskSummary {
 	path: string;
@@ -202,8 +203,10 @@ export class ArchiveService {
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			const history: unknown[] = Array.isArray(fm.archive_history) ? fm.archive_history : [];
 			history.push(entry);
-			// Cap at 50 entries to prevent frontmatter bloat
-			fm.archive_history = history.length > 50 ? history.slice(-50) : history;
+			// Cap entries to prevent frontmatter bloat.
+			fm.archive_history = history.length > ARCHIVE_HISTORY_MAX_ENTRIES
+				? history.slice(-ARCHIVE_HISTORY_MAX_ENTRIES)
+				: history;
 		});
 	}
 

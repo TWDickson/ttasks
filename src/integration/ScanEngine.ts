@@ -5,6 +5,7 @@ import type { TTasksSettings } from '../settings';
 import type { ExternalTask } from './types';
 import { isInCaptureScope, scanFileForCapturableTasks } from './fileScanner';
 import { resolveCaptureSourceFileEntries } from './captureSourceFiles';
+import { VAULT_MODIFY_DEBOUNCE_MS } from '../constants';
 
 type DailyNotesInterface = {
 	getDateFromFile: (file: TFile, granularity: 'day') => Date | null;
@@ -90,7 +91,7 @@ export class ScanEngine {
 				const tasks = scanFileForCapturableTasks(content, file.path, config, tasksFolder);
 				this.upsertFileTasks(file.path, tasks);
 				resolve();
-			}, 300);
+			}, VAULT_MODIFY_DEBOUNCE_MS);
 			this.debounceByFilePath.set(file.path, timer);
 		});
 	}

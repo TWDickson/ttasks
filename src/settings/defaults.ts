@@ -22,6 +22,7 @@ import type {
 	SortField,
 	SortSpec,
 } from '../query/types';
+import { RENDERER_KANBAN, RENDERER_LIST } from '../constants';
 export const DEFAULT_STATUSES = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Completed'];
 
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
@@ -529,7 +530,7 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 	}
 
 	const logbookRendererMode = asString(root.logbookRendererMode);
-	if (logbookRendererMode === 'list' || logbookRendererMode === 'kanban') {
+	if (logbookRendererMode === RENDERER_LIST || logbookRendererMode === RENDERER_KANBAN) {
 		target.logbookRendererMode = logbookRendererMode;
 	}
 

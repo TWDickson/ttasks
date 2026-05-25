@@ -35,6 +35,13 @@
 		resolveTaskViewId,
 	} from '../views/viewRegistry';
 	import { promoteTaskToTTasks } from '../integration/promoteTaskToTTasks';
+	import {
+		RENDERER_ARCHIVE,
+		RENDERER_GRAPH,
+		RENDERER_KANBAN,
+		RENDERER_LIST,
+		type RendererType,
+	} from '../constants';
 
 	export let plugin: TTasksPlugin;
 	export let boardState: BoardStateStores | undefined = undefined;
@@ -135,7 +142,7 @@
 	$: hasActiveFilters = !!$searchQuery || !!filterPriority || !!filterArea;
 	$: canToggleCompletedForCurrentView = canToggleBuiltinCompleted(currentView);
 	$: showCompleted = showCompletedByViewId[currentView.id] ?? defaultCompletedVisibility(currentView);
-	$: currentRenderer = resolveViewRenderer(currentView.id, currentView.renderer, logbookRendererModeByViewId);
+	$: currentRenderer = resolveViewRenderer(currentView.id, currentView.renderer, logbookRendererModeByViewId) as RendererType;
 
 	function effectiveQuery(
 		view: typeof currentView,
@@ -440,7 +447,7 @@
 
 				{#if canToggleLogbookRenderer(currentView.id)}
 					<button class="tt-filter-toggle-completed" on:click={() => void toggleLogbookRenderer(currentView.id)}>
-						{currentRenderer === 'kanban' ? 'Archive List' : 'Archive Board'}
+						{currentRenderer === RENDERER_KANBAN ? 'Archive List' : 'Archive Board'}
 					</button>
 				{/if}
 
@@ -458,7 +465,7 @@
 
 			<!-- View content -->
 			<div class="tt-board-content">
-				{#if currentRenderer === 'list'}
+				{#if currentRenderer === RENDERER_LIST}
 					<TaskList
 						{plugin}
 						viewId={currentView.id}
@@ -491,7 +498,7 @@
 							onClear={() => { selectedPaths.set(clearSelection()); }}
 						/>
 					{/if}
-				{:else if currentRenderer === 'kanban'}
+				{:else if currentRenderer === RENDERER_KANBAN}
 					<TaskKanban
 						{plugin}
 						groups={groupedTasks}
@@ -509,7 +516,7 @@
 						}}
 						onContextMenu={openContextMenu}
 					/>
-				{:else if currentRenderer === 'graph'}
+				{:else if currentRenderer === RENDERER_GRAPH}
 					<TaskGraph
 						{plugin}
 						groups={groupedTasks}
@@ -522,7 +529,7 @@
 						}}
 						onContextMenu={openContextMenu}
 					/>
-				{:else if currentRenderer === 'archive'}
+				{:else if currentRenderer === RENDERER_ARCHIVE}
 					<TaskArchiveView {plugin} />
 				{:else}
 					<TaskAgenda

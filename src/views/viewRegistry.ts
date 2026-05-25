@@ -5,6 +5,13 @@ import type {
 	TaskViewRenderer,
 	TTasksSettings,
 } from '../settings';
+import {
+	RENDERER_AGENDA,
+	RENDERER_ARCHIVE,
+	RENDERER_GRAPH,
+	RENDERER_KANBAN,
+	RENDERER_LIST,
+} from '../constants';
 
 export interface RegisteredTaskViewDefinition extends CustomTaskViewDefinition {
 	source: 'builtin' | 'custom';
@@ -18,7 +25,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 		id: 'list',
 		name: 'Active',
 		icon: 'list',
-		renderer: 'list',
+		renderer: RENDERER_LIST,
 		query: {
 			filter: {
 				logic: 'and',
@@ -36,7 +43,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 		id: 'inbox',
 		name: 'Inbox',
 		icon: 'inbox',
-		renderer: 'list',
+		renderer: RENDERER_LIST,
 		query: {
 			filter: {
 				logic: 'and',
@@ -58,7 +65,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 		id: 'today',
 		name: 'Today',
 		icon: 'calendar-check',
-		renderer: 'list',
+		renderer: RENDERER_LIST,
 		query: {
 			filter: {
 				logic: 'and',
@@ -80,7 +87,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 		id: 'blocked',
 		name: 'Blocked',
 		icon: 'octagon-x',
-		renderer: 'list',
+		renderer: RENDERER_LIST,
 		query: {
 			filter: {
 				logic: 'and',
@@ -102,7 +109,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 		id: 'kanban',
 		name: 'Kanban',
 		icon: 'columns-2',
-		renderer: 'kanban',
+		renderer: RENDERER_KANBAN,
 		query: {
 			filter: { logic: 'and', conditions: [] },
 			sort: [],
@@ -115,7 +122,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 		id: 'agenda',
 		name: 'Agenda',
 		icon: 'calendar',
-		renderer: 'agenda',
+		renderer: RENDERER_AGENDA,
 		query: {
 			filter: {
 				logic: 'and',
@@ -137,7 +144,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 		id: 'graph',
 		name: 'Graph',
 		icon: 'git-branch-plus',
-		renderer: 'graph',
+		renderer: RENDERER_GRAPH,
 		query: {
 			filter: { logic: 'and', conditions: [] },
 			sort: [],
@@ -150,7 +157,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 		id: 'logbook',
 		name: 'Logbook',
 		icon: 'book-open',
-		renderer: 'list',
+		renderer: RENDERER_LIST,
 		query: {
 			filter: {
 				logic: 'and',
@@ -170,7 +177,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 		id: 'archive',
 		name: 'Archive',
 		icon: 'archive',
-		renderer: 'archive',
+		renderer: RENDERER_ARCHIVE,
 		query: {
 			filter: { logic: 'and', conditions: [] },
 			sort: [],

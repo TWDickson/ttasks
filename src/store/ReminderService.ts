@@ -7,15 +7,13 @@ import { localDateString, daysBetweenLocal } from '../utils/dateUtils';
 import { safeLocalStorage, safeLocalStorageSet } from '../utils/vaultSafe';
 import { resolveStaleDate } from './statusChanged';
 import { isSnoozed, purgeSnoozed, snoozeTask, type SnoozedState } from './reminderSnooze';
+import { NOTICE_DURATION_MS, REMINDER_POLL_INTERVAL_MS, REMINDER_SNOOZE_HOURS } from '../constants';
 
 // Keys are `{path}|{rule}|{YYYY-MM-DD}`.
 // Pipe cannot appear in vault paths on any OS and is not used in rule IDs.
 type FiredKey = string;
 
 type RuleId = 'due-today' | 'overdue' | 'lead-time' | 'stale';
-
-const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-const NOTICE_DURATION_MS = 8000;
 
 export class ReminderService {
 	private firedKeys: Set<FiredKey> = new Set();
@@ -49,7 +47,7 @@ export class ReminderService {
 		this.loadFiredKeys();
 		void this.check();
 		this.plugin.registerInterval(
-			window.setInterval(() => { void this.check(); }, POLL_INTERVAL_MS)
+			window.setInterval(() => { void this.check(); }, REMINDER_POLL_INTERVAL_MS)
 		);
 	}
 
@@ -185,11 +183,11 @@ export class ReminderService {
 		span.style.cursor = 'pointer';
 
 		// Snooze button: dismiss this task's reminders for 4 hours
-		const snoozeBtn = frag.createEl('button', { text: 'Snooze 4h' });
+		const snoozeBtn = frag.createEl('button', { text: `Snooze ${REMINDER_SNOOZE_HOURS}h` });
 		snoozeBtn.style.cssText = 'margin-left:8px;font-size:0.75rem;padding:2px 6px;border-radius:4px;cursor:pointer;';
 		snoozeBtn.addEventListener('click', (e) => {
 			e.stopPropagation();
-			this.snooze(task.path, 4);
+			this.snooze(task.path, REMINDER_SNOOZE_HOURS);
 			notice.hide();
 		});
 

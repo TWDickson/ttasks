@@ -30,8 +30,7 @@ import { localDateString } from './utils/dateUtils';
 import { createTaskContextMenuDeps } from './integration/taskActionPorts';
 import { ScanEngine } from './integration/ScanEngine';
 import type { ExternalTask } from './integration/types';
-
-const METADATA_CACHE_TIMEOUT_MS = 10_000;
+import { AUTO_ARCHIVE_CHECK_INTERVAL_MS, METADATA_CACHE_TIMEOUT_MS } from './constants';
 
 export type BoardViewMode = string;
 
@@ -304,7 +303,7 @@ export default class TTasksPlugin extends Plugin {
 		};
 		run(); // check on startup
 		// Check hourly — registered interval cleaned up automatically on plugin unload
-		this.registerInterval(window.setInterval(run, 60 * 60 * 1000));
+		this.registerInterval(window.setInterval(run, AUTO_ARCHIVE_CHECK_INTERVAL_MS));
 	}
 
 	taskStoreTasksSnapshot(): Task[] {
