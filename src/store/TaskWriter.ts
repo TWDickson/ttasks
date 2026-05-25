@@ -16,6 +16,7 @@ import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
 import { parseWikiLink, extractChecklistLink } from '../utils/wikiLink';
 import { buildRestoreInput } from './taskRestore';
 import { linkReferencesTaskPath } from './relationshipLinkMatch';
+import { syncCompletionToSource } from '../integration/completionSync';
 
 export class TaskWriter {
 	private plugin: TTasksPlugin;
@@ -83,8 +84,10 @@ export class TaskWriter {
 	}
 
 	async update(path: string, updates: Partial<Task>): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
+		const normalizedPath = normalizePath(path);
+		const file = this.app.vault.getAbstractFileByPath(normalizedPath);
 		if (!(file instanceof TFile)) return;
+		const currentTask = get(this.tasks).find((task) => task.path === normalizedPath) ?? null;
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			const fields: (keyof Task)[] = [
@@ -107,6 +110,15 @@ export class TaskWriter {
 			);
 			if (changed !== undefined) fm.status_changed = changed;
 		});
+
+		if (currentTask && typeof updates.status === 'string') {
+			const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+			await syncCompletionToSource(
+				{ ...currentTask, status: updates.status },
+				this.app,
+				completionStatus,
+			);
+		}
 	}
 
 	async updateNotes(path: string, notes: string): Promise<string> {

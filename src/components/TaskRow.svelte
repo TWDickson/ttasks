@@ -33,6 +33,8 @@
 	export let onSelect: ((path: string) => void) | undefined = undefined;
 	/** Whether this row is keyboard-focused in board navigation. */
 	export let keyboardFocused = false;
+	/** Promote callback for captured/external tasks. */
+	export let onPromote: ((task: ExternalTask) => void) | undefined = undefined;
 
 	let cachedToday = localDateString();
 
@@ -98,6 +100,13 @@
 
 	$: isCaptured = isCapturedTask(task);
 	$: isFromPreviousDay = isCaptured && !!task.fromPreviousDay;
+
+	function handlePromote(event: MouseEvent): void {
+		event.preventDefault();
+		event.stopPropagation();
+		if (!isCaptured || !onPromote) return;
+		onPromote(task);
+	}
 </script>
 
 <li
@@ -172,6 +181,9 @@
 	</button>
 	{#if showInlineReopen}
 		<button type="button" class="tt-inline-reopen" on:click={handleRestore} aria-label="Reopen task">Reopen</button>
+	{/if}
+	{#if isCaptured}
+		<button type="button" class="tt-inline-promote" on:click={handlePromote} aria-label="Promote task">Promote</button>
 	{/if}
 </li>
 
@@ -262,6 +274,24 @@
 	.tt-inline-reopen:hover {
 		color: var(--text-normal);
 		background: var(--interactive-hover, var(--background-modifier-hover));
+	}
+
+	.tt-inline-promote {
+		align-self: center;
+		margin-left: var(--tt-space-1);
+		padding: 4px 8px;
+		border: 1px solid color-mix(in srgb, var(--color-cyan) 45%, var(--background-modifier-border));
+		border-radius: var(--button-radius, var(--radius-m, 8px));
+		background: color-mix(in srgb, var(--color-cyan) 12%, transparent);
+		color: var(--color-cyan);
+		font-size: 0.72rem;
+		font-weight: 700;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.tt-inline-promote:hover {
+		background: color-mix(in srgb, var(--color-cyan) 22%, transparent);
 	}
 
 	.tt-task-btn:hover {

@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { derived } from 'svelte/store';
-	import { Menu, Notice, setIcon } from 'obsidian';
+	import { Menu, Notice, TFile, setIcon } from 'obsidian';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
+	import type { ExternalTask } from '../integration/types';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
 	import { QueryEditorModal } from '../modals/QueryEditorModal';
 	import TaskList from './TaskList.svelte';
@@ -33,6 +34,8 @@
 		resolveTaskViewIcon,
 		resolveTaskViewId,
 	} from '../views/viewRegistry';
+	import { buildPromotedLine, buildPromoteInput } from '../integration/promoteTask';
+	import { isInCaptureScope } from '../integration/fileScanner';
 
 	export let plugin: TTasksPlugin;
 	export let boardState: BoardStateStores | undefined = undefined;
@@ -210,7 +213,40 @@
 	function openNewProject() { new CreateTaskModal(plugin.app, plugin, 'project').open(); }
 	function closeDetail()    { panelOpen = false; activeTaskPath.set(null); }
 	function openContextMenu(task: Task, event: MouseEvent) {
+		if ((task as ExternalTask).external) return;
 		plugin.showTaskContextMenu(task, event);
+	}
+
+	async function promoteCapturedTask(external: ExternalTask): Promise<void> {
+		const sourcePath = external.location.filePath;
+		const sourceFile = plugin.app.vault.getAbstractFileByPath(sourcePath);
+		if (!(sourceFile instanceof TFile)) {
+			new Notice(`Source file not found: ${sourcePath}`);
+			return;
+		}
+
+		const basename = sourcePath.split('/').pop()?.replace(/\.md$/i, '') ?? 'source-note';
+		const inboxStatus = plugin.settings.statuses?.[0] ?? 'Active';
+		const input = buildPromoteInput(external, inboxStatus, basename);
+		const created = await plugin.taskStore.create(input);
+
+		await plugin.app.vault.process(sourceFile, (content) => {
+			const lines = content.split('\n');
+			const index = Math.max(0, external.location.line - 1);
+			if (index >= lines.length) return content;
+			lines[index] = buildPromotedLine(lines[index], created.path, created.name);
+			return lines.join('\n');
+		});
+
+		plugin.scanEngine.removeTasksForFile(sourcePath);
+		const sourceConfig = plugin.settings.captureSources.find((config) => isInCaptureScope(sourcePath, config));
+		if (sourceConfig) {
+			await plugin.scanEngine.rescanFile(plugin.app, sourceFile, sourceConfig, plugin.settings.tasksFolder);
+		}
+
+		activeTaskPath.set(created.path);
+		panelOpen = true;
+		new Notice(`Promoted: ${created.name}`);
 	}
 	function openSettings()   {
 		plugin.openPluginSettings();
@@ -461,6 +497,7 @@
 						}}
 						onRestore={currentView.id === 'logbook' ? ((path) => plugin.taskStore.restore(path)) : undefined}
 						onContextMenu={openContextMenu}
+						onPromote={promoteCapturedTask}
 						onNewTask={openNewTask}
 						selectable={true}
 						selectedPaths={$selectedPaths}

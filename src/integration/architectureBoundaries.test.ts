@@ -61,6 +61,8 @@ describe('architecture boundaries', () => {
 			'src/integration/checkboxParser.ts',
 			'src/integration/emojiFieldParser.ts',
 			'src/integration/filenameDateParser.ts',
+			'src/integration/promoteTask.ts',
+			'src/integration/completionSync.ts',
 		]) {
 			const content = readWorkspaceFile(relativePath);
 

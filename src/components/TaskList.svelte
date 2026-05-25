@@ -3,6 +3,7 @@
 	import TaskRow from './TaskRow.svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
+	import type { ExternalTask } from '../integration/types';
 	import type { TaskGroup } from '../query/types';
 	import { buildListRows, labelForGroup, type ListSection, type ListHierarchyMode } from './viewAdapters';
 	export let plugin: TTasksPlugin;
@@ -21,6 +22,7 @@
 	export let selectedPaths: Set<string> = new Set();
 	export let onSelect: ((path: string) => void) | undefined = undefined;
 	export let focusedTaskPath: string | null = null;
+	export let onPromote: ((task: ExternalTask) => void) | undefined = undefined;
 
 	let collapsedPaths = new Set<string>();
 
@@ -106,6 +108,7 @@
 								selected={selectedPaths.has(row.task.path)}
 								keyboardFocused={focusedTaskPath === row.task.path}
 								{onSelect}
+								{onPromote}
 							/>
 						{/each}
 					</ul>
