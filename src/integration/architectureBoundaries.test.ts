@@ -55,4 +55,17 @@ describe('architecture boundaries', () => {
 		expect(content).not.toContain("from 'obsidian'");
 		expect(content).not.toContain('from "obsidian"');
 	});
+
+	it('Stream I parsing helpers stay pure and free of Obsidian imports', () => {
+		for (const relativePath of [
+			'src/integration/checkboxParser.ts',
+			'src/integration/emojiFieldParser.ts',
+			'src/integration/filenameDateParser.ts',
+		]) {
+			const content = readWorkspaceFile(relativePath);
+
+			expect(content).not.toContain("from 'obsidian'");
+			expect(content).not.toContain('from "obsidian"');
+		}
+	});
 });
