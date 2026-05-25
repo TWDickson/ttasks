@@ -130,8 +130,8 @@ PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`, `Scripts/TASK_I1.md`-`Scripts/
 - **Streams D-G COMPLETE** — D1/D2, E1/E2, F1, and G1 are now implemented and test-covered.
 - **E2 final wiring complete** — list keyboard focus navigation now supports `j`/`k` and arrow navigation with clamped movement and focused task state.
 - **Board keyboard internals improved** — focused task state is separate from active detail state to keep navigation behavior predictable.
-- **Tooling QoL** — dedicated test scripts added: `npm run test:board` and `npm run test:reminders` to avoid approval-heavy `npm run test -- ...` workflows.
-- Validation status: production build passing; **test suite: 926 passing (78 files)**.
+- **Tooling QoL** — dedicated test scripts added: `npm run test:board`, `npm run test:reminders`, and `npm run test:components` to avoid approval-heavy `npm run test -- ...` workflows.
+- Validation status: production build passing; **test suite: 961 passing (82 files)**.
 
 ## Recent Updates (2026-05-14)
 

@@ -9,7 +9,8 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test": "vitest run",
     "test:board": "vitest run src/integration/boardFocus.test.ts src/integration/boardKeymap.test.ts src/integration/boardViewBehavior.test.ts",
-    "test:reminders": "vitest run src/store/reminderSnooze.test.ts src/store/ReminderService.test.ts"
+    "test:reminders": "vitest run src/store/reminderSnooze.test.ts src/store/ReminderService.test.ts",
+    "test:components": "vitest run src/components/*.component.test.ts"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.1.2",

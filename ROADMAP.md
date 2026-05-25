@@ -6,7 +6,7 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ## Progress Notes (2026-05-22)
 
-Streams D-G are now complete, with E2 keyboard behavior finalized in the board view. Build clean and full suite green (926 tests passing).
+Streams D-G are now complete, with E2 keyboard behavior finalized in the board view. Build clean and full suite green (961 tests passing).
 
 ### E2 finalization
 
@@ -27,6 +27,7 @@ Streams D-G are now complete, with E2 keyboard behavior finalized in the board v
 - Added dedicated npm scripts for scoped verification without CLI arg pass-through:
   - `npm run test:board`
   - `npm run test:reminders`
+  - `npm run test:components`
 
 ## Progress Notes (2026-04-29)
 
