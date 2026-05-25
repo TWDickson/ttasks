@@ -4,6 +4,7 @@ import type TTasksPlugin from '../main';
 import { resolveConfiguredStatus, DEFAULT_SETTINGS } from '../settings';
 import type { Task } from '../types';
 import { localDateString, daysBetweenLocal } from '../utils/dateUtils';
+import { safeLocalStorage, safeLocalStorageSet } from '../utils/vaultSafe';
 import { resolveStaleDate } from './statusChanged';
 import { isSnoozed, purgeSnoozed, snoozeTask, type SnoozedState } from './reminderSnooze';
 
@@ -30,13 +31,13 @@ export class ReminderService {
 
 	private loadSnoozed(): SnoozedState {
 		try {
-			const raw = localStorage.getItem(this.snoozeKey);
+			const raw = safeLocalStorage(this.snoozeKey);
 			return raw ? JSON.parse(raw) : {};
 		} catch { return {}; }
 	}
 
 	private saveSnoozed(state: SnoozedState): void {
-		localStorage.setItem(this.snoozeKey, JSON.stringify(state));
+		safeLocalStorageSet(this.snoozeKey, JSON.stringify(state));
 	}
 
 	snooze(path: string, hours: number): void {
@@ -242,7 +243,7 @@ export class ReminderService {
 
 	private loadFiredKeys(): void {
 		try {
-			const raw = localStorage.getItem(this.storageKey);
+			const raw = safeLocalStorage(this.storageKey);
 			if (raw) {
 				const parsed: unknown = JSON.parse(raw);
 				if (Array.isArray(parsed)) {
@@ -256,12 +257,7 @@ export class ReminderService {
 	}
 
 	private saveFiredKeys(): void {
-		try {
-			localStorage.setItem(this.storageKey, JSON.stringify([...this.firedKeys]));
-		} catch {
-			// Storage quota exceeded or unavailable — non-fatal, worst case a reminder
-			// re-fires next poll cycle
-		}
+		safeLocalStorageSet(this.storageKey, JSON.stringify([...this.firedKeys]));
 	}
 }
 

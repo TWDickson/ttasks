@@ -31,6 +31,8 @@ import { createTaskContextMenuDeps } from './integration/taskActionPorts';
 import { ScanEngine } from './integration/ScanEngine';
 import type { ExternalTask } from './integration/types';
 
+const METADATA_CACHE_TIMEOUT_MS = 10_000;
+
 export type BoardViewMode = string;
 
 export default class TTasksPlugin extends Plugin {
@@ -44,6 +46,7 @@ export default class TTasksPlugin extends Plugin {
 	activeViewMode: Writable<BoardViewMode | null> = writable(null);
 	private statusBarEl: HTMLElement | null = null;
 	private isApplyingExternalSettings = false;
+	private reminderStartTimeoutId: number | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -170,14 +173,42 @@ export default class TTasksPlugin extends Plugin {
 				this.taskStore.load();
 			});
 			this.registerEvent(resolvedRef);
-			// Start reminders after tasks are loaded so the first check has data.
-			void this.reminderService.start().catch((err: unknown) => this.log(`reminderService.start failed: ${String(err)}`));
+			// Start reminders when metadata is ready, with timeout fallback.
+			this.startReminderServiceWhenReady();
 			// Scheduled auto-archive: check once on load, then hourly.
 			this.startAutoArchive();
 		});
 	}
 
+	private startReminderServiceWhenReady(): void {
+		let started = false;
+		const start = () => {
+			if (started) return;
+			started = true;
+			if (this.reminderStartTimeoutId !== null) {
+				window.clearTimeout(this.reminderStartTimeoutId);
+				this.reminderStartTimeoutId = null;
+			}
+			void this.reminderService.start().catch((err: unknown) => this.log(`reminderService.start failed: ${String(err)}`));
+		};
+
+		const resolvedRef = this.app.metadataCache.on('resolved', start);
+		this.registerEvent(resolvedRef);
+
+		this.reminderStartTimeoutId = window.setTimeout(start, METADATA_CACHE_TIMEOUT_MS);
+		this.register(() => {
+			if (this.reminderStartTimeoutId !== null) {
+				window.clearTimeout(this.reminderStartTimeoutId);
+				this.reminderStartTimeoutId = null;
+			}
+		});
+	}
+
 	onunload() {
+		if (this.reminderStartTimeoutId !== null) {
+			window.clearTimeout(this.reminderStartTimeoutId);
+			this.reminderStartTimeoutId = null;
+		}
 		this.app.workspace.detachLeavesOfType(TASK_BOARD_VIEW_TYPE);
 	}
 
