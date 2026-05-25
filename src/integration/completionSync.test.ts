@@ -21,12 +21,48 @@ describe('buildUpdatedSourceLine', () => {
 });
 
 describe('findTTasksLinkLine', () => {
-	it('returns line index when task path fragment is found', () => {
-		expect(findTTasksLinkLine(['A', '- [ ] [[Planner/Tasks/abc|Task]]'], 'Planner/Tasks/abc')).toBe(1);
+	it('returns line index for exact aliased wikilink path match', () => {
+		expect(findTTasksLinkLine(['A', '- [ ] [[Planner/Tasks/abc|Task]]'], 'Planner/Tasks/abc.md')).toBe(1);
+	});
+
+	it('returns line index for exact non-aliased wikilink path match', () => {
+		expect(findTTasksLinkLine(['A', '- [ ] [[Planner/Tasks/abc]]'], 'Planner/Tasks/abc.md')).toBe(1);
+	});
+
+	it('does not match prefix collisions', () => {
+		expect(
+			findTTasksLinkLine(
+				['- [ ] [[Planner/Tasks/abc123-task-2|Wrong]]', '- [ ] [[Planner/Tasks/abc123-task|Right]]'],
+				'Planner/Tasks/abc123-task.md',
+			),
+		).toBe(1);
+	});
+
+	it('normalizes path comparisons with and without .md', () => {
+		expect(findTTasksLinkLine(['- [ ] [[Planner/Tasks/abc|Task]]'], 'Planner/Tasks/abc')).toBe(0);
+		expect(findTTasksLinkLine(['- [ ] [[Planner/Tasks/abc.md|Task]]'], 'Planner/Tasks/abc.md')).toBe(0);
+	});
+
+	it('uses resolver fallback only when exact match fails', () => {
+		const resolver = vi.fn((linkPath: string, targetPath: string) =>
+			linkPath.replace(/%20/g, ' ') === targetPath,
+		);
+
+		expect(
+			findTTasksLinkLine(['- [ ] [[Planner/Tasks/Task%20Name|Task]]'], 'Planner/Tasks/Task Name.md', resolver),
+		).toBe(0);
+		expect(resolver).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not call resolver when exact match succeeds', () => {
+		const resolver = vi.fn(() => true);
+
+		expect(findTTasksLinkLine(['- [ ] [[Planner/Tasks/abc|Task]]'], 'Planner/Tasks/abc.md', resolver)).toBe(0);
+		expect(resolver).not.toHaveBeenCalled();
 	});
 
 	it('returns -1 when link is missing', () => {
-		expect(findTTasksLinkLine(['A', 'B'], 'Planner/Tasks/abc')).toBe(-1);
+		expect(findTTasksLinkLine(['A', 'B'], 'Planner/Tasks/abc.md')).toBe(-1);
 	});
 });
 

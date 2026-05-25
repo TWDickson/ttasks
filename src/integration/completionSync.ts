@@ -14,6 +14,12 @@ interface AppLike {
 	};
 }
 
+type LinkPathResolver = (wikilinkPath: string, taskPath: string) => boolean;
+
+function normalizeWikiPath(path: string): string {
+	return stripMdExt(path.trim().replace(/\\/g, '/'));
+}
+
 export function buildUpdatedSourceLine(originalLine: string, checked: boolean): string {
 	if (!/\[\[[^\]]+\]\]/.test(originalLine)) {
 		return originalLine;
@@ -27,9 +33,18 @@ export function buildUpdatedSourceLine(originalLine: string, checked: boolean): 
 	return originalLine.replace(/^(\s*(?:[-*+]|\d+\.)\s+)\[[^\]]\]/, `$1${marker}`);
 }
 
-export function findTTasksLinkLine(lines: string[], taskPathFragment: string): number {
+export function findTTasksLinkLine(lines: string[], taskPath: string, resolver?: LinkPathResolver): number {
+	const normalizedTaskPath = normalizeWikiPath(taskPath);
+
 	for (let i = 0; i < lines.length; i += 1) {
-		if (lines[i].includes(`[[${taskPathFragment}`)) {
+		const wikilinkPath = parseWikiLink(lines[i]);
+		if (!wikilinkPath) continue;
+
+		if (normalizeWikiPath(wikilinkPath) === normalizedTaskPath) {
+			return i;
+		}
+
+		if (resolver?.(wikilinkPath, normalizedTaskPath)) {
 			return i;
 		}
 	}
@@ -52,7 +67,7 @@ export async function syncCompletionToSource(
 	const typedFile = file as FileLike;
 	const content = await app.vault.read(typedFile);
 	const lines = content.split('\n');
-	const linkLine = findTTasksLinkLine(lines, stripMdExt(task.path));
+	const linkLine = findTTasksLinkLine(lines, task.path);
 	if (linkLine === -1) return;
 
 	const nextLine = buildUpdatedSourceLine(lines[linkLine], task.status === completionStatus);
