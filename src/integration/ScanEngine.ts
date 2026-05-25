@@ -7,6 +7,9 @@ import { isInCaptureScope, scanFileForCapturableTasks } from './fileScanner';
 import { resolveCaptureSourceFileEntries } from './captureSourceFiles';
 import { VAULT_MODIFY_DEBOUNCE_MS } from '../constants';
 import { handleScanError, type ScanErrorMeta, type ScanFlowContext } from './scanErrorPolicy';
+import { withConcurrencyLimit } from '../utils/concurrency';
+
+const DEFAULT_FULL_SCAN_CONCURRENCY = 4;
 
 type DailyNotesInterface = {
 	getDateFromFile: (file: TFile, granularity: 'day') => Date | null;
@@ -26,9 +29,11 @@ export class ScanEngine {
 	private debounceByFilePath = new Map<string, ReturnType<typeof setTimeout>>();
 	private pendingResolveByFilePath = new Map<string, () => void>();
 	private reportError: (context: ScanFlowContext, error: unknown, meta: ScanErrorMeta) => void;
+	private fullScanConcurrency: number;
 
 	constructor(options?: {
 		reportError?: (context: ScanFlowContext, error: unknown, meta: ScanErrorMeta) => void;
+		fullScanConcurrency?: number;
 	}) {
 		this.reportError = options?.reportError ?? ((context, error, meta) => {
 			handleScanError(context, error, meta, {
@@ -37,6 +42,7 @@ export class ScanEngine {
 				},
 			});
 		});
+		this.fullScanConcurrency = options?.fullScanConcurrency ?? DEFAULT_FULL_SCAN_CONCURRENCY;
 	}
 
 	get tasks(): Readable<ExternalTask[]> {
@@ -161,19 +167,20 @@ export class ScanEngine {
 	async runFullScan(app: App, settings: TTasksSettings): Promise<void> {
 		const allFiles = app.vault.getMarkdownFiles();
 		const entries = resolveCaptureSourceFileEntries(allFiles, settings.captureSources, settings.tasksFolder);
-		const nextTasks: ExternalTask[] = [];
-
-		for (const entry of entries) {
+		const perEntryTasks = await withConcurrencyLimit(entries.map((entry) => async () => {
 			try {
 				const content = await app.vault.cachedRead(entry.file);
-				nextTasks.push(...scanFileForCapturableTasks(content, entry.file.path, entry.config, settings.tasksFolder));
+				return scanFileForCapturableTasks(content, entry.file.path, entry.config, settings.tasksFolder);
 			} catch (error) {
 				this.reportError('background_non_blocking', error, {
 					operation: 'scan.runFullScan.entry',
 					filePath: entry.file.path,
 				});
+				return undefined;
 			}
-		}
+		}), this.fullScanConcurrency);
+
+		const nextTasks = perEntryTasks.flatMap((tasks) => tasks ?? []);
 
 		this.store.set(nextTasks);
 	}
