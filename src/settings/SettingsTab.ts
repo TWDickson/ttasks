@@ -13,6 +13,7 @@ import {
 	renderManagedListSettingSection,
 	renderManagedListStyles,
 } from './managedListSettingsSection';
+import { renderMigrationSettingsSection } from './migrationSettingsSection';
 import { renderQuickActionsSettingsSection } from './quickActionsSettingsSection';
 import { renderRemindersSettingsSection } from './remindersSettingsSection';
 import { renderViewsSettingsSection } from './viewsSettingsSection';
@@ -227,6 +228,10 @@ export class TTasksSettingTab extends PluginSettingTab {
 			containerEl,
 			plugin: this.plugin,
 			rerender: () => this.display(),
+		});
+		renderMigrationSettingsSection({
+			containerEl,
+			plugin: this.plugin,
 		});
 	}
 

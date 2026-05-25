@@ -63,6 +63,8 @@ describe('architecture boundaries', () => {
 			'src/integration/filenameDateParser.ts',
 			'src/integration/promoteTask.ts',
 			'src/integration/completionSync.ts',
+			'src/integration/importScanner.ts',
+			'src/integration/captureSourceFiles.ts',
 		]) {
 			const content = readWorkspaceFile(relativePath);
 

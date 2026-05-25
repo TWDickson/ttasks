@@ -4,6 +4,7 @@ import type { CaptureSourceConfig } from '../settings/types';
 import type { TTasksSettings } from '../settings';
 import type { ExternalTask } from './types';
 import { isInCaptureScope, scanFileForCapturableTasks } from './fileScanner';
+import { resolveCaptureSourceFileEntries } from './captureSourceFiles';
 
 type DailyNotesInterface = {
 	getDateFromFile: (file: TFile, granularity: 'day') => Date | null;
@@ -96,14 +97,12 @@ export class ScanEngine {
 
 	async runFullScan(app: App, settings: TTasksSettings): Promise<void> {
 		const allFiles = app.vault.getMarkdownFiles();
+		const entries = resolveCaptureSourceFileEntries(allFiles, settings.captureSources, settings.tasksFolder);
 		const nextTasks: ExternalTask[] = [];
 
-		for (const file of allFiles) {
-			const config = this.findConfig(file.path, settings.captureSources);
-			if (!config) continue;
-
-			const content = await app.vault.cachedRead(file);
-			nextTasks.push(...scanFileForCapturableTasks(content, file.path, config, settings.tasksFolder));
+		for (const entry of entries) {
+			const content = await app.vault.cachedRead(entry.file);
+			nextTasks.push(...scanFileForCapturableTasks(content, entry.file.path, entry.config, settings.tasksFolder));
 		}
 
 		this.store.set(nextTasks);

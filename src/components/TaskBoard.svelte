@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { derived } from 'svelte/store';
-	import { Menu, Notice, TFile, setIcon } from 'obsidian';
+	import { Menu, Notice, setIcon } from 'obsidian';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import type { ExternalTask } from '../integration/types';
@@ -34,8 +34,7 @@
 		resolveTaskViewIcon,
 		resolveTaskViewId,
 	} from '../views/viewRegistry';
-	import { buildPromotedLine, buildPromoteInput } from '../integration/promoteTask';
-	import { isInCaptureScope } from '../integration/fileScanner';
+	import { promoteTaskToTTasks } from '../integration/promoteTaskToTTasks';
 
 	export let plugin: TTasksPlugin;
 	export let boardState: BoardStateStores | undefined = undefined;
@@ -218,35 +217,14 @@
 	}
 
 	async function promoteCapturedTask(external: ExternalTask): Promise<void> {
-		const sourcePath = external.location.filePath;
-		const sourceFile = plugin.app.vault.getAbstractFileByPath(sourcePath);
-		if (!(sourceFile instanceof TFile)) {
-			new Notice(`Source file not found: ${sourcePath}`);
-			return;
+		try {
+			const created = await promoteTaskToTTasks(external, plugin);
+			activeTaskPath.set(created.path);
+			panelOpen = true;
+			new Notice(`Promoted: ${created.name}`);
+		} catch (error) {
+			new Notice(error instanceof Error ? error.message : 'Unable to promote captured task.');
 		}
-
-		const basename = sourcePath.split('/').pop()?.replace(/\.md$/i, '') ?? 'source-note';
-		const inboxStatus = plugin.settings.statuses?.[0] ?? 'Active';
-		const input = buildPromoteInput(external, inboxStatus, basename);
-		const created = await plugin.taskStore.create(input);
-
-		await plugin.app.vault.process(sourceFile, (content) => {
-			const lines = content.split('\n');
-			const index = Math.max(0, external.location.line - 1);
-			if (index >= lines.length) return content;
-			lines[index] = buildPromotedLine(lines[index], created.path, created.name);
-			return lines.join('\n');
-		});
-
-		plugin.scanEngine.removeTasksForFile(sourcePath);
-		const sourceConfig = plugin.settings.captureSources.find((config) => isInCaptureScope(sourcePath, config));
-		if (sourceConfig) {
-			await plugin.scanEngine.rescanFile(plugin.app, sourceFile, sourceConfig, plugin.settings.tasksFolder);
-		}
-
-		activeTaskPath.set(created.path);
-		panelOpen = true;
-		new Notice(`Promoted: ${created.name}`);
 	}
 	function openSettings()   {
 		plugin.openPluginSettings();
