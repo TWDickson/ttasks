@@ -104,6 +104,7 @@ export class TaskWriter {
 
 		try {
 			await this.app.fileManager.processFrontMatter(file, (fm) => {
+				const previousStatus = typeof fm.status === 'string' ? fm.status : undefined;
 				const fields: (keyof Task)[] = [
 					'name', 'status', 'priority', 'area', 'labels',
 					'blocked_reason', 'assigned_to', 'source', 'due_time',
@@ -118,7 +119,7 @@ export class TaskWriter {
 				// Write status_changed whenever status actually transitions
 				const today = localDateString();
 				const changed = computeStatusChanged(
-					typeof fm.status === 'string' ? fm.status : undefined,
+					previousStatus,
 					updates.status,
 					today,
 				);

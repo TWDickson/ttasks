@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { buildTaskFrontmatter } from './TaskWriter';
+import { writable } from 'svelte/store';
+import { TFile } from 'obsidian';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { buildTaskFrontmatter, TaskWriter } from './TaskWriter';
 import type { Task } from '../types';
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -48,6 +50,42 @@ function parseYaml(fm: string): Record<string, string> {
 		if (idx >= 0) result[line.slice(0, idx)] = line.slice(idx + 2);
 	}
 	return result;
+}
+
+function makeFile(path: string): TFile {
+	const file = Object.create(TFile.prototype) as TFile & { path: string; name: string; extension: string; basename: string };
+	file.path = path;
+	file.name = path.split('/').pop() ?? 'task.md';
+	file.extension = 'md';
+	file.basename = file.name.replace(/\.md$/, '');
+	return file;
+}
+
+function makeWriterForUpdateTest(initialFrontmatter: Record<string, unknown>) {
+	const frontmatter = { ...initialFrontmatter };
+	const file = makeFile('Planner/Tasks/abc123-test-task.md');
+	const processFrontMatter = vi.fn(async (_file: TFile, cb: (fm: Record<string, unknown>) => void) => {
+		cb(frontmatter);
+	});
+
+	const plugin = {
+		settings: {
+			statuses: ['Active', 'In Progress', 'Done'],
+			completionStatus: 'Done',
+		},
+		app: {
+			vault: {
+				getAbstractFileByPath: vi.fn((path: string) => (path === file.path ? file : null)),
+			},
+			fileManager: {
+				processFrontMatter,
+			},
+		},
+		log: vi.fn(),
+	};
+
+	const writer = new TaskWriter(plugin as any, writable([]), 'Planner/Tasks', () => undefined);
+	return { writer, file, frontmatter, processFrontMatter };
 }
 
 describe('buildTaskFrontmatter', () => {
@@ -188,5 +226,64 @@ describe('buildTaskFrontmatter', () => {
 	it('produces project type frontmatter', () => {
 		const fm = buildTaskFrontmatter(makeTask({ type: 'project', name: 'My Project' }), noName);
 		expect(parseYaml(fm)['type']).toBe('project');
+	});
+});
+
+describe('TaskWriter.update status_changed transitions', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-05-25T12:00:00'));
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('updates status_changed when status transitions (regression)', async () => {
+		const { writer, file, frontmatter } = makeWriterForUpdateTest({
+			status: 'Active',
+			status_changed: '2026-05-01',
+		});
+
+		await writer.update(file.path, { status: 'In Progress' });
+
+		expect(frontmatter.status).toBe('In Progress');
+		expect(frontmatter.status_changed).toBe('2026-05-25');
+	});
+
+	it('does not modify status_changed when status is unchanged', async () => {
+		const { writer, file, frontmatter } = makeWriterForUpdateTest({
+			status: 'Active',
+			status_changed: '2026-05-01',
+		});
+
+		await writer.update(file.path, { status: 'Active' });
+
+		expect(frontmatter.status_changed).toBe('2026-05-01');
+	});
+
+	it('does not touch status_changed when status is omitted', async () => {
+		const { writer, file, frontmatter } = makeWriterForUpdateTest({
+			status: 'Active',
+			status_changed: '2026-05-01',
+			priority: 'None',
+		});
+
+		await writer.update(file.path, { priority: 'High' });
+
+		expect(frontmatter.priority).toBe('High');
+		expect(frontmatter.status_changed).toBe('2026-05-01');
+	});
+
+	it('treats empty previous status as a real transition edge case', async () => {
+		const { writer, file, frontmatter } = makeWriterForUpdateTest({
+			status: '',
+			status_changed: '2026-05-01',
+		});
+
+		await writer.update(file.path, { status: 'Active' });
+
+		expect(frontmatter.status).toBe('Active');
+		expect(frontmatter.status_changed).toBe('2026-05-25');
 	});
 });
