@@ -75,12 +75,13 @@
 	$: currentView = resolveTaskViewDefinition(plugin.settings, $currentViewId) ?? registeredViews[0];
 
 	// Allow external callers (e.g. ReminderService) to switch the active view.
-	plugin.activeViewMode.subscribe(mode => {
+	const unsubscribeActiveViewMode = plugin.activeViewMode.subscribe(mode => {
 		if (mode !== null) {
 			currentViewId.set(resolveTaskViewId(plugin.settings, mode));
 			plugin.activeViewMode.set(null);
 		}
 	});
+	onDestroy(unsubscribeActiveViewMode);
 
 	const unsubscribeSelectionReset = clearSelectionOnViewChange(currentViewId, selectedPaths);
 	onDestroy(unsubscribeSelectionReset);
