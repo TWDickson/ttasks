@@ -4,6 +4,21 @@ import type { Task } from '../types';
 import type { QuerySpec, TaskGroup } from './types';
 import { applyQuery } from './engine';
 
+const SHOULD_PROFILE_QUERY = process.env.NODE_ENV === 'development';
+
+function applyQueryWithOptionalTiming(tasks: Task[], query: QuerySpec): TaskGroup[] {
+	if (!SHOULD_PROFILE_QUERY) {
+		return applyQuery(tasks, query);
+	}
+
+	console.time('applyQuery');
+	try {
+		return applyQuery(tasks, query);
+	} finally {
+		console.timeEnd('applyQuery');
+	}
+}
+
 export interface TaskQueryHandle {
 	/** Reactive filtered/sorted/grouped result. */
 	result: Readable<TaskGroup[]>;
@@ -25,7 +40,7 @@ export function createTaskQuery(
 	const query = writable<QuerySpec>(initialQuery);
 	const result = derived(
 		[tasks, query] as const,
-		([$tasks, $query]) => applyQuery($tasks, $query),
+		([$tasks, $query]) => applyQueryWithOptionalTiming($tasks, $query),
 	);
 	return { result, query };
 }

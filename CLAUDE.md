@@ -119,13 +119,20 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 ## Current Priorities
 
-1. **Stream J** — Productivity and quality-of-life slices (J1-J6)
-2. **Follow-on hardening** — continue narrowing board/data-model debt after I/J slices land
-3. **Reliability polishing** — keep capture/import migration and board flows stable under large vaults
+1. **Follow-on hardening** — continue narrowing board/data-model debt after I/J slices land
+2. **Reliability polishing** — keep capture/import migration and board flows stable under large vaults
+3. **Stream planning** — define and sequence post-J vertical slices with explicit acceptance criteria
 
 PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`, `Scripts/TASK_I1.md`-`Scripts/TASK_I5.md`, `Scripts/TASK_J1.md`-`Scripts/TASK_J6.md`
 
 ## Recent Updates (2026-05-25)
+
+- **Stream J COMPLETE** — J1-J6 hardening and refactors are now landed; focus moves to post-J hardening.
+- **J4 performance slice landed** — bounded concurrency helper + relationship write batching and TaskStore O(1) `getByPath` index.
+- **J5 DRY cleanup landed** — relationship link-array mutations centralized with pure helper + tests.
+- **J6 type safety landed** — removed `as any`/`as unknown as` hotspots in `main.ts` with typed extension interfaces.
+- **Query profiling guard added** — `useTaskQuery` now wraps `applyQuery` with `console.time('applyQuery')` / `console.timeEnd('applyQuery')` in development mode.
+- Validation status: production build passing; **test suite: 1114 passing (98 files)**.
 
 - **Stream H COMPLETE** — H1 component coverage and H2 BoardStateService extraction are now both landed.
 - **Scoped component test runner fixed** — `npm run test:components` now uses a dedicated Vitest config instead of a Windows-fragile CLI glob.

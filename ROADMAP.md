@@ -6,6 +6,19 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ## Progress Notes (2026-05-25)
 
+Stream J is now complete (J1-J6). The backlog focus shifts from stream completion to post-J hardening and reliability polish.
+
+### Stream J completion
+
+- J1 boundary hardening was already present in-tree (safe vault wrappers, metadata-cache fallback startup, safe localStorage handling) and remained green.
+- J2 constants extraction landed and centralized shared timing/renderer/tree limits.
+- J3 ReminderService decomposition landed (`reminderRules`, `reminderStorage`, `reminderNoticeBuilder`) with pure tests.
+- J4 performance slice landed: `withConcurrencyLimit`, bounded relationship rewrites, and `TaskStore.getByPath` O(1) index adoption.
+- J5 DRY slice landed: relationship link-array mutation helper extracted and wired through `TaskWriter`.
+- J6 type-safety slice landed: undocumented workspace integrations moved to typed extension interfaces; unsafe casts removed from `main.ts`.
+- Follow-on hardening: `useTaskQuery` now wraps `applyQuery` with dev-only `console.time('applyQuery')` / `console.timeEnd('applyQuery')` instrumentation.
+- Validation status now: full suite passing at **1114 tests across 98 files**; production build passing.
+
 Stream H is now complete, and Stream I has started with the pure parsing layer landed. The remaining TaskDetail render-level coverage landed, the scoped component suite now runs through a dedicated Vitest config, and the downstream ecosystem-integration parsers now exist as pure modules.
 
 ### I5 bulk import completion
