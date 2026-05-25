@@ -86,7 +86,8 @@ export function scanFileForCapturableTasks(
 		}
 
 		const emoji = parseEmojiFields(parsed.text);
-		const area = emoji.description ? config.defaults.area : config.defaults.area;
+		// area always comes from capture source config; emoji fields do not override it
+		const area = config.defaults.area;
 		const labels = config.defaults.labels ?? [];
 		const status = config.defaults.status ?? 'Active';
 		const priority = emoji.priority !== 'None'

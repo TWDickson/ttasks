@@ -103,6 +103,30 @@ describe('scanFileForCapturableTasks', () => {
 		const tasks = scanFileForCapturableTasks('- [ ] urgent 🔺', 'Daily/2026-05-25.md', config, 'Tasks');
 		expect(tasks[0].priority).toBe('High');
 	});
+
+	it('always uses config default area regardless of whether emoji description is present', () => {
+		const configWithArea = normalizeCaptureSource({
+			path: 'Daily',
+			defaults: { area: 'Personal', labels: [], status: null, priority: null, assignedTo: null },
+		});
+		// Task with emoji description (previously the "truthy" branch)
+		const withEmoji = scanFileForCapturableTasks(
+			'- [ ] 🏠 Home task',
+			'Daily/2026-05-25.md',
+			configWithArea,
+			'Tasks',
+		);
+		expect(withEmoji[0].area).toBe('Personal');
+
+		// Task without emoji description (previously the "falsy" branch)
+		const withoutEmoji = scanFileForCapturableTasks(
+			'- [ ] Plain task',
+			'Daily/2026-05-25.md',
+			configWithArea,
+			'Tasks',
+		);
+		expect(withoutEmoji[0].area).toBe('Personal');
+	});
 });
 
 describe('isInCaptureScope', () => {
