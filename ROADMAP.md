@@ -20,9 +20,16 @@ Stream H is now complete, and Stream I has started with the pure parsing layer l
 - Added parser tests for checkbox status extraction, Obsidian Tasks emoji metadata parsing, and filename date inference.
 - Extended `architectureBoundaries.test.ts` so the new parsing helpers stay free of Obsidian imports.
 
+### I2 capture source configuration
+
+- Added capture-source settings schema with normalization and defaults (`captureSources`, `captureSourceDefaultMode`, `captureSourceDefaultDefaults`).
+- Added capture-source helper module with auto-detection merge and rollover detection (`src/settings/captureSourcesSettings.ts`) plus focused tests.
+- Added settings UI section for capture source defaults and per-source editing (`src/settings/captureSourcesSettingsSection.ts`) and wired it into `SettingsTab`.
+- Plugin load now auto-detects daily/periodic folders and merges missing sources without overwriting existing user configs.
+
 ### Validation status
 
-- Full suite passing: 1009 tests across 86 files.
+- Full suite passing: 1018 tests across 87 files.
 - Production build passing.
 
 ## Progress Notes (2026-05-22)
