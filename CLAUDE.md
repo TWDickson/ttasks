@@ -121,11 +121,13 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 1. **Follow-on hardening** — continue narrowing board/data-model debt after I/J slices land
 2. **Reliability polishing** — keep capture/import migration and board flows stable under large vaults
-3. **Stream planning** — define and sequence post-J vertical slices with explicit acceptance criteria
+3. **Stream K hardening** — execute scan reliability, deterministic scan ordering, and exact completion-link matching
 
-PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`, `Scripts/TASK_I1.md`-`Scripts/TASK_I5.md`, `Scripts/TASK_J1.md`-`Scripts/TASK_J6.md`
+PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`, `Scripts/TASK_I1.md`-`Scripts/TASK_I5.md`, `Scripts/TASK_J1.md`-`Scripts/TASK_J6.md`, `Scripts/TASK_K1.md`-`Scripts/TASK_K6.md`
 
 ## Recent Updates (2026-05-25)
+
+- **Stream K scoped** — added architecture hardening tasks `TASK_K1`-`TASK_K6` for scan error policy, deterministic bounded-concurrency scanning, exact completion-sync link matching, status transition timestamp correctness, TaskBoard subscription lifecycle cleanup, and fileScanner DRY cleanup.
 
 - **Stream J COMPLETE** — J1-J6 hardening and refactors are now landed; focus moves to post-J hardening.
 - **J4 performance slice landed** — bounded concurrency helper + relationship write batching and TaskStore O(1) `getByPath` index.

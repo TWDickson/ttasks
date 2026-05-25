@@ -8,6 +8,16 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 Stream J is now complete (J1-J6). The backlog focus shifts from stream completion to post-J hardening and reliability polish.
 
+### Stream K planning checkpoint
+
+- Added implementation tickets `Scripts/TASK_K1.md`-`Scripts/TASK_K6.md` to cover the next hardening slice:
+  - K1: ScanEngine error policy and surfacing contract
+  - K2: Deterministic bounded-concurrency full scan
+  - K3: Exact completion-sync link matching
+  - K4: `TaskWriter.update()` status transition timestamp correctness (`status_changed`)
+  - K5: `TaskBoard.svelte` cleanup of `activeViewMode` subscription on destroy
+  - K6: `fileScanner.ts` DRY cleanup and parser intent clarification
+
 ### Stream J completion
 
 - J1 boundary hardening was already present in-tree (safe vault wrappers, metadata-cache fallback startup, safe localStorage handling) and remained green.
