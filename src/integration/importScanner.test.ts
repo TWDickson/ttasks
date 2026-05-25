@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, normalizeCaptureSource } from '../settings';
 import { collectAllCapturableTasks } from './importScanner';
 
@@ -104,5 +104,37 @@ describe('collectAllCapturableTasks', () => {
 		const tasks = await collectAllCapturableTasks(app, settings);
 		expect(tasks).toHaveLength(1);
 		expect(tasks[0].location.filePath).toBe('Daily/one.md');
+	});
+
+	it('continues scanning after a file read failure and reports detailed error context', async () => {
+		const app = {
+			vault: {
+				getMarkdownFiles: () => ([{ path: 'Daily/one.md' }, { path: 'Daily/two.md' }]),
+				cachedRead: vi.fn(async (file: { path: string }) => {
+					if (file.path === 'Daily/one.md') {
+						throw new Error('read failed');
+					}
+					return '- [ ] second';
+				}),
+			},
+		};
+		const settings = {
+			...DEFAULT_SETTINGS,
+			captureSources: [normalizeCaptureSource({ path: 'Daily' })],
+		};
+		const onFileError = vi.fn();
+
+		const tasks = await collectAllCapturableTasks(app as any, settings, { onFileError });
+
+		expect(tasks).toHaveLength(1);
+		expect(tasks[0].name).toBe('second');
+		expect(onFileError).toHaveBeenCalledTimes(1);
+		expect(onFileError).toHaveBeenCalledWith(
+			expect.any(Error),
+			expect.objectContaining({
+				filePath: 'Daily/one.md',
+				operation: 'import.scanFile',
+			}),
+		);
 	});
 });

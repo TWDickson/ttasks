@@ -64,6 +64,7 @@ describe('architecture boundaries', () => {
 			'src/integration/promoteTask.ts',
 			'src/integration/completionSync.ts',
 			'src/integration/importScanner.ts',
+			'src/integration/scanErrorPolicy.ts',
 			'src/integration/captureSourceFiles.ts',
 			'src/store/reminderRules.ts',
 			'src/store/reminderStorage.ts',

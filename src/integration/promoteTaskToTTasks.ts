@@ -1,9 +1,10 @@
-import { TFile } from 'obsidian';
+import { Notice, TFile } from 'obsidian';
 import type TTasksPlugin from '../main';
 import type { Task } from '../types';
 import type { ExternalTask } from './types';
 import { isInCaptureScope } from './fileScanner';
 import { buildPromotedLine, buildPromoteInput } from './promoteTask';
+import { handleScanError } from './scanErrorPolicy';
 
 export async function promoteTaskToTTasks(
 	external: ExternalTask,
@@ -31,7 +32,34 @@ export async function promoteTaskToTTasks(
 	plugin.scanEngine.removeTasksForFile(sourcePath);
 	const sourceConfig = plugin.settings.captureSources.find((config) => isInCaptureScope(sourcePath, config));
 	if (sourceConfig) {
-		await plugin.scanEngine.rescanFile(plugin.app, sourceFile, sourceConfig, plugin.settings.tasksFolder);
+		try {
+			await plugin.scanEngine.rescanFile(
+				plugin.app,
+				sourceFile,
+				sourceConfig,
+				plugin.settings.tasksFolder,
+				'user_triggered_single',
+			);
+		} catch (error) {
+			handleScanError(
+				'user_triggered_single',
+				error,
+				{
+					operation: 'promote.rescanFile',
+					filePath: sourcePath,
+					userMessage: 'TTasks: task promoted, but capture refresh failed.',
+				},
+				{
+					log: (message, loggedError) => {
+						plugin.log?.(`${message}: ${loggedError instanceof Error ? loggedError.message : String(loggedError)}`);
+						console.error(message, loggedError);
+					},
+					notice: (message) => {
+						new Notice(message);
+					},
+				},
+			);
+		}
 	}
 
 	return created;

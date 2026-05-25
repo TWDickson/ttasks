@@ -6,6 +6,7 @@ import type { ExternalTask } from './types';
 import { isInCaptureScope, scanFileForCapturableTasks } from './fileScanner';
 import { resolveCaptureSourceFileEntries } from './captureSourceFiles';
 import { VAULT_MODIFY_DEBOUNCE_MS } from '../constants';
+import { handleScanError, type ScanErrorMeta, type ScanFlowContext } from './scanErrorPolicy';
 
 type DailyNotesInterface = {
 	getDateFromFile: (file: TFile, granularity: 'day') => Date | null;
@@ -22,26 +23,62 @@ function loadDailyNotesInterface(): DailyNotesInterface | null {
 
 export class ScanEngine {
 	private store: Writable<ExternalTask[]> = writable([]);
-	private debounceByFilePath = new Map<string, number>();
+	private debounceByFilePath = new Map<string, ReturnType<typeof setTimeout>>();
+	private pendingResolveByFilePath = new Map<string, () => void>();
+	private reportError: (context: ScanFlowContext, error: unknown, meta: ScanErrorMeta) => void;
+
+	constructor(options?: {
+		reportError?: (context: ScanFlowContext, error: unknown, meta: ScanErrorMeta) => void;
+	}) {
+		this.reportError = options?.reportError ?? ((context, error, meta) => {
+			handleScanError(context, error, meta, {
+				log: (message, loggedError) => {
+					console.error(message, loggedError);
+				},
+			});
+		});
+	}
 
 	get tasks(): Readable<ExternalTask[]> {
 		return this.store;
 	}
 
-	onload(plugin: Plugin & { settings: TTasksSettings }, app: App): void {
-		void this.runFullScan(app, plugin.settings);
+	onload(plugin: Plugin & { settings: TTasksSettings; log?: (message: string) => void }, app: App): void {
+		this.reportError = (context, error, meta) => {
+			handleScanError(context, error, meta, {
+				log: (message, loggedError) => {
+					const details = loggedError instanceof Error
+						? `${message}: ${loggedError.message}`
+						: `${message}: ${String(loggedError)}`;
+					if (typeof plugin.log === 'function') {
+						plugin.log(details);
+						if (loggedError != null) {
+							console.error(message, loggedError);
+						}
+						return;
+					}
+					console.error(message, loggedError);
+				},
+			});
+		};
+
+		void this.runFullScan(app, plugin.settings).catch((error) => {
+			this.reportError('background_non_blocking', error, { operation: 'scan.runFullScan' });
+		});
 
 		plugin.registerEvent(app.vault.on('modify', (file) => {
 			if (!(file as TFile).path?.toLowerCase().endsWith('.md')) return;
 			const config = this.findConfig((file as TFile).path, plugin.settings.captureSources);
 			if (!config) return;
-			void this.rescanFile(app, file as TFile, config, plugin.settings.tasksFolder);
+			void this.rescanFile(app, file as TFile, config, plugin.settings.tasksFolder, 'background_non_blocking');
 		}));
 
 		plugin.registerEvent(app.vault.on('create', (file) => {
 			if (!(file as TFile).path?.toLowerCase().endsWith('.md')) return;
 			if (!this.isDailyNoteFile(file as TFile)) return;
-			void this.surfacePreviousDayTasks(app, plugin.settings);
+			void this.surfacePreviousDayTasks(app, plugin.settings).catch((error) => {
+				this.reportError('background_non_blocking', error, { operation: 'scan.surfacePreviousDayTasks' });
+			});
 		}));
 
 		plugin.registerEvent(app.vault.on('delete', (file) => {
@@ -78,19 +115,44 @@ export class ScanEngine {
 		});
 	}
 
-	async rescanFile(app: App, file: TFile, config: CaptureSourceConfig, tasksFolder: string): Promise<void> {
+	async rescanFile(
+		app: App,
+		file: TFile,
+		config: CaptureSourceConfig,
+		tasksFolder: string,
+		flowContext: ScanFlowContext = 'background_non_blocking',
+	): Promise<void> {
 		const existingTimer = this.debounceByFilePath.get(file.path);
 		if (existingTimer != null) {
-			window.clearTimeout(existingTimer);
+			globalThis.clearTimeout(existingTimer);
+			const pendingResolve = this.pendingResolveByFilePath.get(file.path);
+			if (pendingResolve) {
+				pendingResolve();
+				this.pendingResolveByFilePath.delete(file.path);
+			}
 		}
 
-		await new Promise<void>((resolve) => {
-			const timer = window.setTimeout(async () => {
+		await new Promise<void>((resolve, reject) => {
+			this.pendingResolveByFilePath.set(file.path, resolve);
+			const timer = globalThis.setTimeout(async () => {
 				this.debounceByFilePath.delete(file.path);
-				const content = await app.vault.cachedRead(file);
-				const tasks = scanFileForCapturableTasks(content, file.path, config, tasksFolder);
-				this.upsertFileTasks(file.path, tasks);
-				resolve();
+				this.pendingResolveByFilePath.delete(file.path);
+				try {
+					const content = await app.vault.cachedRead(file);
+					const tasks = scanFileForCapturableTasks(content, file.path, config, tasksFolder);
+					this.upsertFileTasks(file.path, tasks);
+					resolve();
+				} catch (error) {
+					if (flowContext === 'background_non_blocking') {
+						this.reportError('background_non_blocking', error, {
+							operation: 'scan.rescanFile',
+							filePath: file.path,
+						});
+						resolve();
+						return;
+					}
+					reject(error);
+				}
 			}, VAULT_MODIFY_DEBOUNCE_MS);
 			this.debounceByFilePath.set(file.path, timer);
 		});
@@ -102,8 +164,15 @@ export class ScanEngine {
 		const nextTasks: ExternalTask[] = [];
 
 		for (const entry of entries) {
-			const content = await app.vault.cachedRead(entry.file);
-			nextTasks.push(...scanFileForCapturableTasks(content, entry.file.path, entry.config, settings.tasksFolder));
+			try {
+				const content = await app.vault.cachedRead(entry.file);
+				nextTasks.push(...scanFileForCapturableTasks(content, entry.file.path, entry.config, settings.tasksFolder));
+			} catch (error) {
+				this.reportError('background_non_blocking', error, {
+					operation: 'scan.runFullScan.entry',
+					filePath: entry.file.path,
+				});
+			}
 		}
 
 		this.store.set(nextTasks);
@@ -133,10 +202,17 @@ export class ScanEngine {
 			return;
 		}
 
-		const content = await app.vault.cachedRead(previousDailyFile);
-		const tasks = scanFileForCapturableTasks(content, previousDailyFile.path, config, settings.tasksFolder)
-			.map((task) => ({ ...task, fromPreviousDay: true }));
-		this.upsertFileTasks(previousDailyFile.path, tasks);
+		try {
+			const content = await app.vault.cachedRead(previousDailyFile);
+			const tasks = scanFileForCapturableTasks(content, previousDailyFile.path, config, settings.tasksFolder)
+				.map((task) => ({ ...task, fromPreviousDay: true }));
+			this.upsertFileTasks(previousDailyFile.path, tasks);
+		} catch (error) {
+			this.reportError('background_non_blocking', error, {
+				operation: 'scan.surfacePreviousDayTasks',
+				filePath: previousDailyFile.path,
+			});
+		}
 	}
 
 	removeTasksForFile(filePath: string): void {
