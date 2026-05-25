@@ -1,6 +1,17 @@
 import { Menu, Notice, Platform, Plugin, TFile } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
-import { type QuickActionId, type TTasksSettings, DEFAULT_SETTINGS, TTasksSettingTab, resolveConfiguredStatus, normalizeSettingsFromSources } from './settings';
+import {
+	type QuickActionId,
+	type TTasksSettings,
+	DEFAULT_SETTINGS,
+	TTasksSettingTab,
+	resolveConfiguredStatus,
+	normalizeSettingsFromSources,
+} from './settings';
+import {
+	buildAutoDetectedSources,
+	mergeAutoDetectedSources,
+} from './settings/captureSourcesSettings';
 import { TaskStore } from './store/TaskStore';
 import { TaskBoardView, TASK_BOARD_VIEW_TYPE } from './views/TaskBoardView';
 import { CreateTaskModal } from './modals/CreateTaskModal';
@@ -183,6 +194,12 @@ export default class TTasksPlugin extends Plugin {
 	async loadSettings() {
 		const persisted = await this.loadData();
 		this.settings = normalizeSettingsFromSources([DEFAULT_SETTINGS, persisted]);
+		const detectedSources = buildAutoDetectedSources(this.app);
+		const mergedSources = mergeAutoDetectedSources(this.settings.captureSources, detectedSources);
+		if (JSON.stringify(mergedSources) !== JSON.stringify(this.settings.captureSources)) {
+			this.settings.captureSources = mergedSources;
+			await this.saveData(this.settings);
+		}
 	}
 
 	async saveSettings() {

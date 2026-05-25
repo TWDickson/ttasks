@@ -1,9 +1,27 @@
 ﻿import type { QuerySpec } from '../query/types';
+import type { Task } from '../types';
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
 export type TaskViewRenderer = 'list' | 'kanban' | 'agenda' | 'graph' | 'archive';
 export type LogbookRendererMode = 'list' | 'kanban';
 export type OverviewGraphGrouping = 'project' | 'dependency' | 'none';
+
+export interface CaptureSourceDefaults {
+	area: string | null;
+	labels: string[];
+	status: string | null;
+	priority: Task['priority'] | null;
+	assignedTo: string | null;
+}
+
+export interface CaptureSourceConfig {
+	path: string;
+	includeSubdirectories: boolean;
+	mode: 'auto-capture' | 'manual' | 'auto-promote';
+	sectionFilter: string;
+	inheritDateFromFilename: boolean;
+	defaults: CaptureSourceDefaults;
+}
 
 export interface TaskViewPresentation {
 	hierarchy: 'flat' | 'tree';
@@ -69,6 +87,9 @@ export interface ArchiveSettings {
 export interface TTasksSettings {
 	tasksFolder: string;
 	editorSuggestTrigger: string;
+	captureSources: CaptureSourceConfig[];
+	captureSourceDefaultMode: CaptureSourceConfig['mode'];
+	captureSourceDefaultDefaults: CaptureSourceDefaults;
 	fabPosition: FabPosition;
 	logbookRendererMode: LogbookRendererMode;
 	overviewGraphGrouping: OverviewGraphGrouping;

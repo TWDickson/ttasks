@@ -7,6 +7,7 @@ import {
 	normalizeEditorSuggestTrigger,
 } from './defaults';
 import { renderArchiveSettingsSection } from './archiveSettingsSection';
+import { renderCaptureSourcesSettingsSection } from './captureSourcesSettingsSection';
 import { renderKanbanSettingsSection } from './kanbanSettingsSection';
 import {
 	renderManagedListSettingSection,
@@ -199,6 +200,12 @@ export class TTasksSettingTab extends PluginSettingTab {
 		});
 
 		renderViewsSettingsSection({
+			containerEl,
+			plugin: this.plugin,
+			app: this.app,
+			rerender: () => this.display(),
+		});
+		renderCaptureSourcesSettingsSection({
 			containerEl,
 			plugin: this.plugin,
 			app: this.app,

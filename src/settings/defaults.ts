@@ -7,6 +7,8 @@
 	QuickActionsSettings,
 	RemindersSettings,
 	ArchiveSettings,
+	CaptureSourceDefaults,
+	CaptureSourceConfig,
 } from './types';
 import type {
 	FilterCondition,
@@ -35,9 +37,28 @@ export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
 	quietEnd: 8,
 };
 
+export const DEFAULT_CAPTURE_SOURCE_DEFAULTS: CaptureSourceDefaults = {
+	area: null,
+	labels: [],
+	status: null,
+	priority: null,
+	assignedTo: null,
+};
+
+export const DEFAULT_CAPTURE_SOURCE_CONFIG: Omit<CaptureSourceConfig, 'path'> = {
+	includeSubdirectories: true,
+	mode: 'auto-capture',
+	sectionFilter: '',
+	inheritDateFromFilename: true,
+	defaults: DEFAULT_CAPTURE_SOURCE_DEFAULTS,
+};
+
 export const DEFAULT_SETTINGS: TTasksSettings = {
 	tasksFolder: 'Tasks',
 	editorSuggestTrigger: '@task',
+	captureSources: [],
+	captureSourceDefaultMode: 'auto-capture',
+	captureSourceDefaultDefaults: DEFAULT_CAPTURE_SOURCE_DEFAULTS,
 	fabPosition: 'right',
 	logbookRendererMode: 'list',
 	overviewGraphGrouping: 'project',
@@ -135,6 +156,16 @@ function asString(value: unknown): string | null {
 	return typeof value === 'string' ? value : null;
 }
 
+function asArray(value: unknown): unknown[] {
+	return Array.isArray(value) ? value : [];
+}
+
+function asOneOf<T extends string>(value: unknown, options: readonly T[], fallback: T): T {
+	return typeof value === 'string' && options.includes(value as T)
+		? (value as T)
+		: fallback;
+}
+
 function asInteger(value: unknown): number | null {
 	if (typeof value !== 'number' || !Number.isFinite(value)) return null;
 	return Math.round(value);
@@ -150,6 +181,28 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 	return {
 		tasksFolder: settings.tasksFolder,
 		editorSuggestTrigger: settings.editorSuggestTrigger,
+		captureSources: settings.captureSources.map((source) => ({
+			path: source.path,
+			includeSubdirectories: source.includeSubdirectories,
+			mode: source.mode,
+			sectionFilter: source.sectionFilter,
+			inheritDateFromFilename: source.inheritDateFromFilename,
+			defaults: {
+				area: source.defaults.area,
+				labels: [...source.defaults.labels],
+				status: source.defaults.status,
+				priority: source.defaults.priority,
+				assignedTo: source.defaults.assignedTo,
+			},
+		})),
+		captureSourceDefaultMode: settings.captureSourceDefaultMode,
+		captureSourceDefaultDefaults: {
+			area: settings.captureSourceDefaultDefaults.area,
+			labels: [...settings.captureSourceDefaultDefaults.labels],
+			status: settings.captureSourceDefaultDefaults.status,
+			priority: settings.captureSourceDefaultDefaults.priority,
+			assignedTo: settings.captureSourceDefaultDefaults.assignedTo,
+		},
 		fabPosition: settings.fabPosition,
 		logbookRendererMode: settings.logbookRendererMode,
 		overviewGraphGrouping: settings.overviewGraphGrouping,
@@ -186,6 +239,57 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		},
 		kanbanCardFields: settings.kanbanCardFields ?? [...DEFAULT_SETTINGS.kanbanCardFields],
 		kanbanCollapsedColumns: settings.kanbanCollapsedColumns ?? [...DEFAULT_SETTINGS.kanbanCollapsedColumns],
+	};
+}
+
+function normalizePathValue(value: unknown): string {
+	return (asString(value) ?? '').replace(/\\/g, '/').trim().replace(/^\/+|\/+$/g, '');
+}
+
+function normalizePriorityValue(value: unknown): CaptureSourceDefaults['priority'] {
+	const parsed = asString(value);
+	if (parsed === 'High' || parsed === 'Medium' || parsed === 'Low' || parsed === 'None') {
+		return parsed;
+	}
+	return null;
+}
+
+export function normalizeCaptureSourceDefaults(raw: unknown): CaptureSourceDefaults {
+	const root = asRecord(raw);
+	if (!root) {
+		return {
+			...DEFAULT_CAPTURE_SOURCE_DEFAULTS,
+			labels: [...DEFAULT_CAPTURE_SOURCE_DEFAULTS.labels],
+		};
+	}
+
+	const labels = asStringArray(root.labels)
+		?.map((label) => label.trim())
+		.filter(Boolean) ?? [];
+
+	return {
+		area: asString(root.area)?.trim() || null,
+		labels: [...new Set(labels)],
+		status: asString(root.status)?.trim() || null,
+		priority: normalizePriorityValue(root.priority),
+		assignedTo: asString(root.assignedTo)?.trim() || null,
+	};
+}
+
+export function normalizeCaptureSource(raw: unknown): CaptureSourceConfig {
+	const root = asRecord(raw);
+
+	return {
+		path: normalizePathValue(root?.path),
+		includeSubdirectories: asBoolean(root?.includeSubdirectories) ?? DEFAULT_CAPTURE_SOURCE_CONFIG.includeSubdirectories,
+		mode: asOneOf(
+			root?.mode,
+			['auto-capture', 'manual', 'auto-promote'],
+			DEFAULT_CAPTURE_SOURCE_CONFIG.mode,
+		),
+		sectionFilter: (asString(root?.sectionFilter) ?? DEFAULT_CAPTURE_SOURCE_CONFIG.sectionFilter).trim(),
+		inheritDateFromFilename: asBoolean(root?.inheritDateFromFilename) ?? DEFAULT_CAPTURE_SOURCE_CONFIG.inheritDateFromFilename,
+		defaults: normalizeCaptureSourceDefaults(root?.defaults),
 	};
 }
 
@@ -400,6 +504,25 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 	const editorSuggestTrigger = asString(root.editorSuggestTrigger);
 	if (editorSuggestTrigger !== null) target.editorSuggestTrigger = editorSuggestTrigger;
 
+	const captureSources = asArray(root.captureSources)
+		.map((entry) => normalizeCaptureSource(entry))
+		.filter((entry) => !!entry.path);
+	if (root.captureSources !== undefined) {
+		target.captureSources = captureSources;
+	}
+
+	if (root.captureSourceDefaultMode !== undefined) {
+		target.captureSourceDefaultMode = asOneOf(
+			root.captureSourceDefaultMode,
+			['auto-capture', 'manual', 'auto-promote'],
+			DEFAULT_CAPTURE_SOURCE_CONFIG.mode,
+		);
+	}
+
+	if (root.captureSourceDefaultDefaults !== undefined) {
+		target.captureSourceDefaultDefaults = normalizeCaptureSourceDefaults(root.captureSourceDefaultDefaults);
+	}
+
 	const fabPosition = asString(root.fabPosition);
 	if (fabPosition === 'right' || fabPosition === 'left' || fabPosition === 'hidden') {
 		target.fabPosition = fabPosition;
@@ -532,6 +655,15 @@ export function normalizeSettingsFromSources(sources: unknown[]): TTasksSettings
 
 	merged.tasksFolder = merged.tasksFolder.trim() || DEFAULT_SETTINGS.tasksFolder;
 	merged.editorSuggestTrigger = normalizeEditorSuggestTrigger(merged.editorSuggestTrigger);
+	merged.captureSources = merged.captureSources
+		.map((source) => normalizeCaptureSource(source))
+		.filter((source) => !!source.path);
+	merged.captureSourceDefaultMode = asOneOf(
+		merged.captureSourceDefaultMode,
+		['auto-capture', 'manual', 'auto-promote'],
+		DEFAULT_CAPTURE_SOURCE_CONFIG.mode,
+	);
+	merged.captureSourceDefaultDefaults = normalizeCaptureSourceDefaults(merged.captureSourceDefaultDefaults);
 	merged.statuses = normalizeStatuses(merged.statuses);
 	merged.completionStatus = resolveCompletionStatus(merged.statuses, merged.completionStatus);
 	merged.quickActions.startStatus = resolveConfiguredStatus(merged.statuses, merged.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus);
