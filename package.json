@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:board": "vitest run src/integration/boardFocus.test.ts src/integration/boardKeymap.test.ts src/integration/boardViewBehavior.test.ts",
     "test:reminders": "vitest run src/store/reminderSnooze.test.ts src/store/ReminderService.test.ts",
-    "test:components": "vitest run --config vitest.components.config.ts"
+    "test:components": "vitest run --config vitest.components.config.mts"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.1.2",
@@ -31,6 +31,6 @@
     "svelte-preprocess": "^6.0.3",
     "tslib": "^2.6.3",
     "typescript": "^5.5.4",
-    "vitest": "^4.1.2"
+    "vitest": "^3.2.4"
   }
 }
