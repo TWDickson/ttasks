@@ -30,7 +30,7 @@ describe('runBatchComplete', () => {
 
 describe('runBatchArchive', () => {
 	it('archives each selected task and clears selection', async () => {
-		const archiveTask = vi.fn(async (_path: string) => {});
+		const archiveTask = vi.fn(async (_path: string) => true);
 		const clearSelection = vi.fn(() => new Set<string>());
 		const selectedPaths = makeSet(['Tasks/a.md', 'Tasks/b.md']);
 

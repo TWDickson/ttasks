@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { writable } from 'svelte/store';
+import { TFile } from 'obsidian';
 import { ArchiveService } from './ArchiveService';
 import type { Task } from '../types';
 import type TTasksPlugin from '../main';
@@ -53,6 +54,8 @@ function makePlugin(tasks: Task[]): TTasksPlugin {
 		app: {
 			vault: {
 				getAbstractFileByPath: vi.fn(() => null),
+				read: vi.fn(async () => '---\nname: Task\n---\n'),
+				createFolder: vi.fn(async () => {}),
 			},
 			fileManager: {
 				renameFile: vi.fn(),
@@ -64,12 +67,21 @@ function makePlugin(tasks: Task[]): TTasksPlugin {
 	} as unknown as TTasksPlugin;
 }
 
+function makeFile(path: string, name: string): TFile {
+	const file = Object.create(TFile.prototype) as TFile & { path: string; name: string; extension: string; basename: string };
+	file.path = path;
+	file.name = name;
+	file.extension = 'md';
+	file.basename = name.replace(/\.md$/, '');
+	return file;
+}
+
 describe('ArchiveService.archiveEligibleTasks', () => {
 	it('returns 0 when no tasks are eligible', async () => {
 		const tasks = [
 			makeTask({ path: 'Planner/Tasks/abc-recent.md', completed: '2026-05-19', is_complete: true }),
 		];
-		const archiveSpy = vi.fn(async () => {});
+		const archiveSpy = vi.fn(async () => true);
 		const plugin = makePlugin(tasks);
 		const service = new ArchiveService(plugin);
 		vi.spyOn(service, 'archiveTask').mockImplementation(archiveSpy);
@@ -84,7 +96,7 @@ describe('ArchiveService.archiveEligibleTasks', () => {
 			makeTask({ path: 'Planner/Tasks/old-task.md', completed: '2026-01-01', is_complete: true }),
 			makeTask({ path: 'Planner/Tasks/new-task.md', completed: '2026-05-19', is_complete: true }),
 		];
-		const archiveSpy = vi.fn(async () => {});
+		const archiveSpy = vi.fn(async () => true);
 		const plugin = makePlugin(tasks);
 		const service = new ArchiveService(plugin);
 		vi.spyOn(service, 'archiveTask').mockImplementation(archiveSpy);
@@ -98,7 +110,7 @@ describe('ArchiveService.archiveEligibleTasks', () => {
 		const tasks = [
 			makeTask({ path: 'Planner/Tasks/active.md', is_complete: false, completed: null, status: 'Active' }),
 		];
-		const archiveSpy = vi.fn(async () => {});
+		const archiveSpy = vi.fn(async () => true);
 		const plugin = makePlugin(tasks);
 		const service = new ArchiveService(plugin);
 		vi.spyOn(service, 'archiveTask').mockImplementation(archiveSpy);
@@ -112,13 +124,26 @@ describe('ArchiveService.archiveEligibleTasks', () => {
 			makeTask({ path: 'Planner/Tasks/t1.md', completed: '2026-05-20', is_complete: true }),
 			makeTask({ path: 'Planner/Tasks/t2.md', completed: '2026-05-20', is_complete: true }),
 		];
-		const archiveSpy = vi.fn(async () => {});
+		const archiveSpy = vi.fn(async () => true);
 		const plugin = makePlugin(tasks);
 		const service = new ArchiveService(plugin);
 		vi.spyOn(service, 'archiveTask').mockImplementation(archiveSpy);
 
 		const count = await service.archiveEligibleTasks(0);
 		expect(count).toBe(2);
+	});
+
+	it('does not count failed archives', async () => {
+		const tasks = [
+			makeTask({ path: 'Planner/Tasks/fail.md', completed: '2026-05-20', is_complete: true }),
+		];
+		const archiveSpy = vi.fn(async () => false);
+		const plugin = makePlugin(tasks);
+		const service = new ArchiveService(plugin);
+		vi.spyOn(service, 'archiveTask').mockImplementation(archiveSpy);
+
+		const count = await service.archiveEligibleTasks(0);
+		expect(count).toBe(0);
 	});
 });
 
@@ -133,5 +158,21 @@ describe('ArchiveService.isArchived', () => {
 		const plugin = makePlugin([]);
 		const service = new ArchiveService(plugin);
 		expect(service.isArchived('Planner/Tasks/abc-task.md')).toBe(false);
+	});
+});
+
+describe('ArchiveService.archiveTask', () => {
+	it('does not attempt logbook write when file move fails', async () => {
+		const plugin = makePlugin([]);
+		const file = makeFile('Planner/Tasks/a-task.md', 'a-task.md');
+		(plugin.app.vault.getAbstractFileByPath as any).mockReturnValue(file);
+		(plugin.app.fileManager.renameFile as any).mockRejectedValue(new Error('locked'));
+		const service = new ArchiveService(plugin);
+		vi.spyOn(service as any, 'ensureFolder').mockResolvedValue(undefined);
+		const logSpy = vi.spyOn(service as any, 'logArchiveAction').mockResolvedValue(undefined);
+
+		const result = await service.archiveTask('Planner/Tasks/a-task.md');
+		expect(result).toBe(false);
+		expect(logSpy).not.toHaveBeenCalled();
 	});
 });

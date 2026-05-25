@@ -129,7 +129,7 @@ describe('runDeleteFlow', () => {
 
 describe('runArchiveFlow', () => {
 	it('archives completed tasks and clears active path', async () => {
-		const archiveTask = vi.fn(async (_path: string) => {});
+		const archiveTask = vi.fn(async (_path: string) => true);
 		const setActiveTaskPath = vi.fn();
 
 		await runArchiveFlow({
@@ -143,7 +143,7 @@ describe('runArchiveFlow', () => {
 	});
 
 	it('skips archive for incomplete tasks', async () => {
-		const archiveTask = vi.fn(async (_path: string) => {});
+		const archiveTask = vi.fn(async (_path: string) => true);
 		const setActiveTaskPath = vi.fn();
 
 		await runArchiveFlow({

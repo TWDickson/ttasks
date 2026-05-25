@@ -43,7 +43,7 @@ function makePorts(overrides: Partial<TaskActionPorts> = {}): TaskActionPorts {
 		duplicateTask: vi.fn(async (_path: string) => null),
 		deleteTask: vi.fn(async (_path: string, _options?: { prompt?: boolean }) => {}),
 		restoreTask: vi.fn(async (_path: string) => {}),
-		archiveTask: vi.fn(async (_path: string) => {}),
+		archiveTask: vi.fn(async (_path: string) => true),
 		setActiveTaskPath: vi.fn((_path: string | null) => {}),
 		notice: vi.fn((_message: string) => {}),
 		createDependentTask: vi.fn((_path: string) => {}),
@@ -53,7 +53,7 @@ function makePorts(overrides: Partial<TaskActionPorts> = {}): TaskActionPorts {
 
 describe('runArchiveAndClear', () => {
 	it('archives and clears active task path', async () => {
-		const archiveTask = vi.fn(async (_path: string) => {});
+		const archiveTask = vi.fn(async (_path: string) => true);
 		const setActiveTaskPath = vi.fn((_path: string | null) => {});
 
 		await runArchiveAndClear('Tasks/a.md', { archiveTask, setActiveTaskPath });

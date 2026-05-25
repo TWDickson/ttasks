@@ -17,7 +17,7 @@ export async function runBatchComplete(deps: BatchCompleteDeps): Promise<Set<str
 
 export interface BatchArchiveDeps {
 	selectedPaths: Set<string>;
-	archiveTask: (path: string) => Promise<void>;
+	archiveTask: (path: string) => Promise<boolean>;
 	clearSelection: () => Set<string>;
 }
 

@@ -3,6 +3,7 @@ import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import { localDateString } from '../utils/dateUtils';
 import { archiveEligible, deriveArchiveFolder, getArchivePath, isArchivedPath } from './archiveUtils';
+import { safeRead } from '../utils/vaultSafe';
 
 export interface ArchivedTaskSummary {
 	path: string;
@@ -33,18 +34,46 @@ export class ArchiveService {
 
 	// ── Archive ──────────────────────────────────────────────────────────────
 
-	async archiveTask(path: string, reason: string = 'manual'): Promise<void> {
+	async archiveTask(path: string, reason: string = 'manual'): Promise<boolean> {
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
-		if (!(file instanceof TFile)) return;
+		if (!(file instanceof TFile)) {
+			new Notice('Archive failed: task file not found.');
+			return false;
+		}
+
+		const readResult = await safeRead(this.app.vault, file);
+		if (!readResult.ok) {
+			new Notice('Archive failed: could not read task file.');
+			return false;
+		}
 
 		const archivePath = normalizePath(getArchivePath(this.archiveFolder, file.name));
 		const archiveDir = archivePath.substring(0, archivePath.lastIndexOf('/'));
 
-		await this.ensureFolder(archiveDir);
-		await this.app.fileManager.renameFile(file, archivePath);
-		await this.logArchiveAction(archivePath, 'archived', reason);
+		try {
+			await this.ensureFolder(archiveDir);
+		} catch (error) {
+			this.plugin.log(`archive ensureFolder failed: ${String(error)}`);
+			new Notice('Archive failed: could not create archive folder.');
+			return false;
+		}
+
+		try {
+			await this.app.fileManager.renameFile(file, archivePath);
+		} catch (error) {
+			this.plugin.log(`archive move failed: ${String(error)}`);
+			new Notice('Archive failed: could not move task file.');
+			return false;
+		}
+
+		try {
+			await this.logArchiveAction(archivePath, 'archived', reason);
+		} catch (error) {
+			console.warn('TTasks archive logbook write failed — task archived but history not recorded.', error);
+		}
 
 		this.plugin.log(`Archived: ${path} → ${archivePath}`);
+		return true;
 	}
 
 	async archiveEligibleTasks(thresholdDays: number): Promise<number> {
@@ -54,8 +83,9 @@ export class ArchiveService {
 
 		let count = 0;
 		for (const task of eligible) {
-			await this.archiveTask(task.path, 'auto-scheduled');
-			count++;
+			if (await this.archiveTask(task.path, 'auto-scheduled')) {
+				count++;
+			}
 		}
 
 		if (count > 0) {
@@ -109,8 +139,9 @@ export class ArchiveService {
 
 		let count = 0;
 		for (const task of completed) {
-			await this.archiveTask(task.path, 'migration');
-			count++;
+			if (await this.archiveTask(task.path, 'migration')) {
+				count++;
+			}
 		}
 		return count;
 	}
@@ -125,7 +156,13 @@ export class ArchiveService {
 		if (!(file instanceof TFile)) return;
 
 		const destPath = normalizePath(`${this.tasksFolder}/${file.name}`);
-		await this.app.fileManager.renameFile(file, destPath);
+		try {
+			await this.app.fileManager.renameFile(file, destPath);
+		} catch (error) {
+			this.plugin.log(`restore move failed: ${String(error)}`);
+			new Notice('Restore failed: could not move archived task.');
+			return;
+		}
 
 		// Reset status to Active after restore
 		const movedFile = this.app.vault.getAbstractFileByPath(destPath);
@@ -137,7 +174,11 @@ export class ArchiveService {
 			});
 		}
 
-		await this.logArchiveAction(destPath, 'restored', 'user');
+		try {
+			await this.logArchiveAction(destPath, 'restored', 'user');
+		} catch (error) {
+			console.warn('TTasks restore logbook write failed — task restored but history not recorded.', error);
+		}
 		this.plugin.log(`Restored: ${path} → ${destPath}`);
 	}
 

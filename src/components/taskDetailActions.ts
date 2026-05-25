@@ -41,7 +41,7 @@ export async function runDeleteFlow(deps: DeleteFlowDeps): Promise<void> {
 
 export interface ArchiveFlowDeps {
 	task: Task;
-	archiveTask: (taskPath: string) => Promise<void>;
+	archiveTask: (taskPath: string) => Promise<boolean>;
 	setActiveTaskPath: (path: string | null) => void;
 }
 

@@ -9,20 +9,23 @@ export interface TaskActionPorts {
 	duplicateTask: (path: string) => Promise<Task | null>;
 	deleteTask: (path: string, options?: { prompt?: boolean }) => Promise<void>;
 	restoreTask: (path: string) => Promise<void>;
-	archiveTask: (path: string) => Promise<void>;
+	archiveTask: (path: string) => Promise<boolean>;
 	setActiveTaskPath: (path: string | null) => void;
 	notice: (message: string) => void;
 	createDependentTask?: (path: string) => void;
 }
 
 export interface ArchiveActionPorts {
-	archiveTask: (path: string) => Promise<void>;
+	archiveTask: (path: string) => Promise<boolean>;
 	setActiveTaskPath: (path: string | null) => void;
 }
 
-export async function runArchiveAndClear(path: string, ports: ArchiveActionPorts): Promise<void> {
-	await ports.archiveTask(path);
-	ports.setActiveTaskPath(null);
+export async function runArchiveAndClear(path: string, ports: ArchiveActionPorts): Promise<boolean> {
+	const archived = await ports.archiveTask(path);
+	if (archived) {
+		ports.setActiveTaskPath(null);
+	}
+	return archived;
 }
 
 export function createTaskContextMenuDeps(ports: TaskActionPorts): TaskContextMenuDeps {
@@ -50,11 +53,13 @@ export function createTaskContextMenuDeps(ports: TaskActionPorts): TaskContextMe
 			}
 			: undefined,
 		archiveTask: async (path) => {
-			await runArchiveAndClear(path, {
+			const archived = await runArchiveAndClear(path, {
 				archiveTask: ports.archiveTask,
 				setActiveTaskPath: ports.setActiveTaskPath,
 			});
-			ports.notice('TTasks: task archived.');
+			if (archived) {
+				ports.notice('TTasks: task archived.');
+			}
 		},
 	};
 }

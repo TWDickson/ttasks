@@ -73,11 +73,21 @@ export class TaskWriter {
 		};
 
 		const body = full.notes?.trim() ? '\n\n' + full.notes.trim() : '';
-		await this.app.vault.create(filePath, this.buildFrontmatter(full) + body + '\n');
+		try {
+			await this.app.vault.create(filePath, this.buildFrontmatter(full) + body + '\n');
+		} catch (error) {
+			this.plugin.log(`create failed for ${filePath}: ${String(error)}`);
+			new Notice('TTasks: failed to create task file. Check vault permissions or disk space.');
+			throw error;
+		}
 
 		// Sync blocks on depends_on targets
 		for (const depPath of sanitizedDependsOn) {
-			await this.addToBlocks(depPath, filePath, input.name);
+			try {
+				await this.addToBlocks(depPath, filePath, input.name);
+			} catch (error) {
+				this.plugin.log(`addToBlocks failed for dependency ${depPath}: ${String(error)}`);
+			}
 		}
 
 		return full;
@@ -89,35 +99,45 @@ export class TaskWriter {
 		if (!(file instanceof TFile)) return;
 		const currentTask = get(this.tasks).find((task) => task.path === normalizedPath) ?? null;
 
-		await this.app.fileManager.processFrontMatter(file, (fm) => {
-			const fields: (keyof Task)[] = [
-				'name', 'status', 'priority', 'area', 'labels',
-				'blocked_reason', 'assigned_to', 'source', 'due_time',
-				'start_date', 'due_date', 'estimated_days', 'completed',
-				'workweek_only', 'holiday_dates',
-				'recurrence', 'recurrence_type', 'reminder_override',
-			];
-			for (const key of fields) {
-				if (key in updates) fm[key] = (updates as Record<string, unknown>)[key] ?? null;
-			}
+		try {
+			await this.app.fileManager.processFrontMatter(file, (fm) => {
+				const fields: (keyof Task)[] = [
+					'name', 'status', 'priority', 'area', 'labels',
+					'blocked_reason', 'assigned_to', 'source', 'due_time',
+					'start_date', 'due_date', 'estimated_days', 'completed',
+					'workweek_only', 'holiday_dates',
+					'recurrence', 'recurrence_type', 'reminder_override',
+				];
+				for (const key of fields) {
+					if (key in updates) fm[key] = (updates as Record<string, unknown>)[key] ?? null;
+				}
 
-			// Write status_changed whenever status actually transitions
-			const today = localDateString();
-			const changed = computeStatusChanged(
-				typeof fm.status === 'string' ? fm.status : undefined,
-				updates.status,
-				today,
-			);
-			if (changed !== undefined) fm.status_changed = changed;
-		});
+				// Write status_changed whenever status actually transitions
+				const today = localDateString();
+				const changed = computeStatusChanged(
+					typeof fm.status === 'string' ? fm.status : undefined,
+					updates.status,
+					today,
+				);
+				if (changed !== undefined) fm.status_changed = changed;
+			});
+		} catch (error) {
+			this.plugin.log(`update failed for ${normalizedPath}: ${String(error)}`);
+			new Notice('TTasks: failed to update task file. Check vault permissions or disk space.');
+			return;
+		}
 
 		if (currentTask && typeof updates.status === 'string') {
 			const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
-			await syncCompletionToSource(
-				{ ...currentTask, status: updates.status },
-				this.app,
-				completionStatus,
-			);
+			try {
+				await syncCompletionToSource(
+					{ ...currentTask, status: updates.status },
+					this.app,
+					completionStatus,
+				);
+			} catch (error) {
+				this.plugin.log(`syncCompletionToSource failed for ${normalizedPath}: ${String(error)}`);
+			}
 		}
 	}
 

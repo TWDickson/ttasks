@@ -110,24 +110,29 @@ export class TaskRelationships {
 			const raw = JSON.stringify(fm);
 			if (!raw.includes(oldClean)) continue;
 
-			await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-				const rewriteLink = (val: unknown): unknown => {
-					if (typeof val !== 'string') return val;
-					return rewriteWikiLinkValue(val, linkRegex, newClean);
-				};
+			try {
+				await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+					const rewriteLink = (val: unknown): unknown => {
+						if (typeof val !== 'string') return val;
+						return rewriteWikiLinkValue(val, linkRegex, newClean);
+					};
 
-				for (const key of ['parent_task', 'blocked_reason']) {
-					if (typeof frontmatter[key] === 'string' && frontmatter[key].includes(oldClean)) {
-						frontmatter[key] = rewriteLink(frontmatter[key]);
+					for (const key of ['parent_task', 'blocked_reason']) {
+						if (typeof frontmatter[key] === 'string' && frontmatter[key].includes(oldClean)) {
+							frontmatter[key] = rewriteLink(frontmatter[key]);
+						}
 					}
-				}
 
-				for (const key of ['depends_on', 'blocks']) {
-					if (Array.isArray(frontmatter[key])) {
-						frontmatter[key] = frontmatter[key].map((v: unknown) => rewriteLink(v));
+					for (const key of ['depends_on', 'blocks']) {
+						if (Array.isArray(frontmatter[key])) {
+							frontmatter[key] = frontmatter[key].map((v: unknown) => rewriteLink(v));
+						}
 					}
-				}
-			});
+				});
+			} catch (error) {
+				this.plugin.log(`Failed to rewrite relationships in ${file.path}: ${String(error)}`);
+				continue;
+			}
 		}
 
 		this.plugin.log(`Rewrote relationship references: ${oldClean} → ${newClean}`);
@@ -152,26 +157,31 @@ export class TaskRelationships {
 			if (!raw.includes(deletedClean)) continue;
 
 			let changed = false;
-			await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-				const currentParent = parseWikiLink(frontmatter.parent_task);
-				if (currentParent === deletedClean) {
-					frontmatter.parent_task = null;
-					changed = true;
-				}
-
-				for (const key of ['depends_on', 'blocks']) {
-					if (!Array.isArray(frontmatter[key])) continue;
-					const next = filterOutDeletedPath(
-						frontmatter[key] as unknown[],
-						deletedClean,
-						parseWikiLink
-					);
-					if (next.length !== (frontmatter[key] as unknown[]).length) {
-						frontmatter[key] = next;
+			try {
+				await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+					const currentParent = parseWikiLink(frontmatter.parent_task);
+					if (currentParent === deletedClean) {
+						frontmatter.parent_task = null;
 						changed = true;
 					}
-				}
-			});
+
+					for (const key of ['depends_on', 'blocks']) {
+						if (!Array.isArray(frontmatter[key])) continue;
+						const next = filterOutDeletedPath(
+							frontmatter[key] as unknown[],
+							deletedClean,
+							parseWikiLink
+						);
+						if (next.length !== (frontmatter[key] as unknown[]).length) {
+							frontmatter[key] = next;
+							changed = true;
+						}
+					}
+				});
+			} catch (error) {
+				this.plugin.log(`Failed to remove relationships in ${file.path}: ${String(error)}`);
+				continue;
+			}
 
 			if (changed) touched += 1;
 		}
