@@ -1,7 +1,7 @@
 import type { Task } from '../../types';
 import { ensureMdExt } from '../../utils/pathUtils';
 import { parseWikiLink } from '../../utils/wikiLink';
-import { optimizeLaneOrderForCrossings } from './graphCrossingOptimizer';
+import { optimizeLaneOrderForCrossings, optimizeLaneBandOrder } from './graphCrossingOptimizer';
 import { resolveTaskDates } from './taskGraphDates';
 
 export interface TaskGraphNode {
@@ -158,6 +158,125 @@ const DEFAULT_HORIZONTAL_GAP = 88;
 const DEFAULT_VERTICAL_GAP = 28;
 const DEFAULT_PADDING = 28;
 
+/**
+ * Pack lane nodes into rows with branch-aware verticality.
+ *
+ * Columns are processed left→right so a node's same-lane predecessors are
+ * always placed first. Row assignment follows a spine-and-fork rule:
+ *  - A node with no same-lane predecessors (a root / independent start) claims
+ *    its own fresh row, so parallel starts separate vertically.
+ *  - The FIRST child of a predecessor inherits that predecessor's row, keeping
+ *    a linear chain flat (the spine).
+ *  - Each ADDITIONAL child of the same predecessor forks down to a fresh row,
+ *    making fan-outs visible.
+ *  - A node with several same-lane predecessors (a merge) centers between them.
+ * Cross-lane dependencies are ignored here, so they remain diagonal connectors
+ * rather than pulling a node out of its swim lane.
+ */
+function packLaneNodeRows(
+	laneNodes: TaskGraphNode[],
+	startRow: number,
+	edges: TaskGraphEdge[],
+	allNodesByPath: Map<string, TaskGraphNode>,
+	temporalKeyByPath: Map<string, number>,
+	nodeHeight: number,
+	verticalGap: number,
+	padding: number,
+): number {
+	if (laneNodes.length === 0) return startRow;
+	const laneKey = laneNodes[0].laneKey;
+
+	const incomingByPath = new Map<string, string[]>();
+	for (const edge of edges) {
+		if (edge.isParentEdge) continue;
+		const list = incomingByPath.get(edge.to) ?? [];
+		list.push(edge.from);
+		incomingByPath.set(edge.to, list);
+	}
+
+	const byColumn = new Map<number, TaskGraphNode[]>();
+	for (const node of laneNodes) {
+		const list = byColumn.get(node.column) ?? [];
+		list.push(node);
+		byColumn.set(node.column, list);
+	}
+
+	const sortedCols = [...byColumn.keys()].sort((a, b) => a - b);
+	const occupiedByColumn = new Map<number, Set<number>>();
+	const placed = new Set<string>();
+	const childCount = new Map<string, number>();
+	let nextFreshRow = startRow;
+
+	const sameLanePreds = (node: TaskGraphNode): TaskGraphNode[] =>
+		(incomingByPath.get(node.path) ?? [])
+			.map((p) => allNodesByPath.get(p))
+			.filter((p): p is TaskGraphNode => !!p && p.laneKey === laneKey && placed.has(p.path));
+
+	const prelimIdeal = (node: TaskGraphNode): number => {
+		const preds = sameLanePreds(node);
+		if (preds.length === 0) return nextFreshRow;
+		return preds.reduce((s, p) => s + p.row, 0) / preds.length;
+	};
+
+	const temporalKey = (node: TaskGraphNode): number =>
+		temporalKeyByPath.get(node.path) ?? Number.POSITIVE_INFINITY;
+
+	for (const col of sortedCols) {
+		const colNodes = byColumn.get(col)!;
+
+		// Sort by predecessor average so the column lays out top-to-bottom in the
+		// order its predecessors appear; break ties by date so same-depth nodes
+		// (e.g. the roots in column 0) stack earliest-first, top to bottom.
+		const sorted = [...colNodes].sort((a, b) =>
+			prelimIdeal(a) - prelimIdeal(b)
+			|| temporalKey(a) - temporalKey(b)
+			|| a.path.localeCompare(b.path));
+
+		const colOccupied = occupiedByColumn.get(col) ?? new Set<number>();
+		for (const node of sorted) {
+			const preds = sameLanePreds(node);
+
+			let ideal: number;
+			if (preds.length === 0) {
+				// Root / independent start: own fresh row.
+				ideal = nextFreshRow;
+			} else if (preds.length > 1) {
+				// Merge: center between predecessors.
+				ideal = Math.round(preds.reduce((s, p) => s + p.row, 0) / preds.length);
+			} else {
+				const parent = preds[0];
+				const seen = childCount.get(parent.path) ?? 0;
+				// First child continues the spine; later children fork to a fresh row.
+				ideal = seen === 0 ? parent.row : nextFreshRow;
+			}
+			for (const p of preds) {
+				childCount.set(p.path, (childCount.get(p.path) ?? 0) + 1);
+			}
+
+			const row = findNearestFreeRow(Math.max(startRow, ideal), startRow, colOccupied);
+			node.row = row;
+			node.y = padding + row * (nodeHeight + verticalGap);
+			colOccupied.add(row);
+			placed.add(node.path);
+			nextFreshRow = Math.max(nextFreshRow, row + 1);
+		}
+		occupiedByColumn.set(col, colOccupied);
+	}
+
+	return Math.max(startRow, ...laneNodes.map((n) => n.row));
+}
+
+function findNearestFreeRow(ideal: number, minRow: number, occupied: Set<number>): number {
+	if (!occupied.has(ideal)) return ideal;
+	for (let delta = 1; delta < 1000; delta++) {
+		const above = ideal - delta;
+		if (above >= minRow && !occupied.has(above)) return above;
+		const below = ideal + delta;
+		if (!occupied.has(below)) return below;
+	}
+	return ideal + occupied.size;
+}
+
 export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): TaskGraphLayout {
 	const nodeWidth = options.nodeWidth ?? DEFAULT_NODE_WIDTH;
 	const nodeHeight = options.nodeHeight ?? DEFAULT_NODE_HEIGHT;
@@ -293,6 +412,12 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	for (const component of components) {
 		const dateKey = componentDateKey.get(component.id) ?? Infinity;
 		if (!Number.isFinite(dateKey)) continue;
+
+		// Only nudge fully isolated components (no dependency edges) by date.
+		// Connected chains derive their column purely from dependency depth, so
+		// date never spreads a chain across extra columns — keeping the layout
+		// compact and letting direct dependencies sit close together.
+		if (component.incoming.size > 0 || component.outgoing.size > 0) continue;
 
 		const laneKeys = new Set<string | null>();
 		for (const path of component.paths) {
@@ -473,9 +598,22 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		return leftLabel.localeCompare(rightLabel);
 	});
 
+	// Temporal key per task so same-column nodes (e.g. the roots in column 0)
+	// stack vertically in date order — earlier work sits higher — preserving a
+	// "completed before others" signal without spreading the chain horizontally.
+	const temporalKeyByPath = new Map(visibleTasks.map((task) => [task.path, getTemporalKeyForTask(task)]));
+
+	// Optimize lane ordering to minimize cross-lane edge distance.
+	const laneBandsForOptimization = laneKeysSorted
+		.filter((key) => (laneAssignments.get(key) ?? []).length > 0)
+		.map((key) => ({ key, paths: laneAssignments.get(key) ?? [] }));
+	const nodesByPathForOpt = new Map(nodes.map((n) => [n.path, n]));
+	const optimizedLaneBands = optimizeLaneBandOrder(laneBandsForOptimization, nodesByPathForOpt, edges);
+	const optimizedLaneKeys = optimizedLaneBands.map((b) => b.key);
+
 	const laneBands = new Map<string | null, LaneBand>();
 	let laneRowCursor = 0;
-	for (const laneKey of laneKeysSorted) {
+	for (const laneKey of optimizedLaneKeys) {
 		const laneNodes = nodes
 			.filter((node) => node.laneKey === laneKey)
 			.sort((left, right) => left.row - right.row || left.column - right.column || left.path.localeCompare(right.path));
@@ -492,13 +630,10 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		});
 
 		const startRow = laneRowCursor;
-		for (const [index, node] of laneNodes.entries()) {
-			const compactRow = laneRowCursor + index;
-			node.row = compactRow;
-			node.y = padding + compactRow * (nodeHeight + verticalGap);
-		}
-
-		const endRow = laneRowCursor + laneNodes.length - 1;
+		const endRow = packLaneNodeRows(
+			laneNodes, startRow, edges, new Map(nodes.map((n) => [n.path, n])),
+			temporalKeyByPath, nodeHeight, verticalGap, padding,
+		);
 		laneBands.set(laneKey, {
 			startRow,
 			endRow,

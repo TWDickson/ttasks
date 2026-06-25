@@ -39,17 +39,17 @@ function compareByRoutingRank(
 	const rightIsDependency = rightEdge.isParentEdge ? 1 : 0;
 	if (leftIsDependency !== rightIsDependency) return leftIsDependency - rightIsDependency;
 
-	const leftRowDelta = Math.abs((leftNode?.row ?? origin.row) - origin.row);
-	const rightRowDelta = Math.abs((rightNode?.row ?? origin.row) - origin.row);
-	if (leftRowDelta !== rightRowDelta) return leftRowDelta - rightRowDelta;
+	// Order attachment points by the OTHER endpoint's actual vertical position
+	// (directional), so an edge whose source/target sits higher attaches higher.
+	// Using the signed Y — not |rowDelta| — is what prevents edges from two
+	// differently-placed neighbours crossing right before they meet the node.
+	const leftY = leftNode?.y ?? origin.y;
+	const rightY = rightNode?.y ?? origin.y;
+	if (leftY !== rightY) return leftY - rightY;
 
 	const leftColumnDelta = Math.abs((leftNode?.column ?? origin.column) - origin.column);
 	const rightColumnDelta = Math.abs((rightNode?.column ?? origin.column) - origin.column);
 	if (leftColumnDelta !== rightColumnDelta) return leftColumnDelta - rightColumnDelta;
-
-	const leftY = leftNode?.y ?? origin.y;
-	const rightY = rightNode?.y ?? origin.y;
-	if (leftY !== rightY) return leftY - rightY;
 
 	return leftEdge.id.localeCompare(rightEdge.id);
 }

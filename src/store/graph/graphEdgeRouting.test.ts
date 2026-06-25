@@ -110,6 +110,31 @@ describe('graphEdgeRouting', () => {
 		expect(sorted.map((edge) => edge.id)).toEqual(['same', 'cross']);
 	});
 
+	it('orders same-lane incoming edges by source vertical position (higher source attaches first)', () => {
+		// Target at row 1. One source is above (row 0), one is level with it (row 1).
+		// The higher source must sort first so its edge attaches to the top of the
+		// node, avoiding a crossover right before the node.
+		const target = makeNode('Tasks/target.md', 'Tasks/proj-a.md', 1, 6);
+		const higherSource = makeNode('Tasks/higher.md', 'Tasks/proj-a.md', 0, 5);
+		const levelSource = makeNode('Tasks/level.md', 'Tasks/proj-a.md', 1, 1);
+		const nodes = new Map([
+			[target.path, target],
+			[higherSource.path, higherSource],
+			[levelSource.path, levelSource],
+		]);
+
+		const sorted = sortIncomingEdges(
+			target,
+			[
+				makeEdge('level', levelSource.path, target.path),
+				makeEdge('higher', higherSource.path, target.path),
+			],
+			nodes,
+		);
+
+		expect(sorted.map((edge) => edge.id)).toEqual(['higher', 'level']);
+	});
+
 	it('draws tighter same-lane back edges than cross-lane back edges', () => {
 		const from = makeNode('Tasks/from.md', 'Tasks/proj-a.md', 3, 3);
 		const toSameLane = makeNode('Tasks/to-same.md', 'Tasks/proj-a.md', 2, 1);

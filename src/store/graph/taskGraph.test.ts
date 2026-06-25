@@ -55,6 +55,93 @@ describe('buildTaskGraph', () => {
 		expect(layout.maxDepth).toBe(2);
 	});
 
+	it('keeps a linear dependency chain on a single row (horizontal flow)', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'] }),
+			makeTask({ path: 'Tasks/c.md', name: 'C', depends_on: ['Tasks/b'] }),
+			makeTask({ path: 'Tasks/d.md', name: 'D', depends_on: ['Tasks/c'] }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const rows = new Set(layout.nodes.map((node) => node.row));
+
+		// All four chained nodes share the same row — a horizontal staircase-free flow.
+		expect(rows.size).toBe(1);
+		// And columns still advance with dependency depth.
+		const columns = layout.nodes.map((node) => node.column).sort((a, b) => a - b);
+		expect(columns).toEqual([0, 1, 2, 3]);
+	});
+
+	it('forks a fan-out onto separate rows while the first child keeps the spine', () => {
+		// A fans out to B and C. The first child stays on A's row; the second forks.
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'] }),
+			makeTask({ path: 'Tasks/c.md', name: 'C', depends_on: ['Tasks/a'] }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const byPath = new Map(layout.nodes.map((node) => [node.path, node]));
+		const a = byPath.get('Tasks/a.md')!;
+		const b = byPath.get('Tasks/b.md')!;
+		const c = byPath.get('Tasks/c.md')!;
+
+		// One child shares A's row (the spine), the other forks to a different row.
+		const childRows = [b.row, c.row];
+		expect(childRows).toContain(a.row);
+		expect(b.row).not.toBe(c.row);
+	});
+
+	it('separates two independent roots in the same lane onto different rows', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/proj.md', name: 'Proj', type: 'project' }),
+			makeTask({ path: 'Tasks/r1.md', name: 'R1', parent_task: 'Tasks/proj' }),
+			makeTask({ path: 'Tasks/r2.md', name: 'R2', parent_task: 'Tasks/proj' }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const byPath = new Map(layout.nodes.map((node) => [node.path, node]));
+		expect(byPath.get('Tasks/r1.md')!.row).not.toBe(byPath.get('Tasks/r2.md')!.row);
+	});
+
+	it('stacks same-column roots in date order (earliest highest)', () => {
+		// Three roots in one lane, same column. They should stack by date so the
+		// earliest-dated work sits on the lowest (top) row.
+		const tasks = [
+			makeTask({ path: 'Tasks/proj.md', name: 'Proj', type: 'project' }),
+			makeTask({ path: 'Tasks/late.md', name: 'Late', parent_task: 'Tasks/proj', start_date: '2026-06-20' }),
+			makeTask({ path: 'Tasks/early.md', name: 'Early', parent_task: 'Tasks/proj', start_date: '2026-06-01' }),
+			makeTask({ path: 'Tasks/mid.md', name: 'Mid', parent_task: 'Tasks/proj', start_date: '2026-06-10' }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const byPath = new Map(layout.nodes.map((node) => [node.path, node]));
+
+		expect(byPath.get('Tasks/early.md')!.row).toBeLessThan(byPath.get('Tasks/mid.md')!.row);
+		expect(byPath.get('Tasks/mid.md')!.row).toBeLessThan(byPath.get('Tasks/late.md')!.row);
+	});
+
+	it('never places two nodes from the same column on the same row', () => {
+		// Diamond: A fans out to B and C, which both feed D. B and C land in the
+		// same column and must therefore occupy distinct rows.
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'] }),
+			makeTask({ path: 'Tasks/c.md', name: 'C', depends_on: ['Tasks/a'] }),
+			makeTask({ path: 'Tasks/d.md', name: 'D', depends_on: ['Tasks/b', 'Tasks/c'] }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+
+		const seen = new Set<string>();
+		for (const node of layout.nodes) {
+			const slot = `${node.column}:${node.row}`;
+			expect(seen.has(slot)).toBe(false);
+			seen.add(slot);
+		}
+	});
+
 	it('marks cycles and blocked dependency chains', () => {
 		const tasks = [
 			makeTask({ path: 'Tasks/a.md', name: 'A', status: 'Active', depends_on: ['Tasks/c'] }),
@@ -170,6 +257,25 @@ describe('buildTaskGraph', () => {
 		const columns = new Map(layout.nodes.map((node) => [node.path, node.column]));
 
 		expect(columns.get('Tasks/b.md')).toBeGreaterThan(columns.get('Tasks/a.md') ?? -1);
+	});
+
+	it('does not spread a connected chain across extra columns by date', () => {
+		// Two roots feed one merge. Their dates differ, but because they are part
+		// of a connected dependency graph, date must not push either root right —
+		// both stay at column 0 and the merge sits at column 1 (compact).
+		const tasks = [
+			makeTask({ path: 'Tasks/proj.md', name: 'Proj', type: 'project' }),
+			makeTask({ path: 'Tasks/r1.md', name: 'R1', parent_task: 'Tasks/proj', due_date: '2026-06-20' }),
+			makeTask({ path: 'Tasks/r2.md', name: 'R2', parent_task: 'Tasks/proj', due_date: '2026-06-02' }),
+			makeTask({ path: 'Tasks/m.md', name: 'M', parent_task: 'Tasks/proj', depends_on: ['Tasks/r1', 'Tasks/r2'] }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const columns = new Map(layout.nodes.map((node) => [node.path, node.column]));
+
+		expect(columns.get('Tasks/r1.md')).toBe(0);
+		expect(columns.get('Tasks/r2.md')).toBe(0);
+		expect(columns.get('Tasks/m.md')).toBe(1);
 	});
 
 	it('applies temporal left-right ordering per lane rather than globally across unrelated lanes', () => {

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../../types';
 import type { TaskGraphEdge, TaskGraphNode } from './taskGraph';
-import { applyBarycenterOrdering, countCrossingsByColumnPairs, countCrossingsForColumnPair, optimizeLaneOrderForCrossings } from './graphCrossingOptimizer';
+import {
+	applyBarycenterOrdering,
+	countCrossingsByColumnPairs,
+	countCrossingsForColumnPair,
+	optimizeLaneBandOrder,
+	optimizeLaneOrderForCrossings,
+} from './graphCrossingOptimizer';
 
 function makeTask(path: string): Task {
 	return {
@@ -35,11 +41,11 @@ function makeTask(path: string): Task {
 	};
 }
 
-function makeNode(path: string, row: number, column: number): TaskGraphNode {
+function makeNode(path: string, row: number, column: number, laneKey: string | null = 'Tasks/proj-a.md'): TaskGraphNode {
 	return {
 		path,
 		task: makeTask(path),
-		laneKey: 'Tasks/proj-a.md',
+		laneKey,
 		column,
 		row,
 		x: 100 + column * 250,
@@ -139,4 +145,37 @@ describe('graphCrossingOptimizer', () => {
 
 		expect(optimized[0]).toBe('Tasks/lock.md');
 	});
+
+	describe('optimizeLaneBandOrder', () => {
+		it('places lanes with cross-lane edges adjacent', () => {
+			const nodes = new Map<string, TaskGraphNode>([
+				['a', makeNode('a', 0, 0, 'lane-1')],
+				['b', makeNode('b', 1, 0, 'lane-2')],
+				['c', makeNode('c', 2, 1, 'lane-3')],
+			]);
+			const edges = [
+				makeEdge('a->c', 'a', 'c'),
+				makeEdge('b->c', 'b', 'c'),
+			];
+			const bands = [
+				{ key: 'lane-1', paths: ['a'] },
+				{ key: 'lane-2', paths: ['b'] },
+				{ key: 'lane-3', paths: ['c'] },
+			];
+			const result = optimizeLaneBandOrder(bands, nodes, edges);
+			expect(result).toHaveLength(3);
+			// All lanes should be present
+			expect(new Set(result.map((b) => b.key))).toEqual(new Set(['lane-1', 'lane-2', 'lane-3']));
+		});
+
+		it('returns input unchanged for two or fewer lanes', () => {
+			const nodes = new Map<string, TaskGraphNode>([
+				['a', makeNode('a', 0, 0, 'lane-1')],
+			]);
+			const bands = [{ key: 'lane-1', paths: ['a'] }];
+			const result = optimizeLaneBandOrder(bands, nodes, []);
+			expect(result).toEqual(bands);
+		});
+	});
+
 });

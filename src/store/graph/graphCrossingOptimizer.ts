@@ -140,7 +140,7 @@ export function applyBarycenterOrdering(
 	let current = [...orderedLanePaths];
 	const locked = new Set(current.slice(0, Math.max(0, lockedPrefixCount)));
 
-	const adjacentNeighbors = buildAdjacentNeighborMap(nodesByPath, edges);
+	const adjacentNeighbors = buildNeighborMap(nodesByPath, edges);
 
 	const maxPasses = Math.max(2, Math.min(8, orderedLanePaths.length));
 	for (let pass = 0; pass < maxPasses; pass += 1) {
@@ -184,7 +184,7 @@ function computeBarycenterScore(
 	return sum / count;
 }
 
-function buildAdjacentNeighborMap(
+function buildNeighborMap(
 	nodesByPath: Map<string, TaskGraphNode>,
 	edges: TaskGraphEdge[],
 ): Map<string, string[]> {
@@ -199,7 +199,6 @@ function buildAdjacentNeighborMap(
 		const to = nodesByPath.get(edge.to);
 		if (!from || !to) continue;
 		if (from.laneKey !== to.laneKey) continue;
-		if (Math.abs(from.column - to.column) !== 1) continue;
 
 		neighbors.get(from.path)?.add(to.path);
 		neighbors.get(to.path)?.add(from.path);
@@ -211,3 +210,92 @@ function buildAdjacentNeighborMap(
 	}
 	return result;
 }
+
+// ---------------------------------------------------------------------------
+// Lane order optimization
+// ---------------------------------------------------------------------------
+
+interface LaneBand {
+	key: string | null;
+	paths: string[];
+}
+
+/**
+ * Determine the best ordering of lane bands to minimize cross-lane edge distance.
+ * Uses a greedy "heaviest-neighbor-next" strategy: place the lane with the most
+ * cross-lane edges to already-placed lanes next to them.
+ */
+export function optimizeLaneBandOrder(
+	laneBands: LaneBand[],
+	nodesByPath: Map<string, TaskGraphNode>,
+	edges: TaskGraphEdge[],
+): LaneBand[] {
+	if (laneBands.length <= 2) return laneBands;
+
+	const lanePathSets = new Map<string | null, Set<string>>();
+	for (const band of laneBands) {
+		lanePathSets.set(band.key, new Set(band.paths));
+	}
+
+	const crossLaneWeight = new Map<string, number>();
+	for (const edge of edges) {
+		if (edge.isParentEdge) continue;
+		const from = nodesByPath.get(edge.from);
+		const to = nodesByPath.get(edge.to);
+		if (!from || !to) continue;
+		if (from.laneKey === to.laneKey) continue;
+
+		const pairKey = laneEdgePairKey(from.laneKey, to.laneKey);
+		crossLaneWeight.set(pairKey, (crossLaneWeight.get(pairKey) ?? 0) + 1);
+	}
+
+	if (crossLaneWeight.size === 0) return laneBands;
+
+	const placed: LaneBand[] = [];
+	const remaining = new Set(laneBands.map((_, i) => i));
+
+	let bestStart = 0;
+	let bestStartWeight = -1;
+	for (const idx of remaining) {
+		let weight = 0;
+		for (const otherIdx of remaining) {
+			if (otherIdx === idx) continue;
+			const pk = laneEdgePairKey(laneBands[idx].key, laneBands[otherIdx].key);
+			weight += crossLaneWeight.get(pk) ?? 0;
+		}
+		if (weight > bestStartWeight) {
+			bestStartWeight = weight;
+			bestStart = idx;
+		}
+	}
+
+	placed.push(laneBands[bestStart]);
+	remaining.delete(bestStart);
+
+	while (remaining.size > 0) {
+		let bestIdx = -1;
+		let bestWeight = -1;
+		for (const idx of remaining) {
+			let weight = 0;
+			for (const p of placed) {
+				const pk = laneEdgePairKey(laneBands[idx].key, p.key);
+				weight += crossLaneWeight.get(pk) ?? 0;
+			}
+			if (weight > bestWeight || bestIdx === -1) {
+				bestWeight = weight;
+				bestIdx = idx;
+			}
+		}
+		placed.push(laneBands[bestIdx]);
+		remaining.delete(bestIdx);
+	}
+
+	return placed;
+}
+
+function laneEdgePairKey(a: string | null, b: string | null): string {
+	const sa = a ?? '__null__';
+	const sb = b ?? '__null__';
+	return sa < sb ? `${sa}<>${sb}` : `${sb}<>${sa}`;
+}
+
