@@ -351,6 +351,14 @@
 		min-width: 52px;
 		flex: none;
 		overflow: hidden;
+		cursor: pointer;
+		opacity: 0.7;
+		transition: opacity 0.15s, background 0.15s;
+	}
+
+	.tt-col-collapsed:hover {
+		opacity: 1;
+		background: var(--background-modifier-hover);
 	}
 
 	.tt-col-collapsed .tt-kanban-col-header {
@@ -360,12 +368,18 @@
 		padding: 10px 6px;
 		writing-mode: vertical-rl;
 		height: 100%;
+		cursor: pointer;
 	}
 
 	.tt-col-collapsed .tt-kanban-col-label {
 		writing-mode: vertical-rl;
 		flex: 1;
 		text-align: center;
+	}
+
+	.tt-col-collapsed .tt-col-collapse-btn {
+		font-size: 1rem;
+		color: var(--text-muted);
 	}
 
 	.tt-col-collapse-btn {

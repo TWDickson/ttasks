@@ -195,8 +195,8 @@
 		--tt-button-radius: var(--button-radius, var(--radius-m, 8px));
 		position: relative;
 		display: flex;
-		align-items: stretch;
-		overflow: visible;
+		align-items: center;
+		overflow: hidden;
 		border-radius: var(--radius-m, 8px);
 	}
 
@@ -235,12 +235,12 @@
 
 	.tt-task-btn {
 		flex: 1;
+		min-width: 0;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: var(--tt-space-2);
 		padding: var(--tt-space-2) var(--tt-space-3);
-		width: 100%;
 		border: none;
 		border-radius: var(--tt-button-radius);
 		background: var(--background-primary);
@@ -301,8 +301,7 @@
 
 	.tt-task-btn.is-active {
 		background: var(--background-modifier-hover);
-		border-left: 2px solid var(--interactive-accent);
-		padding-left: 10px;
+		box-shadow: inset 2px 0 0 var(--interactive-accent);
 	}
 
 	.tt-task.is-keyboard-focused .tt-task-btn {
