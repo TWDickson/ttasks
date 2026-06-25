@@ -18,7 +18,6 @@
 		diffDays,
 		formatDateISO,
 		intersectsViewport,
-		normalizeTimelineRange,
 		percentAtDate,
 		startOfToday,
 	} from '../store/graph/graphTimeline';
@@ -71,7 +70,7 @@
 	$: dependencyGraphTasks = (() => {
 		const projectRecords = tasks.filter((task) => task.type === 'project');
 		const dependencyTasks = (showIndependentInDependency || connectedDependencyPaths.size === 0
-			? tasks.filter((task) => task.type === 'task')
+			? tasks.filter((task) => task.type === 'task' && !task.is_complete)
 			: tasks.filter((task) => {
 				if (task.type !== 'task') return false;
 				// Always include project-assigned tasks (part of a project lane)
@@ -227,30 +226,24 @@
 		? tasks
 		: tasks.filter((task) => task.type !== 'task' || !task.is_complete);
 	$: hybridTimeline = buildHybridTimeline(overviewTasks, { grouping: overviewGrouping });
-	$: normalizedOverviewRange = normalizeTimelineRange(hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
 	$: timelineTaskCount = hybridTimeline.defined.length + hybridTimeline.underdefined.length;
 	$: hiddenCompletedCount = Math.max(0, tasks.filter((task) => task.type === 'task' && task.is_complete).length - overviewTasks.filter((task) => task.type === 'task' && task.is_complete).length);
 	$: timelineEmpty = timelineTaskCount === 0;
-	$: overviewSpanDays = Math.max(1, diffDays(normalizedOverviewRange.start, normalizedOverviewRange.end) + 1);
+	$: overviewSpanDays = Math.max(1, diffDays(hybridTimeline.rangeStart, hybridTimeline.rangeEnd) + 1);
 	$: overviewCanvasWidth = Math.max(overviewViewportWidth, Math.round(overviewSpanDays * OVERVIEW_PIXELS_PER_DAY));
-	$: todayPercent = percentAtDate(startOfToday(), normalizedOverviewRange.start, normalizedOverviewRange.end);
+	$: todayPercent = percentAtDate(startOfToday(), hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
+	$: dayWidthPercent = 100 / overviewSpanDays;
 	$: visibleStartPercent = overviewCanvasWidth > 0 ? (overviewScrollLeft / overviewCanvasWidth) * 100 : 0;
 	$: visibleEndPercent = overviewCanvasWidth > 0 ? ((overviewScrollLeft + overviewViewportWidth) / overviewCanvasWidth) * 100 : 100;
 	$: virtualStartPercent = Math.max(0, visibleStartPercent - 8);
 	$: virtualEndPercent = Math.min(100, visibleEndPercent + 8);
 	$: visibleDefined = hybridTimeline.defined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
 	$: visibleUnderdefined = hybridTimeline.underdefined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
-	$: visibleDefinedPaths = new Set(visibleDefined.map((item) => item.path));
-	$: visibleUnderdefinedPaths = new Set(visibleUnderdefined.map((item) => item.path));
-	$: visibleLinks = hybridTimeline.links
-		.filter((link) => link.toPercent > link.fromPercent + 0.15)
-		.filter((link) => visibleDefinedPaths.has(link.fromPath) && visibleUnderdefinedPaths.has(link.toPath));
-	$: timelineTicks = buildTimelineTicks(normalizedOverviewRange.start, normalizedOverviewRange.end);
+	$: timelineTicks = buildTimelineTicks(hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
 	$: overviewHolidayDates = collectProjectHolidayDates(overviewTasks);
-	$: nonWorkingBands = buildTimelineNonWorkingBands(normalizedOverviewRange.start, normalizedOverviewRange.end, overviewHolidayDates);
+	$: nonWorkingBands = buildTimelineNonWorkingBands(hybridTimeline.rangeStart, hybridTimeline.rangeEnd, overviewHolidayDates);
 	$: definedTrackHeightPx = Math.max(42, hybridTimeline.definedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.definedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
 	$: underdefinedTrackHeightPx = Math.max(42, hybridTimeline.underdefinedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.underdefinedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
-	$: linkCanvasHeightPx = definedTrackHeightPx + underdefinedTrackHeightPx + 78;
 	$: definedStatusSummary = summarizeByStatus(hybridTimeline.defined.map((item) => item.task));
 	$: underdefinedStatusSummary = summarizeByStatus(hybridTimeline.underdefined.map((item) => item.task));
 	$: definedLaneHeaders = buildLaneHeaders(hybridTimeline.definedGroups, HYBRID_ROW_HEIGHT, HYBRID_ROW_GAP, HYBRID_TRACK_PADDING);
@@ -350,18 +343,6 @@
 		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;top:${rowTop}px;--tt-bar-accent:${accent};`;
 	}
 
-	function hybridLinkPath(link: { fromPercent: number; toPercent: number; fromRow: number; toRow: number }): string {
-		if (link.toPercent <= link.fromPercent + 0.15) return '';
-		const startY = HYBRID_TRACK_PADDING + link.fromRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP) + HYBRID_ROW_HEIGHT;
-		const endY = definedTrackHeightPx + 54 + HYBRID_TRACK_PADDING + link.toRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
-		const deltaX = Math.abs(link.toPercent - link.fromPercent);
-		const controlX = Math.max(4, deltaX * 0.35);
-		const controlY = Math.round((startY + endY) / 2);
-		const leftControlX = Math.min(100, link.fromPercent + controlX);
-		const rightControlX = Math.max(0, link.toPercent - controlX);
-		return `M ${link.fromPercent.toFixed(3)} ${startY.toFixed(2)} C ${leftControlX.toFixed(3)} ${controlY.toFixed(2)}, ${rightControlX.toFixed(3)} ${controlY.toFixed(2)}, ${link.toPercent.toFixed(3)} ${endY.toFixed(2)}`;
-	}
-
 	function showTaskHoverPreview(event: MouseEvent, task: Task): void {
 		plugin.triggerTaskHoverPreview(task.path, event);
 	}
@@ -428,10 +409,6 @@
 					<span class="tt-graph-pill-label">Total Tasks</span>
 					<strong>{timelineTaskCount}</strong>
 				</div>
-				<div class="tt-graph-pill">
-					<span class="tt-graph-pill-label">Flow Links</span>
-					<strong>{hybridTimeline.links.length}</strong>
-				</div>
 				<button type="button" class="tt-graph-pill tt-graph-pill-toggle" on:click={() => showCompletedInOverview = !showCompletedInOverview}>
 					<span class="tt-graph-pill-label">Completed</span>
 					<strong>{showCompletedInOverview ? 'Shown' : `${hiddenCompletedCount} hidden`}</strong>
@@ -439,6 +416,9 @@
 				<button type="button" class="tt-graph-pill tt-graph-pill-toggle" on:click={() => overviewGrouping = overviewGrouping === 'project' ? 'dependency' : overviewGrouping === 'dependency' ? 'none' : 'project'}>
 					<span class="tt-graph-pill-label">Grouping</span>
 					<strong>{groupingLabel(overviewGrouping)}</strong>
+				</button>
+				<button type="button" class="tt-graph-pill tt-graph-pill-toggle" on:click={() => focusOverviewAroundToday()}>
+					<strong>Jump to Today</strong>
 				</button>
 			{/if}
 		</div>
@@ -539,21 +519,12 @@
 					<div class="tt-overview-today" style={`left:${todayPercent.toFixed(3)}%;`}><span>Today</span></div>
 				</div>
 
-				<div class="tt-hybrid-shell" style={`width:${overviewCanvasWidth}px;--tt-link-canvas-height:${linkCanvasHeightPx}px;`}>
+				<div class="tt-hybrid-shell" style={`width:${overviewCanvasWidth}px;`}>
 					<div class="tt-hybrid-calendar-overlay" aria-hidden="true">
 						{#each nonWorkingBands as band (band.id)}
 							<div class="tt-hybrid-calendar-band" class:is-weekend={band.kind === 'weekend'} class:is-holiday={band.kind === 'holiday'} style={`left:${band.leftPercent.toFixed(3)}%;width:${band.widthPercent.toFixed(3)}%;`}></div>
 						{/each}
 					</div>
-					<div class="tt-hybrid-today-line" style={`left:${todayPercent.toFixed(3)}%;`}></div>
-					<svg class="tt-hybrid-links" viewBox={`0 0 100 ${linkCanvasHeightPx}`} preserveAspectRatio="none" aria-hidden="true">
-						{#each visibleLinks as link (link.id)}
-							{#if hybridLinkPath(link)}
-								<path class="tt-hybrid-link" d={hybridLinkPath(link)} fill="none"></path>
-							{/if}
-						{/each}
-					</svg>
-
 					<section class="tt-hybrid-track tt-hybrid-track-defined">
 						<div class="tt-hybrid-track-header">
 							<h4 class="tt-overview-category-title">Defined Track</h4>
@@ -581,6 +552,7 @@
 								</div>
 							{/if}
 							<div class="tt-hybrid-track-canvas" style={`height:${definedTrackHeightPx}px;`}>
+								<div class="tt-hybrid-today-band" style={`left:${todayPercent.toFixed(3)}%;width:${dayWidthPercent.toFixed(3)}%;`}></div>
 								{#each hybridTimeline.definedGroups as group (group.key)}
 									<div class="tt-hybrid-group-band" style={groupBandStyle(group)}></div>
 								{/each}
@@ -633,6 +605,7 @@
 								</div>
 							{/if}
 							<div class="tt-hybrid-track-canvas" style={`height:${underdefinedTrackHeightPx}px;`}>
+								<div class="tt-hybrid-today-band" style={`left:${todayPercent.toFixed(3)}%;width:${dayWidthPercent.toFixed(3)}%;`}></div>
 								{#each hybridTimeline.underdefinedGroups as group (group.key)}
 									<div class="tt-hybrid-group-band" style={groupBandStyle(group)}></div>
 								{/each}
@@ -796,33 +769,6 @@
 		background: color-mix(in srgb, var(--color-red) 14%, transparent);
 	}
 
-	.tt-hybrid-links {
-		position: absolute;
-		left: 0;
-		right: 0;
-		top: 30px;
-		height: var(--tt-link-canvas-height);
-		width: 100%;
-		pointer-events: none;
-		overflow: visible;
-		z-index: 1;
-	}
-
-	.tt-hybrid-link {
-		fill: none !important;
-		stroke: color-mix(in srgb, var(--color-orange) 78%, var(--text-faint));
-		color: color-mix(in srgb, var(--color-orange) 78%, var(--text-faint));
-		stroke-width: 1.5;
-		opacity: 0.46;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-		vector-effect: non-scaling-stroke;
-		marker: none;
-		marker-start: none;
-		marker-mid: none;
-		marker-end: none;
-	}
-
 	.tt-hybrid-track {
 		position: relative;
 		display: flex;
@@ -837,12 +783,18 @@
 		justify-content: space-between;
 		gap: 10px;
 		flex-wrap: wrap;
+		position: sticky;
+		left: 0;
+		max-width: 100vw;
+		z-index: 3;
 	}
 
 	.tt-track-status-summary {
 		display: inline-flex;
 		flex-wrap: wrap;
 		gap: 6px;
+		flex-shrink: 1;
+		min-width: 0;
 	}
 
 	.tt-track-status-chip {
@@ -1000,15 +952,15 @@
 		white-space: nowrap;
 	}
 
-	.tt-hybrid-today-line {
+	.tt-hybrid-today-band {
 		position: absolute;
-		top: 34px;
-		bottom: 8px;
-		border-left: 2px dashed color-mix(in srgb, var(--color-red) 80%, var(--interactive-accent));
-		transform: translateX(-50%);
+		top: 0;
+		bottom: 0;
+		background: color-mix(in srgb, var(--color-red) 8%, transparent);
+		border-left: 2px solid color-mix(in srgb, var(--color-red) 50%, var(--interactive-accent));
+		border-radius: 2px;
 		pointer-events: none;
-		opacity: 0.92;
-		z-index: 2;
+		z-index: 0;
 	}
 
 	.tt-overview-tick {
@@ -1125,7 +1077,7 @@
 		inset: 0 auto 0 8px;
 		width: var(--tt-dependency-lane-width, 136px);
 		pointer-events: none;
-		z-index: 1;
+		z-index: 10;
 	}
 
 	.tt-dependency-lane-header {
