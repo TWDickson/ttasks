@@ -405,6 +405,8 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
+		max-height: 400px;
+		overflow-y: auto;
 	}
 
 	.tt-rel-health-metrics {

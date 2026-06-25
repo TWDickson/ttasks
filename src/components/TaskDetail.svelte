@@ -147,8 +147,8 @@
 
 			const confirmBtn = actions.createEl('button', { text: 'Delete', cls: 'mod-warning' });
 			confirmBtn.addEventListener('click', () => {
-				modal.close();
 				resolve(true);
+				modal.close();
 			});
 
 			modal.onClose = () => {
@@ -715,6 +715,8 @@
 		flex-direction: column;
 		gap: var(--size-4-3, 12px);
 		max-width: 600px;
+		overflow-wrap: break-word;
+		word-break: break-word;
 	}
 
 	.tt-detail-name-row {

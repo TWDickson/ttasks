@@ -862,7 +862,7 @@
 		top: 0;
 		right: 0;
 		bottom: 0;
-		width: 380px;
+		width: 440px;
 		display: flex;
 		flex-direction: column;
 		background: var(--background-primary);
@@ -976,7 +976,7 @@
 		}
 
 		.tt-board-detail.is-visible {
-			width: 380px;
+			width: 440px;
 			border-left: 1px solid var(--background-modifier-border);
 		}
 

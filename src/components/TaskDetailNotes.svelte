@@ -171,6 +171,8 @@
 		resize: vertical;
 		font-family: var(--font-text);
 		min-height: 160px;
+		max-height: 320px;
+		overflow-y: auto;
 		caret-color: var(--caret-color, var(--interactive-accent));
 	}
 
@@ -182,6 +184,8 @@
 	.tt-notes-preview {
 		padding: var(--size-4-3, 12px);
 		min-height: 160px;
+		max-height: 320px;
+		overflow-y: auto;
 		border: var(--border-width, 1px) solid var(--background-modifier-border);
 		border-radius: var(--input-radius, var(--radius-m, 8px));
 		background: var(--background-primary-alt, var(--background-secondary));
