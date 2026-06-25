@@ -1,12 +1,11 @@
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import { resolveConfiguredStatus, DEFAULT_SETTINGS } from '../settings';
-import type { Task } from '../types';
 import { localDateString } from '../utils/dateUtils';
 import { safeLocalStorage, safeLocalStorageSet } from '../utils/vaultSafe';
 import { resolveStaleDate } from './statusChanged';
 import { isSnoozed, purgeSnoozed, snoozeTask, type SnoozedState } from './reminderSnooze';
-import { NOTICE_DURATION_MS, REMINDER_POLL_INTERVAL_MS, REMINDER_SNOOZE_HOURS, REMINDER_LEAD_DAYS, REMINDER_STALE_DAYS } from '../constants';
+import { NOTICE_DURATION_MS, REMINDER_POLL_INTERVAL_MS, REMINDER_LEAD_DAYS, REMINDER_STALE_DAYS } from '../constants';
 import { buildReminderNotice } from './reminderNoticeBuilder';
 import { createReminderStorage } from './reminderStorage';
 import { evaluateReminders, type ReminderRuleId } from './reminderRules';
@@ -68,6 +67,7 @@ export class ReminderService {
 		let overdueCount  = 0;
 		let dueTodayCount = 0;
 		let leadTimeCount = 0;
+		let staleCount    = 0;
 
 		const snoozed = this.loadSnoozed();
 		const now = new Date();
@@ -104,19 +104,20 @@ export class ReminderService {
 				} else if (reminder.ruleId === 'lead-time') {
 					leadTimeCount++;
 				} else {
-					this.showReminderNotice(reminder.message, task, true);
+					staleCount++;
 				}
 				this.storage.markFired(reminder.taskPath, reminder.ruleId as ReminderRuleId, today);
 				dirty = true;
 			}
 		}
 
-		if (overdueCount > 0 || dueTodayCount > 0 || leadTimeCount > 0) {
+		if (overdueCount > 0 || dueTodayCount > 0 || leadTimeCount > 0 || staleCount > 0) {
 			const parts: string[] = [];
 			if (overdueCount  > 0) parts.push(`${overdueCount} overdue`);
 			if (dueTodayCount > 0) parts.push(`${dueTodayCount} due today`);
 			if (leadTimeCount > 0) parts.push(`${leadTimeCount} coming up`);
-			this.showReminderNotice(parts.join(' · '), null, false);
+			if (staleCount    > 0) parts.push(`${staleCount} stale`);
+			this.showSummaryNotice(parts.join(' · '));
 		}
 
 		if (dirty) return;
@@ -126,14 +127,11 @@ export class ReminderService {
 	// Notices
 	// ---------------------------------------------------------------------------
 
-	private showReminderNotice(message: string, task: Task | null, includeSnooze: boolean): void {
-		const actions = task && includeSnooze
-			? [
-				{ label: 'Open', onClick: () => { void this.plugin.openBoard().then(() => this.plugin.activeTaskPath.set(task.path)); } },
-				{ label: `Snooze ${REMINDER_SNOOZE_HOURS}h`, onClick: () => this.snooze(task.path, REMINDER_SNOOZE_HOURS) },
-			]
-			: [{ label: 'Open agenda', onClick: () => { void this.plugin.openBoard().then(() => this.plugin.activeViewMode.set('agenda')); } }];
-		buildReminderNotice(`${message}${task ? '' : ' — open agenda'}`, actions, NOTICE_DURATION_MS);
+	private showSummaryNotice(message: string): void {
+		buildReminderNotice(message, [
+			{ label: 'Open', onClick: () => { void this.plugin.openBoard().then(() => this.plugin.activeViewMode.set('agenda')); } },
+			{ label: 'Dismiss', onClick: () => { /* notice hides itself via invokeAction */ } },
+		], NOTICE_DURATION_MS);
 	}
 
 	// ---------------------------------------------------------------------------
