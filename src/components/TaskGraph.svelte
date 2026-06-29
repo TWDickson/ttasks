@@ -285,10 +285,10 @@
 
 	function subtitle(node: TaskGraphNode): string {
 		if (node.blockedIncomingCount > 0) {
-			return `${node.blockedIncomingCount} open dependency${node.blockedIncomingCount === 1 ? '' : 'ies'}`;
+			return `${node.blockedIncomingCount} open ${node.blockedIncomingCount === 1 ? 'dependency' : 'dependencies'}`;
 		}
 		if (node.incomingCount > 0) {
-			return `${node.incomingCount} dependency${node.incomingCount === 1 ? '' : 'ies'}`;
+			return `${node.incomingCount} ${node.incomingCount === 1 ? 'dependency' : 'dependencies'}`;
 		}
 		if (node.outgoingCount > 0) {
 			return `unblocks ${node.outgoingCount} task${node.outgoingCount === 1 ? '' : 's'}`;
