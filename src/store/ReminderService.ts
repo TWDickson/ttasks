@@ -61,8 +61,6 @@ export class ReminderService {
 			DEFAULT_SETTINGS.quickActions.startStatus
 		);
 
-		let dirty = false;
-
 		let overdueCount  = 0;
 		let dueTodayCount = 0;
 		let leadTimeCount = 0;
@@ -106,7 +104,6 @@ export class ReminderService {
 					staleCount++;
 				}
 				this.storage.markFired(reminder.taskPath, reminder.ruleId as ReminderRuleId, today);
-				dirty = true;
 			}
 		}
 
@@ -118,8 +115,6 @@ export class ReminderService {
 			if (staleCount    > 0) parts.push(`${staleCount} stale`);
 			this.showSummaryNotice(parts.join(' · '));
 		}
-
-		if (dirty) return;
 	}
 
 	// ---------------------------------------------------------------------------

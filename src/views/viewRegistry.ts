@@ -292,10 +292,28 @@ function iconForRenderer(renderer: TaskViewRenderer): string {
 	}
 }
 
-export function getRegisteredTaskViews(settings: Pick<TTasksSettings, 'customViews'>): RegisteredTaskViewDefinition[] {
+type ViewRegistrySettings = Pick<TTasksSettings, 'customViews' | 'quickActions'>;
+
+/**
+ * Substitutes the user-configured block status into the built-in Blocked view,
+ * whose condition is authored against the default `'Blocked'` name. Without this
+ * a user who renames the status gets a permanently empty Blocked view.
+ */
+function applyBlockStatus(view: RegisteredTaskViewDefinition, blockStatus: string): RegisteredTaskViewDefinition {
+	if (view.id !== 'blocked') return view;
+	for (const condition of view.query.filter.conditions) {
+		if ('field' in condition && condition.field === 'status' && condition.operator === 'is') {
+			condition.value = blockStatus;
+		}
+	}
+	return view;
+}
+
+export function getRegisteredTaskViews(settings: ViewRegistrySettings): RegisteredTaskViewDefinition[] {
 	const builtinIds = new Set(BUILTIN_TASK_VIEWS.map((view) => view.id));
+	const blockStatus = settings.quickActions.blockStatus;
 	return [
-		...BUILTIN_TASK_VIEWS.map(cloneRegisteredView),
+		...BUILTIN_TASK_VIEWS.map(cloneRegisteredView).map((view) => applyBlockStatus(view, blockStatus)),
 		...settings.customViews
 			.filter((view) => !builtinIds.has(view.id))
 			.map((view) => ({
@@ -306,7 +324,7 @@ export function getRegisteredTaskViews(settings: Pick<TTasksSettings, 'customVie
 }
 
 export function resolveTaskViewDefinition(
-	settings: Pick<TTasksSettings, 'customViews'>,
+	settings: ViewRegistrySettings,
 	viewId: string | null | undefined,
 ): RegisteredTaskViewDefinition | null {
 	if (!viewId) return null;
@@ -314,7 +332,7 @@ export function resolveTaskViewDefinition(
 }
 
 export function resolveTaskViewId(
-	settings: Pick<TTasksSettings, 'customViews'>,
+	settings: ViewRegistrySettings,
 	viewId: string | null | undefined,
 ): string {
 	return resolveTaskViewDefinition(settings, viewId)?.id ?? BUILTIN_TASK_VIEWS[0].id;

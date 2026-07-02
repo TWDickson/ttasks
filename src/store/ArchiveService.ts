@@ -4,6 +4,7 @@ import type TTasksPlugin from '../main';
 import { localDateString } from '../utils/dateUtils';
 import { archiveEligible, deriveArchiveFolder, getArchivePath, isArchivedPath } from './archiveUtils';
 import { safeRead } from '../utils/vaultSafe';
+import { buildRestoreInput } from './taskRestore';
 import { ARCHIVE_HISTORY_MAX_ENTRIES } from '../constants';
 
 export interface ArchivedTaskSummary {
@@ -165,14 +166,12 @@ export class ArchiveService {
 			return;
 		}
 
-		// Reset status to Active after restore
+		// Reopen the task via TaskWriter so status_changed is stamped and the
+		// completion-date clearing (A2) applies — identical to Logbook restore.
 		const movedFile = this.app.vault.getAbstractFileByPath(destPath);
 		if (movedFile instanceof TFile) {
 			const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
-			await this.app.fileManager.processFrontMatter(movedFile, (fm) => {
-				fm.status = firstStatus;
-				fm.completed = null;
-			});
+			await this.plugin.taskStore.update(destPath, buildRestoreInput(firstStatus));
 		}
 
 		try {

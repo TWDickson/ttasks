@@ -50,7 +50,7 @@ function makePlugin(tasks: Task[]): TTasksPlugin {
 			archive: { mode: 'scheduled', daysAfterComplete: 45 },
 			statuses: ['Active', 'Done'],
 		},
-		taskStore: { tasks: tasksStore },
+		taskStore: { tasks: tasksStore, update: vi.fn(async () => {}) },
 		app: {
 			vault: {
 				getAbstractFileByPath: vi.fn(() => null),
@@ -158,6 +158,32 @@ describe('ArchiveService.isArchived', () => {
 		const plugin = makePlugin([]);
 		const service = new ArchiveService(plugin);
 		expect(service.isArchived('Planner/Tasks/abc-task.md')).toBe(false);
+	});
+});
+
+describe('ArchiveService.restoreTask', () => {
+	it('reopens via taskStore.update with the restore input after moving the file', async () => {
+		const plugin = makePlugin([]);
+		const archivedPath = 'Planner/Archive/2026/05/abc-task.md';
+		const destPath = 'Planner/Tasks/abc-task.md';
+		const archivedFile = makeFile(archivedPath, 'abc-task.md');
+		const movedFile = makeFile(destPath, 'abc-task.md');
+		(plugin.app.vault.getAbstractFileByPath as any).mockImplementation((p: string) =>
+			p === archivedPath ? archivedFile : p === destPath ? movedFile : null,
+		);
+		(plugin.app.fileManager.renameFile as any).mockResolvedValue(undefined);
+		const service = new ArchiveService(plugin);
+		vi.spyOn(service as any, 'logArchiveAction').mockResolvedValue(undefined);
+
+		await service.restoreTask(archivedPath);
+
+		expect(plugin.app.fileManager.renameFile).toHaveBeenCalledWith(archivedFile, destPath);
+		expect(plugin.taskStore.update).toHaveBeenCalledWith(destPath, {
+			status: 'Active',
+			is_complete: false,
+			completed: null,
+			blocked_reason: '',
+		});
 	});
 });
 

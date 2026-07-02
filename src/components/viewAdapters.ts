@@ -1,14 +1,6 @@
-import type { FilterCondition, GroupSpec, SortSpec, TaskGroup } from '../query/types';
+import type { TaskGroup } from '../query/types';
 import { buildVisibleItems, flattenWithDepth, getParentPaths } from '../store/taskHierarchy';
 import type { Task } from '../types';
-
-export type BoardViewMode = 'list' | 'kanban' | 'agenda' | 'graph';
-
-export interface BoardQueryConfig {
-	group: GroupSpec;
-	sort: SortSpec;
-	baseFilterConditions: FilterCondition[];
-}
 
 export interface ListSection {
 	key: string;
@@ -27,29 +19,6 @@ export type ListHierarchyMode = 'flat' | 'tree';
 
 export function flattenTaskGroups(groups: TaskGroup[]): Task[] {
 	return groups.flatMap((group) => group.tasks);
-}
-
-export function resolveBoardQuery(view: BoardViewMode): BoardQueryConfig {
-	switch (view) {
-		case 'list':
-		case 'kanban':
-			return { group: { kind: 'field', field: 'status' }, sort: [], baseFilterConditions: [] };
-		case 'agenda':
-			return {
-				group: { kind: 'date_buckets', field: 'due_date', preset: 'agenda' },
-				sort: [
-					{ field: 'due_date', direction: 'asc' },
-					{ field: 'priority', direction: 'asc' },
-				],
-				baseFilterConditions: [
-					{ field: 'type', operator: 'is', value: 'task' },
-					{ field: 'is_complete', operator: 'is', value: false },
-				],
-			};
-		case 'graph':
-		default:
-			return { group: { kind: 'none' }, sort: [], baseFilterConditions: [] };
-	}
 }
 
 export function buildListRows(

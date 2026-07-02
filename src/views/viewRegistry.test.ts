@@ -44,6 +44,27 @@ describe('getRegisteredTaskViews', () => {
 	});
 });
 
+describe('blocked builtin view', () => {
+	function blockedCondition(settings: Parameters<typeof getRegisteredTaskViews>[0]) {
+		const blocked = getRegisteredTaskViews(settings).find((v) => v.id === 'blocked');
+		return blocked?.query.filter.conditions.find(
+			(c): c is Extract<typeof c, { field: string }> => 'field' in c && c.field === 'status',
+		);
+	}
+
+	it('filters on the default block status with default settings', () => {
+		expect(blockedCondition(DEFAULT_SETTINGS)).toMatchObject({ field: 'status', operator: 'is', value: 'Blocked' });
+	});
+
+	it('substitutes the user-configured block status', () => {
+		const settings = {
+			...DEFAULT_SETTINGS,
+			quickActions: { ...DEFAULT_SETTINGS.quickActions, blockStatus: 'On Hold' },
+		};
+		expect(blockedCondition(settings)).toMatchObject({ field: 'status', operator: 'is', value: 'On Hold' });
+	});
+});
+
 describe('logbook builtin view', () => {
 	it('is registered as a builtin with is_complete:true filter and completed:desc sort', () => {
 		const views = getRegisteredTaskViews(DEFAULT_SETTINGS);

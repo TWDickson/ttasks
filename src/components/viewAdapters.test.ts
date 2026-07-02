@@ -5,7 +5,6 @@ import {
 	buildListRows,
 	flattenTaskGroups,
 	labelForGroup,
-	resolveBoardQuery,
 } from './viewAdapters';
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -44,28 +43,6 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 function makeGroup(key: string, tasks: Task[]): TaskGroup {
 	return { key, tasks };
 }
-
-describe('resolveBoardQuery', () => {
-	it('groups list and kanban views by status', () => {
-		expect(resolveBoardQuery('list')).toEqual({ group: { kind: 'field', field: 'status' }, sort: [], baseFilterConditions: [] });
-		expect(resolveBoardQuery('kanban')).toEqual({ group: { kind: 'field', field: 'status' }, sort: [], baseFilterConditions: [] });
-	});
-
-	it('uses agenda date buckets plus built-in task filters for agenda view', () => {
-		expect(resolveBoardQuery('agenda')).toEqual({
-			group: { kind: 'date_buckets', field: 'due_date', preset: 'agenda' },
-			sort: [
-				{ field: 'due_date', direction: 'asc' },
-				{ field: 'priority', direction: 'asc' },
-			],
-			baseFilterConditions: [
-				{ field: 'type', operator: 'is', value: 'task' },
-				{ field: 'is_complete', operator: 'is', value: false },
-			],
-		});
-		expect(resolveBoardQuery('graph')).toEqual({ group: { kind: 'none' }, sort: [], baseFilterConditions: [] });
-	});
-});
 
 describe('buildListRows', () => {
 	it('returns hierarchical visible rows with expand metadata', () => {

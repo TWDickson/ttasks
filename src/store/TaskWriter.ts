@@ -346,7 +346,8 @@ export class TaskWriter {
 		const task = this.getTaskByPath(normalizePath(path));
 		if (!task) return;
 
-		const restoreInput = buildRestoreInput();
+		const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
+		const restoreInput = buildRestoreInput(firstStatus);
 		await this.update(path, restoreInput);
 	}
 

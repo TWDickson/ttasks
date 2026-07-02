@@ -30,6 +30,10 @@ describe('buildRestoreInput', () => {
 	it('clears blocked_reason to avoid stale block message after reopening', () => {
 		expect(buildRestoreInput().blocked_reason).toBe('');
 	});
+
+	it('resets status to the provided first configured status', () => {
+		expect(buildRestoreInput('Todo')).toMatchObject({ status: 'Todo', is_complete: false, completed: null });
+	});
 });
 
 // ── B6: complete → uncomplete → complete cycle (pure layer) ─────────────────
