@@ -9,6 +9,13 @@ import type { TaskPriority } from './types';
 import type { TaskViewRenderer } from './settings/types';
 
 /**
+ * The canonical priority list, in display / sort order (highest first).
+ * Single source of truth for the filter bar, engine ordering, schema options,
+ * and detail-panel options. `satisfies` keeps it in lockstep with TaskPriority.
+ */
+export const PRIORITIES = ['High', 'Medium', 'Low', 'None'] as const satisfies readonly TaskPriority[];
+
+/**
  * Maps each TaskPriority to an Obsidian CSS variable string.
  * Import this in any component that needs to colour-code by priority.
  */

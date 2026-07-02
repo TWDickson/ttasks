@@ -1,8 +1,9 @@
 import { resolveFieldOptionColors, resolveFieldOptions } from '../schema/optionResolver';
 import type { TTasksSettings } from '../settings/types';
 import type { TaskPriority } from '../types';
+import { PRIORITIES } from '../constants';
 
-const DEFAULT_PRIORITY_OPTIONS: TaskPriority[] = ['High', 'Medium', 'Low', 'None'];
+const DEFAULT_PRIORITY_OPTIONS: TaskPriority[] = [...PRIORITIES];
 
 export interface TaskDetailOptionInput {
 	settings: TTasksSettings;

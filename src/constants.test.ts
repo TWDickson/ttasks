@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { PRIORITY_COLORS } from './constants';
+import { PRIORITIES, PRIORITY_COLORS } from './constants';
 import type { TaskPriority } from './types';
+
+describe('PRIORITIES', () => {
+	it('is the canonical highest-first list', () => {
+		expect([...PRIORITIES]).toEqual(['High', 'Medium', 'Low', 'None']);
+	});
+
+	it('covers exactly the PRIORITY_COLORS keys', () => {
+		expect([...PRIORITIES].sort()).toEqual(Object.keys(PRIORITY_COLORS).sort());
+	});
+});
 
 // ── PRIORITY_COLORS ───────────────────────────────────────────────────────────
 //

@@ -38,6 +38,7 @@
 	} from '../views/viewRegistry';
 	import { promoteTaskToTTasks } from '../integration/promoteTaskToTTasks';
 	import {
+		PRIORITIES,
 		RENDERER_ARCHIVE,
 		RENDERER_GRAPH,
 		RENDERER_KANBAN,
@@ -431,10 +432,9 @@
 
 				<select class="tt-filter-select" bind:value={filterPriority} aria-label="Filter by priority">
 					<option value="">Priority</option>
-					<option value="High">High</option>
-					<option value="Medium">Medium</option>
-					<option value="Low">Low</option>
-					<option value="None">None</option>
+					{#each PRIORITIES as p}
+						<option value={p}>{p}</option>
+					{/each}
 				</select>
 
 				{#if areas.length > 0}

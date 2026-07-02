@@ -2,6 +2,7 @@ import type { FieldDefinition } from './types';
 import type { Task } from '../types';
 import { isBlockedStatus } from './fieldVisibility';
 import { parseIsoDate } from '../utils/dateUtils';
+import { PRIORITIES } from '../constants';
 
 /**
  * Validation rules for fields.
@@ -76,7 +77,8 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		label: 'Priority',
 		type: 'chips',
 		section: 'basics',
-		options: ['None', 'Low', 'Medium', 'High'],
+		// Displayed low→high (reverse of the canonical highest-first PRIORITIES).
+		options: [...PRIORITIES].reverse(),
 		optionColors: {
 			'High': 'var(--color-red)',
 			'Medium': 'var(--color-orange)',

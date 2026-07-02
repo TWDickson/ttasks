@@ -12,10 +12,11 @@ import type {
 } from './types';
 import { addDaysLocal, localDateString } from '../utils/dateUtils';
 import { AGENDA_BUCKET_ORDER, type AgendaBucketKey } from './agendaBuckets';
+import { PRIORITIES } from '../constants';
 
 // ── Date resolution ───────────────────────────────────────────────────────────
 
-const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2, None: 3 };
+const PRIORITY_ORDER: Record<string, number> = Object.fromEntries(PRIORITIES.map((p, i) => [p, i]));
 
 /**
  * Resolves a date value which may be an absolute YYYY-MM-DD string or a
@@ -212,12 +213,12 @@ function applyFieldGroup(tasks: Task[], group: FieldGroupSpec): TaskGroup[] {
 	// Priority groups get semantic ordering
 	if (groupBy === 'priority') {
 		const ordered: TaskGroup[] = [];
-		for (const p of ['High', 'Medium', 'Low', 'None']) {
+		for (const p of PRIORITIES) {
 			if (map.has(p)) ordered.push({ key: p, tasks: map.get(p)! });
 		}
 		// Any custom priority values not in the canonical list
 		for (const [key, tasks] of map) {
-			if (!['High', 'Medium', 'Low', 'None'].includes(key)) {
+			if (!(PRIORITIES as readonly string[]).includes(key)) {
 				ordered.push({ key, tasks });
 			}
 		}
