@@ -998,3 +998,19 @@
 .tt-qe-save {
 	padding: var(--tt-space-1) var(--tt-space-4);
 }
+
+/* ── Reminder Notice ─────────────────────────────────────────────────────── */
+
+/* Pointer affordance on the message text and the notice body when the notice
+   carries clickable actions. */
+.tt-reminder-notice {
+	cursor: pointer;
+}
+
+.tt-reminder-notice-action {
+	margin-left: 8px;
+	font-size: 0.75rem;
+	padding: 2px 6px;
+	border-radius: 4px;
+	cursor: pointer;
+}

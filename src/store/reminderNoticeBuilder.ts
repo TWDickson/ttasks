@@ -10,15 +10,15 @@ export function buildReminderNotice(
 	actions: NoticeAction[] = [],
 	durationMs = 0,
 ): Notice {
+	const hasActions = actions.length > 0;
 	const fragment = document.createDocumentFragment();
 	const text = fragment.createEl('span', { text: message });
-	text.style.cursor = actions.length > 0 ? 'pointer' : 'default';
+	if (hasActions) text.addClass('tt-reminder-notice');
 
 	// Build the buttons into the fragment before the Notice consumes it; click
 	// handlers are wired afterwards so they can close over the created notice.
 	const actionButtons = actions.map((action) => {
-		const button = fragment.createEl('button', { text: action.label });
-		button.style.cssText = 'margin-left:8px;font-size:0.75rem;padding:2px 6px;border-radius:4px;cursor:pointer;';
+		const button = fragment.createEl('button', { text: action.label, cls: 'tt-reminder-notice-action' });
 		return { button, action };
 	});
 
@@ -35,8 +35,8 @@ export function buildReminderNotice(
 		});
 	}
 
-	notice.noticeEl.style.cursor = actions.length > 0 ? 'pointer' : 'default';
-	if (actions.length > 0) {
+	if (hasActions) {
+		notice.noticeEl.addClass('tt-reminder-notice');
 		notice.noticeEl.addEventListener('click', () => {
 			invokeAction(actions[0]);
 		});
