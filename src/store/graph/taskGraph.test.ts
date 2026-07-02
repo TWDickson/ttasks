@@ -381,6 +381,50 @@ describe('resolveTaskDates', () => {
 		expect(result.has('Tasks/a.md')).toBe(false);
 	});
 
+	it('anchors a completed task on its completion date even without explicit start/due', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', status: 'Done', is_complete: true, completed: '2026-05-27' }),
+		];
+		const result = resolveTaskDates(tasks);
+		const a = result.get('Tasks/a.md');
+		expect(a).toBeDefined();
+		expect(a!.start.toISOString().slice(0, 10)).toBe('2026-05-27');
+		expect(a!.end.toISOString().slice(0, 10)).toBe('2026-05-27');
+	});
+
+	it('propagates dates downstream of a completed anchor, defaulting undated tasks to one day', () => {
+		// A is done May 27 with no explicit dates; B (no estimate) and C chain off it.
+		// B should start the day after A and span a single day; C follows B.
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', status: 'Done', is_complete: true, completed: '2026-05-27' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'] }),
+			makeTask({ path: 'Tasks/c.md', name: 'C', depends_on: ['Tasks/b'], estimated_days: 2 }),
+		];
+		const result = resolveTaskDates(tasks);
+
+		const b = result.get('Tasks/b.md');
+		expect(b).toBeDefined();
+		expect(b!.start.toISOString().slice(0, 10)).toBe('2026-05-28');
+		expect(b!.end.toISOString().slice(0, 10)).toBe('2026-05-28'); // 1-day default
+		expect(b!.isInferred).toBe(true);
+
+		const c = result.get('Tasks/c.md');
+		expect(c).toBeDefined();
+		expect(c!.start.toISOString().slice(0, 10)).toBe('2026-05-29');
+		expect(c!.end.toISOString().slice(0, 10)).toBe('2026-05-30'); // 2 estimated days
+	});
+
+	it('uses the completion date as the end even when an estimate is present', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', start_date: '2026-05-20', status: 'Done', is_complete: true, completed: '2026-05-27', estimated_days: 99 }),
+		];
+		const result = resolveTaskDates(tasks);
+		const a = result.get('Tasks/a.md');
+		expect(a).toBeDefined();
+		expect(a!.start.toISOString().slice(0, 10)).toBe('2026-05-20');
+		expect(a!.end.toISOString().slice(0, 10)).toBe('2026-05-27'); // actual completion, not estimate
+	});
+
 	it('excludes tasks in dependency cycles', () => {
 		const tasks = [
 			makeTask({ path: 'Tasks/a.md', name: 'A', depends_on: ['Tasks/b'], due_date: '2026-04-10' }),

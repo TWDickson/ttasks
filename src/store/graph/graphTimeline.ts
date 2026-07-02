@@ -22,7 +22,12 @@ export function diffDays(start: Date, end: Date): number {
 }
 
 export function formatDateISO(date: Date): string {
-	return date.toISOString().slice(0, 10);
+	// Local components, not toISOString(): dates here are local midnights, and
+	// UTC conversion shifts them to the previous day in UTC+ timezones.
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
 }
 
 function formatMonthDay(date: Date): string {

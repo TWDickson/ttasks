@@ -1,5 +1,5 @@
 import type { Task } from '../../types';
-import { DAY_MS, addDays, formatDateISO, isWeekend } from './graphTimeline';
+import { addDays, formatDateISO, isWeekend } from './graphTimeline';
 import { normalizeTaskPath, resolveOwningProjectPath, dedupePaths } from './taskGraph';
 
 // ---------------------------------------------------------------------------
@@ -155,6 +155,10 @@ export function resolveTaskDates(
 
 		const explicitStart = inferParseDate(task.start_date);
 		const explicitDue   = inferParseDate(task.due_date);
+		// Completed work is anchored on when it actually finished. This is the key
+		// to propagation: a done task with no explicit start/due still resolves,
+		// so everything downstream of it can inherit a date instead of stalling.
+		const completedDate = task.is_complete ? inferParseDate(task.completed) : null;
 
 		let start: Date | null = explicitStart;
 		let isInferred = false;
@@ -166,16 +170,21 @@ export function resolveTaskDates(
 		if (!start && explicitDue) {
 			start = new Date(explicitDue.getTime());
 		}
+		if (!start && completedDate) {
+			start = new Date(completedDate.getTime());
+		}
 
 		if (start) {
-			let end: Date | null = explicitDue;
+			// Completion date is the authoritative end for done work; otherwise an
+			// explicit due date; otherwise the estimated duration, defaulting to a
+			// single day when no estimate is given so every task has a non-zero
+			// footprint and dependents advance by at least one day.
+			let end: Date | null = completedDate ?? explicitDue;
 			if (!end) {
 				const estDays = task.estimated_days;
-				if (estDays && estDays > 0) {
-					end = addCalendarDays(start, Math.max(0, Math.round(estDays) - 1), calendar);
-				}
+				const days = estDays && estDays > 0 ? Math.round(estDays) : 1;
+				end = addCalendarDays(start, Math.max(0, days - 1), calendar);
 			}
-			if (!end) end = new Date(start.getTime());
 			if (end.getTime() < start.getTime()) end = new Date(start.getTime());
 
 			resolved.set(path, { start, end, isInferred });
