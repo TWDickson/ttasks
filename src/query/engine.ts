@@ -332,75 +332,52 @@ export function applyGroup(tasks: Task[], group: GroupSpec): TaskGroup[] {
 }
 
 /**
- * Applies the full QuerySpec: search → filter → sort → group → limit.
+ * Caps grouped results: first each group to `limitPerGroup`, then (when `limit`
+ * is given) the total task count across groups while preserving group order.
+ * Either cap is skipped when its argument is null/undefined.
  */
-export function applyQuery(tasks: Task[], query: QuerySpec): TaskGroup[] {
-	// 1. Search + filter
-	const filtered = applyFilter(tasks, query.filter, query.search);
-	const sortScope: SortScope = query.sortScope ?? (query.group.kind === 'none' ? 'global' : 'within_groups');
+function capGroups(groups: TaskGroup[], limitPerGroup: number | undefined, limit: number | undefined): TaskGroup[] {
+	let result = limitPerGroup != null
+		? groups.map(g => ({ key: g.key, tasks: g.tasks.slice(0, limitPerGroup) }))
+		: groups;
 
-	// Ungrouped views always use global ordering.
-	if (query.group.kind === 'none') {
-		const sorted = applySort(filtered, query.sort);
-		const limited = query.limit != null ? sorted.slice(0, query.limit) : sorted;
-		const groups = applyGroup(limited, query.group);
-
-		if (query.limitPerGroup != null) {
-			return groups.map(g => ({
-				key: g.key,
-				tasks: g.tasks.slice(0, query.limitPerGroup),
-			}));
-		}
-
-		return groups;
-	}
-
-	if (sortScope === 'global') {
-		// Global mode preserves old behavior: sort first, then group.
-		const sorted = applySort(filtered, query.sort);
-		const limited = query.limit != null ? sorted.slice(0, query.limit) : sorted;
-		const groups = applyGroup(limited, query.group);
-
-		if (query.limitPerGroup != null) {
-			return groups.map(g => ({
-				key: g.key,
-				tasks: g.tasks.slice(0, query.limitPerGroup),
-			}));
-		}
-
-		return groups;
-	}
-
-	// Within-groups mode: group first, then sort tasks within each group.
-	let groups = applyGroup(filtered, query.group).map((group) => ({
-		key: group.key,
-		tasks: applySort(group.tasks, query.sort),
-	}));
-
-	// Apply per-group limit first.
-	if (query.limitPerGroup != null) {
-		groups = groups.map(g => ({
-			key: g.key,
-			tasks: g.tasks.slice(0, query.limitPerGroup),
-		}));
-	}
-
-	// Then apply total limit across groups while preserving group order.
-	if (query.limit != null) {
-		let remaining = query.limit;
+	if (limit != null) {
+		let remaining = limit;
 		const capped: TaskGroup[] = [];
-		for (const group of groups) {
+		for (const group of result) {
 			if (remaining <= 0) break;
 			if (group.tasks.length === 0) continue;
 			const take = Math.min(remaining, group.tasks.length);
-			capped.push({
-				key: group.key,
-				tasks: group.tasks.slice(0, take),
-			});
+			capped.push({ key: group.key, tasks: group.tasks.slice(0, take) });
 			remaining -= take;
 		}
-		return capped;
+		result = capped;
 	}
 
-	return groups;
+	return result;
+}
+
+/**
+ * Applies the full QuerySpec: search → filter → sort → group → limit.
+ */
+export function applyQuery(tasks: Task[], query: QuerySpec): TaskGroup[] {
+	const filtered = applyFilter(tasks, query.filter, query.search);
+	const sortScope: SortScope = query.sortScope ?? (query.group.kind === 'none' ? 'global' : 'within_groups');
+
+	// Global (and always-global ungrouped) mode: sort the flat list, apply the
+	// total row limit, then group. Per-group capping happens after grouping;
+	// the total limit was already applied pre-group, so it is not re-applied.
+	if (query.group.kind === 'none' || sortScope === 'global') {
+		const sorted = applySort(filtered, query.sort);
+		const limited = query.limit != null ? sorted.slice(0, query.limit) : sorted;
+		const groups = applyGroup(limited, query.group);
+		return capGroups(groups, query.limitPerGroup, undefined);
+	}
+
+	// Within-groups mode: group first, sort within each group, then cap.
+	const groups = applyGroup(filtered, query.group).map((group) => ({
+		key: group.key,
+		tasks: applySort(group.tasks, query.sort),
+	}));
+	return capGroups(groups, query.limitPerGroup, query.limit);
 }
