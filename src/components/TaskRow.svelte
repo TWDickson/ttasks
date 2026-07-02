@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { localDateString } from '../utils/dateUtils';
+	import { today } from '../utils/todayStore';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import type { ExternalTask } from '../integration/types';
@@ -39,32 +38,8 @@
 	/** Resolved dependency-chain schedule, used for the projected-date badge. */
 	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
 
-	let cachedToday = localDateString();
-
-	function today(): string {
-		return cachedToday;
-	}
-
-	// Refresh cached today at midnight
-	onMount(() => {
-		const scheduleRefresh = () => {
-			const now = new Date();
-			const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-			const ms = tomorrow.getTime() - now.getTime() + 100; // 100ms past midnight
-			return window.setTimeout(() => {
-				cachedToday = localDateString();
-				midnightTimer = scheduleRefresh();
-			}, ms);
-		};
-		let midnightTimer = scheduleRefresh();
-		return () => window.clearTimeout(midnightTimer);
-	});
-
-	function isOverdue(task: Task): boolean {
-		return isTaskOverdue(task, today());
-	}
-
-	$: dateBadge = getTaskDateBadge(task, today());
+	$: overdue = isTaskOverdue(task, $today);
+	$: dateBadge = getTaskDateBadge(task, $today);
 	$: inferredDue = schedule ? resolveInferredDueDate(task, schedule.get(task.path)) : null;
 
 	function getBadgeStyle(color: string | undefined): string {
@@ -115,7 +90,7 @@
 
 <li
 	class="tt-task"
-	class:is-overdue={isOverdue(task)}
+	class:is-overdue={overdue}
 	class:is-active={active}
 	class:is-keyboard-focused={keyboardFocused}
 	data-task-path={task.path}
@@ -181,7 +156,7 @@
 				<span
 					class="tt-badge tt-badge-inferred"
 					title="Projected finish, inferred from dependency chain"
-				>~{formatHumanDate(inferredDue, today())}</span>
+				>~{formatHumanDate(inferredDue, $today)}</span>
 			{/if}
 			{#each task.labels as label (label)}
 				<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!labelColors?.[label]} style={getBadgeStyle(labelColors?.[label])}>{label}</span>

@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { localDateString } from '../utils/dateUtils';
+	import { today } from '../utils/todayStore';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task, TaskStatus } from '../types';
 	import type { TaskGroup } from '../query/types';
@@ -56,28 +55,12 @@
 		activeColumn = COLUMNS[0]?.id ?? 'Active';
 	}
 
-	let cachedToday = localDateString();
-
-	onMount(() => {
-		const scheduleRefresh = () => {
-			const now = new Date();
-			const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-			const ms = tomorrow.getTime() - now.getTime() + 100;
-			return window.setTimeout(() => {
-				cachedToday = localDateString();
-				midnightTimer = scheduleRefresh();
-			}, ms);
-		};
-		let midnightTimer = scheduleRefresh();
-		return () => window.clearTimeout(midnightTimer);
-	});
-
-	function isOverdue(task: Task): boolean {
-		return isTaskOverdue(task, cachedToday);
+	function isOverdue(task: Task, todayDate: string): boolean {
+		return isTaskOverdue(task, todayDate);
 	}
 
-	function getDateBadge(task: Task) {
-		return getTaskDateBadge(task, cachedToday);
+	function getDateBadge(task: Task, todayDate: string) {
+		return getTaskDateBadge(task, todayDate);
 	}
 
 	function onDragStart(e: DragEvent, path: string) {
@@ -202,7 +185,7 @@
 							<div
 								class="tt-kanban-card"
 								class:is-active={$activeTaskPath === task.path}
-								class:is-overdue={isOverdue(task)}
+								class:is-overdue={isOverdue(task, $today)}
 								class:is-dragging={draggingPath === task.path}
 								draggable="true"
 								role="button"
@@ -232,15 +215,18 @@
 									{#if task.area && isFieldEnabled(kanbanCardFields, 'area')}
 										<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!areaColors?.[task.area]} style={getBadgeStyle(areaColors?.[task.area])}>{task.area}</span>
 									{/if}
-									{#if isFieldEnabled(kanbanCardFields, 'dueDate') && getDateBadge(task)}
-										<span
-											class="tt-badge"
-											class:tt-badge-overdue={getDateBadge(task)?.isOverdue}
-											class:tt-badge-completed={getDateBadge(task)?.kind === 'completed'}
-											title={getDateBadge(task)?.title}
-										>
-											{getDateBadge(task)?.label}
-										</span>
+									{#if isFieldEnabled(kanbanCardFields, 'dueDate')}
+										{@const badge = getDateBadge(task, $today)}
+										{#if badge}
+											<span
+												class="tt-badge"
+												class:tt-badge-overdue={badge.isOverdue}
+												class:tt-badge-completed={badge.kind === 'completed'}
+												title={badge.title}
+											>
+												{badge.label}
+											</span>
+										{/if}
 									{/if}
 									{#if isFieldEnabled(kanbanCardFields, 'labels')}
 										{#each task.labels as label (label)}
