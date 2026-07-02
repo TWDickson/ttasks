@@ -5,7 +5,48 @@ import {
 	safeProcess,
 	safeLocalStorage,
 	safeLocalStorageSet,
+	ensureFolderPath,
 } from './vaultSafe';
+
+describe('ensureFolderPath', () => {
+	function fakeVault(existing: string[] = []) {
+		const folders = new Set(existing);
+		return {
+			created: [] as string[],
+			getAbstractFileByPath(path: string) {
+				return folders.has(path) ? { path } : null;
+			},
+			async createFolder(path: string) {
+				folders.add(path);
+				this.created.push(path);
+			},
+		};
+	}
+
+	it('creates every missing segment top-down', async () => {
+		const vault = fakeVault();
+		await ensureFolderPath(vault, 'Planner/Archive/2026/05');
+		expect(vault.created).toEqual(['Planner', 'Planner/Archive', 'Planner/Archive/2026', 'Planner/Archive/2026/05']);
+	});
+
+	it('skips segments that already exist', async () => {
+		const vault = fakeVault(['Planner', 'Planner/Archive']);
+		await ensureFolderPath(vault, 'Planner/Archive/2026');
+		expect(vault.created).toEqual(['Planner/Archive/2026']);
+	});
+
+	it('does nothing when the full path already exists', async () => {
+		const vault = fakeVault(['Planner', 'Planner/Tasks']);
+		await ensureFolderPath(vault, 'Planner/Tasks');
+		expect(vault.created).toEqual([]);
+	});
+
+	it('ignores empty segments from leading/trailing slashes', async () => {
+		const vault = fakeVault();
+		await ensureFolderPath(vault, '/Planner/');
+		expect(vault.created).toEqual(['Planner']);
+	});
+});
 
 describe('safeRead', () => {
 	it('returns ok + content on success', async () => {

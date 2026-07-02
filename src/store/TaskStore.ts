@@ -6,6 +6,7 @@ import { resolveCompletionStatus } from '../settings';
 import { localDateString, addDaysLocal } from '../utils/dateUtils';
 import { ensureMdExt } from '../utils/pathUtils';
 import { parseWikiLink } from '../utils/wikiLink';
+import { ensureFolderPath } from '../utils/vaultSafe';
 import { TaskWriter } from './TaskWriter';
 import { TaskMigrations, type MigratableField } from './TaskMigrations';
 import { TaskRelationships } from './TaskRelationships';
@@ -574,16 +575,7 @@ export class TaskStore {
 	}
 
 	private async ensureFolderPathExists(path: string): Promise<void> {
-		const segments = normalizePath(path).split('/').filter(Boolean);
-		let current = '';
-
-		for (const segment of segments) {
-			current = current ? `${current}/${segment}` : segment;
-			const existing = this.app.vault.getAbstractFileByPath(current);
-			if (!existing) {
-				await this.app.vault.createFolder(current);
-			}
-		}
+		await ensureFolderPath(this.app.vault, normalizePath(path));
 	}
 
 }

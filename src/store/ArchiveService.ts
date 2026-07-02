@@ -3,7 +3,7 @@ import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import { localDateString } from '../utils/dateUtils';
 import { archiveEligible, deriveArchiveFolder, getArchivePath, isArchivedPath } from './archiveUtils';
-import { safeRead } from '../utils/vaultSafe';
+import { safeRead, ensureFolderPath } from '../utils/vaultSafe';
 import { buildRestoreInput } from './taskRestore';
 import { ARCHIVE_HISTORY_MAX_ENTRIES } from '../constants';
 
@@ -212,13 +212,6 @@ export class ArchiveService {
 	// ── Helpers ──────────────────────────────────────────────────────────────
 
 	private async ensureFolder(folderPath: string): Promise<void> {
-		const segments = folderPath.split('/').filter(Boolean);
-		let current = '';
-		for (const segment of segments) {
-			current = current ? `${current}/${segment}` : segment;
-			if (!this.app.vault.getAbstractFileByPath(current)) {
-				await this.app.vault.createFolder(current);
-			}
-		}
+		await ensureFolderPath(this.app.vault, folderPath);
 	}
 }

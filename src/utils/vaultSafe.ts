@@ -67,6 +67,27 @@ export async function safeProcess(
 	}
 }
 
+interface FolderVaultLike {
+	getAbstractFileByPath(path: string): unknown | null;
+	createFolder(path: string): Promise<unknown>;
+}
+
+/**
+ * Ensures every folder along `path` exists, creating missing segments top-down.
+ * Idempotent — segments that already exist are skipped. Pass an already-normalized
+ * path (forward slashes); segments are split on '/' with empties dropped.
+ */
+export async function ensureFolderPath(vault: FolderVaultLike, path: string): Promise<void> {
+	const segments = path.split('/').filter(Boolean);
+	let current = '';
+	for (const segment of segments) {
+		current = current ? `${current}/${segment}` : segment;
+		if (!vault.getAbstractFileByPath(current)) {
+			await vault.createFolder(current);
+		}
+	}
+}
+
 export function safeLocalStorage(key: string): string | null {
 	try {
 		return localStorage.getItem(key);
