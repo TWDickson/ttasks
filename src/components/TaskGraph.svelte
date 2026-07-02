@@ -1273,7 +1273,7 @@
 	}
 
 	/* Content budget inside the fixed 122px card (102px after padding):
-	   top row ~13px + 3-line name ~52px + meta ~14px + two 6px gaps = ~91px. */
+	top row ~13px + 3-line name ~52px + meta ~14px + two 6px gaps = ~91px. */
 	.tt-graph-name {
 		font-size: 0.92rem;
 		font-weight: 700;
