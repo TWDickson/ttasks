@@ -5,6 +5,7 @@
 	import type { Task } from '../types';
 	import type { TaskGroup } from '../query/types';
 	import type { ResolvedTaskDate } from '../store/taskSchedule';
+	import { AGENDA_BUCKET_LABELS, AGENDA_BUCKET_COLORS, isAgendaBucketKey } from '../query/agendaBuckets';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
@@ -15,38 +16,19 @@
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 
-	// ── Date group definitions ────────────────────────────────────────────────
-
-	type DateGroupKey = 'overdue' | 'today' | 'tomorrow' | 'this-week' | 'next-week' | 'later' | 'no-date';
-
-	const GROUP_ORDER: DateGroupKey[] = [
-		'overdue', 'today', 'tomorrow', 'this-week', 'next-week', 'later', 'no-date',
-	];
-
-	const GROUP_LABELS: Record<DateGroupKey, string> = {
-		'overdue':   'Overdue',
-		'today':     'Today',
-		'tomorrow':  'Tomorrow',
-		'this-week': 'This Week',
-		'next-week': 'Next Week',
-		'later':     'Later',
-		'no-date':   'No Date',
-	};
-
-	const GROUP_COLORS: Record<DateGroupKey, string> = {
-		'overdue':   'var(--color-red)',
-		'today':     'var(--interactive-accent)',
-		'tomorrow':  'var(--color-orange)',
-		'this-week': 'var(--text-muted)',
-		'next-week': 'var(--text-muted)',
-		'later':     'var(--text-muted)',
-		'no-date':   'var(--text-faint)',
-	};
+	// Bucket keys/order/labels/colors live in query/agendaBuckets — the same source
+	// the engine assigns buckets from — so the view can't drift from the engine.
 
 	$: totalCount = $groups.reduce((n, group) => n + group.tasks.length, 0);
 
-	function isDateGroupKey(value: string): value is DateGroupKey {
-		return GROUP_ORDER.includes(value as DateGroupKey);
+	// Unrecognized keys (e.g. a new engine bucket) fall back to the raw key + a
+	// neutral color rather than being dropped, so their tasks never vanish.
+	function bucketLabel(key: string): string {
+		return isAgendaBucketKey(key) ? AGENDA_BUCKET_LABELS[key] : key;
+	}
+
+	function bucketColor(key: string): string {
+		return isAgendaBucketKey(key) ? AGENDA_BUCKET_COLORS[key] : 'var(--text-muted)';
 	}
 
 </script>
@@ -56,31 +38,29 @@
 		<div class="tt-empty">No upcoming tasks.</div>
 	{:else}
 		{#each $groups as group (group.key)}
-			{#if isDateGroupKey(group.key)}
-				<section class="tt-group">
-					<h3 class="tt-group-heading">
-						<span
-							class="tt-group-label"
-							style="color: {GROUP_COLORS[group.key]}"
-						>{GROUP_LABELS[group.key]}</span>
-						<span class="tt-count">{group.tasks.length}</span>
-					</h3>
-					<ul class="tt-task-list">
-						{#each group.tasks as task (task.path)}
-							<TaskRow
-								{plugin}
-								{task}
-								{schedule}
-								active={$activeTaskPath === task.path}
-								{areaColors}
-								{labelColors}
-								{onOpen}
-								onContextMenu={onContextMenu}
-							/>
-						{/each}
-					</ul>
-				</section>
-			{/if}
+			<section class="tt-group">
+				<h3 class="tt-group-heading">
+					<span
+						class="tt-group-label"
+						style="color: {bucketColor(group.key)}"
+					>{bucketLabel(group.key)}</span>
+					<span class="tt-count">{group.tasks.length}</span>
+				</h3>
+				<ul class="tt-task-list">
+					{#each group.tasks as task (task.path)}
+						<TaskRow
+							{plugin}
+							{task}
+							{schedule}
+							active={$activeTaskPath === task.path}
+							{areaColors}
+							{labelColors}
+							{onOpen}
+							onContextMenu={onContextMenu}
+						/>
+					{/each}
+				</ul>
+			</section>
 		{/each}
 	{/if}
 </div>

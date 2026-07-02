@@ -11,6 +11,7 @@ import type {
 	TaskGroup,
 } from './types';
 import { addDaysLocal, localDateString } from '../utils/dateUtils';
+import { AGENDA_BUCKET_ORDER, type AgendaBucketKey } from './agendaBuckets';
 
 // ── Date resolution ───────────────────────────────────────────────────────────
 
@@ -225,12 +226,6 @@ function applyFieldGroup(tasks: Task[], group: FieldGroupSpec): TaskGroup[] {
 
 	return [...map.entries()].map(([key, tasks]) => ({ key, tasks }));
 }
-
-type AgendaBucketKey = 'overdue' | 'today' | 'tomorrow' | 'this-week' | 'next-week' | 'later' | 'no-date';
-
-const AGENDA_BUCKET_ORDER: AgendaBucketKey[] = [
-	'overdue', 'today', 'tomorrow', 'this-week', 'next-week', 'later', 'no-date',
-];
 
 function classifyAgendaBucket(dueDate: string | null): AgendaBucketKey {
 	if (!dueDate) return 'no-date';
