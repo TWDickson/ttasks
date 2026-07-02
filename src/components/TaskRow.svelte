@@ -5,8 +5,9 @@
 	import type { Task } from '../types';
 	import type { ExternalTask } from '../integration/types';
 	import { PRIORITY_COLORS } from '../constants';
-	import { getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
+	import { getTaskDateBadge, isTaskOverdue, formatHumanDate } from './taskDateMeta';
 	import { canShowInlineReopen } from './taskRowActions';
+	import { resolveInferredDueDate, type ResolvedTaskDate } from '../store/taskSchedule';
 
 	export let plugin: TTasksPlugin;
 	export let task: Task;
@@ -35,6 +36,8 @@
 	export let keyboardFocused = false;
 	/** Promote callback for captured/external tasks. */
 	export let onPromote: ((task: ExternalTask) => void) | undefined = undefined;
+	/** Resolved dependency-chain schedule, used for the projected-date badge. */
+	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
 
 	let cachedToday = localDateString();
 
@@ -62,6 +65,7 @@
 	}
 
 	$: dateBadge = getTaskDateBadge(task, today());
+	$: inferredDue = schedule ? resolveInferredDueDate(task, schedule.get(task.path)) : null;
 
 	function getBadgeStyle(color: string | undefined): string {
 		return color ? `--tt-badge-color:${color};` : '';
@@ -173,6 +177,11 @@
 					class:tt-badge-completed={dateBadge.kind === 'completed'}
 					title={dateBadge.title}
 				>{dateBadge.label}</span>
+			{:else if inferredDue}
+				<span
+					class="tt-badge tt-badge-inferred"
+					title="Projected finish, inferred from dependency chain"
+				>~{formatHumanDate(inferredDue, today())}</span>
 			{/if}
 			{#each task.labels as label (label)}
 				<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!labelColors?.[label]} style={getBadgeStyle(labelColors?.[label])}>{label}</span>
@@ -381,6 +390,14 @@
 	.tt-badge-completed {
 		background: color-mix(in srgb, var(--color-green) 88%, var(--background-primary));
 		color: var(--text-on-accent);
+	}
+
+	/* Inferred projected finish — weaker than a real due badge (dashed, no fill); never overdue-styled. */
+	.tt-badge-inferred {
+		background: transparent;
+		border: 1px dashed var(--background-modifier-border);
+		color: var(--text-muted);
+		font-style: italic;
 	}
 
 	.tt-badge-type {

@@ -3,7 +3,7 @@ import { ensureMdExt, pathLeaf } from '../../utils/pathUtils';
 import { parseWikiLink } from '../../utils/wikiLink';
 import { optimizeLaneBandOrder } from './graphCrossingOptimizer';
 import { parseIsoDate } from '../../utils/dateUtils';
-import { resolveTaskDates } from './taskGraphDates';
+import { buildTaskSchedule } from '../taskSchedule';
 
 export interface TaskGraphNode {
 	path: string;
@@ -312,7 +312,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 
 	const allTaskByPath = new Map(allTasks.map((task) => [task.path, task]));
 	const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
-	const resolvedTemporalDates = resolveTaskDates(visibleTasks.filter((task) => task.type === 'task'), {
+	const resolvedTemporalDates = buildTaskSchedule(visibleTasks.filter((task) => task.type === 'task'), {
 		allTasks,
 	});
 	const getTemporalKeyForTask = (task: Task): number => {

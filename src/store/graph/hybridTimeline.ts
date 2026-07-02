@@ -3,11 +3,11 @@ import { pathLeaf } from '../../utils/pathUtils';
 import { DAY_MS, addDays, normalizeTimelineRange, parseIsoDate } from './graphTimeline';
 import { normalizeTaskPath, resolveOwningProjectPath, dedupePaths } from './taskGraph';
 import {
-	resolveTaskDates,
 	createWorkingCalendarResolver,
 	addCalendarDays,
 	type ResolvedTaskDate,
 } from './taskGraphDates';
+import { buildTaskSchedule } from '../taskSchedule';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -186,7 +186,7 @@ export function buildHybridTimeline(
 
 	const visibleTasks = tasks.filter((task) => task.type === 'task');
 	const taskByPath   = new Map(visibleTasks.map((task) => [task.path, task]));
-	const resolved     = resolveTaskDates(visibleTasks, { allTasks: tasks });
+	const resolved     = buildTaskSchedule(visibleTasks, { allTasks: tasks });
 	const resolveCalendar = createWorkingCalendarResolver(visibleTasks, { allTasks: tasks });
 	const resolveGroup    = createTimelineGroupingResolver(grouping, visibleTasks, tasks);
 

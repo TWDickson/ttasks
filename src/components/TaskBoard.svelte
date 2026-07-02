@@ -13,6 +13,7 @@
 	import TaskGraph from './TaskGraph.svelte';
 	import TaskDetail from './TaskDetail.svelte';
 	import { createTaskQuery } from '../query/useTaskQuery';
+	import { buildTaskSchedule } from '../store/taskSchedule';
 	import { canToggleBuiltinCompleted, defaultCompletedVisibility } from './builtinViewCompletionToggle';
 	import { canToggleLogbookRenderer, resolveViewRenderer, toggleLogbookRendererMode } from './logbookViewMode';
 	import TaskArchiveView from './TaskArchiveView.svelte';
@@ -155,6 +156,10 @@
 
 	let currentBoardQuery = effectiveQuery(currentView, currentRenderer, showCompleted);
 	$: currentBoardQuery = effectiveQuery(currentView, currentRenderer, showCompleted);
+
+	// Resolve dependency-chain schedules once for the whole board; passed to list
+	// rows so tasks whose finish is implied by their chain show a projected badge.
+	$: schedule = buildTaskSchedule($tasks);
 
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
 		filter: currentBoardQuery.filter,
@@ -471,6 +476,7 @@
 						{plugin}
 						viewId={currentView.id}
 						groups={groupedTasks}
+						{schedule}
 						statuses={configuredStatuses}
 						hierarchy={currentView.presentation.hierarchy}
 						areaColors={configuredCategoryColors}
@@ -536,6 +542,7 @@
 					<TaskAgenda
 						{plugin}
 						groups={groupedTasks}
+						{schedule}
 						areaColors={configuredCategoryColors}
 						labelColors={configuredTaskTypeColors}
 						{activeTaskPath}

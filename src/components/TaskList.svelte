@@ -5,10 +5,12 @@
 	import type { Task } from '../types';
 	import type { ExternalTask } from '../integration/types';
 	import type { TaskGroup } from '../query/types';
+	import type { ResolvedTaskDate } from '../store/taskSchedule';
 	import { buildListRows, labelForGroup, type ListSection, type ListHierarchyMode } from './viewAdapters';
 	export let plugin: TTasksPlugin;
 	export let viewId = '';
 	export let groups: Readable<TaskGroup[]>;
+	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
 	export let statuses: string[];
 	export let hierarchy: ListHierarchyMode = 'tree';
 	export let areaColors: Record<string, string>;
@@ -94,6 +96,7 @@
 								{plugin}
 								{viewId}
 								task={row.task}
+								{schedule}
 								active={$activeTaskPath === row.task.path}
 								{areaColors}
 								{labelColors}

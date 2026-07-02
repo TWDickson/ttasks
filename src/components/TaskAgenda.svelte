@@ -4,9 +4,11 @@
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
 	import type { TaskGroup } from '../query/types';
+	import type { ResolvedTaskDate } from '../store/taskSchedule';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
+	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
 	export let areaColors: Record<string, string>;
 	export let labelColors: Record<string, string>;
 	export let activeTaskPath: Writable<string | null>;
@@ -68,6 +70,7 @@
 							<TaskRow
 								{plugin}
 								{task}
+								{schedule}
 								active={$activeTaskPath === task.path}
 								{areaColors}
 								{labelColors}

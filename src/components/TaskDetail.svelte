@@ -8,6 +8,8 @@
 	import { resolveCompletionStatus } from '../settings';
 	import { RECURRENCE_LABELS, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 	import { localDateString } from '../utils/dateUtils';
+	import { buildTaskSchedule, resolveProjectedSchedule } from '../store/taskSchedule';
+	import { formatHumanDate } from './taskDateMeta';
 	import { isBlockedStatus } from '../schema/fieldVisibility';
 	import type { FieldComponentProps } from '../schema/fieldAdapters';
 	import { deriveTaskDetailFieldProps } from './taskDetailFieldProps';
@@ -384,6 +386,10 @@
 		blockedReasonFieldProps = detailFieldProps.blockedReasonFieldProps;
 	}
 
+	$: projectedSchedule = task
+		? resolveProjectedSchedule(task, buildTaskSchedule($tasks).get(task.path))
+		: null;
+
 	$: completionStatus = getCompletionStatus();
 	$: blockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
 	$: showBlockedReason = isBlockedStatus(status, blockStatus);
@@ -599,6 +605,14 @@
 				/>
 			{/if}
 
+			{#if projectedSchedule}
+				<span class="tt-label tt-label-projected">Projected</span>
+				<div class="tt-projected-schedule" title="Inferred from dependencies">
+					{formatHumanDate(projectedSchedule.start, localDateString())} – {formatHumanDate(projectedSchedule.end, localDateString())}
+					<span class="tt-projected-note">inferred from dependencies</span>
+				</div>
+			{/if}
+
 			<label class="tt-label" for="tt-assigned-to">Assigned To</label>
 			{#if assignedToFieldProps}
 				<TextField
@@ -802,6 +816,21 @@
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: var(--text-muted);
+	}
+
+	/* Read-only projected schedule inferred from the dependency chain — muted and borderless. */
+	.tt-projected-schedule {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		font-size: 0.82rem;
+		color: var(--text-muted);
+	}
+
+	.tt-projected-note {
+		font-size: 0.72rem;
+		font-style: italic;
+		opacity: 0.85;
 	}
 
 	.tt-field-group {

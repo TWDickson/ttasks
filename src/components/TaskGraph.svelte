@@ -10,6 +10,7 @@
 	import { buildLaneHeaders } from '../store/graph/graphLaneLayout';
 	import { PRIORITY_COLORS } from '../constants';
 	import { flattenTaskGroups } from './viewAdapters';
+	import { buildTaskSchedule } from '../store/taskSchedule';
 	import { formatHumanDate } from './taskDateMeta';
 	import {
 		buildTimelineNonWorkingBands,
@@ -90,6 +91,15 @@
 			!task.parent_task &&
 			!connectedDependencyPaths.has(task.path),
 	).length;
+
+	// Same resolution the layout uses, exposed so undated node cards can show a
+	// projected finish (~date) inferred from the dependency chain.
+	$: graphSchedule = buildTaskSchedule(dependencyGraphTasks.filter((task) => task.type === 'task'), { allTasks: tasks });
+	function projectedEndLabel(path: string): string | null {
+		const entry = graphSchedule.get(path);
+		if (!entry) return null;
+		return formatHumanDate(formatDateISO(entry.end), formatDateISO(startOfToday()));
+	}
 
 	$: layout = buildTaskGraph(dependencyGraphTasks, {
 		nodeWidth: 226,
@@ -500,6 +510,8 @@
 								<span>Done {formatHumanDate(node.task.completed, formatDateISO(startOfToday()))}</span>
 							{:else if node.task.due_date}
 								<span>Due {formatHumanDate(node.task.due_date, formatDateISO(startOfToday()))}</span>
+							{:else if projectedEndLabel(node.path)}
+								<span title="Projected from dependencies">~{projectedEndLabel(node.path)}</span>
 								{/if}
 							</div>
 						</button>
