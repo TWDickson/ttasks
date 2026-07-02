@@ -1,4 +1,5 @@
 import type { Task } from '../../types';
+import { pathLeaf } from '../../utils/pathUtils';
 import { DAY_MS, addDays, normalizeTimelineRange } from './graphTimeline';
 import { normalizeTaskPath, resolveOwningProjectPath, dedupePaths } from './taskGraph';
 import {
@@ -81,11 +82,6 @@ function resolveUnderdefinedWidthPercent(task: Task): number {
 	const titleLength = task.name.trim().length;
 	const width = 9 + Math.min(44, titleLength) * 0.23;
 	return Math.min(20, Math.max(10, width));
-}
-
-function pathLeaf(path: string): string {
-	const leaf = path.split('/').pop() ?? path;
-	return leaf.replace(/\.md$/, '').replace(/^[a-f0-9]+-/, '');
 }
 
 function buildGroupBands(

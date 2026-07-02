@@ -1,5 +1,5 @@
 import type { Task } from '../../types';
-import { ensureMdExt } from '../../utils/pathUtils';
+import { ensureMdExt, pathLeaf } from '../../utils/pathUtils';
 import { parseWikiLink } from '../../utils/wikiLink';
 import { optimizeLaneBandOrder } from './graphCrossingOptimizer';
 import { inferParseDate, resolveTaskDates } from './taskGraphDates';
@@ -832,11 +832,6 @@ function computeChainGroups(components: ComponentInfo[]): Map<number, number> {
 	}
 
 	return chainGroup;
-}
-
-function pathLeaf(path: string): string {
-	const leaf = path.split('/').pop() ?? path;
-	return leaf.replace(/\.md$/, '').replace(/^[a-f0-9]+-/, '');
 }
 
 export function normalizeTaskPath(path: string | null | undefined): string | null {
