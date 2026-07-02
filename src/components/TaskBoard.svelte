@@ -26,6 +26,7 @@
 	} from '../store/BoardStateService';
 	import { localDateString } from '../utils/dateUtils';
 	import { runBatchArchive, runBatchComplete, runBatchDelete } from './taskBoardBatchActions';
+	import { confirmModal } from '../modals/confirmModal';
 	import { buildBoardQuery } from './boardQuery';
 	import type { FilterCondition } from '../query/types';
 	import {
@@ -122,7 +123,11 @@
 	async function batchDelete(): Promise<void> {
 		const nextSelection = await runBatchDelete({
 			selectedPaths: $selectedPaths,
-			confirmDelete: (count) => confirm(`Delete ${count} task${count === 1 ? '' : 's'}? This cannot be undone.`),
+			confirmDelete: (count) => confirmModal(plugin.app, {
+				title: 'Delete tasks',
+				body: `Delete ${count} task${count === 1 ? '' : 's'}? This cannot be undone.`,
+				ctaLabel: 'Delete',
+			}),
 			deleteTask: (path) => plugin.taskStore.delete(path),
 			clearSelection,
 		});

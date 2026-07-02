@@ -1,5 +1,5 @@
 ﻿<script lang="ts">
-	import { Modal, Notice } from 'obsidian';
+	import { Notice } from 'obsidian';
 	import { onDestroy } from 'svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
@@ -16,6 +16,7 @@
 	import { resolveLinkedTaskPath } from './taskDetailLinks';
 	import { deriveTaskDetailOptionState } from './taskDetailOptions';
 	import { createTaskDetailSaveController, normalizeDateValue } from './taskDetailSaveController';
+	import { confirmModal } from '../modals/confirmModal';
 	import { runArchiveFlow, runDeleteFlow, runMarkCompleteFlow } from './taskDetailActions';
 	import TextField from './fields/TextField.svelte';
 	import SelectField from './fields/SelectField.svelte';
@@ -135,37 +136,15 @@
 		});
 	}
 
-	async function confirmDeleteTask(taskName: string): Promise<boolean> {
-		return await new Promise<boolean>((resolve) => {
-			const modal = new Modal(plugin.app);
-			modal.titleEl.setText('Delete task');
-			modal.contentEl.createEl('p', { text: `Are you sure you want to delete "${taskName}"? This cannot be undone.` });
-			const actions = modal.contentEl.createDiv({ cls: 'modal-button-container' });
-
-			actions.createEl('button', { text: 'Cancel' }).addEventListener('click', () => {
-				modal.close();
-				resolve(false);
-			});
-
-			const confirmBtn = actions.createEl('button', { text: 'Delete', cls: 'mod-warning' });
-			confirmBtn.addEventListener('click', () => {
-				resolve(true);
-				modal.close();
-			});
-
-			modal.onClose = () => {
-				resolve(false);
-			};
-
-			modal.open();
-		});
-	}
-
 	async function confirmDelete() {
 		if (!task) return;
 		await runDeleteFlow({
 			task,
-			confirmDelete: (taskName) => confirmDeleteTask(taskName),
+			confirmDelete: (taskName) => confirmModal(plugin.app, {
+				title: 'Delete task',
+				body: `Are you sure you want to delete "${taskName}"? This cannot be undone.`,
+				ctaLabel: 'Delete',
+			}),
 			setActiveTaskPath: (nextPath) => activeTaskPath.set(nextPath),
 			deleteTask: (taskPath) => store.delete(taskPath),
 		});
