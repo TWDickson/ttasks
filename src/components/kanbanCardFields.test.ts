@@ -2,34 +2,38 @@ import { describe, expect, it } from 'vitest';
 import { buildDepCountBadge, isFieldEnabled, type KanbanCardField } from './kanbanCardFields';
 
 describe('buildDepCountBadge', () => {
+	// Default resolver: every dependency resolves to an open (incomplete) task.
+	const allOpen = () => ({ is_complete: false });
+
 	it('returns null when task has no relationships', () => {
-		expect(buildDepCountBadge({ depends_on: [], blocks: [] })).toBeNull();
+		expect(buildDepCountBadge({ depends_on: [], blocks: [] }, allOpen)).toBeNull();
 	});
 
-	it('returns blockedBy count when task has depends_on only', () => {
-		const result = buildDepCountBadge({ depends_on: ['Tasks/a.md', 'Tasks/b.md'], blocks: [] });
-		expect(result).toEqual({ blockedBy: 2, unblocks: 0 });
+	it('reports open and total blocked-by counts when task has depends_on only', () => {
+		const result = buildDepCountBadge({ depends_on: ['Tasks/a.md', 'Tasks/b.md'], blocks: [] }, allOpen);
+		expect(result).toEqual({ blockedByOpen: 2, blockedByTotal: 2, unblocks: 0 });
 	});
 
 	it('returns unblocks count when task has blocks only', () => {
-		const result = buildDepCountBadge({ depends_on: [], blocks: ['Tasks/c.md'] });
-		expect(result).toEqual({ blockedBy: 0, unblocks: 1 });
+		const result = buildDepCountBadge({ depends_on: [], blocks: ['Tasks/c.md'] }, allOpen);
+		expect(result).toEqual({ blockedByOpen: 0, blockedByTotal: 0, unblocks: 1 });
+	});
+
+	it('excludes completed and dangling dependencies from the open count but keeps them in the total', () => {
+		const completed = new Set(['Tasks/done.md']);
+		const known = new Set(['Tasks/open.md', 'Tasks/done.md']);
+		const resolve = (link: string) => (known.has(link) ? { is_complete: completed.has(link) } : null);
+		const result = buildDepCountBadge(
+			// open, done, and a dangling link
+			{ depends_on: ['Tasks/open.md', 'Tasks/done.md', 'Tasks/missing.md'], blocks: [] },
+			resolve,
+		);
+		expect(result).toEqual({ blockedByOpen: 1, blockedByTotal: 3, unblocks: 0 });
 	});
 
 	it('returns both counts when task has both relationships', () => {
-		const result = buildDepCountBadge({
-			depends_on: ['Tasks/a.md'],
-			blocks: ['Tasks/b.md', 'Tasks/c.md'],
-		});
-		expect(result).toEqual({ blockedBy: 1, unblocks: 2 });
-	});
-
-	it('counts raw array length, not resolved tasks', () => {
-		const result = buildDepCountBadge({
-			depends_on: ['a', 'b', 'c'],
-			blocks: [],
-		});
-		expect(result?.blockedBy).toBe(3);
+		const result = buildDepCountBadge({ depends_on: ['Tasks/a.md'], blocks: ['Tasks/b.md', 'Tasks/c.md'] }, allOpen);
+		expect(result).toEqual({ blockedByOpen: 1, blockedByTotal: 1, unblocks: 2 });
 	});
 });
 

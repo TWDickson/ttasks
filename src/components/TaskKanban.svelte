@@ -63,6 +63,13 @@
 		return getTaskDateBadge(task, todayDate);
 	}
 
+	// Resolve a dependency link to its task (via the store, so completed
+	// dependencies not visible on the board still count correctly). Kept
+	// consistent with the Detail panel's "blocked by open" number.
+	function resolveDependencyTask(link: string): { is_complete: boolean } | null {
+		return store.getByPath(link) ?? null;
+	}
+
 	function onDragStart(e: DragEvent, path: string) {
 		draggingPath = path;
 		e.dataTransfer?.setData('text/plain', path);
@@ -234,11 +241,14 @@
 										{/each}
 									{/if}
 									{#if isFieldEnabled(kanbanCardFields, 'depCount')}
-										{@const depBadge = buildDepCountBadge(task)}
+										{@const depBadge = buildDepCountBadge(task, resolveDependencyTask)}
 										{#if depBadge}
-											<span class="tt-badge tt-badge-dep" title="Blocked by {depBadge.blockedBy} · Unblocks {depBadge.unblocks}">
-												{[depBadge.blockedBy > 0 ? `⏸${depBadge.blockedBy}` : '', depBadge.unblocks > 0 ? `→${depBadge.unblocks}` : ''].filter(Boolean).join(' ')}
-											</span>
+											{@const depLabel = [depBadge.blockedByOpen > 0 ? `⏸${depBadge.blockedByOpen}` : '', depBadge.unblocks > 0 ? `→${depBadge.unblocks}` : ''].filter(Boolean).join(' ')}
+											{#if depLabel}
+												<span class="tt-badge tt-badge-dep" title="Blocked by {depBadge.blockedByOpen} open of {depBadge.blockedByTotal} · Unblocks {depBadge.unblocks}">
+													{depLabel}
+												</span>
+											{/if}
 										{/if}
 									{/if}
 									<!-- Mobile-only: inline status change -->

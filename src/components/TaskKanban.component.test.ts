@@ -56,6 +56,8 @@ function renderKanban(options: {
 	const saveSettings = vi.fn(async () => {});
 	const update = vi.fn();
 	const setStatus = vi.fn();
+	// Dependencies resolve to open tasks by default so the badge shows an open count.
+	const getByPath = vi.fn((path: string) => ({ path, is_complete: false }));
 	const plugin = {
 		settings: {
 			kanbanCollapsedColumns: options.collapsedColumns ?? [],
@@ -75,13 +77,13 @@ function renderKanban(options: {
 			blockStatus: 'Blocked',
 			kanbanCardFields: options.kanbanCardFields ?? ['area', 'dueDate', 'labels', 'depCount'],
 			activeTaskPath,
-			store: { update, setStatus } as any,
+			store: { update, setStatus, getByPath } as any,
 			onOpen,
 			onContextMenu,
 		},
 	});
 
-	return { onOpen, onContextMenu, saveSettings, update, setStatus };
+	return { onOpen, onContextMenu, saveSettings, update, setStatus, getByPath };
 }
 
 describe('TaskKanban.svelte', () => {
@@ -115,7 +117,7 @@ describe('TaskKanban.svelte', () => {
 			kanbanCardFields: ['depCount'],
 			task: buildTask({ depends_on: ['Tasks/x.md'], blocks: ['Tasks/y.md'] }),
 		});
-		expect(screen.getByTitle('Blocked by 1 · Unblocks 1')).toBeInTheDocument();
+		expect(screen.getByTitle('Blocked by 1 open of 1 · Unblocks 1')).toBeInTheDocument();
 	});
 
 	it('hides card body when column starts collapsed', () => {
