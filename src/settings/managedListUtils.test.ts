@@ -1,5 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { createManagedListItem, getRenameMappings, normalizeManagedListValues } from './managedListUtils';
+import { createManagedListItem, getRenameMappings, normalizeManagedListValues, resolveAreaOptions } from './managedListUtils';
+
+describe('resolveAreaOptions', () => {
+	it('returns settings areas as managed in settings order with no unmanaged for clean data', () => {
+		const result = resolveAreaOptions(['Work', 'Home', 'Errands'], ['Home', 'Work']);
+		expect(result.managed).toEqual(['Work', 'Home', 'Errands']);
+		expect(result.unmanaged).toEqual([]);
+	});
+
+	it('surfaces observed areas not in settings as sorted, de-duplicated unmanaged values', () => {
+		const result = resolveAreaOptions(['Work'], ['Work', 'Legacy', 'Zeta', 'Legacy', 'Alpha']);
+		expect(result.managed).toEqual(['Work']);
+		expect(result.unmanaged).toEqual(['Alpha', 'Legacy', 'Zeta']);
+	});
+
+	it('ignores empty observed values', () => {
+		const result = resolveAreaOptions(['Work'], ['', 'Stray']);
+		expect(result.unmanaged).toEqual(['Stray']);
+	});
+});
 
 describe('createManagedListItem', () => {
 	it('keeps originalValue defaulting to value', () => {

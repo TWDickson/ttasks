@@ -61,3 +61,23 @@ export function getRenameMappings(items: ManagedListItem[]): Record<string, stri
 	}
 	return mappings;
 }
+
+export interface ResolvedManagedOptions {
+	/** Configured values, in settings order — the source of truth. */
+	managed: string[];
+	/** Observed values not present in settings, de-duplicated and sorted. */
+	unmanaged: string[];
+}
+
+/**
+ * Reconciles the configured `settings.areas` list with the areas observed on
+ * tasks. `managed` is the settings list verbatim; `unmanaged` is any observed
+ * area not in settings — stray/legacy frontmatter values — de-duplicated and
+ * sorted alphabetically, surfaced as a migration safety net.
+ */
+export function resolveAreaOptions(settingsAreas: string[], observedAreas: string[]): ResolvedManagedOptions {
+	const managed = [...settingsAreas];
+	const managedSet = new Set(settingsAreas);
+	const unmanaged = [...new Set(observedAreas.filter((area) => !!area && !managedSet.has(area)))].sort();
+	return { managed, unmanaged };
+}

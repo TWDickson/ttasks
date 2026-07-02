@@ -14,6 +14,7 @@
 	import TaskDetail from './TaskDetail.svelte';
 	import { createTaskQuery } from '../query/useTaskQuery';
 	import { buildTaskSchedule } from '../store/taskSchedule';
+	import { resolveAreaOptions } from '../settings/managedListUtils';
 	import { canToggleBuiltinCompleted, defaultCompletedVisibility } from './builtinViewCompletionToggle';
 	import { canToggleLogbookRenderer, resolveViewRenderer, toggleLogbookRendererMode } from './logbookViewMode';
 	import TaskArchiveView from './TaskArchiveView.svelte';
@@ -143,9 +144,13 @@
 		logbook: plugin.settings.logbookRendererMode,
 	};
 
-	$: areas = [...new Set(
+	$: observedAreas = [...new Set(
 		$tasks.map(t => t.area).filter((a): a is string => !!a)
-	)].sort();
+	)];
+	// Settings is the source of truth; stray/legacy frontmatter areas appear
+	// below a divider as a safety net.
+	$: areaOptions = resolveAreaOptions(plugin.settings.areas ?? [], observedAreas);
+	$: hasAreaOptions = areaOptions.managed.length > 0 || areaOptions.unmanaged.length > 0;
 
 	$: hasActiveFilters = !!$searchQuery || !!filterPriority || !!filterArea;
 	$: canToggleCompletedForCurrentView = canToggleBuiltinCompleted(currentView);
@@ -264,7 +269,7 @@
 			created.renderer,
 			{
 				statuses: plugin.settings.statuses,
-				areas: plugin.settings.areas,
+				areas: [...areaOptions.managed, ...areaOptions.unmanaged],
 				labelValues: plugin.settings.labelValues,
 			},
 			async (updatedQuery, updatedRenderer, updatedName) => {
@@ -295,7 +300,7 @@
 			target.renderer,
 			{
 				statuses: plugin.settings.statuses,
-				areas: plugin.settings.areas,
+				areas: [...areaOptions.managed, ...areaOptions.unmanaged],
 				labelValues: plugin.settings.labelValues,
 			},
 			async (updatedQuery, updatedRenderer, updatedName) => {
@@ -439,12 +444,18 @@
 					{/each}
 				</select>
 
-				{#if areas.length > 0}
+				{#if hasAreaOptions}
 					<select class="tt-filter-select" bind:value={filterArea} aria-label="Filter by area">
 						<option value="">Area</option>
-						{#each areas as a}
+						{#each areaOptions.managed as a}
 							<option value={a}>{a}</option>
 						{/each}
+						{#if areaOptions.unmanaged.length > 0}
+							<option value="" disabled>──────</option>
+							{#each areaOptions.unmanaged as a}
+								<option value={a}>{a}</option>
+							{/each}
+						{/if}
 					</select>
 				{/if}
 
