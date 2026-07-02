@@ -119,4 +119,15 @@ describe('normalizeSettingsFromSources', () => {
 	it('ignores unknown fields without crashing', () => {
 		expect(() => normalizeSettingsFromSources([{ unknownField: 'x' }])).not.toThrow();
 	});
+
+	it('defaults showCompletedByViewId to an empty object', () => {
+		expect(normalizeSettingsFromSources([]).showCompletedByViewId).toEqual({});
+	});
+
+	it('preserves valid per-view show-completed booleans and drops non-boolean values', () => {
+		const result = normalizeSettingsFromSources([
+			{ showCompletedByViewId: { list: true, logbook: false, bogus: 'yes' } },
+		]);
+		expect(result.showCompletedByViewId).toEqual({ list: true, logbook: false });
+	});
 });

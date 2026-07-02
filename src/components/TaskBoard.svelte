@@ -138,7 +138,7 @@
 	// ── Filter state (routed through the query engine) ────────────────────────
 	let filterPriority = '';
 	let filterArea     = '';
-	let showCompletedByViewId: Record<string, boolean> = {};
+	let showCompletedByViewId: Record<string, boolean> = { ...(plugin.settings.showCompletedByViewId ?? {}) };
 	let logbookRendererModeByViewId: Record<string, 'list' | 'kanban'> = {
 		logbook: plugin.settings.logbookRendererMode,
 	};
@@ -198,12 +198,14 @@
 		filterArea     = '';
 	}
 
-	function toggleCompletedVisibility(view: typeof currentView) {
+	async function toggleCompletedVisibility(view: typeof currentView) {
 		const current = showCompletedByViewId[view.id] ?? defaultCompletedVisibility(view);
 		showCompletedByViewId = {
 			...showCompletedByViewId,
 			[view.id]: !current,
 		};
+		plugin.settings.showCompletedByViewId = showCompletedByViewId;
+		await plugin.saveSettings();
 	}
 
 	async function toggleLogbookRenderer(viewId: string) {

@@ -88,6 +88,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	},
 	kanbanCardFields: ['area', 'dueDate', 'labels', 'depCount'] as KanbanCardField[],
 	kanbanCollapsedColumns: [],
+	showCompletedByViewId: {},
 };
 
 const FILTER_OPERATORS = new Set<FilterOperator>([
@@ -238,6 +239,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		},
 		kanbanCardFields: settings.kanbanCardFields ?? [...DEFAULT_SETTINGS.kanbanCardFields],
 		kanbanCollapsedColumns: settings.kanbanCollapsedColumns ?? [...DEFAULT_SETTINGS.kanbanCollapsedColumns],
+		showCompletedByViewId: settings.showCompletedByViewId ?? { ...DEFAULT_SETTINGS.showCompletedByViewId },
 	};
 }
 
@@ -635,6 +637,15 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 
 	const kanbanCollapsedColumns = asStringArray(root.kanbanCollapsedColumns);
 	if (kanbanCollapsedColumns !== null) target.kanbanCollapsedColumns = kanbanCollapsedColumns;
+
+	const showCompletedByViewId = asRecord(root.showCompletedByViewId);
+	if (showCompletedByViewId !== null) {
+		const cleaned: Record<string, boolean> = {};
+		for (const [key, value] of Object.entries(showCompletedByViewId)) {
+			if (typeof value === 'boolean') cleaned[key] = value;
+		}
+		target.showCompletedByViewId = cleaned;
+	}
 
 	const archive = asRecord(root.archive);
 	if (archive !== null) {

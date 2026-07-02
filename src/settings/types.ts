@@ -108,4 +108,7 @@ export interface TTasksSettings {
 	archive: ArchiveSettings;
 	kanbanCardFields: KanbanCardField[];
 	kanbanCollapsedColumns: string[];
+	/** Per-view "Show completed" choice, keyed by view id. Unset views fall back
+	 *  to defaultCompletedVisibility. */
+	showCompletedByViewId: Record<string, boolean>;
 }
