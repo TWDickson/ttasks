@@ -1,8 +1,8 @@
 import type { Task } from '../../types';
 import { ensureMdExt } from '../../utils/pathUtils';
 import { parseWikiLink } from '../../utils/wikiLink';
-import { optimizeLaneOrderForCrossings, optimizeLaneBandOrder } from './graphCrossingOptimizer';
-import { resolveTaskDates } from './taskGraphDates';
+import { optimizeLaneBandOrder } from './graphCrossingOptimizer';
+import { inferParseDate, resolveTaskDates } from './taskGraphDates';
 
 export interface TaskGraphNode {
 	path: string;
@@ -58,6 +58,8 @@ export interface BuildTaskGraphOptions {
 	horizontalGap?: number;
 	verticalGap?: number;
 	padding?: number;
+	/** Extra-wide left padding (e.g. a lane-header gutter). Falls back to `padding`. */
+	paddingLeft?: number;
 }
 
 interface ComponentInfo {
@@ -82,10 +84,10 @@ interface LaneBand {
  * Returns timestamp for start_date, due_date, or created, or Infinity if none available.
  */
 function getDateKey(task: Task): number {
-	if (task.start_date) return new Date(task.start_date).getTime();
-	if (task.due_date) return new Date(task.due_date).getTime();
-	if (task.created) return new Date(task.created).getTime();
-	return Infinity;
+	// Local-midnight parsing to stay comparable with resolveTaskDates output;
+	// bare new Date('YYYY-MM-DD') would parse as UTC and skew by a day.
+	const date = inferParseDate(task.start_date) ?? inferParseDate(task.due_date) ?? inferParseDate(task.created);
+	return date ? date.getTime() : Infinity;
 }
 
 /**
@@ -283,6 +285,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	const horizontalGap = options.horizontalGap ?? DEFAULT_HORIZONTAL_GAP;
 	const verticalGap = options.verticalGap ?? DEFAULT_VERTICAL_GAP;
 	const padding = options.padding ?? DEFAULT_PADDING;
+	const paddingLeft = options.paddingLeft ?? padding;
 
 	// Hide project records from graph nodes; project lanes are still derived
 	// from parent_task links and project metadata in allTaskByPath.
@@ -297,7 +300,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 			lanes: [],
 			columns: 0,
 			rows: 0,
-			width: padding * 2,
+			width: paddingLeft + padding,
 			height: padding * 2,
 			cycleCount: 0,
 			blockedNodeCount: 0,
@@ -571,7 +574,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 					laneKey: resolveNodeLaneKey(task, allTaskByPath),
 					column: level,
 					row,
-					x: padding + level * (nodeWidth + horizontalGap),
+					x: paddingLeft + level * (nodeWidth + horizontalGap),
 					y: padding + row * (nodeHeight + verticalGap),
 					width: nodeWidth,
 					height: nodeHeight,
@@ -619,15 +622,6 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 			.sort((left, right) => left.row - right.row || left.column - right.column || left.path.localeCompare(right.path));
 
 		if (laneNodes.length === 0) continue;
-
-		const initialOrder = laneNodes.map((node) => node.path);
-		const optimizedOrder = optimizeLaneOrderForCrossings(initialOrder, new Map(nodes.map((n) => [n.path, n])), edges);
-		const rankByPath = new Map(optimizedOrder.map((path, index) => [path, index]));
-		laneNodes.sort((left, right) => {
-			const lRank = rankByPath.get(left.path) ?? Number.MAX_SAFE_INTEGER;
-			const rRank = rankByPath.get(right.path) ?? Number.MAX_SAFE_INTEGER;
-			return lRank - rRank || left.path.localeCompare(right.path);
-		});
 
 		const startRow = laneRowCursor;
 		const endRow = packLaneNodeRows(
@@ -701,7 +695,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		lanes,
 		columns,
 		rows,
-		width: padding * 2 + columns * nodeWidth + Math.max(0, columns - 1) * horizontalGap,
+		width: paddingLeft + padding + columns * nodeWidth + Math.max(0, columns - 1) * horizontalGap,
 		height: padding * 2 + rows * nodeHeight + Math.max(0, rows - 1) * verticalGap,
 		cycleCount: nodes.filter((node) => node.isCycle).length,
 		blockedNodeCount: nodes.filter((node) => node.isBlockedChain).length,

@@ -39,7 +39,8 @@
 	const DEPENDENCY_LANE_MAX_WIDTH = 148;
 	const DEPENDENCY_LANE_COMPACT_HEIGHT = 132;
 	const DEPENDENCY_LANE_ROTATE_LABEL_LENGTH = 14;
-	const DEPENDENCY_GRAPH_PADDING = DEPENDENCY_LANE_GUTTER + 20;
+	const DEPENDENCY_GRAPH_PADDING = 20;
+	const DEPENDENCY_GRAPH_PADDING_LEFT = DEPENDENCY_LANE_GUTTER + DEPENDENCY_GRAPH_PADDING;
 	const OVERVIEW_PIXELS_PER_DAY = 54;
 	const HYBRID_ROW_HEIGHT = 34;
 	const HYBRID_ROW_GAP = 8;
@@ -67,31 +68,28 @@
 
 	$: tasks = flattenTaskGroups($groups);
 	$: connectedDependencyPaths = resolveConnectedDependencyPaths(tasks);
+	// Completed tasks stay visible only while part of a dependency chain (they
+	// anchor downstream work); otherwise the graph shows open work. Independent
+	// open tasks join when toggled on, or when there are no chains yet.
 	$: dependencyGraphTasks = (() => {
 		const projectRecords = tasks.filter((task) => task.type === 'project');
-		const dependencyTasks = (showIndependentInDependency || connectedDependencyPaths.size === 0
-			? tasks.filter((task) => task.type === 'task' && !task.is_complete)
-			: tasks.filter((task) => {
-				if (task.type !== 'task') return false;
-				// Always include project-assigned tasks (part of a project lane)
-				if (task.parent_task) return true;
-				// For unassigned/independent tasks, only include if they have dependencies
-				return connectedDependencyPaths.has(task.path);
-			}));
+		const showIndependent = showIndependentInDependency || connectedDependencyPaths.size === 0;
+		const dependencyTasks = tasks.filter((task) => {
+			if (task.type !== 'task') return false;
+			if (connectedDependencyPaths.has(task.path)) return true;
+			if (task.is_complete) return false;
+			return showIndependent || !!task.parent_task;
+		});
 
 		return [...projectRecords, ...dependencyTasks];
 	})();
-	$: hiddenIndependentCount = Math.max(
-		0,
-		tasks
-			.filter(
-				(task) =>
-					task.type === 'task' &&
-					!task.parent_task &&
-					!connectedDependencyPaths.has(task.path),
-			)
-			.length,
-	);
+	$: hiddenIndependentCount = tasks.filter(
+		(task) =>
+			task.type === 'task' &&
+			!task.is_complete &&
+			!task.parent_task &&
+			!connectedDependencyPaths.has(task.path),
+	).length;
 
 	$: layout = buildTaskGraph(dependencyGraphTasks, {
 		nodeWidth: 226,
@@ -99,6 +97,7 @@
 		horizontalGap: 52,
 		verticalGap: DEPENDENCY_ROW_GAP,
 		padding: DEPENDENCY_GRAPH_PADDING,
+		paddingLeft: DEPENDENCY_GRAPH_PADDING_LEFT,
 	});
 	$: dependencyScale = dependencyViewportWidth > 0 && layout.width > 0
 		? Math.min(1, dependencyViewportWidth / layout.width)
@@ -185,32 +184,37 @@
 		return offsets;
 	})();
 
+	let resizeObserver: ResizeObserver | null = null;
+
+	function updateViewport(): void {
+		dependencyViewportWidth = dependencyScrollEl?.clientWidth ?? 0;
+		dependencyScrollLeft = dependencyScrollEl?.scrollLeft ?? 0;
+		overviewViewportWidth = overviewScrollEl?.clientWidth ?? 0;
+	}
+
 	onMount(() => {
 		showCompletedInOverview = plugin.settings.overviewGraphShowCompleted;
 		overviewGrouping = plugin.settings.overviewGraphGrouping;
 		overviewPrefsHydrated = true;
 
-		const updateViewport = () => {
-			dependencyViewportWidth = dependencyScrollEl?.clientWidth ?? 0;
-			dependencyScrollLeft = dependencyScrollEl?.scrollLeft ?? 0;
-			overviewViewportWidth = overviewScrollEl?.clientWidth ?? 0;
-		};
-
 		updateViewport();
 
-		let observer: ResizeObserver | null = null;
-		if (dependencyScrollEl && typeof ResizeObserver !== 'undefined') {
-			observer = new ResizeObserver(() => updateViewport());
-			observer.observe(dependencyScrollEl);
-			if (overviewScrollEl) observer.observe(overviewScrollEl);
+		if (typeof ResizeObserver !== 'undefined') {
+			resizeObserver = new ResizeObserver(() => updateViewport());
 		}
 
 		window.addEventListener('resize', updateViewport);
 		return () => {
 			window.removeEventListener('resize', updateViewport);
-			observer?.disconnect();
+			resizeObserver?.disconnect();
+			resizeObserver = null;
 		};
 	});
+
+	// Mode switches destroy and recreate the scroll containers, so re-observe
+	// whichever element is currently bound (ResizeObserver dedupes repeats).
+	$: if (resizeObserver && dependencyScrollEl) resizeObserver.observe(dependencyScrollEl);
+	$: if (resizeObserver && overviewScrollEl) resizeObserver.observe(overviewScrollEl);
 
 	$: if (overviewPrefsHydrated && plugin.settings.overviewGraphShowCompleted !== showCompletedInOverview) {
 		plugin.settings.overviewGraphShowCompleted = showCompletedInOverview;
@@ -280,7 +284,9 @@
 
 	function nodeStyle(node: TaskGraphNode): string {
 		const accent = statusColors?.[node.task.status] ?? 'var(--interactive-accent)';
-		return `left:${node.x}px;top:${node.y}px;width:${node.width}px;min-height:${node.height}px;--tt-node-accent:${accent};--tt-priority-accent:${PRIORITY_COLORS[node.task.priority] ?? PRIORITY_COLORS.None};`;
+		// Fixed height: the layout engine spaces rows assuming node.height, so the
+		// card must never grow past it — content clamps/ellipsizes instead.
+		return `left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px;--tt-node-accent:${accent};--tt-priority-accent:${PRIORITY_COLORS[node.task.priority] ?? PRIORITY_COLORS.None};`;
 	}
 
 	function subtitle(node: TaskGraphNode): string {
@@ -1266,6 +1272,8 @@
 		text-overflow: ellipsis;
 	}
 
+	/* Content budget inside the fixed 122px card (102px after padding):
+	   top row ~13px + 3-line name ~52px + meta ~14px + two 6px gaps = ~91px. */
 	.tt-graph-name {
 		font-size: 0.92rem;
 		font-weight: 700;
@@ -1275,20 +1283,32 @@
 		min-width: 0;
 		word-break: break-word;
 		overflow-wrap: break-word;
-		max-height: 4.72em;
+		max-height: 3.6em;
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
-		-webkit-line-clamp: 4;
+		-webkit-line-clamp: 3;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
 	.tt-graph-meta {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 6px 10px;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 10px;
 		font-size: 0.72rem;
 		color: var(--text-muted);
+		white-space: nowrap;
+	}
+
+	.tt-graph-meta > span:first-child {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.tt-graph-meta > span + span {
+		flex-shrink: 0;
 	}
 
 	.tt-graph-empty {

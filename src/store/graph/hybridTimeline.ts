@@ -7,7 +7,6 @@ import {
 	addCalendarDays,
 	inferParseDate,
 	type ResolvedTaskDate,
-	type ResolveTaskDatesOptions,
 } from './taskGraphDates';
 
 // ---------------------------------------------------------------------------
@@ -110,12 +109,6 @@ function buildGroupBands(
 			count: rowCount,
 		});
 		cursor += rowCount + 1;
-	}
-	if (bands.length > 0) {
-		bands[bands.length - 1].endRow = Math.max(
-			bands[bands.length - 1].startRow,
-			bands[bands.length - 1].endRow,
-		);
 	}
 	return bands;
 }
