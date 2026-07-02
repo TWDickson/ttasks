@@ -559,6 +559,19 @@ describe('buildHybridTimeline', () => {
 		expect(model.links[0]).toMatchObject({ fromPath: 'Tasks/b.md', toPath: 'Tasks/c.md' });
 	});
 
+	it('includes a completed-only anchor as a defined bar with a link to its dependent', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/done.md', name: 'Done', status: 'Done', is_complete: true, completed: '2026-04-05' }),
+			makeTask({ path: 'Tasks/open.md', name: 'Open', depends_on: ['Tasks/done'] }),
+		];
+
+		const model = buildHybridTimeline(tasks);
+
+		expect(model.defined.map((item) => item.path)).toContain('Tasks/done.md');
+		expect(model.links).toHaveLength(1);
+		expect(model.links[0]).toMatchObject({ fromPath: 'Tasks/done.md', toPath: 'Tasks/open.md' });
+	});
+
 	it('does not include underdefined tasks that are not anchored to a resolved dependency', () => {
 		const tasks = [
 			makeTask({ path: 'Tasks/a.md', name: 'A' }),

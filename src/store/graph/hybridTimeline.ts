@@ -196,7 +196,12 @@ export function buildHybridTimeline(
 			if (!entry.task) return false;
 			const hasExplicitDate = !!parseIsoDate(entry.task.start_date) || !!parseIsoDate(entry.task.due_date);
 			const hasEstimate = typeof entry.task.estimated_days === 'number' && entry.task.estimated_days > 0;
-			return hasExplicitDate || hasEstimate;
+			// A completed task whose only date is `completed` still resolves (its
+			// position anchors the chain). Include it as a defined bar so dependents
+			// keep their links instead of pointing at a missing anchor. The
+			// show/hide-completed toggle already gates these upstream in TaskGraph.
+			const hasCompletionAnchor = entry.task.is_complete && !!parseIsoDate(entry.task.completed);
+			return hasExplicitDate || hasEstimate || hasCompletionAnchor;
 		})
 		.sort((left, right) => left.dates.start.getTime() - right.dates.start.getTime() || left.task.name.localeCompare(right.task.name));
 
