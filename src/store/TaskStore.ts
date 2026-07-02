@@ -3,10 +3,10 @@ import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskPriority, TaskRecordType } from '../types';
 import { resolveCompletionStatus } from '../settings';
-import { localDateString, addDaysLocal } from '../utils/dateUtils';
 import { ensureMdExt } from '../utils/pathUtils';
 import { parseWikiLink } from '../utils/wikiLink';
 import { ensureFolderPath } from '../utils/vaultSafe';
+import { seedGraphTestData } from './graphSandboxSeeder';
 import { TaskWriter } from './TaskWriter';
 import { TaskMigrations, type MigratableField } from './TaskMigrations';
 import { TaskRelationships } from './TaskRelationships';
@@ -254,226 +254,16 @@ export class TaskStore {
 	}
 
 	async seedGraphTestData(): Promise<{ created: number; skipped: boolean }> {
-		const existing = get(this.tasks).filter((task) => task.name.startsWith('[GS]'));
-		if (existing.length > 0) {
-			new Notice(`TTasks: graph sandbox already exists (${existing.length} tasks).`);
-			return { created: 0, skipped: true };
-		}
-
-		await this.ensureFolderPathExists(this.folderPath);
-
-		const statuses = this.plugin.settings.statuses ?? ['Active'];
-		const completion = resolveCompletionStatus(statuses, this.plugin.settings.completionStatus);
-		const status = (preferred: string, fallbackIndex = 0): string => {
-			if (statuses.includes(preferred)) return preferred;
-			return statuses[fallbackIndex] ?? statuses[0] ?? 'Active';
-		};
-
-		const iso = (daysFromToday: number): string => {
-			return addDaysLocal(localDateString(), daysFromToday);
-		};
-
-		const makeInput = (overrides: Partial<TaskCreateInput> & Pick<TaskCreateInput, 'name' | 'type'>): TaskCreateInput => ({
-			type: overrides.type,
-			name: overrides.name,
-			area: overrides.area ?? 'graph-sandbox',
-			status: overrides.status ?? status('Active'),
-			priority: overrides.priority ?? 'Medium',
-			labels: overrides.labels ?? [],
-			parent_task: overrides.parent_task ?? null,
-			depends_on: overrides.depends_on ?? [],
-			blocked_reason: overrides.blocked_reason ?? '',
-			assigned_to: overrides.assigned_to ?? 'team',
-			source: overrides.source ?? 'GraphSandbox',
-			start_date: overrides.start_date ?? null,
-			due_date: overrides.due_date ?? null,
-			due_time: overrides.due_time ?? null,
-			estimated_days: overrides.estimated_days ?? null,
-			created: overrides.created ?? iso(-2),
-			completed: overrides.completed ?? null,
-			notes: overrides.notes ?? '',
-			recurrence: overrides.recurrence ?? null,
-			recurrence_type: overrides.recurrence_type ?? null,
+		return seedGraphTestData({
+			create: (input) => this.create(input),
+			addDependency: (taskPath, depPathWithoutExt) => this.addDependency(taskPath, depPathWithoutExt),
+			syncBlocks: () => this.syncBlocks(),
+			load: () => this.load(),
+			getAll: () => get(this.tasks),
+			ensureFolder: () => this.ensureFolderPathExists(this.folderPath),
+			settings: this.plugin.settings,
+			notice: (message) => { new Notice(message); },
 		});
-
-		const created: Task[] = [];
-
-		const platformProject = await this.create(makeInput({
-			type: 'project',
-			name: '[GS] Platform Revamp',
-			area: 'Product',
-			status: status('In Progress', 1),
-			priority: 'High',
-			start_date: iso(-8),
-			due_date: iso(20),
-			notes: 'Parent project for dependency and timeline graph testing.',
-		}));
-		created.push(platformProject);
-
-		const dataProject = await this.create(makeInput({
-			type: 'project',
-			name: '[GS] Data Reliability Program',
-			area: 'Data',
-			status: status('Active', 1),
-			priority: 'High',
-			start_date: iso(-6),
-			due_date: iso(24),
-			notes: 'Parent project for migration and dependency testing.',
-		}));
-		created.push(dataProject);
-
-		const platformParent = platformProject.path.replace(/\.md$/, '');
-		const dataParent = dataProject.path.replace(/\.md$/, '');
-
-		const apiContract = await this.create(makeInput({
-			type: 'task',
-			name: '[GS] API Contract Baseline',
-			area: 'Product',
-			status: status('In Progress', 1),
-			priority: 'High',
-			labels: ['feature'],
-			parent_task: platformParent,
-			start_date: iso(-5),
-			due_date: iso(2),
-			estimated_days: 7,
-		}));
-		created.push(apiContract);
-
-		const detailPanel = await this.create(makeInput({
-			type: 'task',
-			name: '[GS] Detail Panel Integration',
-			area: 'Product',
-			status: status('Active', 1),
-			priority: 'High',
-			labels: ['feature'],
-			parent_task: platformParent,
-			depends_on: [apiContract.path.replace(/\.md$/, '')],
-			start_date: iso(1),
-			due_date: iso(8),
-			estimated_days: 5,
-		}));
-		created.push(detailPanel);
-
-		const smokeTests = await this.create(makeInput({
-			type: 'task',
-			name: '[GS] Integration Smoke Tests',
-			area: 'QA',
-			status: status('Future', 2),
-			priority: 'Medium',
-			labels: ['docs'],
-			parent_task: platformParent,
-			depends_on: [detailPanel.path.replace(/\.md$/, '')],
-			start_date: iso(8),
-			due_date: iso(12),
-			estimated_days: 3,
-		}));
-		created.push(smokeTests);
-
-		const releaseReadiness = await this.create(makeInput({
-			type: 'task',
-			name: '[GS] Release Readiness Review',
-			area: 'Product',
-			status: status('Future', 2),
-			priority: 'Medium',
-			labels: ['action'],
-			parent_task: platformParent,
-			depends_on: [smokeTests.path.replace(/\.md$/, '')],
-			start_date: iso(12),
-			due_date: iso(16),
-			estimated_days: 2,
-		}));
-		created.push(releaseReadiness);
-
-		const etlHardening = await this.create(makeInput({
-			type: 'task',
-			name: '[GS] ETL Pipeline Hardening',
-			area: 'Data',
-			status: status('In Progress', 1),
-			priority: 'High',
-			labels: ['feature'],
-			parent_task: dataParent,
-			start_date: iso(-4),
-			due_date: iso(4),
-			estimated_days: 6,
-		}));
-		created.push(etlHardening);
-
-		const migrationDryRun = await this.create(makeInput({
-			type: 'task',
-			name: '[GS] Migration Dry Run',
-			area: 'Data',
-			status: status('Blocked', 1),
-			priority: 'High',
-			labels: ['research'],
-			parent_task: dataParent,
-			depends_on: [etlHardening.path.replace(/\.md$/, '')],
-			blocked_reason: 'Waiting for ETL hardening sign-off.',
-			start_date: iso(5),
-			due_date: iso(10),
-			estimated_days: 3,
-		}));
-		created.push(migrationDryRun);
-
-		const backfillVerification = await this.create(makeInput({
-			type: 'task',
-			name: '[GS] Backfill Verification',
-			area: 'Data',
-			status: status('Future', 2),
-			priority: 'Medium',
-			labels: ['action'],
-			parent_task: dataParent,
-			depends_on: [migrationDryRun.path.replace(/\.md$/, ''), detailPanel.path.replace(/\.md$/, '')],
-			start_date: iso(10),
-			due_date: iso(18),
-			estimated_days: 4,
-		}));
-		created.push(backfillVerification);
-
-		const cycleA = await this.create(makeInput({
-			type: 'task',
-			name: '[GS] Incident Follow-up A',
-			area: 'Operations',
-			status: status('Active', 1),
-			priority: 'Low',
-			labels: ['action'],
-			parent_task: platformParent,
-			start_date: iso(-1),
-			due_date: iso(6),
-			estimated_days: 2,
-		}));
-		created.push(cycleA);
-
-		const cycleB = await this.create(makeInput({
-			type: 'task',
-			name: '[GS] Incident Follow-up B',
-			area: 'Operations',
-			status: status('Active', 1),
-			priority: 'Low',
-			labels: ['action'],
-			parent_task: platformParent,
-			depends_on: [cycleA.path.replace(/\.md$/, '')],
-			start_date: iso(0),
-			due_date: iso(7),
-			estimated_days: 2,
-		}));
-		created.push(cycleB);
-
-		const cycleAFile = this.app.vault.getAbstractFileByPath(cycleA.path);
-		if (cycleAFile instanceof TFile) {
-			await this.app.fileManager.processFrontMatter(cycleAFile, (fm) => {
-				fm.depends_on = [`[[${cycleB.path.replace(/\.md$/, '')}|${cycleB.name}]]`];
-				if (fm.status === completion) {
-					fm.status = status('Active', 1);
-					fm.completed = null;
-				}
-			});
-		}
-
-		await this.syncBlocks();
-		await this.load();
-
-		new Notice(`TTasks: seeded ${created.length} graph sandbox tasks.`);
-		return { created: created.length, skipped: false };
 	}
 
 	// ── Parsing ─────────────────────────────────────────────────────────────────
