@@ -102,12 +102,21 @@ export function createWorkingCalendarResolver(
  * be established — either an explicit start_date / due_date, or a start
  * inferred from a resolved upstream dependency.
  */
-export function resolveTaskDates(
-	tasks: Task[],
-	options?: ResolveTaskDatesOptions,
-): Map<string, ResolvedTaskDate> {
+interface DependencyGraph {
+	taskByPath: Map<string, Task>;
+	/** Deduped, self-loop-free dependency paths that exist in the task set. */
+	depsOf: Map<string, string[]>;
+	dependentsOf: Map<string, string[]>;
+	inDegree: Map<string, number>;
+}
+
+/**
+ * Builds the dependency adjacency structure shared by date resolution and cycle
+ * detection: self-references and links to unknown tasks are dropped, so both
+ * consumers agree on what counts as an edge.
+ */
+function buildDependencyGraph(tasks: Task[]): DependencyGraph {
 	const taskByPath = new Map(tasks.map((t) => [t.path, t]));
-	const resolveCalendar = createWorkingCalendarResolver(tasks, options);
 
 	const depsOf = new Map<string, string[]>();
 	for (const task of tasks) {
@@ -127,6 +136,48 @@ export function resolveTaskDates(
 
 	const inDegree = new Map<string, number>();
 	for (const task of tasks) inDegree.set(task.path, depsOf.get(task.path)?.length ?? 0);
+
+	return { taskByPath, depsOf, dependentsOf, inDegree };
+}
+
+/**
+ * Returns the set of task paths that participate in a dependency cycle (or sit
+ * downstream of one so they can never be scheduled). Reuses the same Kahn
+ * in-degree traversal as `resolveTaskDates`: any node never dequeued still has
+ * an unresolved dependency and is therefore part of / blocked by a cycle.
+ */
+export function detectDependencyCyclePaths(tasks: Task[]): Set<string> {
+	const { dependentsOf, inDegree } = buildDependencyGraph(tasks);
+
+	const queue: string[] = [];
+	for (const task of tasks) {
+		if ((inDegree.get(task.path) ?? 0) === 0) queue.push(task.path);
+	}
+
+	const processed = new Set<string>();
+	while (queue.length > 0) {
+		const path = queue.shift()!;
+		processed.add(path);
+		for (const dependent of dependentsOf.get(path) ?? []) {
+			const newDegree = (inDegree.get(dependent) ?? 1) - 1;
+			inDegree.set(dependent, newDegree);
+			if (newDegree === 0) queue.push(dependent);
+		}
+	}
+
+	const cyclePaths = new Set<string>();
+	for (const task of tasks) {
+		if (!processed.has(task.path)) cyclePaths.add(task.path);
+	}
+	return cyclePaths;
+}
+
+export function resolveTaskDates(
+	tasks: Task[],
+	options?: ResolveTaskDatesOptions,
+): Map<string, ResolvedTaskDate> {
+	const resolveCalendar = createWorkingCalendarResolver(tasks, options);
+	const { taskByPath, depsOf, dependentsOf, inDegree } = buildDependencyGraph(tasks);
 
 	const queue: string[] = [];
 	for (const task of tasks) {

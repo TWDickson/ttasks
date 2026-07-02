@@ -3,9 +3,11 @@
 	import type { Task } from '../types';
 	import type { FieldDefinition } from '../schema/types';
 	import { getFieldByName } from '../schema/taskFields';
-	import { buildTaskGraph } from '../store/graph/taskGraph';
+	import { detectDependencyCyclePaths } from '../store/graph/taskGraphDates';
 	import { sortDependencyFirst } from '../utils/dependencySort';
 	import { MAX_REL_TREE_DEPTH, MAX_REL_TREE_NODES } from '../constants';
+	import { normalizeTaskPath, findLinkedTask, resolveLinkedTaskPath } from './taskDetailLinks';
+	import { pathLeaf } from '../utils/pathUtils';
 	import WikiLinkField from './fields/WikiLinkField.svelte';
 
 	export let task: Task;
@@ -16,36 +18,13 @@
 	export let onOpenTask: (path: string) => void;
 
 	// ── Link helpers ────────────────────────────────────────────────────────────
+	// Resolution logic lives in taskDetailLinks; these thin closures just bind the
+	// current `tasks` array so call sites stay terse.
 
-	function normalizeTaskPath(pathLike: string | null | undefined): string | null {
-		if (!pathLike) return null;
-		const clean = pathLike.trim();
-		if (!clean) return null;
-		return clean.endsWith('.md') ? clean : `${clean}.md`;
-	}
-
-	function linkedTask(pathLike: string | null | undefined): Task | null {
-		const normalized = normalizeTaskPath(pathLike);
-		if (!normalized) return null;
-		const exact = tasks.find((t) => t.path === normalized);
-		if (exact) return exact;
-		return tasks.find((t) => t.path.endsWith('/' + normalized)) ?? null;
-	}
-
-	function resolveTaskPath(pathLike: string | null | undefined): string | null {
-		const normalized = normalizeTaskPath(pathLike);
-		if (!normalized) return null;
-		const found = linkedTask(normalized);
-		return found ? found.path : normalized;
-	}
-
-	function taskLabelFromPath(pathLike: string | null | undefined): string {
-		const normalized = normalizeTaskPath(pathLike);
-		if (!normalized) return 'Unknown';
-		const resolved = linkedTask(normalized);
-		if (resolved) return resolved.name;
-		return normalized.split('/').pop()?.replace(/^[a-f0-9]+-/, '').replace(/\.md$/, '') ?? normalized;
-	}
+	const linkedTask = (pathLike: string | null | undefined): Task | null => findLinkedTask(pathLike, tasks);
+	const resolveTaskPath = (pathLike: string | null | undefined): string | null => resolveLinkedTaskPath(pathLike, tasks);
+	const taskLabelFromPath = (pathLike: string | null | undefined): string =>
+		findLinkedTask(pathLike, tasks)?.name ?? pathLeaf(normalizeTaskPath(pathLike) ?? 'Unknown');
 
 	function openLinkedPath(pathLike: string): void {
 		const resolved = resolveTaskPath(pathLike);
@@ -147,11 +126,11 @@
 	$: missingDependencies = task.depends_on.filter((dep) => !linkedTask(dep));
 	$: openDependencies = dependencyTasks.filter((dep) => !dep.is_complete);
 
-	$: relationshipLayout = buildTaskGraph(tasks, {});
-	$: relationshipNode = relationshipLayout.nodes.find((node) => node.path === task.path) ?? null;
+	$: cyclePaths = detectDependencyCyclePaths(tasks);
+	$: isInCycle = cyclePaths.has(task.path);
 
 	$: relationshipIssues = [
-		...(relationshipNode?.isCycle ? ['Cycle detected for this task chain.'] : []),
+		...(isInCycle ? ['Cycle detected for this task chain.'] : []),
 		...(missingDependencies.length > 0 ? [`${missingDependencies.length} blocker link(s) missing from current task set.`] : []),
 		...(openDependencies.length > 0 ? [`Blocked by ${openDependencies.length} unfinished task(s) — cannot start yet.`] : []),
 	];
@@ -188,7 +167,7 @@
 			{#if openDependencies.length > 0}
 				<span class="tt-rel-pill tt-rel-pill-alert">Blocked by {openDependencies.length} open</span>
 			{/if}
-			{#if relationshipNode?.isCycle}
+			{#if isInCycle}
 				<span class="tt-rel-pill tt-rel-pill-danger">Cycle</span>
 			{/if}
 		</div>

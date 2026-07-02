@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../../types';
 import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, resolveTaskDates } from './taskGraph';
+import { detectDependencyCyclePaths } from './taskGraphDates';
 import { countCrossingsByColumnPairs } from './graphCrossingOptimizer';
 
 function makeTask(overrides: Partial<Task> & Pick<Task, 'path' | 'name'>): Task {
@@ -36,6 +37,32 @@ function makeTask(overrides: Partial<Task> & Pick<Task, 'path' | 'name'>): Task 
 		...rest,
 	};
 }
+
+describe('detectDependencyCyclePaths', () => {
+	it('returns an empty set for an acyclic chain', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A' }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'] }),
+			makeTask({ path: 'Tasks/c.md', name: 'C', depends_on: ['Tasks/b'] }),
+		];
+		expect(detectDependencyCyclePaths(tasks).size).toBe(0);
+	});
+
+	it('flags both members of a 2-cycle', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', depends_on: ['Tasks/b'] }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'] }),
+		];
+		expect([...detectDependencyCyclePaths(tasks)].sort()).toEqual(['Tasks/a.md', 'Tasks/b.md']);
+	});
+
+	it('ignores a self-dependency (filtered as a non-edge)', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', name: 'A', depends_on: ['Tasks/a'] }),
+		];
+		expect(detectDependencyCyclePaths(tasks).size).toBe(0);
+	});
+});
 
 describe('buildTaskGraph', () => {
 	it('assigns dependency depth left to right for acyclic chains', () => {
