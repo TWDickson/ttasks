@@ -37,6 +37,21 @@ function today(): string {
 	return localDateString();
 }
 
+const RELATIVE_DATE_RE = /^(today|[+-]\d+d)$/;
+
+/**
+ * For equality operators (`is`/`is_not`) a relative date expression such as
+ * `'today'` or `'+7d'` must be resolved to a concrete YYYY-MM-DD string before
+ * comparing, otherwise `due_date === 'today'` never matches. Non-relative values
+ * are returned untouched.
+ */
+function resolveEqualityValue(value: unknown): unknown {
+	if (typeof value === 'string' && RELATIVE_DATE_RE.test(value)) {
+		return resolveDate(value);
+	}
+	return value;
+}
+
 // ── Field extraction ──────────────────────────────────────────────────────────
 
 function getFieldValue(task: Task, field: string): unknown {
@@ -51,10 +66,10 @@ function evalCondition(task: Task, cond: FilterCondition): boolean {
 
 	switch (operator) {
 		case 'is':
-			return raw === value;
+			return raw === resolveEqualityValue(value);
 
 		case 'is_not':
-			return raw !== value;
+			return raw !== resolveEqualityValue(value);
 
 		case 'is_null':
 			// For arrays, null means empty

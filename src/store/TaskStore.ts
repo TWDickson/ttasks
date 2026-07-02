@@ -179,6 +179,10 @@ export class TaskStore {
 		return this.writer.completeAndRecur(task);
 	}
 
+	async setStatus(task: Task, newStatus: string): Promise<void> {
+		return this.writer.setStatus(task, newStatus);
+	}
+
 	async duplicate(path: string): Promise<Task | null> {
 		return this.writer.duplicate(path);
 	}

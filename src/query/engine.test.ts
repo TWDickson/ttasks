@@ -199,6 +199,53 @@ describe('applyFilter', () => {
 		});
 	});
 
+	describe('is / is_not with relative dates', () => {
+		it('is "today" matches a task due today', () => {
+			vi.setSystemTime(new Date('2026-04-24T12:00:00'));
+			const tasks = [
+				makeTask({ due_date: '2026-04-24' }),
+				makeTask({ due_date: '2026-04-25' }),
+				makeTask({ due_date: null }),
+			];
+			const spec: FilterSpec = { logic: 'and', conditions: [{ field: 'due_date', operator: 'is', value: 'today' }] };
+			const result = applyFilter(tasks, spec);
+			expect(result).toHaveLength(1);
+			expect(result[0].due_date).toBe('2026-04-24');
+			vi.useRealTimers();
+		});
+
+		it('is_not "today" excludes a task due today', () => {
+			vi.setSystemTime(new Date('2026-04-24T12:00:00'));
+			const tasks = [
+				makeTask({ due_date: '2026-04-24' }),
+				makeTask({ due_date: '2026-04-25' }),
+			];
+			const spec: FilterSpec = { logic: 'and', conditions: [{ field: 'due_date', operator: 'is_not', value: 'today' }] };
+			const result = applyFilter(tasks, spec);
+			expect(result).toHaveLength(1);
+			expect(result[0].due_date).toBe('2026-04-25');
+			vi.useRealTimers();
+		});
+
+		it('is "+1d" matches a task due tomorrow', () => {
+			vi.setSystemTime(new Date('2026-04-24T12:00:00'));
+			const tasks = [makeTask({ due_date: '2026-04-24' }), makeTask({ due_date: '2026-04-25' })];
+			const spec: FilterSpec = { logic: 'and', conditions: [{ field: 'due_date', operator: 'is', value: '+1d' }] };
+			const result = applyFilter(tasks, spec);
+			expect(result).toHaveLength(1);
+			expect(result[0].due_date).toBe('2026-04-25');
+			vi.useRealTimers();
+		});
+
+		it('is with a non-relative string still compares literally', () => {
+			const tasks = [makeTask({ status: 'Active' }), makeTask({ status: 'Blocked' })];
+			const spec: FilterSpec = { logic: 'and', conditions: [{ field: 'status', operator: 'is', value: 'Active' }] };
+			const result = applyFilter(tasks, spec);
+			expect(result).toHaveLength(1);
+			expect(result[0].status).toBe('Active');
+		});
+	});
+
 	describe('AND / OR logic', () => {
 		it('AND — all conditions must pass', () => {
 			const tasks = [

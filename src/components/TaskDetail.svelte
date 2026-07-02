@@ -198,10 +198,12 @@
 	}
 
 	function onStatusFieldChange(nextValue: string | string[]): void {
-		if (typeof nextValue !== 'string') return;
+		if (typeof nextValue !== 'string' || !task) return;
 		const nextStatus = nextValue as TaskStatus;
 		status = nextStatus;
-		void saveController.saveImmediate({ status: nextStatus });
+		// Route through setStatus so moving to/from the completion status stamps or
+		// clears the completion date and recurs (guarded) like the other paths.
+		void store.setStatus(task, nextStatus);
 	}
 
 	function onNameFieldChange(nextValue: string): void {

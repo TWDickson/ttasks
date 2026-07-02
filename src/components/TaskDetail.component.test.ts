@@ -74,6 +74,7 @@ function renderDetail(options: {
 	} as any;
 	const store = {
 		update: vi.fn(async () => {}),
+		setStatus: vi.fn(async () => {}),
 		updateParentTask: vi.fn(async () => {}),
 		completeAndRecur: vi.fn(async () => null),
 		delete: vi.fn(async () => {}),

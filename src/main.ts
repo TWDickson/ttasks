@@ -512,7 +512,13 @@ export default class TTasksPlugin extends Plugin {
 			return false;
 		}
 
-		await this.taskStore.update(resolvedPath, result.updates);
+		// The 'complete' action routes through the shared completion helper so
+		// recurring tasks spawn their next instance (guarded) from this path too.
+		if (action === 'complete') {
+			await this.taskStore.completeAndRecur(task);
+		} else {
+			await this.taskStore.update(resolvedPath, result.updates);
+		}
 		if (showNotice) new Notice(`TTasks: ${result.noticeLabel}`);
 		return true;
 	}

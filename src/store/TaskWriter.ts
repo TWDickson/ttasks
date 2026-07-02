@@ -5,8 +5,9 @@ import type { Task, TaskCreateInput } from '../types';
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 import { materializeChecklistChildren } from './checklistMaterializer';
 import { resolveCompletionStatus } from '../settings';
-import { nextDueDate, nextStartDate } from './recurrence';
-import { computeStatusChanged } from './statusChanged';
+import { nextStartDate } from './recurrence';
+import { computeStatusChanged, computeCompletedOnStatusChange } from './statusChanged';
+import { decideCompletion } from './completeTask';
 import { buildDuplicateInput } from './taskDuplicate';
 import { resetChecklistCompletionInNotes } from './recurrenceNotes';
 import { deleteFileSafely, buildDeleteDeps } from '../integration/safeDelete';
@@ -124,6 +125,22 @@ export class TaskWriter {
 					today,
 				);
 				if (changed !== undefined) fm.status_changed = changed;
+
+				// Derive the completion date from status transitions unless the
+				// caller supplied an explicit `completed` value (which wins).
+				if (!('completed' in updates)) {
+					const completionStatus = resolveCompletionStatus(
+						this.plugin.settings.statuses,
+						this.plugin.settings.completionStatus,
+					);
+					const nextCompleted = computeCompletedOnStatusChange(
+						previousStatus,
+						updates.status,
+						completionStatus,
+						today,
+					);
+					if (nextCompleted !== undefined) fm.completed = nextCompleted;
+				}
 			});
 		} catch (error) {
 			this.plugin.log(`update failed for ${normalizedPath}: ${String(error)}`);
@@ -253,17 +270,40 @@ export class TaskWriter {
 
 	// ── Higher-level operations ────────────────────────────────────────────────
 
+	/**
+	 * Routes a status change through the recurrence-aware completion helper when
+	 * the target status is the completion status; otherwise a plain status update.
+	 * Used by kanban drag / mobile select and the Detail status dropdown so those
+	 * paths recur (and stamp the completion date) like the Mark-complete button.
+	 */
+	async setStatus(task: Task, newStatus: string): Promise<void> {
+		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+		if (newStatus === completionStatus) {
+			await this.completeAndRecur(task);
+			return;
+		}
+		await this.update(task.path, { status: newStatus });
+	}
+
 	async completeAndRecur(task: Task): Promise<Task | null> {
 		const today = localDateString();
 		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
 
-		await this.update(task.path, { status: completionStatus, completed: today });
+		const decision = decideCompletion(task, {
+			completionStatus,
+			today,
+			allTasks: get(this.tasks),
+		});
 
-		if (!task.recurrence) return null;
+		await this.update(task.path, decision.updates);
 
+		if (decision.kind !== 'complete-and-recur') return null;
+
+		const rule = task.recurrence;
+		if (!rule) return null; // narrowing — guaranteed non-null by the decision above
 		const recurType = (task.recurrence_type ?? 'fixed') as import('./recurrence').RecurrenceType;
-		const nextDue   = nextDueDate(task.recurrence, recurType, task.due_date, today);
-		const nextStart = nextStartDate(task.recurrence, recurType, task.start_date, task.due_date, today);
+		const nextDue   = decision.nextDue;
+		const nextStart = nextStartDate(rule, recurType, task.start_date, task.due_date, today);
 		const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
 
 		const nextInput: TaskCreateInput = {
@@ -347,10 +387,16 @@ export class TaskWriter {
 			const completedChanged = (child.completed ?? null) !== targetCompleted;
 			if (!statusChanged && !completedChanged) continue;
 
-			updates.push(this.update(child.path, {
-				status: targetStatus,
-				completed: targetCompleted,
-			}));
+			// Checking a recurring child completes it like any other path — route
+			// through completeAndRecur so the next instance is spawned (guarded).
+			if (checked) {
+				updates.push(this.completeAndRecur(child).then(() => undefined));
+			} else {
+				updates.push(this.update(child.path, {
+					status: targetStatus,
+					completed: targetCompleted,
+				}));
+			}
 		}
 
 		if (updates.length > 0) {

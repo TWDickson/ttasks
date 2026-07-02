@@ -22,6 +22,31 @@ export function computeStatusChanged(
 }
 
 /**
+ * Derives the `completed` date to write when a task's status transitions
+ * into or out of the completion status.
+ *
+ * - Transition **into** completion → returns `today` (stamp completion date).
+ * - Transition **out of** completion → returns `null` (clear stale date).
+ * - Status not changing, not being updated, or moving between two non-completion
+ *   statuses → returns `undefined` (leave `completed` untouched).
+ *
+ * Callers should only apply the result when the update does not explicitly set
+ * `completed` — an explicit value always wins.
+ */
+export function computeCompletedOnStatusChange(
+	previousStatus: string | undefined,
+	nextStatus: string | undefined,
+	completionStatus: string,
+	today: string,
+): string | null | undefined {
+	if (nextStatus === undefined) return undefined;       // status not being updated
+	if (nextStatus === previousStatus) return undefined;  // status unchanged
+	if (nextStatus === completionStatus) return today;    // transitioned into completion
+	if (previousStatus === completionStatus) return null; // transitioned out of completion
+	return undefined;                                     // neither in nor out of completion
+}
+
+/**
  * Picks the best available date for the stale-in-progress reminder rule.
  *
  * Prefers `status_changed` (set whenever the status field is written) because

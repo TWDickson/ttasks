@@ -112,7 +112,7 @@
 		const task = store.getByPath(draggingPath);
 		draggingPath = null;
 		if (!task || task.status === colId) return;
-		store.update(task.path, { status: colId });
+		store.setStatus(task, colId);
 	}
 
 	function onCardKeyDown(e: KeyboardEvent, path: string) {
@@ -263,7 +263,7 @@
 										on:change|stopPropagation={(e) => {
 											const target = e.currentTarget;
 											if (target.value !== task.status) {
-												store.update(task.path, { status: target.value });
+												store.setStatus(task, target.value);
 											}
 										}}
 									>

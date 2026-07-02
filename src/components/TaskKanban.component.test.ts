@@ -55,6 +55,7 @@ function renderKanban(options: {
 	const onContextMenu = vi.fn();
 	const saveSettings = vi.fn(async () => {});
 	const update = vi.fn();
+	const setStatus = vi.fn();
 	const plugin = {
 		settings: {
 			kanbanCollapsedColumns: options.collapsedColumns ?? [],
@@ -74,13 +75,13 @@ function renderKanban(options: {
 			blockStatus: 'Blocked',
 			kanbanCardFields: options.kanbanCardFields ?? ['area', 'dueDate', 'labels', 'depCount'],
 			activeTaskPath,
-			store: { update } as any,
+			store: { update, setStatus } as any,
 			onOpen,
 			onContextMenu,
 		},
 	});
 
-	return { onOpen, onContextMenu, saveSettings, update };
+	return { onOpen, onContextMenu, saveSettings, update, setStatus };
 }
 
 describe('TaskKanban.svelte', () => {
@@ -135,9 +136,12 @@ describe('TaskKanban.svelte', () => {
 		expect(onOpen).toHaveBeenCalledWith('Planner/Tasks/abc123-test-task.md');
 	});
 
-	it('calls store.update when status select changes', async () => {
-		const { update } = renderKanban();
+	it('calls store.setStatus when status select changes', async () => {
+		const { setStatus } = renderKanban();
 		await fireEvent.change(screen.getByDisplayValue('Active'), { target: { value: 'Blocked' } });
-		expect(update).toHaveBeenCalledWith('Planner/Tasks/abc123-test-task.md', { status: 'Blocked' });
+		expect(setStatus).toHaveBeenCalledWith(
+			expect.objectContaining({ path: 'Planner/Tasks/abc123-test-task.md' }),
+			'Blocked',
+		);
 	});
 });

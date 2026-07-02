@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeStatusChanged } from './statusChanged';
+import { computeStatusChanged, computeCompletedOnStatusChange } from './statusChanged';
 
 // ── computeStatusChanged ────────────────────────────────────────────────────
 // Returns today when status is changing, undefined when it isn't.
@@ -49,6 +49,37 @@ describe('computeStatusChanged', () => {
 		it('returns undefined when both current and next are the same empty string', () => {
 			expect(computeStatusChanged('', '', TODAY)).toBeUndefined();
 		});
+	});
+});
+
+// ── computeCompletedOnStatusChange ──────────────────────────────────────────
+
+describe('computeCompletedOnStatusChange', () => {
+	const TODAY = '2026-04-16';
+	const DONE = 'Done';
+
+	it('stamps today when transitioning into the completion status', () => {
+		expect(computeCompletedOnStatusChange('Active', DONE, DONE, TODAY)).toBe(TODAY);
+	});
+
+	it('stamps today when a task is completed for the first time (previous undefined)', () => {
+		expect(computeCompletedOnStatusChange(undefined, DONE, DONE, TODAY)).toBe(TODAY);
+	});
+
+	it('clears the date when transitioning out of the completion status', () => {
+		expect(computeCompletedOnStatusChange(DONE, 'Active', DONE, TODAY)).toBeNull();
+	});
+
+	it('leaves the field untouched when status is not being updated', () => {
+		expect(computeCompletedOnStatusChange('Active', undefined, DONE, TODAY)).toBeUndefined();
+	});
+
+	it('leaves the field untouched when status is unchanged', () => {
+		expect(computeCompletedOnStatusChange(DONE, DONE, DONE, TODAY)).toBeUndefined();
+	});
+
+	it('leaves the field untouched when moving between two non-completion statuses', () => {
+		expect(computeCompletedOnStatusChange('Active', 'Blocked', DONE, TODAY)).toBeUndefined();
 	});
 });
 
