@@ -3,7 +3,6 @@ import {
 	deriveArchiveFolder,
 	getArchivePath,
 	isArchivedPath,
-	daysBetween,
 	archiveEligible,
 } from './archiveUtils';
 
@@ -61,28 +60,6 @@ describe('isArchivedPath', () => {
 	it('does not false-positive on prefix substring matches', () => {
 		// 'Planner/ArchiveOther/...' should not match 'Planner/Archive'
 		expect(isArchivedPath('Planner/ArchiveOther/task.md', 'Planner/Archive')).toBe(false);
-	});
-});
-
-describe('daysBetween', () => {
-	it('returns 0 for same date', () => {
-		expect(daysBetween('2026-05-14', '2026-05-14')).toBe(0);
-	});
-
-	it('returns correct positive count', () => {
-		expect(daysBetween('2026-05-01', '2026-05-14')).toBe(13);
-	});
-
-	it('returns negative for past-to-future reversed', () => {
-		expect(daysBetween('2026-05-14', '2026-05-01')).toBe(-13);
-	});
-
-	it('handles month boundaries correctly', () => {
-		expect(daysBetween('2026-01-31', '2026-02-01')).toBe(1);
-	});
-
-	it('handles year boundaries correctly', () => {
-		expect(daysBetween('2025-12-31', '2026-01-01')).toBe(1);
 	});
 });
 

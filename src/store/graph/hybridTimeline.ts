@@ -1,12 +1,11 @@
 import type { Task } from '../../types';
 import { pathLeaf } from '../../utils/pathUtils';
-import { DAY_MS, addDays, normalizeTimelineRange } from './graphTimeline';
+import { DAY_MS, addDays, normalizeTimelineRange, parseIsoDate } from './graphTimeline';
 import { normalizeTaskPath, resolveOwningProjectPath, dedupePaths } from './taskGraph';
 import {
 	resolveTaskDates,
 	createWorkingCalendarResolver,
 	addCalendarDays,
-	inferParseDate,
 	type ResolvedTaskDate,
 } from './taskGraphDates';
 
@@ -195,7 +194,7 @@ export function buildHybridTimeline(
 		.map(([path, dates]) => ({ path, task: taskByPath.get(path), dates }))
 		.filter((entry): entry is { path: string; task: Task; dates: ResolvedTaskDate } => {
 			if (!entry.task) return false;
-			const hasExplicitDate = !!inferParseDate(entry.task.start_date) || !!inferParseDate(entry.task.due_date);
+			const hasExplicitDate = !!parseIsoDate(entry.task.start_date) || !!parseIsoDate(entry.task.due_date);
 			const hasEstimate = typeof entry.task.estimated_days === 'number' && entry.task.estimated_days > 0;
 			return hasExplicitDate || hasEstimate;
 		})
@@ -265,7 +264,7 @@ export function buildHybridTimeline(
 
 	for (const task of visibleTasks) {
 		if (definedByPath.has(task.path)) continue;
-		if (inferParseDate(task.start_date) || inferParseDate(task.due_date)) continue;
+		if (parseIsoDate(task.start_date) || parseIsoDate(task.due_date)) continue;
 		if (typeof task.estimated_days === 'number' && task.estimated_days > 0) continue;
 
 		const deps = dedupePaths(

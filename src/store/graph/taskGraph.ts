@@ -2,7 +2,8 @@ import type { Task } from '../../types';
 import { ensureMdExt, pathLeaf } from '../../utils/pathUtils';
 import { parseWikiLink } from '../../utils/wikiLink';
 import { optimizeLaneBandOrder } from './graphCrossingOptimizer';
-import { inferParseDate, resolveTaskDates } from './taskGraphDates';
+import { parseIsoDate } from '../../utils/dateUtils';
+import { resolveTaskDates } from './taskGraphDates';
 
 export interface TaskGraphNode {
 	path: string;
@@ -86,7 +87,7 @@ interface LaneBand {
 function getDateKey(task: Task): number {
 	// Local-midnight parsing to stay comparable with resolveTaskDates output;
 	// bare new Date('YYYY-MM-DD') would parse as UTC and skew by a day.
-	const date = inferParseDate(task.start_date) ?? inferParseDate(task.due_date) ?? inferParseDate(task.created);
+	const date = parseIsoDate(task.start_date) ?? parseIsoDate(task.due_date) ?? parseIsoDate(task.created);
 	return date ? date.getTime() : Infinity;
 }
 

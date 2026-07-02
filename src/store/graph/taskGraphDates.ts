@@ -1,5 +1,5 @@
 import type { Task } from '../../types';
-import { addDays, formatDateISO, isWeekend } from './graphTimeline';
+import { addDays, formatDateISO, isWeekend, parseIsoDate } from './graphTimeline';
 import { normalizeTaskPath, resolveOwningProjectPath, dedupePaths } from './taskGraph';
 
 // ---------------------------------------------------------------------------
@@ -31,12 +31,6 @@ export interface ResolveTaskDatesOptions {
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
-
-export function inferParseDate(value: string | null | undefined): Date | null {
-	if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-	const d = new Date(`${value}T00:00:00`);
-	return isNaN(d.getTime()) ? null : d;
-}
 
 function parseHolidayDates(value: unknown): string[] {
 	if (!Array.isArray(value)) return [];
@@ -153,12 +147,12 @@ export function resolveTaskDates(
 			.filter((t): t is number => t !== undefined);
 		const latestDepEnd = depEndTimes.length > 0 ? new Date(Math.max(...depEndTimes)) : null;
 
-		const explicitStart = inferParseDate(task.start_date);
-		const explicitDue   = inferParseDate(task.due_date);
+		const explicitStart = parseIsoDate(task.start_date);
+		const explicitDue   = parseIsoDate(task.due_date);
 		// Completed work is anchored on when it actually finished. This is the key
 		// to propagation: a done task with no explicit start/due still resolves,
 		// so everything downstream of it can inherit a date instead of stalling.
-		const completedDate = task.is_complete ? inferParseDate(task.completed) : null;
+		const completedDate = task.is_complete ? parseIsoDate(task.completed) : null;
 
 		let start: Date | null = explicitStart;
 		let isInferred = false;

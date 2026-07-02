@@ -1,6 +1,7 @@
 import type { FieldDefinition } from './types';
 import type { Task } from '../types';
 import { isBlockedStatus } from './fieldVisibility';
+import { parseIsoDate } from '../utils/dateUtils';
 
 /**
  * Validation rules for fields.
@@ -18,8 +19,7 @@ const VALIDATORS = {
 		if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
 			return 'Invalid date format (use YYYY-MM-DD)';
 		}
-		const date = new Date(value);
-		if (isNaN(date.getTime())) {
+		if (!parseIsoDate(value)) {
 			return 'Invalid date';
 		}
 		return null;

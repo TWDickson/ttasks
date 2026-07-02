@@ -66,3 +66,66 @@ export function addDaysLocal(date: string, days: number): string {
 	const result = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + days);
 	return localDateString(result);
 }
+
+/** Shared month abbreviations for human-readable date labels. */
+export const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+// ── Date-object helpers ───────────────────────────────────────────────────────
+//
+// The helpers above operate on YYYY-MM-DD strings. The ones below operate on
+// `Date` objects at local midnight, used by the graph/timeline layout code which
+// needs to do pixel math over a continuous range of days. Prefer the string
+// family for frontmatter values and "today"; use these only when you already
+// hold `Date` objects (timeline ranges, tick generation).
+
+export const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Add `days` to a `Date`, returning a new `Date` (local calendar arithmetic). */
+export function addDays(date: Date, days: number): Date {
+	const next = new Date(date.getTime());
+	next.setDate(next.getDate() + days);
+	return next;
+}
+
+/** Whole calendar days from `start` to `end` (rounded; DST-tolerant via ms). */
+export function diffDays(start: Date, end: Date): number {
+	return Math.round((end.getTime() - start.getTime()) / DAY_MS);
+}
+
+/** Today at local midnight. */
+export function startOfToday(): Date {
+	const today = new Date();
+	today.setHours(0, 0, 0, 0);
+	return today;
+}
+
+/**
+ * Format a `Date` as a local YYYY-MM-DD string. Uses local components, not
+ * toISOString(), because these are local midnights and UTC conversion shifts
+ * them to the previous day in UTC+ timezones.
+ */
+export function formatDateISO(date: Date): string {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}
+
+/** True for Saturday/Sunday. */
+export function isWeekend(date: Date): boolean {
+	const day = date.getDay();
+	return day === 0 || day === 6;
+}
+
+/**
+ * Parse a YYYY-MM-DD string into a local-midnight `Date`, or null when the
+ * string is malformed or not a real calendar date. This is the single canonical
+ * ISO-date parser — the string↔Date boundary for the whole app.
+ */
+export function parseIsoDate(value: string | null | undefined): Date | null {
+	if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+	const parsed = new Date(`${value}T00:00:00`);
+	if (Number.isNaN(parsed.getTime())) return null;
+	parsed.setHours(0, 0, 0, 0);
+	return parsed;
+}

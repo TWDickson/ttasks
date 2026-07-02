@@ -1,50 +1,17 @@
 import type { Task } from '../../types';
+import { MONTH_ABBR } from '../../utils/dateUtils';
 
-export const DAY_MS = 24 * 60 * 60 * 1000;
+// Canonical Date-object date helpers live in utils/dateUtils. They are
+// re-exported here so the many graph modules importing from graphTimeline keep
+// working without churn.
+export { DAY_MS, addDays, startOfToday, diffDays, formatDateISO, isWeekend, parseIsoDate } from '../../utils/dateUtils';
+import { addDays, diffDays, formatDateISO, isWeekend, parseIsoDate, startOfToday } from '../../utils/dateUtils';
+
 const MIN_FUTURE_DAYS = 28;
 const MIN_PAST_DAYS = 14;
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
-
-export function addDays(date: Date, days: number): Date {
-	const next = new Date(date.getTime());
-	next.setDate(next.getDate() + days);
-	return next;
-}
-
-export function startOfToday(): Date {
-	const today = new Date();
-	today.setHours(0, 0, 0, 0);
-	return today;
-}
-
-export function diffDays(start: Date, end: Date): number {
-	return Math.round((end.getTime() - start.getTime()) / DAY_MS);
-}
-
-export function formatDateISO(date: Date): string {
-	// Local components, not toISOString(): dates here are local midnights, and
-	// UTC conversion shifts them to the previous day in UTC+ timezones.
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, '0');
-	const day = String(date.getDate()).padStart(2, '0');
-	return `${year}-${month}-${day}`;
-}
 
 function formatMonthDay(date: Date): string {
-	return `${MONTH_LABELS[date.getMonth()]} ${date.getDate()}`;
-}
-
-function parseIsoDate(value: string): Date | null {
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-	const parsed = new Date(`${value}T00:00:00`);
-	if (Number.isNaN(parsed.getTime())) return null;
-	parsed.setHours(0, 0, 0, 0);
-	return parsed;
-}
-
-export function isWeekend(date: Date): boolean {
-	const day = date.getDay();
-	return day === 0 || day === 6;
+	return `${MONTH_ABBR[date.getMonth()]} ${date.getDate()}`;
 }
 
 export function normalizeTimelineRange(start: Date, end: Date, today: Date = startOfToday()): { start: Date; end: Date } {

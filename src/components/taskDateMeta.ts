@@ -1,4 +1,4 @@
-import { daysBetweenLocal } from '../utils/dateUtils';
+import { daysBetweenLocal, MONTH_ABBR } from '../utils/dateUtils';
 import type { Task } from '../types';
 
 export type TaskDateBadge = {
@@ -14,8 +14,6 @@ export function isTaskOverdue(task: TaskDateMetaInput, today: string): boolean {
 	if (task.is_complete || !task.due_date) return false;
 	return task.due_date < today;
 }
-
-const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /**
  * Format an ISO date (YYYY-MM-DD) as "Apr 25" (same year) or "Apr 25, 2025" (different year).
