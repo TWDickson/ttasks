@@ -3,7 +3,6 @@ import type TTasksPlugin from '../main';
 import { resolveConfiguredStatus, DEFAULT_SETTINGS } from '../settings';
 import { localDateString } from '../utils/dateUtils';
 import { safeLocalStorage, safeLocalStorageSet } from '../utils/vaultSafe';
-import { resolveStaleDate } from './statusChanged';
 import { isSnoozed, purgeSnoozed, snoozeTask, type SnoozedState } from './reminderSnooze';
 import { NOTICE_DURATION_MS, REMINDER_POLL_INTERVAL_MS, REMINDER_LEAD_DAYS, REMINDER_STALE_DAYS } from '../constants';
 import { buildReminderNotice } from './reminderNoticeBuilder';

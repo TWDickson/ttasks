@@ -33,7 +33,7 @@ export function adaptFieldProps(
 		value,
 		error,
 		readonly: field.readOnly ?? false,
-		onChange: (newValue: any) => {
+		onChange: (_newValue: any) => {
 			// Handled by parent component (modal/detail)
 		},
 	};

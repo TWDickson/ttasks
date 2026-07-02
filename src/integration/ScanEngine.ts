@@ -18,6 +18,9 @@ type DailyNotesInterface = {
 
 function loadDailyNotesInterface(): DailyNotesInterface | null {
 	try {
+		// Lazy require: the package depends on Obsidian runtime globals and may be
+		// absent, so it must load on demand inside this try/catch, not statically.
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
 		return require('obsidian-daily-notes-interface') as DailyNotesInterface;
 	} catch {
 		return null;

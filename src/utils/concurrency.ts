@@ -8,7 +8,7 @@ export async function withConcurrencyLimit<T>(
 	let nextIndex = 0;
 
 	async function worker(): Promise<void> {
-		while (true) {
+		for (;;) {
 			const currentIndex = nextIndex++;
 			if (currentIndex >= tasks.length) return;
 			try {

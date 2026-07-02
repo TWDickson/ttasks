@@ -1,4 +1,4 @@
-import { App, Notice, Setting, setIcon } from 'obsidian';
+import { App, Notice, setIcon } from 'obsidian';
 import type TTasksPlugin from '../main';
 import { THEME_SWATCHES, getDefaultThemeColor } from './defaults';
 import { ValueMigrationModal } from './ValueMigrationModal';

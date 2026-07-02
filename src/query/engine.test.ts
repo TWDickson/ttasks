@@ -166,7 +166,6 @@ describe('applyFilter', () => {
 		});
 
 		it('resolves relative date "today"', () => {
-			const today = '2026-04-24';
 			vi.setSystemTime(new Date('2026-04-24T12:00:00'));
 			const tasks = [makeTask({ due_date: '2026-04-23' }), makeTask({ due_date: '2026-04-25' })];
 			const spec: FilterSpec = { logic: 'and', conditions: [{ field: 'due_date', operator: 'before', value: 'today' }] };
@@ -175,7 +174,6 @@ describe('applyFilter', () => {
 		});
 
 		it('resolves relative date "+7d"', () => {
-			const today = '2026-04-24';
 			vi.setSystemTime(new Date('2026-04-24T12:00:00'));
 			const tasks = [
 				makeTask({ due_date: '2026-04-28' }), // +4d — within range
@@ -189,7 +187,6 @@ describe('applyFilter', () => {
 
 	describe('within_days', () => {
 		it('matches tasks due within N days from today', () => {
-			const today = '2026-04-24';
 			vi.setSystemTime(new Date('2026-04-24T12:00:00'));
 			const tasks = [
 				makeTask({ due_date: '2026-04-26' }), // +2d — in range

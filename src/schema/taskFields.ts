@@ -1,4 +1,4 @@
-import type { FieldDefinition, ValidationRule } from './types';
+import type { FieldDefinition } from './types';
 import type { Task } from '../types';
 import { isBlockedStatus } from './fieldVisibility';
 

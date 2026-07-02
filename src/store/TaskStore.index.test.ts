@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { writable } from 'svelte/store';
 import { TaskStore } from './TaskStore';
 import type { Task } from '../types';
 

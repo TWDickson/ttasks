@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { TASK_FIELD_DEFINITIONS } from './taskFields';
-import type { FieldDefinition, TaskSettings } from './types';
 
 describe('Task Field Schema', () => {
 	describe('Schema integrity', () => {

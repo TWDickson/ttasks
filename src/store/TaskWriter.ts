@@ -1,7 +1,7 @@
 import { Notice, TFile, normalizePath, type App } from 'obsidian';
 import { get, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
-import type { Task, TaskCreateInput, TaskRecordType } from '../types';
+import type { Task, TaskCreateInput } from '../types';
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 import { materializeChecklistChildren } from './checklistMaterializer';
 import { resolveCompletionStatus } from '../settings';
@@ -13,7 +13,7 @@ import { deleteFileSafely, buildDeleteDeps } from '../integration/safeDelete';
 import { buildAliasedLink } from '../integration/relationshipLink';
 import { localDateString } from '../utils/dateUtils';
 import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
-import { parseWikiLink, extractChecklistLink } from '../utils/wikiLink';
+import { extractChecklistLink } from '../utils/wikiLink';
 import { buildRestoreInput } from './taskRestore';
 import { linkReferencesTaskPath } from './relationshipLinkMatch';
 import { syncCompletionToSource } from '../integration/completionSync';

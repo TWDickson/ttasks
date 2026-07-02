@@ -4,9 +4,7 @@
 	TaskViewPresentation,
 	TaskViewRenderer,
 	KanbanCardField,
-	QuickActionsSettings,
 	RemindersSettings,
-	ArchiveSettings,
 	CaptureSourceDefaults,
 	CaptureSourceConfig,
 } from './types';

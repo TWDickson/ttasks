@@ -12,7 +12,6 @@ import type {
 	GroupSpec,
 	QuerySpec,
 	SortField,
-	SortSpec,
 } from './types';
 
 export interface QueryEditorSettingsContext {

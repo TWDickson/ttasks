@@ -1,4 +1,4 @@
-import type { Task, TaskPriority, TaskStatus } from '../types';
+import type { Task, TaskStatus } from '../types';
 
 /**
  * Field type determines which component renders the field.

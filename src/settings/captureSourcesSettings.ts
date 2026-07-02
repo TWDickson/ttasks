@@ -17,6 +17,7 @@ type DailyNotesInterface = {
 function loadDailyNotesInterface(): DailyNotesInterface | null {
 	try {
 		// The interface package depends on Obsidian runtime globals, so load it lazily.
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
 		return require('obsidian-daily-notes-interface') as DailyNotesInterface;
 	} catch {
 		return null;

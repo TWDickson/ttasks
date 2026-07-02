@@ -5,13 +5,9 @@ import {
 	DEFAULT_REMINDERS_SETTINGS,
 	THEME_SWATCHES,
 	getDefaultThemeColor,
-	normalizeStatuses,
 	normalizeColorMap,
 	normalizeEditorSuggestTrigger,
-	resolveCompletionStatus,
-	resolveConfiguredStatus,
 	resolveEmergencyStatus,
-	isSystemStatus,
 	normalizeSettingsFromSources,
 } from './defaults';
 

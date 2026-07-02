@@ -120,7 +120,8 @@ class FakeElement {
 	closest(selector: string): FakeElement | null {
 		if (!selector.startsWith('.')) return null;
 		const className = selector.slice(1);
-		let current: FakeElement | null = this;
+		if (this.hasClass(className)) return this;
+		let current: FakeElement | null = this.parent;
 		while (current) {
 			if (current.hasClass(className)) return current;
 			current = current.parent;

@@ -5,10 +5,10 @@
  * Uses field definitions from taskFields schema for consistent UI.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import type { Task } from '../types';
 import type { TaskSettings } from '../schema/types';
-import { TASK_FIELD_DEFINITIONS, getFieldByName, getVisibleFields } from '../schema/taskFields';
+import { TASK_FIELD_DEFINITIONS, getFieldByName } from '../schema/taskFields';
 import { adaptFieldForDetail } from '../schema/fieldAdapters';
 
 describe('TaskDetail.svelte', () => {
