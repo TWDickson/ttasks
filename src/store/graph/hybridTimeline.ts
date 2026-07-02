@@ -1,5 +1,5 @@
 import type { Task } from '../../types';
-import { DAY_MS, addDays } from './graphTimeline';
+import { DAY_MS, addDays, normalizeTimelineRange } from './graphTimeline';
 import { normalizeTaskPath, resolveOwningProjectPath, dedupePaths } from './taskGraph';
 import {
 	resolveTaskDates,
@@ -76,9 +76,6 @@ export interface BuildHybridTimelineOptions {
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
-
-const OVERVIEW_MIN_PAST_DAYS = 14;
-const OVERVIEW_MIN_FUTURE_DAYS = 28;
 
 function resolveUnderdefinedWidthPercent(task: Task): number {
 	const titleLength = task.name.trim().length;
@@ -212,10 +209,9 @@ export function buildHybridTimeline(
 	const ends   = resolvedEntries.map((entry) => entry.dates.end.getTime());
 	const baseRangeStart = starts.length > 0 ? new Date(Math.min(...starts)) : fallbackStart;
 	const baseRangeEnd   = ends.length > 0   ? new Date(Math.max(...ends))   : fallbackEnd;
-	const minRangeStart  = addDays(today, -OVERVIEW_MIN_PAST_DAYS);
-	const minRangeEnd    = addDays(today,  OVERVIEW_MIN_FUTURE_DAYS);
-	const rangeStart = baseRangeStart.getTime() <= minRangeStart.getTime() ? baseRangeStart : minRangeStart;
-	const rangeEnd   = baseRangeEnd.getTime()   >= minRangeEnd.getTime()   ? baseRangeEnd   : minRangeEnd;
+	// Pad the range so at least 14 days back / 28 days ahead of today are visible
+	// (single source of truth shared with the dependency timeline).
+	const { start: rangeStart, end: rangeEnd } = normalizeTimelineRange(baseRangeStart, baseRangeEnd, today);
 	const spanDays   = Math.max(1, Math.round((rangeEnd.getTime() - rangeStart.getTime()) / DAY_MS) + 1);
 
 	const definedRowEndsByGroup = new Map<string, number[]>();
