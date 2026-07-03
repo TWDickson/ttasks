@@ -123,7 +123,7 @@ describe('TaskKanban.svelte', () => {
 	it('hides card body when column starts collapsed', () => {
 		renderKanban({ collapsedColumns: ['Active'] });
 		expect(screen.queryByText('Test Task')).toBeNull();
-		expect(screen.getByRole('button', { name: 'Expand' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /^Expand/ })).toBeInTheDocument();
 	});
 
 	it('calls saveSettings when toggling collapse', async () => {

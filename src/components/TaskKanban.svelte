@@ -10,6 +10,7 @@
 	import { getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
 	import { buildDepCountBadge, isFieldEnabled, type KanbanCardField } from './kanbanCardFields';
 	import { deserializeCollapsed, isColumnCollapsed, serializeCollapsed, toggleColumnCollapse } from './kanbanCollapse';
+	import { icon } from '../utils/icon';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
@@ -168,20 +169,38 @@
 				on:dragleave={onDragLeave}
 				on:drop={(e) => onDrop(e, col.id)}
 			>
-				<div class="tt-kanban-col-header">
-					<span
-						id={getColumnLabelId(col.id)}
-						class="tt-kanban-col-label"
-						style={col.accent ? `color:${col.accent}` : ''}
-					>{col.label}</span>
-					<span class="tt-count">{cards.length}</span>
+				{#if collapsed}
+					<!-- Whole collapsed column is one expand button (tiny chevron was unhittable). -->
 					<button
-						class="tt-col-collapse-btn"
-						title={collapsed ? 'Expand column' : 'Collapse column'}
-						on:click|stopPropagation={() => handleToggleCollapse(col.id)}
-						aria-label={collapsed ? 'Expand' : 'Collapse'}
-					>{collapsed ? '›' : '‹'}</button>
-				</div>
+						class="tt-kanban-col-header tt-col-expand-btn"
+						title="Expand {col.label} column"
+						aria-label="Expand {col.label} column"
+						on:click={() => handleToggleCollapse(col.id)}
+					>
+						<span
+							id={getColumnLabelId(col.id)}
+							class="tt-kanban-col-label"
+							style={col.accent ? `color:${col.accent}` : ''}
+						>{col.label}</span>
+						<span class="tt-count">{cards.length}</span>
+						<span class="tt-col-collapse-icon" use:icon={'chevron-right'}></span>
+					</button>
+				{:else}
+					<div class="tt-kanban-col-header">
+						<span
+							id={getColumnLabelId(col.id)}
+							class="tt-kanban-col-label"
+							style={col.accent ? `color:${col.accent}` : ''}
+						>{col.label}</span>
+						<span class="tt-count">{cards.length}</span>
+						<button
+							class="tt-col-collapse-btn"
+							title="Collapse column"
+							on:click|stopPropagation={() => handleToggleCollapse(col.id)}
+							aria-label="Collapse"
+						><span class="tt-col-collapse-icon" use:icon={'chevron-left'}></span></button>
+					</div>
+				{/if}
 
 				{#if !collapsed}
 				<div class="tt-kanban-col-body">
@@ -197,7 +216,6 @@
 								draggable="true"
 								role="button"
 								tabindex="0"
-								aria-grabbed={draggingPath === task.path}
 								on:click={() => onOpen(task.path)}
 								on:keydown={(e) => onCardKeyDown(e, task.path)}
 								on:mouseenter={(event) => onCardHover(event, task)}
@@ -280,12 +298,7 @@
 </div>
 
 <style>
-	:global(.tt-kanban-wrap) {
-		--tt-space-1: var(--size-2-3, 6px);
-		--tt-space-2: var(--size-4-2, 8px);
-		--tt-space-3: var(--size-4-3, 12px);
-		--tt-space-4: var(--size-4-4, 16px);
-	}
+	/* Design tokens inherit from .tt-board (styles.css). */
 
 	/* ── Wrapper ────────────────────────────────────────────────────────────────── */
 	.tt-kanban-wrap {
@@ -373,21 +386,45 @@
 		text-align: center;
 	}
 
-	.tt-col-collapsed .tt-col-collapse-btn {
-		font-size: 1rem;
+	/* Collapsed header is a single full-height expand button */
+	.tt-col-expand-btn {
+		border: none;
+		background: transparent;
+		cursor: pointer;
+		width: 100%;
+		height: 100%;
 		color: var(--text-muted);
+	}
+
+	.tt-col-expand-btn:hover {
+		background: var(--background-modifier-hover);
 	}
 
 	.tt-col-collapse-btn {
 		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 24px;
+		min-height: 24px;
 		background: transparent;
 		border: none;
 		color: var(--text-faint);
 		cursor: pointer;
-		font-size: 0.85rem;
-		padding: 2px 4px;
-		border-radius: 4px;
+		padding: 2px;
+		border-radius: var(--radius-s, 4px);
 		line-height: 1;
+	}
+
+	.tt-col-collapse-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.tt-col-collapse-icon :global(svg) {
+		width: 14px;
+		height: 14px;
 	}
 
 	.tt-col-collapse-btn:hover {
@@ -413,14 +450,7 @@
 		flex: 1;
 	}
 
-	.tt-count {
-		background: var(--background-modifier-border);
-		border-radius: 999px;
-		padding: 1px 7px;
-		font-size: 0.7rem;
-		font-weight: 600;
-		color: var(--text-muted);
-	}
+	/* .tt-count is plugin-global (styles.css). */
 
 	.tt-kanban-col-body {
 		flex: 1;
@@ -513,50 +543,12 @@
 		text-overflow: ellipsis;
 	}
 
-	/* ── Badges ─────────────────────────────────────────────────────────────────── */
+	/* ── Badges (visuals are plugin-global in styles.css) ───────────────────────── */
 	.tt-card-meta {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 4px;
 		padding-left: 17px;
-	}
-
-	.tt-badge {
-		font-size: 0.68rem;
-		padding: 2px 6px;
-		border-radius: 999px;
-		background: var(--background-modifier-border);
-		border: 1px solid transparent;
-		color: var(--text-muted);
-		white-space: nowrap;
-	}
-
-	.tt-badge-tinted {
-		background: color-mix(in srgb, var(--tt-badge-color) 18%, var(--background-primary));
-		border-color: color-mix(in srgb, var(--tt-badge-color) 42%, var(--background-modifier-border));
-		color: var(--tt-badge-color);
-	}
-
-	.tt-badge-overdue {
-		background: var(--color-red);
-		color: var(--text-on-accent);
-	}
-
-	.tt-badge-completed {
-		background: color-mix(in srgb, var(--color-green) 88%, var(--background-primary));
-		color: var(--text-on-accent);
-	}
-
-	.tt-badge-type {
-		background: var(--background-secondary);
-	}
-
-	.tt-badge-dep {
-		background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-secondary));
-		border-color: color-mix(in srgb, var(--interactive-accent) 30%, var(--background-modifier-border));
-		color: var(--interactive-accent);
-		font-variant-numeric: tabular-nums;
-		letter-spacing: 0.02em;
 	}
 
 	/* Status select: hidden on desktop, visible on mobile */
@@ -566,17 +558,17 @@
 
 	/* ── Mobile ─────────────────────────────────────────────────────────────────── */
 	@media (max-width: 768px) {
+		/* Keep the native dropdown arrow so it reads as a control, not a badge. */
 		.tt-card-status-select {
 			display: inline-block;
 			font-size: 0.68rem;
 			padding: 2px 6px;
+			min-height: 24px;
 			border-radius: 999px;
 			border: 1px solid var(--background-modifier-border);
 			background: var(--background-secondary);
 			color: var(--text-muted);
 			cursor: pointer;
-			-webkit-appearance: none;
-			appearance: none;
 		}
 		.tt-kanban-tabs {
 			display: flex;
