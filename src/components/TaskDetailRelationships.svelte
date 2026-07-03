@@ -9,6 +9,7 @@
 	import { normalizeTaskPath, findLinkedTask, resolveLinkedTaskPath } from './taskDetailLinks';
 	import { pathLeaf } from '../utils/pathUtils';
 	import WikiLinkField from './fields/WikiLinkField.svelte';
+	import { icon } from '../utils/icon';
 
 	export let task: Task;
 	export let tasks: Task[];
@@ -159,27 +160,28 @@
 
 <hr class="tt-divider" />
 <div class="tt-field-group">
-	<span class="tt-label">System Fit</span>
+	<span class="tt-label">Dependencies</span>
 	<div class="tt-rel-health">
-		<div class="tt-rel-health-metrics">
-			<span class="tt-rel-pill">⏸ Waiting on {task.depends_on.length}</span>
-			<span class="tt-rel-pill">→ Unblocks {task.blocks.length}</span>
-			{#if openDependencies.length > 0}
-				<span class="tt-rel-pill tt-rel-pill-alert">Blocked by {openDependencies.length} open</span>
-			{/if}
-			{#if isInCycle}
-				<span class="tt-rel-pill tt-rel-pill-danger">Cycle</span>
-			{/if}
-		</div>
-		<p class="tt-rel-help">
-			<strong>Blocked by</strong> — must finish before this starts. &nbsp;
-			<strong>Unblocks</strong> — completing this enables these tasks.
-		</p>
+		{#if openDependencies.length > 0 || isInCycle}
+			<div class="tt-rel-health-metrics">
+				{#if openDependencies.length > 0}
+					<span class="tt-rel-pill tt-rel-pill-alert">
+						<span class="tt-rel-pill-icon" use:icon={'pause'}></span>
+						Blocked by {openDependencies.length} open
+					</span>
+				{/if}
+				{#if isInCycle}
+					<span class="tt-rel-pill tt-rel-pill-danger">
+						<span class="tt-rel-pill-icon" use:icon={'refresh-cw'}></span>
+						Cycle
+					</span>
+				{/if}
+			</div>
+		{/if}
 
-		<div class="tt-rel-tree">
-			{#if upstreamTreeLevels.length === 0 && downstreamTreeLevels.length === 0}
-				<div class="tt-rel-empty">No linked tasks</div>
-			{:else}
+		<!-- Chain tree renders only for multi-level chains; level-1 links are in the editors below. -->
+		{#if upstreamTreeLevels.length > 1 || downstreamTreeLevels.length > 1}
+			<div class="tt-rel-tree">
 				<div class="tt-rel-tree-stack">
 					{#each upstreamTreeLevels as level}
 						<div class="tt-rel-tree-level" style={`--tt-tree-depth:${level.depth};`}>
@@ -222,12 +224,15 @@
 						</div>
 					{/each}
 				</div>
-			{/if}
-		</div>
+			</div>
+		{/if}
 
 		<div class="tt-rel-editors">
 			<div class="tt-rel-lane tt-rel-lane-full">
-				<div class="tt-rel-heading">⏸ Blocked by</div>
+				<div class="tt-rel-heading" title="These must finish before this task can start">
+					<span class="tt-rel-heading-icon" use:icon={'pause'}></span>
+					Blocked by
+				</div>
 				{#if task.depends_on.length === 0}
 					<div class="tt-rel-empty">None</div>
 				{:else}
@@ -264,7 +269,10 @@
 			</div>
 
 			<div class="tt-rel-lane tt-rel-lane-full">
-				<div class="tt-rel-heading">→ Unblocks</div>
+				<div class="tt-rel-heading" title="Completing this task lets these start">
+					<span class="tt-rel-heading-icon" use:icon={'arrow-right'}></span>
+					Unblocks
+				</div>
 				{#if task.blocks.length === 0}
 					<div class="tt-rel-empty">None</div>
 				{:else}
@@ -294,25 +302,7 @@
 </div>
 
 <style>
-	.tt-divider {
-		border: none;
-		border-top: 1px solid var(--background-modifier-border);
-		margin: 0;
-	}
-
-	.tt-label {
-		font-size: 0.72rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--text-muted);
-	}
-
-	.tt-field-group {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
+	/* .tt-divider, .tt-label, .tt-field-group are plugin-global (styles.css). */
 
 	.tt-chips {
 		display: flex;
@@ -380,12 +370,11 @@
 		color: var(--color-red);
 	}
 
+	/* No max-height/overflow: the detail pane owns scrolling (no nested scrollbars). */
 	.tt-rel-health {
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-		max-height: 400px;
-		overflow-y: auto;
 	}
 
 	.tt-rel-health-metrics {
@@ -397,6 +386,7 @@
 	.tt-rel-pill {
 		display: inline-flex;
 		align-items: center;
+		gap: 5px;
 		padding: 3px 9px;
 		border-radius: 999px;
 		border: var(--border-width, 1px) solid var(--background-modifier-border);
@@ -405,6 +395,18 @@
 		font-size: 0.72rem;
 		font-weight: 700;
 		letter-spacing: 0.02em;
+	}
+
+	.tt-rel-pill-icon,
+	.tt-rel-heading-icon {
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.tt-rel-pill-icon :global(svg),
+	.tt-rel-heading-icon :global(svg) {
+		width: 11px;
+		height: 11px;
 	}
 
 	.tt-rel-pill-alert {
@@ -478,24 +480,16 @@
 		min-width: 0;
 	}
 
-	.tt-rel-help {
-		font-size: 0.72rem;
-		color: var(--text-faint);
-		margin: 0;
-		line-height: 1.5;
-	}
-
-	.tt-rel-help strong {
-		color: var(--text-muted);
-		font-weight: 600;
-	}
-
 	.tt-rel-heading {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
 		font-size: 0.7rem;
 		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: var(--text-faint);
+		cursor: help;
 	}
 
 	.tt-rel-empty {

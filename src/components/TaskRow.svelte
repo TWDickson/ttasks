@@ -7,6 +7,7 @@
 	import { getTaskDateBadge, isTaskOverdue, formatHumanDate } from './taskDateMeta';
 	import { canShowInlineReopen } from './taskRowActions';
 	import { resolveInferredDueDate, type ResolvedTaskDate } from '../store/taskSchedule';
+	import { icon } from '../utils/icon';
 
 	export let plugin: TTasksPlugin;
 	export let task: Task;
@@ -114,7 +115,7 @@
 			class="tt-expand-btn"
 			aria-label={expanded ? 'Collapse' : 'Expand'}
 			on:click|stopPropagation={onExpand}
-		>{expanded ? '▾' : '▸'}</button>
+		><span class="tt-expand-icon" use:icon={expanded ? 'chevron-down' : 'chevron-right'}></span></button>
 	{:else if indent > 0}
 		<span class="tt-expand-spacer" aria-hidden="true"></span>
 	{/if}
@@ -172,22 +173,31 @@
 </li>
 
 <style>
+	/* Hover/active live on the row so the checkbox sits inside the highlight. */
 	.tt-task {
-		--tt-space-1: var(--size-4-1, 4px);
-		--tt-space-2: var(--size-4-2, 8px);
-		--tt-space-3: var(--size-4-3, 12px);
-		--tt-button-radius: var(--button-radius, var(--radius-m, 8px));
 		position: relative;
 		display: flex;
 		align-items: center;
 		overflow: hidden;
 		border-radius: var(--radius-m, 8px);
+		min-height: 36px;
+		transition: background 0.1s ease;
+	}
+
+	.tt-task:hover {
+		background: var(--background-modifier-hover);
+	}
+
+	.tt-task.is-active {
+		background: var(--background-modifier-hover);
+		box-shadow: inset 2px 0 0 var(--interactive-accent);
 	}
 
 	.tt-task-checkbox {
 		flex-shrink: 0;
 		width: 16px;
 		height: 16px;
+		margin-left: var(--tt-space-2, 8px);
 		cursor: pointer;
 		accent-color: var(--interactive-accent);
 	}
@@ -195,12 +205,12 @@
 	.tt-expand-btn {
 		flex-shrink: 0;
 		width: 20px;
+		min-height: 24px;
 		background: none;
 		border: none;
 		padding: 0;
 		cursor: pointer;
 		color: var(--text-muted);
-		font-size: 0.75rem;
 		line-height: 1;
 		display: flex;
 		align-items: center;
@@ -212,6 +222,17 @@
 		background: var(--background-modifier-hover);
 	}
 
+	.tt-expand-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.tt-expand-icon :global(svg) {
+		width: 14px;
+		height: 14px;
+	}
+
 	.tt-expand-spacer {
 		flex-shrink: 0;
 		width: 20px;
@@ -220,18 +241,20 @@
 	.tt-task-btn {
 		flex: 1;
 		min-width: 0;
+		/* Obsidian's app.css gives buttons a fixed height; this button wraps */
+		/* name + badge rows (two lines on mobile), so it must size to content. */
+		height: auto;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: var(--tt-space-2);
 		padding: var(--tt-space-2) var(--tt-space-3);
 		border: none;
-		border-radius: var(--tt-button-radius);
-		background: var(--background-primary);
+		border-radius: 0;
+		background: transparent;
 		color: var(--text-normal);
 		cursor: pointer;
 		text-align: left;
-		transition: background 0.1s ease;
 		box-shadow: none;
 		-webkit-touch-callout: none;
 		-webkit-user-select: none;
@@ -276,16 +299,6 @@
 
 	.tt-inline-promote:hover {
 		background: color-mix(in srgb, var(--color-cyan) 22%, transparent);
-	}
-
-	.tt-task-btn:hover {
-		background: var(--background-modifier-hover);
-		box-shadow: none;
-	}
-
-	.tt-task-btn.is-active {
-		background: var(--background-modifier-hover);
-		box-shadow: inset 2px 0 0 var(--interactive-accent);
 	}
 
 	.tt-task.is-keyboard-focused .tt-task-btn {
@@ -341,53 +354,7 @@
 		flex-shrink: 0;
 	}
 
-	.tt-badge {
-		font-size: 0.7rem;
-		padding: 2px 6px;
-		border-radius: 999px;
-		background: var(--background-modifier-border);
-		border: 1px solid transparent;
-		color: var(--text-muted);
-		white-space: nowrap;
-	}
-
-	.tt-badge-tinted {
-		background: color-mix(in srgb, var(--tt-badge-color) 18%, var(--background-primary));
-		border-color: color-mix(in srgb, var(--tt-badge-color) 42%, var(--background-modifier-border));
-		color: var(--tt-badge-color);
-	}
-
-	.tt-badge-overdue {
-		background: var(--color-red);
-		color: var(--text-on-accent);
-	}
-
-	.tt-badge-completed {
-		background: color-mix(in srgb, var(--color-green) 88%, var(--background-primary));
-		color: var(--text-on-accent);
-	}
-
-	/* Inferred projected finish — weaker than a real due badge (dashed, no fill); never overdue-styled. */
-	.tt-badge-inferred {
-		background: transparent;
-		border: 1px dashed var(--background-modifier-border);
-		color: var(--text-muted);
-		font-style: italic;
-	}
-
-	.tt-badge-type {
-		background: var(--background-secondary);
-	}
-
-	.tt-badge-captured {
-		background: color-mix(in srgb, var(--color-cyan) 82%, var(--background-primary));
-		color: var(--text-on-accent);
-	}
-
-	.tt-badge-previous-day {
-		background: color-mix(in srgb, var(--color-orange) 82%, var(--background-primary));
-		color: var(--text-on-accent);
-	}
+	/* .tt-badge and its variants are plugin-global (styles.css). */
 
 	@media (max-width: 768px) {
 		.tt-task-btn {

@@ -137,7 +137,7 @@ describe('TaskDetail.svelte', () => {
 
 		expect(screen.getByText('Project')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Open parent project' })).toBeInTheDocument();
-		expect(screen.getByText('System Fit')).toBeInTheDocument();
+		expect(screen.getByText('Dependencies')).toBeInTheDocument();
 	});
 
 	it('hides project-only task relationships for project records', () => {
@@ -155,7 +155,7 @@ describe('TaskDetail.svelte', () => {
 		});
 
 		expect(screen.queryByText('Project')).toBeNull();
-		expect(screen.queryByText('System Fit')).toBeNull();
+		expect(screen.queryByText('Dependencies')).toBeNull();
 		expect(screen.getByLabelText('Workweek Only')).toBeInTheDocument();
 	});
 
