@@ -93,8 +93,15 @@
 	border-top: 1px solid color-mix(in srgb, var(--background-modifier-border) 55%, transparent);
 }
 
-/* Metadata badges on rows and cards */
+/* Metadata badges on rows and cards.
+   Color hierarchy (keeps rows from turning into a rainbow):
+   - status    → kanban columns / chips only, never list badges
+   - area      → tinted badge (colored surface + text) — the loudest badge
+   - labels    → neutral badge with a small color dot — quieter channel
+   - dates     → semantic only (red overdue, green completed, dashed inferred) */
 .tt-badge {
+	display: inline-flex;
+	align-items: center;
 	font-size: 0.7rem;
 	padding: 2px 6px;
 	border-radius: 999px;
@@ -130,6 +137,23 @@
 
 .tt-badge-type {
 	background: var(--background-secondary);
+}
+
+/* Labels demote their color to a dot so area badges own the tinted look */
+.tt-badge-type.tt-badge-tinted {
+	background: var(--background-secondary);
+	border-color: var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+.tt-badge-type.tt-badge-tinted::before {
+	content: '';
+	width: 7px;
+	height: 7px;
+	border-radius: 999px;
+	background: var(--tt-badge-color);
+	margin-right: 4px;
+	flex-shrink: 0;
 }
 
 .tt-badge-dep {
