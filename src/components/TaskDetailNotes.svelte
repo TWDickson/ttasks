@@ -11,26 +11,44 @@
 
 	let notesMode: 'preview' | 'edit' = 'preview';
 	let notes = task.notes ?? '';
+	let notesTaskPath: string | null = task.path;
 	let notesPreviewEl: HTMLDivElement | null = null;
 	let markdownComponent: Component | null = null;
 	let previewFrame: number | null = null;
 	let previewRenderSeq = 0;
-	let lastPreviewText = '';
 	let pendingSaves = 0;
 	let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-	// Reset notes when task changes
-	$: if (task) {
+	// Reset notes ONLY when a different task is shown. The task prop object is
+	// recreated on every store/vault event (including our own debounced save),
+	// so resetting on any prop change clobbers text the user is typing.
+	$: if (!task) {
+		notesTaskPath = null;
+	} else if (task.path !== notesTaskPath) {
+		notesTaskPath = task.path;
 		notes = task.notes ?? '';
+		notesMode = 'preview';
 	}
 
 	async function renderNotesPreview(markdown: string): Promise<void> {
 		if (!notesPreviewEl || !markdownComponent) return;
 		const renderSeq = ++previewRenderSeq;
-		notesPreviewEl.innerHTML = '';
-		const sourcePath = task.path;
-		await MarkdownRenderer.render(plugin.app, markdown || '_No notes yet._', notesPreviewEl, sourcePath, markdownComponent);
-		if (renderSeq !== previewRenderSeq) return;
+		const target = notesPreviewEl;
+		if (!markdown.trim()) {
+			// Plain styled placeholder — never fake markdown like '_No notes yet._'
+			if (renderSeq === previewRenderSeq) {
+				target.innerHTML = '';
+				const empty = target.createDiv({ cls: 'tt-notes-empty' });
+				empty.setText('No notes yet — click to add.');
+			}
+			return;
+		}
+		// Render into a scratch node first so a stale/interrupted render can
+		// never leave the visible preview blank.
+		const scratch = document.createElement('div');
+		await MarkdownRenderer.render(plugin.app, markdown, scratch, task.path, markdownComponent);
+		if (renderSeq !== previewRenderSeq || target !== notesPreviewEl || !target.isConnected) return;
+		target.replaceChildren(...Array.from(scratch.childNodes));
 	}
 
 	function scheduleNotesPreview(markdown: string): void {
@@ -40,8 +58,6 @@
 		}
 		previewFrame = requestAnimationFrame(() => {
 			previewFrame = null;
-			if (markdown === lastPreviewText) return;
-			lastPreviewText = markdown;
 			void renderNotesPreview(markdown);
 		});
 	}
@@ -54,7 +70,9 @@
 			pendingSaves += 1;
 			try {
 				const savedNotes = await store.updateNotes(taskPath, nextNotes);
-				if (task?.path === taskPath) {
+				// Adopt the normalized saved text only if the user hasn't typed
+				// more in the meantime — never overwrite in-progress edits.
+				if (task?.path === taskPath && notes === nextNotes) {
 					notes = savedNotes;
 				}
 			} finally {
@@ -79,7 +97,6 @@
 	});
 
 	$: if (notesPreviewEl && markdownComponent) {
-		lastPreviewText = '';
 		scheduleNotesPreview(notes);
 	}
 </script>
@@ -109,25 +126,7 @@
 </div>
 
 <style>
-	.tt-divider {
-		border: none;
-		border-top: 1px solid var(--background-modifier-border);
-		margin: 0;
-	}
-
-	.tt-label {
-		font-size: 0.72rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--text-muted);
-	}
-
-	.tt-field-group {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
+	/* .tt-divider, .tt-label, .tt-field-group are plugin-global (styles.css). */
 
 	.tt-notes-header {
 		display: flex;
@@ -190,5 +189,10 @@
 		border-radius: var(--input-radius, var(--radius-m, 8px));
 		background: var(--background-primary-alt, var(--background-secondary));
 		font-size: 0.88rem;
+	}
+
+	.tt-notes-preview :global(.tt-notes-empty) {
+		color: var(--text-faint);
+		font-style: italic;
 	}
 </style>
