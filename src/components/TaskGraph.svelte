@@ -23,6 +23,8 @@
 		startOfToday,
 	} from '../store/graph/graphTimeline';
 	import { computeDependencyLaneWidth, groupingLabel, laneHeaderClass } from '../store/graph/graphPresentation';
+	import { CreateTaskModal } from '../modals/CreateTaskModal';
+	import { icon } from '../utils/icon';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
@@ -46,6 +48,7 @@
 	const HYBRID_ROW_HEIGHT = 34;
 	const HYBRID_ROW_GAP = 8;
 	const HYBRID_TRACK_PADDING = 8;
+	const HYBRID_SIDEBAR_WIDTH = 110; // must match .tt-hybrid-lane-sidebar width
 	let graphMode: GraphMode = defaultGraphMode;
 	let appliedGraphMode: GraphMode = defaultGraphMode;
 	let lastGraphMode: GraphMode = defaultGraphMode;
@@ -109,9 +112,13 @@
 		padding: DEPENDENCY_GRAPH_PADDING,
 		paddingLeft: DEPENDENCY_GRAPH_PADDING_LEFT,
 	});
-	$: dependencyScale = dependencyViewportWidth > 0 && layout.width > 0
+	// User zoom multiplies the fit-to-width base scale; Ctrl/Cmd+wheel, toolbar
+	// buttons, and drag-panning make large graphs navigable.
+	let userZoom = 1;
+	$: fitDependencyScale = dependencyViewportWidth > 0 && layout.width > 0
 		? Math.min(1, dependencyViewportWidth / layout.width)
 		: 1;
+	$: dependencyScale = Math.min(2.5, Math.max(0.15, fitDependencyScale * userZoom));
 	$: fittedDependencyWidth = Math.max(1, Math.round(layout.width * dependencyScale));
 	$: fittedDependencyHeight = Math.max(1, Math.round(layout.height * dependencyScale));
 	$: dependencyLaneStickyOffset = dependencyScale > 0 ? dependencyScrollLeft / dependencyScale : 0;
@@ -262,6 +269,12 @@
 	$: underdefinedStatusSummary = summarizeByStatus(hybridTimeline.underdefined.map((item) => item.task));
 	$: definedLaneHeaders = buildLaneHeaders(hybridTimeline.definedGroups, HYBRID_ROW_HEIGHT, HYBRID_ROW_GAP, HYBRID_TRACK_PADDING);
 	$: underdefinedLaneHeaders = buildLaneHeaders(hybridTimeline.underdefinedGroups, HYBRID_ROW_HEIGHT, HYBRID_ROW_GAP, HYBRID_TRACK_PADDING);
+	// When either track shows a lane sidebar, BOTH tracks and the axis reserve
+	// the same gutter — otherwise their percentage bases differ and the axis
+	// "Today" line lands offset from the tracks' today band.
+	$: overviewSidebarPx = definedLaneHeaders.length > 1 || underdefinedLaneHeaders.length > 1
+		? HYBRID_SIDEBAR_WIDTH
+		: 0;
 
 	$: if (graphMode !== lastGraphMode) {
 		shouldAutoFocusOverview = graphMode === 'overview';
@@ -290,6 +303,131 @@
 
 	function toggleIndependentVisibility(): void {
 		showIndependentInDependency = !showIndependentInDependency;
+	}
+
+	// ── Pan & zoom (dependency mode) ────────────────────────────────────────────
+
+	function zoomBy(factor: number, anchor?: { clientX: number; clientY: number }): void {
+		const el = dependencyScrollEl;
+		const prev = dependencyScale;
+		userZoom = Math.min(8, Math.max(0.2, userZoom * factor));
+		if (!el) return;
+		requestAnimationFrame(() => {
+			const next = dependencyScale;
+			if (next === prev || prev === 0) return;
+			const rect = el.getBoundingClientRect();
+			const cx = anchor ? anchor.clientX - rect.left : el.clientWidth / 2;
+			const cy = anchor ? anchor.clientY - rect.top : el.clientHeight / 2;
+			el.scrollLeft = (el.scrollLeft + cx) * (next / prev) - cx;
+			el.scrollTop = (el.scrollTop + cy) * (next / prev) - cy;
+			dependencyScrollLeft = el.scrollLeft;
+		});
+	}
+
+	function resetZoom(): void {
+		userZoom = 1;
+	}
+
+	function onDependencyWheel(event: WheelEvent): void {
+		if (!event.ctrlKey && !event.metaKey) return;
+		event.preventDefault();
+		zoomBy(event.deltaY < 0 ? 1.15 : 1 / 1.15, event);
+	}
+
+	let isPanning = false;
+	let panStart = { x: 0, y: 0, scrollX: 0, scrollY: 0 };
+
+	function onDependencyPointerDown(event: PointerEvent): void {
+		if (event.button !== 0 || !dependencyScrollEl) return;
+		const target = event.target as HTMLElement;
+		if (target.closest('button, a, input')) return;
+		isPanning = true;
+		panStart = {
+			x: event.clientX,
+			y: event.clientY,
+			scrollX: dependencyScrollEl.scrollLeft,
+			scrollY: dependencyScrollEl.scrollTop,
+		};
+		dependencyScrollEl.setPointerCapture(event.pointerId);
+	}
+
+	function onDependencyPointerMove(event: PointerEvent): void {
+		if (!isPanning || !dependencyScrollEl) return;
+		dependencyScrollEl.scrollLeft = panStart.scrollX - (event.clientX - panStart.x);
+		dependencyScrollEl.scrollTop = panStart.scrollY - (event.clientY - panStart.y);
+		dependencyScrollLeft = dependencyScrollEl.scrollLeft;
+	}
+
+	function onDependencyPointerUp(): void {
+		isPanning = false;
+	}
+
+	// ── Hover chain tracing ─────────────────────────────────────────────────────
+
+	// Set on node hover, cleared when the pointer leaves the graph surface (not
+	// the node itself) so the hover "+" button stays reachable and the traced
+	// chain can be read while moving across empty canvas.
+	let hoverTracePath: string | null = null;
+
+	function computeTrace(path: string, edges: TaskGraphEdge[]): { nodes: Set<string>; edges: Set<string> } {
+		const nodes = new Set<string>([path]);
+		const traced = new Set<string>();
+		const walk = (start: string, direction: 'up' | 'down'): void => {
+			const stack = [start];
+			while (stack.length > 0) {
+				const current = stack.pop();
+				if (current === undefined) continue;
+				for (const edge of edges) {
+					if (edge.isParentEdge || traced.has(`${direction}:${edge.id}`)) continue;
+					if (direction === 'down' && edge.from === current) {
+						traced.add(`${direction}:${edge.id}`);
+						nodes.add(edge.to);
+						stack.push(edge.to);
+					} else if (direction === 'up' && edge.to === current) {
+						traced.add(`${direction}:${edge.id}`);
+						nodes.add(edge.from);
+						stack.push(edge.from);
+					}
+				}
+			}
+		};
+		walk(path, 'up');
+		walk(path, 'down');
+		return {
+			nodes,
+			edges: new Set([...traced].map((key) => key.slice(key.indexOf(':') + 1))),
+		};
+	}
+
+	// Only trace/dim when the hovered node actually has a chain — hovering an
+	// independent node shouldn't fade the whole graph.
+	$: traceSets = (() => {
+		if (!hoverTracePath || !nodesByPath.has(hoverTracePath)) return null;
+		const sets = computeTrace(hoverTracePath, layout.edges);
+		return sets.edges.size > 0 ? sets : null;
+	})();
+
+	function onNodeHover(event: MouseEvent, node: TaskGraphNode): void {
+		hoverTracePath = node.path;
+		showTaskHoverPreview(event, node.task);
+	}
+
+	function clearTrace(): void {
+		hoverTracePath = null;
+	}
+
+	// ── Create dependent task from a hovered node ───────────────────────────────
+
+	function createDependentTask(task: Task): void {
+		new CreateTaskModal(plugin.app, plugin, 'task', {
+			initialDependsOn: [task.path],
+			prefill: {
+				parent_task: task.parent_task,
+				area: task.area,
+				labels: task.labels,
+				priority: task.priority,
+			},
+		}).open();
 	}
 
 	function nodeStyle(node: TaskGraphNode): string {
@@ -383,9 +521,24 @@
 
 <div class="tt-graph-shell">
 	<div class="tt-graph-toolbar">
-		<div class="tt-graph-mode-toggle" role="group" aria-label="Graph mode">
-			<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'dependency'} aria-pressed={graphMode === 'dependency'} on:click={() => graphMode = 'dependency'}>Dependency</button>
-			<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'overview'} aria-pressed={graphMode === 'overview'} on:click={() => graphMode = 'overview'}>Overview</button>
+		<div class="tt-graph-toolbar-row">
+			<div class="tt-graph-mode-toggle" role="group" aria-label="Graph mode">
+				<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'dependency'} aria-pressed={graphMode === 'dependency'} on:click={() => graphMode = 'dependency'}>Dependency</button>
+				<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'overview'} aria-pressed={graphMode === 'overview'} on:click={() => graphMode = 'overview'}>Overview</button>
+			</div>
+			{#if graphMode === 'dependency'}
+				<div class="tt-graph-zoom" role="group" aria-label="Zoom (or Ctrl+scroll)">
+					<button type="button" class="tt-zoom-btn" title="Zoom out" aria-label="Zoom out" on:click={() => zoomBy(1 / 1.25)}>
+						<span class="tt-zoom-icon" use:icon={'minus'}></span>
+					</button>
+					<button type="button" class="tt-zoom-btn tt-zoom-reset" title="Reset to fit width" on:click={resetZoom}>
+						{Math.round(dependencyScale * 100)}%
+					</button>
+					<button type="button" class="tt-zoom-btn" title="Zoom in" aria-label="Zoom in" on:click={() => zoomBy(1.25)}>
+						<span class="tt-zoom-icon" use:icon={'plus'}></span>
+					</button>
+				</div>
+			{/if}
 		</div>
 
 		<div class="tt-graph-summary">
@@ -451,7 +604,20 @@
 		{#if dependencyEmpty}
 			<div class="tt-graph-empty">No dependency relationships found. Add depends_on links between tasks to see the graph.</div>
 		{:else}
-			<div class="tt-graph-scroll" bind:this={dependencyScrollEl} on:scroll={onDependencyScroll}>
+			<div
+				class="tt-graph-scroll"
+				class:is-panning={isPanning}
+				bind:this={dependencyScrollEl}
+				role="application"
+				aria-label="Dependency graph — drag to pan, Ctrl+scroll to zoom"
+				on:scroll={onDependencyScroll}
+				on:wheel|nonpassive={onDependencyWheel}
+				on:pointerdown={onDependencyPointerDown}
+				on:pointermove={onDependencyPointerMove}
+				on:pointerup={onDependencyPointerUp}
+				on:pointercancel={onDependencyPointerUp}
+				on:mouseleave={clearTrace}
+			>
 				<div class="tt-graph-fit" style={`width:${fittedDependencyWidth}px;height:${fittedDependencyHeight}px;`}>
 				<div class="tt-graph-stage" style={`width:${layout.width}px;height:${layout.height}px;transform:scale(${dependencyScale});`}>
 					{#if dependencyLaneHeaders.length > 0}
@@ -480,6 +646,8 @@
 									class:is-cycle={edge.isCycle}
 									class:is-blocked={edge.isBlockedChain}
 									class:is-parent={edge.isParentEdge}
+									class:is-traced={traceSets?.edges.has(edge.id)}
+									class:is-dim={traceSets && !traceSets.edges.has(edge.id)}
 									d={edgePath(edge)}
 									marker-end="url(#ttasks-graph-arrow)"
 								></path>
@@ -494,9 +662,10 @@
 							class:is-active={$activeTaskPath === node.path}
 							class:is-cycle={node.isCycle}
 							class:is-blocked={node.isBlockedChain}
+							class:is-dim={traceSets && !traceSets.nodes.has(node.path)}
 							style={nodeStyle(node)}
 							on:click={() => onOpen(node.path)}
-							on:mouseenter={(event) => showTaskHoverPreview(event, node.task)}
+							on:mouseenter={(event) => onNodeHover(event, node)}
 							on:contextmenu={(event) => handleTaskContextMenu(event, node.task)}
 						>
 							<div class="tt-graph-node-top">
@@ -515,6 +684,19 @@
 								{/if}
 							</div>
 						</button>
+						{#if hoverTracePath === node.path && node.task.type === 'task'}
+							<!-- Hover affordance: spawn a task depending on this one (inherits project/area/labels/priority). -->
+							<button
+								type="button"
+								class="tt-node-add"
+								style={`left:${node.x + node.width - 4}px;top:${node.y + node.height / 2 - 14}px;`}
+								title="New task blocked by “{node.task.name}”"
+								aria-label="New dependent task"
+								on:click|stopPropagation={() => createDependentTask(node.task)}
+							>
+								<span class="tt-node-add-icon" use:icon={'plus'}></span>
+							</button>
+						{/if}
 					{/each}
 				</div>
 				</div>
@@ -526,19 +708,22 @@
 		{:else}
 			<div class="tt-overview-scroll" bind:this={overviewScrollEl} on:scroll={onOverviewScroll}>
 				<div class="tt-overview-axis" style={`width:${overviewCanvasWidth}px;`}>
-					{#each nonWorkingBands as band (band.id)}
-						<div class="tt-overview-nonworking" class:is-weekend={band.kind === 'weekend'} class:is-holiday={band.kind === 'holiday'} style={`left:${band.leftPercent.toFixed(3)}%;width:${band.widthPercent.toFixed(3)}%;`}></div>
-					{/each}
-					{#each timelineTicks as tick}
-						<div class="tt-overview-tick" class:is-start={tick.position === 'start'} class:is-end={tick.position === 'end'} style={`left:${tick.leftPercent.toFixed(3)}%;`}>
-							<span>{tick.label}</span>
-						</div>
-					{/each}
-					<div class="tt-overview-today" style={`left:${todayPercent.toFixed(3)}%;`}><span>Today</span></div>
+					<!-- Inner wrapper shares the tracks' sidebar gutter so its % base matches the track canvases. -->
+					<div class="tt-overview-axis-inner" style={`margin-left:${overviewSidebarPx}px;width:${overviewCanvasWidth - overviewSidebarPx}px;`}>
+						{#each nonWorkingBands as band (band.id)}
+							<div class="tt-overview-nonworking" class:is-weekend={band.kind === 'weekend'} class:is-holiday={band.kind === 'holiday'} style={`left:${band.leftPercent.toFixed(3)}%;width:${band.widthPercent.toFixed(3)}%;`}></div>
+						{/each}
+						{#each timelineTicks as tick}
+							<div class="tt-overview-tick" class:is-start={tick.position === 'start'} class:is-end={tick.position === 'end'} style={`left:${tick.leftPercent.toFixed(3)}%;`}>
+								<span>{tick.label}</span>
+							</div>
+						{/each}
+						<div class="tt-overview-today" style={`left:${todayPercent.toFixed(3)}%;`}><span>Today</span></div>
+					</div>
 				</div>
 
 				<div class="tt-hybrid-shell" style={`width:${overviewCanvasWidth}px;`}>
-					<div class="tt-hybrid-calendar-overlay" aria-hidden="true">
+					<div class="tt-hybrid-calendar-overlay" aria-hidden="true" style={`left:${overviewSidebarPx}px;`}>
 						{#each nonWorkingBands as band (band.id)}
 							<div class="tt-hybrid-calendar-band" class:is-weekend={band.kind === 'weekend'} class:is-holiday={band.kind === 'holiday'} style={`left:${band.leftPercent.toFixed(3)}%;width:${band.widthPercent.toFixed(3)}%;`}></div>
 						{/each}
@@ -556,7 +741,7 @@
 						</div>
 						<div class="tt-hybrid-track-body">
 							<!-- Lane sidebar: named project headers positioned at each band's row -->
-							{#if definedLaneHeaders.length > 1}
+							{#if overviewSidebarPx > 0}
 								<div class="tt-hybrid-lane-sidebar" style={`height:${definedTrackHeightPx}px;transform:translateX(${overviewScrollLeft}px);`} aria-hidden="true">
 									{#each definedLaneHeaders as header (header.key)}
 										<div
@@ -609,7 +794,7 @@
 							</div>
 						</div>
 						<div class="tt-hybrid-track-body">
-							{#if underdefinedLaneHeaders.length > 1}
+							{#if overviewSidebarPx > 0}
 								<div class="tt-hybrid-lane-sidebar" style={`height:${underdefinedTrackHeightPx}px;transform:translateX(${overviewScrollLeft}px);`} aria-hidden="true">
 									{#each underdefinedLaneHeaders as header (header.key)}
 										<div
@@ -668,6 +853,61 @@
 		flex-direction: column;
 		gap: 10px;
 		padding: 12px 14px 4px;
+	}
+
+	.tt-graph-toolbar-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		flex-wrap: wrap;
+	}
+
+	.tt-graph-zoom {
+		display: inline-flex;
+		align-items: center;
+		gap: 2px;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 999px;
+		padding: 2px;
+		background: var(--background-secondary);
+	}
+
+	.tt-zoom-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 26px;
+		min-height: 26px;
+		height: auto;
+		padding: 2px 6px;
+		border: none;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--text-muted);
+		font-size: 0.72rem;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		cursor: pointer;
+	}
+
+	.tt-zoom-btn:hover {
+		background: var(--background-modifier-hover);
+		color: var(--text-normal);
+	}
+
+	.tt-zoom-reset {
+		min-width: 44px;
+	}
+
+	.tt-zoom-icon {
+		display: flex;
+		align-items: center;
+	}
+
+	.tt-zoom-icon :global(svg) {
+		width: 13px;
+		height: 13px;
 	}
 
 	.tt-graph-mode-toggle {
@@ -743,6 +983,12 @@
 		min-height: 0;
 		overflow: auto;
 		padding: 8px 12px 16px;
+		cursor: grab;
+	}
+
+	.tt-graph-scroll.is-panning {
+		cursor: grabbing;
+		user-select: none;
 	}
 
 	.tt-overview-scroll {
@@ -951,12 +1197,17 @@
 		background: color-mix(in srgb, var(--color-red) 16%, transparent);
 	}
 
+	.tt-overview-axis-inner {
+		position: relative;
+		height: 100%;
+	}
+
+	/* No translateX: the line's left edge sits exactly on the day boundary (matches the band). */
 	.tt-overview-today {
 		position: absolute;
 		top: 0;
 		bottom: -10px;
 		border-left: 2px dashed color-mix(in srgb, var(--color-red) 80%, var(--interactive-accent));
-		transform: translateX(-50%);
 		pointer-events: none;
 	}
 
@@ -1211,6 +1462,55 @@
 		stroke: var(--color-red);
 		color: var(--color-red);
 		stroke-width: 2.5;
+	}
+
+	/* Hover chain tracing: traced path pops, everything else recedes */
+	.tt-graph-edge.is-traced {
+		stroke: var(--interactive-accent);
+		color: var(--interactive-accent);
+		stroke-width: 2.5;
+		opacity: 1;
+	}
+
+	.tt-graph-edge.is-dim {
+		opacity: 0.12;
+	}
+
+	.tt-graph-node.is-dim {
+		opacity: 0.25;
+	}
+
+	/* Hover "+" affordance on a node's right edge — creates a dependent task */
+	.tt-node-add {
+		position: absolute;
+		z-index: 4;
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		border-radius: 999px;
+		border: 1px solid color-mix(in srgb, var(--interactive-accent) 55%, var(--background-modifier-border));
+		background: var(--background-primary);
+		color: var(--interactive-accent);
+		cursor: pointer;
+		box-shadow: 0 2px 8px rgba(var(--mono-rgb-100), 0.18);
+	}
+
+	.tt-node-add:hover {
+		background: var(--interactive-accent);
+		color: var(--text-on-accent);
+	}
+
+	.tt-node-add-icon {
+		display: flex;
+		align-items: center;
+	}
+
+	.tt-node-add-icon :global(svg) {
+		width: 15px;
+		height: 15px;
 	}
 
 	.tt-graph-node {

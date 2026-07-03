@@ -297,7 +297,20 @@ export default class TTasksPlugin extends Plugin {
 			notice: (message) => { new Notice(message); },
 			createDependentTask: (path) => {
 				const depPath = path.replace(/\.md$/, '');
-				new CreateTaskModal(this.app, this, 'task', { initialDependsOn: [depPath] }).open();
+				// Inherit project/area/labels/priority so the new task lands in the
+				// same context as the task it depends on.
+				const source = this.taskStore.getByPath(path);
+				new CreateTaskModal(this.app, this, 'task', {
+					initialDependsOn: [depPath],
+					prefill: source
+						? {
+							parent_task: source.parent_task,
+							area: source.area,
+							labels: source.labels,
+							priority: source.priority,
+						}
+						: undefined,
+				}).open();
 			},
 		});
 	}

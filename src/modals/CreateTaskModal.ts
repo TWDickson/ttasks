@@ -46,7 +46,18 @@ export class CreateTaskModal extends Modal {
 		app: App,
 		plugin: TTasksPlugin,
 		defaultType: TaskRecordType = 'task',
-		options?: { initialDependsOn?: string[] },
+		options?: {
+			initialDependsOn?: string[];
+			/** Inherited context for "create dependent/sibling task" flows. */
+			prefill?: {
+				parent_task?: string | null;
+				area?: string | null;
+				labels?: string[];
+				priority?: TaskPriority;
+				start_date?: string | null;
+				due_date?: string | null;
+			};
+		},
 	) {
 		super(app);
 		this.plugin = plugin;
@@ -54,6 +65,15 @@ export class CreateTaskModal extends Modal {
 		this.formValues.status = resolveEmergencyStatus(this.plugin.settings.statuses);
 		if (options?.initialDependsOn?.length) {
 			this.formValues.depends_on = options.initialDependsOn.map(p => p.replace(/\.md$/, ''));
+		}
+		const prefill = options?.prefill;
+		if (prefill) {
+			if (prefill.parent_task) this.formValues.parent_task = prefill.parent_task.replace(/\.md$/, '');
+			if (prefill.area) this.formValues.area = prefill.area;
+			if (prefill.labels?.length) this.formValues.labels = [...prefill.labels];
+			if (prefill.priority) this.formValues.priority = prefill.priority;
+			if (prefill.start_date) this.formValues.start_date = prefill.start_date;
+			if (prefill.due_date) this.formValues.due_date = prefill.due_date;
 		}
 	}
 
@@ -214,6 +234,8 @@ export class CreateTaskModal extends Modal {
 			const path = p.path.replace(/\.md$/, '');
 			parentTaskSelect.createEl('option', { text: p.name, value: path });
 		}
+		// Reflect prefilled values (create-dependent inherits its source's project)
+		if (this.formValues.parent_task) parentTaskSelect.value = this.formValues.parent_task;
 		parentTaskSelect.addEventListener('change', () => {
 			this.formValues.parent_task = parentTaskSelect.value || null;
 			renderAfterTaskOptions();
@@ -248,6 +270,7 @@ export class CreateTaskModal extends Modal {
 		for (const areaOption of this.areas) {
 			areaSelect.createEl('option', { text: areaOption, value: areaOption });
 		}
+		if (this.formValues.area) areaSelect.value = this.formValues.area;
 		const applyAreaTint = () => {
 			const color = this.formValues.area ? this.areaColors[this.formValues.area] : undefined;
 			if (!color) {
@@ -325,6 +348,7 @@ export class CreateTaskModal extends Modal {
 		for (const t of labelOptions as string[]) {
 			labelsSelect.createEl('option', { text: t, value: t });
 		}
+		if (this.formValues.labels[0]) labelsSelect.value = this.formValues.labels[0];
 		const applyLabelTint = () => {
 			const selectedLabel = this.formValues.labels[0] ?? '';
 			const color = selectedLabel ? this.labelColors[selectedLabel] : undefined;
