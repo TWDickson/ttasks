@@ -3,3 +3,8 @@ main.js
 *.js.map
 .DS_Store
 data.json
+
+# Visual test rig artifacts
+test-rig/shots/
+test-rig/vendor/
+test-rig/.browser/
