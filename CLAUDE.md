@@ -196,3 +196,36 @@ PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`, `Scripts/TASK_I1.md`-`Scripts/
 - Selector pattern: `.markdown-source-view.ttask .metadata-container { display: none !important; }`
 - `!important` required — Obsidian's built-in styles have higher specificity
 - Mobile modal and token usage conventions are documented in `Scripts/STYLING_NOTES.md` (synced notes)
+
+### Design system (2026-07 overhaul — see DESIGN_AUDIT.md)
+
+- **Tokens are defined once** at the top of `styles.css` on the plugin roots
+  (`.tt-board`, `.tt-create-modal`, `.tt-query-editor-modal`, …) and inherit.
+  Never redefine `--tt-space-*` / `--tt-control-*` inside a component's
+  `<style>` block.
+- **Shared primitives live in `styles.css`** as plugin-global classes:
+  `.tt-label`, `.tt-divider`, `.tt-field-group`, `.tt-badge` (+variants),
+  `.tt-count`, `.tt-group-heading`, `.tt-empty`, and the button system
+  `.tt-btn` / `.tt-btn-primary` / `.tt-btn-danger` / `.tt-btn-sm`. Svelte
+  scoped styles carry layout only — don't copy these rules into components.
+- **Inputs**: background `--background-modifier-form-field`; focus
+  `--background-modifier-border-focus`; radius `--tt-control-radius`.
+- **Never hardcode white/hex text on user-configured colors** — tint the
+  surface (`color-mix(in srgb, <color> 18%, var(--background-primary))`),
+  border at ~60% mix, and use the color itself as text.
+- **Never use `var(--interactive-accent-rgb)` bare in a shadow** — it's an
+  `r, g, b` triplet; wrap it: `rgba(var(--interactive-accent-rgb), 0.2)`.
+- **Icons**: Lucide via `setIcon` (TS) or the `icon` action from
+  `src/utils/icon.ts` (Svelte) — no unicode glyph buttons.
+- **No JS-injected `<style>` elements** — all CSS belongs in `styles.css`.
+- **Visual test rig** (`test-rig/`, see its README): `npm run rig` serves the
+  real components with the actual Obsidian app.css + vault theme at
+  localhost:5199; `npm run rig:shots` writes a desktop/mobile × dark/light
+  screenshot matrix to `test-rig/shots/`. Use it to verify style changes
+  without launching Obsidian. `npm run rig:sync-css` refreshes the vendored
+  CSS after an Obsidian or theme update.
+- **Theme specificity trap** (found via the rig): themes style bare
+  `input[type=text]` / `button` (app.css gives buttons a fixed height). Any
+  plugin control that deviates — borderless title inputs, multi-line row
+  buttons — needs a compound selector (`.tt-modal input.tt-modal-name`) or an
+  explicit `height: auto` to survive.

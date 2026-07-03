@@ -68,13 +68,15 @@
 	.tt-field {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: var(--tt-space-1, 4px);
 	}
 
 	label {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--text-normal);
+		font-size: var(--tt-font-label, 0.72rem);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-muted);
 	}
 
 	.tt-field-required {
@@ -83,26 +85,25 @@
 	}
 
 	.tt-field-select-input {
-		padding: 0.45rem 0.75rem;
-		min-height: var(--input-height, 36px);
+		padding: var(--dropdown-padding, 0.45rem var(--tt-space-3, 12px));
+		min-height: var(--tt-control-height, var(--input-height, 38px));
 		line-height: 1.35;
-		border: 1px solid var(--background-modifier-border);
-		border-radius: 4px;
-		background-color: var(--background-primary);
+		border: var(--tt-border-width, 1px) solid var(--background-modifier-border);
+		border-radius: var(--tt-control-radius, var(--radius-m, 8px));
+		background: var(--dropdown-background, var(--background-modifier-form-field));
 		color: var(--text-normal);
-		font-size: 0.875rem;
-		transition: border-color 200ms;
+		font-size: 0.9rem;
+		transition: border-color 0.12s;
 		cursor: pointer;
 	}
 
 	.tt-field-select-input:focus {
 		outline: none;
-		border-color: var(--interactive-accent);
-		box-shadow: 0 0 0 2px var(--interactive-accent-rgb, rgba(76, 175, 255, 0.1));
+		border-color: var(--background-modifier-border-focus);
 	}
 
 	.tt-field-select-input:disabled {
-		background-color: var(--background-secondary);
+		background: var(--background-secondary);
 		color: var(--text-muted);
 		cursor: not-allowed;
 	}

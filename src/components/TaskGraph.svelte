@@ -383,9 +383,9 @@
 
 <div class="tt-graph-shell">
 	<div class="tt-graph-toolbar">
-		<div class="tt-graph-mode-toggle" role="tablist" aria-label="Graph mode">
-			<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'dependency'} on:click={() => graphMode = 'dependency'}>Dependency</button>
-			<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'overview'} on:click={() => graphMode = 'overview'}>Overview</button>
+		<div class="tt-graph-mode-toggle" role="group" aria-label="Graph mode">
+			<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'dependency'} aria-pressed={graphMode === 'dependency'} on:click={() => graphMode = 'dependency'}>Dependency</button>
+			<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'overview'} aria-pressed={graphMode === 'overview'} on:click={() => graphMode = 'overview'}>Overview</button>
 		</div>
 
 		<div class="tt-graph-summary">

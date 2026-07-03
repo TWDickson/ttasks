@@ -619,13 +619,8 @@
 </div>
 
 <style>
-	:global(.tt-board) {
-		--tt-space-1: var(--size-4-1, 4px);
-		--tt-space-2: var(--size-4-2, 8px);
-		--tt-space-3: var(--size-4-3, 12px);
-		--tt-control-radius: var(--input-radius, var(--radius-m, 8px));
-		--tt-button-radius: var(--button-radius, var(--radius-m, 8px));
-	}
+	/* Design tokens (--tt-space-*, --tt-*-radius) are defined once in styles.css */
+	/* on .tt-board and inherit to every descendant component. */
 
 	/* ── Root ──────────────────────────────────────────────────────────────────── */
 	.tt-board {
@@ -675,12 +670,6 @@
 		font-size: 0.76rem;
 		color: var(--text-faint);
 		padding: 2px 10px 6px;
-	}
-
-	.tt-rail-item--smart.is-active {
-		background: var(--interactive-accent);
-		color: var(--text-on-accent, white);
-		font-weight: 600;
 	}
 
 	.tt-rail-item {
@@ -765,6 +754,12 @@
 		padding: 0 8px;
 		gap: 6px;
 		min-width: 0;
+		transition: border-color 0.12s;
+	}
+
+	/* The input's own outline is suppressed, so the wrapper must carry focus. */
+	.tt-search-wrap:focus-within {
+		border-color: var(--background-modifier-border-focus);
 	}
 
 	.tt-search-icon {
@@ -968,7 +963,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: filter 0.12s;
+		transition: background 0.12s;
 		z-index: 10;
 	}
 	.tt-fab:hover { background: var(--interactive-accent-hover); }
@@ -1015,16 +1010,21 @@
 	@media (max-width: 768px) {
 		.tt-board-rail { display: none; }
 
-		/* Tab bar */
+		/* Tab bar — scrolls horizontally when many views are registered */
 		.tt-board-tabs {
 			display: flex;
 			flex-shrink: 0;
 			border-bottom: 1px solid var(--background-modifier-border);
 			background: var(--background-secondary);
+			overflow-x: auto;
+			scrollbar-width: none;
 		}
+		.tt-board-tabs::-webkit-scrollbar { display: none; }
 
 		.tt-tab-btn {
-			flex: 1;
+			flex: 1 0 auto;
+			white-space: nowrap;
+			height: auto;
 			padding: 12px 8px;
 			border: none;
 			background: transparent;

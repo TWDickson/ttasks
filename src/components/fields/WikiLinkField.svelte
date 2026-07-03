@@ -142,13 +142,15 @@
 	.tt-field {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: var(--tt-space-1, 4px);
 	}
 
 	.tt-field-label {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--text-normal);
+		font-size: var(--tt-font-label, 0.72rem);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-muted);
 	}
 
 	.tt-field-required {
@@ -159,21 +161,22 @@
 	.tt-wikilink-chips {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem;
-		margin-bottom: 0.5rem;
+		gap: var(--tt-space-1, 4px);
+		margin-bottom: var(--tt-space-1, 4px);
 	}
 
 	.tt-chip {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.4rem;
-		padding: 0.4rem 0.8rem;
-		border: 1px solid var(--interactive-accent);
-		border-radius: 16px;
-		background-color: color-mix(in srgb, var(--interactive-accent) 15%, var(--background-primary));
+		gap: 6px;
+		padding: var(--tt-space-1, 4px) 12px;
+		min-height: 30px;
+		border: var(--tt-border-width, 1px) solid color-mix(in srgb, var(--interactive-accent) 42%, var(--background-modifier-border));
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--interactive-accent) 15%, var(--background-primary));
 		color: var(--interactive-accent);
-		font-size: 0.875rem;
-		font-weight: 500;
+		font-size: 0.82rem;
+		font-weight: 600;
 	}
 
 	.tt-chip-wikilink {
@@ -184,42 +187,43 @@
 		padding: 0;
 		width: 1.2em;
 		height: 1.2em;
+		min-width: 20px;
+		min-height: 20px;
 		border: none;
 		background: none;
 		color: inherit;
 		font-size: 1.2em;
 		cursor: pointer;
-		transition: transform 150ms;
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		border-radius: 999px;
 	}
 
 	.tt-chip-remove:hover {
-		transform: scale(1.2);
+		background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
 	}
 
 	.tt-field-select-input {
-		padding: 0.45rem 0.75rem;
-		min-height: var(--input-height, 36px);
+		padding: var(--dropdown-padding, 0.45rem var(--tt-space-3, 12px));
+		min-height: var(--tt-control-height, var(--input-height, 38px));
 		line-height: 1.35;
-		border: 1px solid var(--background-modifier-border);
-		border-radius: 4px;
-		background-color: var(--background-primary);
+		border: var(--tt-border-width, 1px) solid var(--background-modifier-border);
+		border-radius: var(--tt-control-radius, var(--radius-m, 8px));
+		background: var(--dropdown-background, var(--background-modifier-form-field));
 		color: var(--text-normal);
-		font-size: 0.875rem;
-		transition: border-color 200ms;
+		font-size: 0.9rem;
+		transition: border-color 0.12s;
 		cursor: pointer;
 	}
 
 	.tt-field-select-input:focus {
 		outline: none;
-		border-color: var(--interactive-accent);
-		box-shadow: 0 0 0 2px var(--interactive-accent-rgb, rgba(76, 175, 255, 0.1));
+		border-color: var(--background-modifier-border-focus);
 	}
 
 	.tt-field-select-input:disabled {
-		background-color: var(--background-secondary);
+		background: var(--background-secondary);
 		color: var(--text-muted);
 		cursor: not-allowed;
 	}

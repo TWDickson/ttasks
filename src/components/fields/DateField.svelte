@@ -68,13 +68,15 @@
 	.tt-field {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: var(--tt-space-1, 4px);
 	}
 
 	label {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--text-normal);
+		font-size: var(--tt-font-label, 0.72rem);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-muted);
 	}
 
 	.tt-field-required {
@@ -84,29 +86,29 @@
 
 	.tt-date-control {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--tt-space-1, 4px);
 		align-items: center;
 	}
 
 	.tt-field-input {
-		padding: 0.5rem 0.75rem;
-		border: 1px solid var(--background-modifier-border);
-		border-radius: 4px;
-		background-color: var(--background-primary);
+		padding: var(--tt-space-2, 8px) var(--tt-space-3, 12px);
+		border: var(--tt-border-width, 1px) solid var(--background-modifier-border);
+		border-radius: var(--tt-control-radius, var(--radius-m, 8px));
+		background: var(--background-modifier-form-field);
 		color: var(--text-normal);
-		font-size: 0.875rem;
+		font-size: 0.9rem;
 		flex: 1;
-		transition: border-color 200ms;
+		min-width: 0;
+		transition: border-color 0.12s;
 	}
 
 	.tt-field-input:focus {
 		outline: none;
-		border-color: var(--interactive-accent);
-		box-shadow: 0 0 0 2px var(--interactive-accent-rgb, rgba(76, 175, 255, 0.1));
+		border-color: var(--background-modifier-border-focus);
 	}
 
 	.tt-field-input:disabled {
-		background-color: var(--background-secondary);
+		background: var(--background-secondary);
 		color: var(--text-muted);
 		cursor: not-allowed;
 	}
@@ -117,30 +119,31 @@
 
 	.tt-date-actions {
 		display: flex;
-		gap: 0.25rem;
+		gap: var(--tt-space-1, 4px);
 	}
 
 	.tt-date-btn {
-		padding: 0.4rem 0.6rem;
-		border: 1px solid var(--background-modifier-border);
-		border-radius: 3px;
-		background-color: var(--background-secondary);
-		color: var(--text-normal);
-		font-size: 0.75rem;
+		padding: 4px 10px;
+		min-height: 28px;
+		border: var(--border-width, 1px) solid var(--background-modifier-border);
+		border-radius: var(--tt-button-radius, var(--button-radius, 8px));
+		background: var(--interactive-normal, var(--background-secondary));
+		color: var(--text-muted);
+		font-size: 0.76rem;
+		font-weight: 600;
 		cursor: pointer;
-		transition: all 150ms;
+		transition: background 0.12s, color 0.12s;
 		white-space: nowrap;
 	}
 
 	.tt-date-btn:hover {
-		background-color: var(--interactive-accent);
-		color: white;
-		border-color: var(--interactive-accent);
+		background: var(--interactive-hover, var(--background-modifier-hover));
+		color: var(--text-normal);
 	}
 
-	.tt-date-btn:focus {
+	.tt-date-btn:focus-visible {
 		outline: none;
-		box-shadow: 0 0 0 2px var(--interactive-accent-rgb, rgba(76, 175, 255, 0.2));
+		border-color: var(--background-modifier-border-focus);
 	}
 
 	.tt-field-error-msg {

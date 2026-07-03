@@ -31,12 +31,12 @@ describe('BatchActionBar.svelte', () => {
 
 	it('shows Complete button when canComplete is true', () => {
 		renderBar({ canArchive: false, canComplete: true, canDelete: true });
-		expect(screen.getByRole('button', { name: '\u2713 Complete' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Complete' })).toBeInTheDocument();
 	});
 
 	it('hides Complete button when canComplete is false', () => {
 		renderBar({ canArchive: false, canComplete: false, canDelete: true });
-		expect(screen.queryByRole('button', { name: '\u2713 Complete' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Complete' })).toBeNull();
 	});
 
 	it('shows Archive button when canArchive is true', () => {
@@ -56,7 +56,7 @@ describe('BatchActionBar.svelte', () => {
 
 	it('calls onComplete when Complete clicked', async () => {
 		const { onComplete } = renderBar({ canArchive: false, canComplete: true, canDelete: true });
-		await fireEvent.click(screen.getByRole('button', { name: '\u2713 Complete' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Complete' }));
 		expect(onComplete).toHaveBeenCalledTimes(1);
 	});
 

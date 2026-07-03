@@ -1,4 +1,4 @@
-import { App, Component, MarkdownRenderer, Modal, Notice } from 'obsidian';
+import { App, Component, MarkdownRenderer, Modal, Notice, setIcon } from 'obsidian';
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { TaskPriority, TaskRecordType, TaskStatus } from '../types';
@@ -529,7 +529,11 @@ export class CreateTaskModal extends Modal {
 		const renderNotes = async () => {
 			if (!this.notesRenderComponent) return;
 			notesPreview.innerHTML = '';
-			await MarkdownRenderer.render(this.app, this.formValues.notes || '_No notes yet._', notesPreview, this.plugin.manifest.id, this.notesRenderComponent);
+			if (!this.formValues.notes.trim()) {
+				notesPreview.createDiv({ cls: 'tt-notes-empty', text: 'No notes yet — click to add.' });
+				return;
+			}
+			await MarkdownRenderer.render(this.app, this.formValues.notes, notesPreview, this.plugin.manifest.id, this.notesRenderComponent);
 		};
 
 		const scheduleRenderNotes = () => {
@@ -648,7 +652,7 @@ export class CreateTaskModal extends Modal {
 			attr: { type: 'button', 'aria-expanded': String(isOpenByDefault) },
 		});
 		toggle.createSpan({ cls: 'tt-modal-section-title', text: title });
-		toggle.createSpan({ cls: 'tt-modal-section-chevron', text: '▾' });
+		setIcon(toggle.createSpan({ cls: 'tt-modal-section-chevron' }), 'chevron-down');
 
 		const body = section.createDiv('tt-modal-section-body');
 		this.setSectionOpen(section, isOpenByDefault);
@@ -660,20 +664,15 @@ export class CreateTaskModal extends Modal {
 	}
 
 	private applyOptionStyle(btn: HTMLButtonElement, value: string, field: any) {
-		const color = getOptionColor(value, field, this.plugin.settings);
-		if (color) {
-			btn.style.background = color;
-			btn.style.borderColor = color;
-			btn.style.color = '#fff';
-		} else if (field.name === 'priority') {
-			// Fallback for priority field
-			const priorityColor = PRIORITY_COLORS[value as TaskPriority];
-			if (priorityColor) {
-				btn.style.background = priorityColor;
-				btn.style.borderColor = priorityColor;
-				btn.style.color = '#fff';
-			}
-		}
+		const color = getOptionColor(value, field, this.plugin.settings)
+			?? (field.name === 'priority' ? PRIORITY_COLORS[value as TaskPriority] : undefined);
+		if (!color) return;
+		// Tint the surface and keep the color as text so any user-configured color
+		// stays readable in both themes (never hardcode white on it).
+		btn.style.background = `color-mix(in srgb, ${color} 18%, var(--background-primary))`;
+		btn.style.borderColor = `color-mix(in srgb, ${color} 60%, var(--background-modifier-border))`;
+		btn.style.boxShadow = `inset 0 0 0 1px color-mix(in srgb, ${color} 60%, transparent)`;
+		btn.style.color = color;
 	}
 
 	private renderSingleSelectChipGroup(args: {
@@ -691,6 +690,7 @@ export class CreateTaskModal extends Modal {
 				button.removeClass('tt-chip-active');
 				button.style.removeProperty('background');
 				button.style.removeProperty('border-color');
+				button.style.removeProperty('box-shadow');
 				button.style.removeProperty('color');
 			});
 

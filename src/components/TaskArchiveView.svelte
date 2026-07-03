@@ -91,9 +91,9 @@
 	{:else}
 		{#each groups as group (group.key)}
 			<section class="tt-archive-group">
-				<h3 class="tt-archive-group-heading">
+				<h3 class="tt-group-heading tt-archive-group-heading">
 					{group.label}
-					<span class="tt-archive-group-count">{group.tasks.length}</span>
+					<span class="tt-count">{group.tasks.length}</span>
 				</h3>
 				<ul class="tt-archive-list">
 					{#each group.tasks as task (task.path)}
@@ -106,7 +106,7 @@
 								</span>
 							</div>
 							<button
-								class="tt-archive-restore"
+								class="tt-btn tt-btn-sm tt-archive-restore"
 								disabled={restoring.has(task.path)}
 								on:click={() => restore(task.path)}
 							>
@@ -149,7 +149,7 @@
 
 	.tt-archive-search:focus {
 		outline: none;
-		border-color: var(--interactive-accent);
+		border-color: var(--background-modifier-border-focus);
 	}
 
 	.tt-archive-count {
@@ -171,26 +171,10 @@
 		gap: 4px;
 	}
 
+	/* Base heading/count visuals come from the global .tt-group-heading/.tt-count. */
 	.tt-archive-group-heading {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 0.72rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--text-muted);
 		padding: 0 0 4px 0;
-		margin: 0;
 		border-bottom: 1px solid var(--background-modifier-border);
-	}
-
-	.tt-archive-group-count {
-		background: var(--background-modifier-border);
-		border-radius: 999px;
-		padding: 1px 7px;
-		font-size: 0.7rem;
-		font-weight: 600;
 	}
 
 	.tt-archive-list {
@@ -248,27 +232,8 @@
 		text-align: right;
 	}
 
+	/* Restore button uses the global .tt-btn .tt-btn-sm system. */
 	.tt-archive-restore {
 		flex-shrink: 0;
-		padding: 3px 10px;
-		border-radius: var(--button-radius, var(--radius-m, 8px));
-		border: var(--border-width, 1px) solid var(--background-modifier-border);
-		background: var(--interactive-normal, var(--background-secondary));
-		color: var(--text-muted);
-		font-size: 0.75rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 0.12s;
-	}
-
-	.tt-archive-restore:hover:not(:disabled) {
-		background: var(--interactive-hover, var(--background-modifier-hover));
-		color: var(--text-normal);
-		border-color: var(--interactive-accent);
-	}
-
-	.tt-archive-restore:disabled {
-		opacity: 0.5;
-		cursor: default;
 	}
 </style>

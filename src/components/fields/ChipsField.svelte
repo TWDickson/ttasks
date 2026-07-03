@@ -70,9 +70,9 @@
 				class:tt-chip-active={isSelected}
 				class:tt-chip-readonly={readonly}
 				style={isSelected && color
-					? `background-color: ${color}; border-color: ${color}; color: white;`
+					? `background-color: color-mix(in srgb, ${color} 18%, var(--background-primary)); border-color: color-mix(in srgb, ${color} 60%, var(--background-modifier-border)); color: ${color}; box-shadow: inset 0 0 0 1px color-mix(in srgb, ${color} 60%, transparent);`
 					: color
-						? `border-color: ${color}; color: ${color};`
+						? `border-color: color-mix(in srgb, ${color} 42%, var(--background-modifier-border)); color: ${color};`
 						: ''}
 				on:click={() => handleChipClick(opt)}
 				on:blur={handleBlur}
@@ -91,13 +91,15 @@
 	.tt-field {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: var(--tt-space-1, 4px);
 	}
 
 	.tt-field-label {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--text-normal);
+		font-size: var(--tt-font-label, 0.72rem);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-muted);
 	}
 
 	.tt-field-required {
@@ -108,15 +110,9 @@
 	.tt-chips-container {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem;
-		padding: 0.25rem;
-		border-radius: 4px;
+		gap: var(--tt-space-1, 4px);
+		border-radius: var(--tt-control-radius, var(--radius-m, 8px));
 		border: 1px solid transparent;
-		transition: border-color 200ms;
-	}
-
-	.tt-chips-container:focus-within {
-		border-color: var(--interactive-accent);
 	}
 
 	.tt-chips-container.tt-field-error {
@@ -124,29 +120,33 @@
 	}
 
 	.tt-chip {
-		padding: 0.4rem 0.8rem;
-		border: 1px solid var(--background-modifier-border);
-		border-radius: 16px;
-		background-color: var(--background-secondary);
-		color: var(--text-normal);
-		font-size: 0.875rem;
-		font-weight: 500;
+		padding: var(--tt-space-1, 4px) 14px;
+		min-height: 30px;
+		border: var(--tt-border-width, 1px) solid var(--background-modifier-border);
+		border-radius: 999px;
+		background: var(--interactive-normal, var(--background-secondary));
+		color: var(--text-muted);
+		font-size: 0.82rem;
+		font-weight: 600;
 		cursor: pointer;
-		transition: all 150ms;
+		transition: background 0.12s, color 0.12s, border-color 0.12s;
 		white-space: nowrap;
 	}
 
 	.tt-chip:hover:not(:disabled) {
-		border-color: var(--interactive-accent);
+		border-color: var(--text-muted);
+		color: var(--text-normal);
 	}
 
-	.tt-chip:focus {
+	.tt-chip:focus-visible {
 		outline: none;
-		box-shadow: 0 0 0 2px var(--interactive-accent-rgb, rgba(76, 175, 255, 0.2));
+		border-color: var(--background-modifier-border-focus);
 	}
 
+	/* Theme-accent fill for chips without a user-configured color; colored chips */
+	/* get an inline tinted style from the markup so text stays readable. */
 	.tt-chip.tt-chip-active {
-		background-color: var(--interactive-accent);
+		background: var(--interactive-accent);
 		border-color: var(--interactive-accent);
 		color: var(--text-on-accent);
 	}

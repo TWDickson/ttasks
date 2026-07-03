@@ -60,19 +60,19 @@ function renderActions(task: Task, withArchive = false) {
 describe('TaskDetailActions.svelte', () => {
 	it('shows mark complete button for incomplete task', () => {
 		renderActions(buildTask({ is_complete: false }));
-		expect(screen.getByRole('button', { name: '✓ Mark Complete' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Mark Complete' })).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull();
 	});
 
 	it('shows archive button for completed task when archive action is provided', () => {
 		renderActions(buildTask({ is_complete: true, completed: '2026-05-22' }), true);
 		expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: '✓ Mark Complete' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Mark Complete' })).toBeNull();
 	});
 
 	it('calls onMarkComplete when mark complete clicked', async () => {
 		const { onMarkComplete } = renderActions(buildTask({ is_complete: false }));
-		await fireEvent.click(screen.getByRole('button', { name: '✓ Mark Complete' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Mark Complete' }));
 		expect(onMarkComplete).toHaveBeenCalledTimes(1);
 	});
 

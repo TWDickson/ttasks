@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { BatchEligibility } from '../store/taskSelection';
+	import { icon } from '../utils/icon';
 
 	export let selectedCount: number;
 	export let eligibility: BatchEligibility;
@@ -21,27 +22,30 @@
 	<span class="tt-batch-count">{selectedCount} selected</span>
 	<div class="tt-batch-actions">
 		{#if eligibility.canComplete}
-			<button class="tt-batch-btn" disabled={busy} on:click={() => run(onComplete)}>
-				✓ Complete
+			<button class="tt-btn tt-btn-sm" disabled={busy} on:click={() => run(onComplete)}>
+				<span class="tt-batch-icon" use:icon={'check'}></span>
+				Complete
 			</button>
 		{/if}
 		{#if eligibility.canArchive}
-			<button class="tt-batch-btn" disabled={busy} on:click={() => run(onArchive)}>
+			<button class="tt-btn tt-btn-sm" disabled={busy} on:click={() => run(onArchive)}>
 				Archive
 			</button>
 		{/if}
 		{#if eligibility.canDelete}
-			<button class="tt-batch-btn tt-batch-btn-danger" disabled={busy} on:click={() => run(onDelete)}>
+			<button class="tt-btn tt-btn-sm tt-btn-danger" disabled={busy} on:click={() => run(onDelete)}>
 				Delete
 			</button>
 		{/if}
 	</div>
 	<button class="tt-batch-clear" on:click={onClear} title="Clear selection" aria-label="Clear selection">
-		✕
+		<span class="tt-batch-icon" use:icon={'x'}></span>
 	</button>
 </div>
 
 <style>
+	/* Action buttons use the global .tt-btn system (styles.css). */
+
 	.tt-batch-bar {
 		position: sticky;
 		bottom: 0;
@@ -69,45 +73,29 @@
 		flex: 1;
 	}
 
-	.tt-batch-btn {
-		padding: 5px 14px;
-		border-radius: var(--button-radius, var(--radius-m, 8px));
-		border: var(--border-width, 1px) solid var(--background-modifier-border);
-		background: var(--interactive-normal, var(--background-secondary));
-		color: var(--text-normal);
-		font-size: 0.82rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.12s;
+	.tt-batch-icon {
+		display: flex;
+		align-items: center;
 	}
 
-	.tt-batch-btn:hover:not(:disabled) {
-		background: var(--interactive-hover);
-	}
-
-	.tt-batch-btn:disabled {
-		opacity: 0.5;
-		cursor: default;
-	}
-
-	.tt-batch-btn-danger {
-		color: var(--color-red);
-		border-color: color-mix(in srgb, var(--color-red) 35%, var(--background-modifier-border));
-	}
-
-	.tt-batch-btn-danger:hover:not(:disabled) {
-		background: color-mix(in srgb, var(--color-red) 10%, var(--background-primary));
+	.tt-batch-icon :global(svg) {
+		width: 14px;
+		height: 14px;
 	}
 
 	.tt-batch-clear {
 		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 28px;
+		min-height: 28px;
 		background: transparent;
 		border: none;
 		color: var(--text-faint);
-		font-size: 0.9rem;
 		cursor: pointer;
-		padding: 4px 6px;
-		border-radius: 4px;
+		padding: 4px;
+		border-radius: var(--radius-s, 4px);
 		line-height: 1;
 	}
 

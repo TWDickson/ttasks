@@ -1,8 +1,237 @@
-/* TTasks — task note styling */
+/* TTasks — plugin styling
+   ─────────────────────────────────────────────────────────────────────────────
+   Design system:
+   - Tokens are defined ONCE below on the plugin roots and inherit everywhere.
+     Do not redefine --tt-space-* / --tt-control-* in component styles.
+   - Shared primitives (.tt-label, .tt-badge, .tt-btn, .tt-count, .tt-divider,
+     .tt-field-group, .tt-empty) live here as plugin-global classes. Svelte
+     scoped styles carry layout only, not visual identity.
+   - Inputs use --background-modifier-form-field; focus uses
+     --background-modifier-border-focus (see Scripts/STYLING_NOTES.md).
+   - Text on user-configured colors is never hardcoded white: tint the surface
+     with color-mix and keep the color itself as the text/border. */
 
 /* Hide native properties panel on task notes — TTasks renders its own UI */
 .markdown-source-view.ttask .metadata-container {
 	display: none !important;
+}
+
+/* ── Design tokens (plugin roots; custom properties inherit to children) ────── */
+
+.tt-board,
+.tt-create-modal,
+.tt-modal,
+.tt-query-editor-modal,
+.tt-managed-list-section {
+	--tt-space-1: var(--size-4-1, 4px);
+	--tt-space-2: var(--size-4-2, 8px);
+	--tt-space-3: var(--size-4-3, 12px);
+	--tt-space-4: var(--size-4-4, 16px);
+	--tt-control-height: var(--input-height, 38px);
+	--tt-control-radius: var(--input-radius, var(--radius-m, 8px));
+	--tt-button-radius: var(--button-radius, var(--radius-m, 8px));
+	--tt-border-width: var(--input-border-width, var(--border-width, 1px));
+	--tt-font-label: 0.72rem;
+}
+
+/* ── Shared primitives ──────────────────────────────────────────────────────── */
+
+/* Uppercase micro-label used for every field/group/column heading */
+.tt-label {
+	font-size: var(--tt-font-label, 0.72rem);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--text-muted);
+}
+
+.tt-divider {
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+	margin: 0;
+}
+
+.tt-field-group {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+/* Count pill shown next to group/column headings */
+.tt-count {
+	background: var(--background-modifier-border);
+	border-radius: 999px;
+	padding: 1px 7px;
+	font-size: 0.7rem;
+	font-weight: 600;
+	color: var(--text-muted);
+}
+
+.tt-group-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--tt-space-2, 8px);
+	font-size: var(--tt-font-label, 0.72rem);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--text-muted);
+	padding: 0 var(--tt-space-3, 12px) var(--tt-space-1, 4px);
+	margin: 0;
+}
+
+/* Task list container + soft separators between rows */
+.tt-task-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.tt-task-list .tt-task + .tt-task {
+	border-top: 1px solid color-mix(in srgb, var(--background-modifier-border) 55%, transparent);
+}
+
+/* Metadata badges on rows and cards */
+.tt-badge {
+	font-size: 0.7rem;
+	padding: 2px 6px;
+	border-radius: 999px;
+	background: var(--background-modifier-border);
+	border: 1px solid transparent;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.tt-badge-tinted {
+	background: color-mix(in srgb, var(--tt-badge-color) 18%, var(--background-primary));
+	border-color: color-mix(in srgb, var(--tt-badge-color) 42%, var(--background-modifier-border));
+	color: var(--tt-badge-color);
+}
+
+.tt-badge-overdue {
+	background: var(--color-red);
+	color: var(--text-on-accent);
+}
+
+.tt-badge-completed {
+	background: color-mix(in srgb, var(--color-green) 88%, var(--background-primary));
+	color: var(--text-on-accent);
+}
+
+/* Inferred projected finish — weaker than a real due badge (dashed, no fill). */
+.tt-badge-inferred {
+	background: transparent;
+	border: 1px dashed var(--background-modifier-border);
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.tt-badge-type {
+	background: var(--background-secondary);
+}
+
+.tt-badge-dep {
+	background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-secondary));
+	border-color: color-mix(in srgb, var(--interactive-accent) 30%, var(--background-modifier-border));
+	color: var(--interactive-accent);
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.02em;
+}
+
+.tt-badge-captured {
+	background: color-mix(in srgb, var(--color-cyan) 82%, var(--background-primary));
+	color: var(--text-on-accent);
+}
+
+.tt-badge-previous-day {
+	background: color-mix(in srgb, var(--color-orange) 82%, var(--background-primary));
+	color: var(--text-on-accent);
+}
+
+/* Button system: tt-btn (default) + tt-btn-primary / tt-btn-danger / tt-btn-sm */
+.tt-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 7px 16px;
+	border-radius: var(--tt-button-radius, var(--button-radius, 8px));
+	border: var(--border-width, 1px) solid var(--background-modifier-border);
+	background: var(--interactive-normal, var(--background-secondary));
+	color: var(--text-normal);
+	font-size: 0.88rem;
+	font-weight: 500;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.tt-btn:hover:not(:disabled) {
+	background: var(--interactive-hover, var(--background-modifier-hover));
+}
+
+.tt-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.tt-btn-primary {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.tt-btn-primary:hover:not(:disabled) {
+	background: var(--interactive-accent-hover);
+	border-color: var(--interactive-accent-hover);
+}
+
+.tt-btn-danger {
+	color: var(--color-red);
+	border-color: color-mix(in srgb, var(--color-red) 35%, var(--background-modifier-border));
+}
+
+.tt-btn-danger:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--color-red) 10%, var(--background-primary));
+	border-color: color-mix(in srgb, var(--color-red) 60%, var(--background-modifier-border));
+}
+
+.tt-btn-sm {
+	padding: 4px 10px;
+	font-size: 0.78rem;
+	font-weight: 600;
+	min-height: 28px;
+}
+
+/* Empty-state pattern */
+.tt-empty {
+	padding: var(--size-4-8, 32px) var(--tt-space-4, 16px);
+	text-align: center;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--tt-space-1, 4px);
+	flex-shrink: 0;
+	color: var(--text-muted);
+	font-size: 0.9rem;
+}
+
+.tt-empty-hint {
+	color: var(--text-faint);
+	font-size: 0.82rem;
+}
+
+/* Reduced motion: collapse the plugin's slide/expand animations */
+@media (prefers-reduced-motion: reduce) {
+	.tt-board-detail,
+	.tt-modal-section-body,
+	.tt-modal-section-chevron,
+	.tt-badge,
+	.tt-btn {
+		transition: none !important;
+	}
 }
 
 .tt-create-modal {
@@ -14,14 +243,6 @@
 /* ── Create Task Modal ──────────────────────────────────────────────────────── */
 
 .tt-modal {
-	--tt-space-1: var(--size-2-3, 6px);
-	--tt-space-2: var(--size-4-2, 8px);
-	--tt-space-3: var(--size-4-3, 12px);
-	--tt-space-4: var(--size-4-4, 16px);
-	--tt-control-height: var(--input-height, 38px);
-	--tt-control-radius: var(--input-radius, var(--radius-m, 8px));
-	--tt-button-radius: var(--button-radius, var(--radius-m, 8px));
-	--tt-border-width: var(--input-border-width, var(--border-width, 1px));
 	display: flex;
 	flex-direction: column;
 	gap: var(--tt-space-3);
@@ -71,8 +292,15 @@
 }
 
 .tt-modal-section-chevron {
+	display: flex;
+	align-items: center;
 	color: var(--text-muted);
 	transition: transform 0.12s ease;
+}
+
+.tt-modal-section-chevron svg {
+	width: 16px;
+	height: 16px;
 }
 
 .tt-modal-section-body {
@@ -97,23 +325,29 @@
 	transform: rotate(-90deg);
 }
 
-/* Large name input at top */
-.tt-modal-name {
+/* Large name input at top. The `.tt-modal input.tt-modal-name` compound keeps
+   specificity above theme `input[type=text]` rules so the borderless
+   underline-title design survives any theme. */
+.tt-modal input.tt-modal-name {
 	width: 100%;
 	box-sizing: border-box;
 	font-size: 1.3rem;
 	font-weight: 600;
+	height: auto;
 	padding: var(--tt-space-2) var(--size-4-1, 4px);
 	border: none;
+	border-radius: 0;
 	border-bottom: 2px solid var(--background-modifier-border);
 	background: transparent;
+	box-shadow: none;
 	color: var(--text-normal);
 	caret-color: var(--caret-color, var(--interactive-accent));
 	transition: border-color 0.15s;
 }
-.tt-modal-name:focus {
+.tt-modal input.tt-modal-name:focus {
 	outline: none;
 	border-bottom-color: var(--interactive-accent);
+	box-shadow: none;
 }
 
 .tt-modal-quick-row {
@@ -371,7 +605,7 @@
 }
 .tt-modal-textarea:focus {
 	outline: none;
-	border-color: var(--interactive-accent);
+	border-color: var(--background-modifier-border-focus);
 }
 
 /* Hybrid notes (single-surface preview/edit) */
@@ -401,6 +635,11 @@
 	background: var(--background-primary-alt, var(--background-secondary));
 	font-size: 0.88rem;
 	cursor: text;
+}
+
+.tt-notes-empty {
+	color: var(--text-faint);
+	font-style: italic;
 }
 
 .tt-hybrid-notes.is-editing .tt-hybrid-notes-preview {
@@ -450,7 +689,7 @@
 		gap: 14px;
 	}
 
-	.tt-modal-name {
+	.tt-modal input.tt-modal-name {
 		font-size: 1.14rem;
 		padding: 6px 2px;
 		margin-bottom: 4px;
@@ -679,13 +918,7 @@
 /* ── Query Editor Modal ──────────────────────────────────────────────────── */
 
 .tt-query-editor-modal {
-	/* Same spacing scale as .tt-modal — the Query Editor modal does not carry the
-	   .tt-modal class, so the --tt-space-* tokens the tt-qe- rules reference must
-	   be defined here. Values match the Obsidian size scale (parity in default). */
-	--tt-space-1: var(--size-2-3, 6px);
-	--tt-space-2: var(--size-4-2, 8px);
-	--tt-space-3: var(--size-4-3, 12px);
-	--tt-space-4: var(--size-4-4, 16px);
+	/* Spacing tokens come from the shared token block at the top of this file. */
 	width: min(680px, 92vw);
 }
 
@@ -794,12 +1027,17 @@
 
 .tt-qe-input {
 	width: 100%;
-	background: var(--background-primary);
-	border: 1px solid var(--background-modifier-border);
+	background: var(--background-modifier-form-field);
+	border: var(--tt-border-width, 1px) solid var(--background-modifier-border);
 	border-radius: var(--radius-s, 4px);
 	padding: 4px var(--tt-space-2);
 	color: var(--text-normal);
 	font-size: var(--font-ui-small);
+}
+
+.tt-qe-input:focus {
+	outline: none;
+	border-color: var(--background-modifier-border-focus);
 }
 
 .tt-qe-del {
@@ -810,6 +1048,8 @@
 	padding: 2px var(--tt-space-1);
 	border-radius: var(--radius-s, 4px);
 	font-size: 12px;
+	min-width: 28px;
+	min-height: 28px;
 }
 
 .tt-qe-del:hover {
@@ -848,12 +1088,17 @@
 	width: 100%;
 	font-family: var(--font-monospace);
 	font-size: var(--font-ui-small);
-	background: var(--background-primary);
-	border: 1px solid var(--background-modifier-border);
+	background: var(--background-modifier-form-field);
+	border: var(--tt-border-width, 1px) solid var(--background-modifier-border);
 	border-radius: var(--radius-s, 4px);
 	padding: 10px;
 	color: var(--text-normal);
 	resize: vertical;
+}
+
+.tt-qe-json-area:focus {
+	outline: none;
+	border-color: var(--background-modifier-border-focus);
 }
 
 .tt-qe-json-area.is-invalid {
@@ -997,6 +1242,233 @@
 
 .tt-qe-save {
 	padding: var(--tt-space-1) var(--tt-space-4);
+}
+
+/* ── Managed list settings (moved out of a JS-injected <style> element) ────── */
+
+.tt-managed-list-section {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 12px;
+	padding: 10px;
+	margin: 16px 0;
+	background: var(--background-secondary);
+}
+.tt-managed-list-section-header {
+	margin-bottom: 10px;
+}
+.tt-managed-list-section-header h3 {
+	margin: 0 0 4px 0;
+	font-size: 1rem;
+}
+.tt-managed-list-section-header p {
+	margin: 0;
+	color: var(--text-muted);
+	font-size: 0.9rem;
+}
+.tt-managed-list-legend {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-top: 10px;
+}
+.tt-managed-list-legend-label {
+	font-size: 0.8rem;
+	color: var(--text-muted);
+}
+.tt-managed-list-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.78rem;
+	color: var(--text-muted);
+}
+.tt-managed-list-legend-dot {
+	width: 12px;
+	height: 12px;
+	border-radius: 999px;
+	background: var(--tt-swatch-color);
+	border: 1px solid var(--background-modifier-border);
+}
+.tt-managed-list-rows {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.tt-managed-list-row {
+	--tt-item-accent: var(--tt-item-color, var(--text-muted));
+	--tt-item-tint-bg: color-mix(in srgb, var(--tt-item-accent) 12%, var(--background-primary));
+	--tt-item-tint-border: color-mix(in srgb, var(--tt-item-accent) 42%, var(--background-modifier-border));
+	display: grid;
+	grid-template-columns: 22px minmax(0, 1fr) auto;
+	gap: 6px;
+	align-items: start;
+	padding: 8px;
+	border: 1px solid color-mix(in srgb, var(--tt-item-accent) 28%, var(--background-modifier-border));
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--tt-item-accent) 6%, var(--background-primary));
+	box-shadow: inset 3px 0 0 var(--tt-item-accent, transparent);
+}
+.tt-managed-list-row.is-dragging {
+	opacity: 0.55;
+}
+.tt-managed-list-row.is-drop-target {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+.tt-managed-list-handle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-faint);
+	cursor: grab;
+	min-height: 30px;
+}
+.tt-managed-list-handle:active {
+	cursor: grabbing;
+}
+.tt-managed-list-main {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-width: 0;
+}
+.tt-managed-list-title-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+.tt-managed-list-title-row .tt-managed-list-input {
+	flex: 1 1 auto;
+}
+.tt-managed-list-preview {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	flex: 0 0 auto;
+	font-size: 0.72rem;
+	line-height: 1.2;
+	padding: 1px 7px;
+	border-radius: 999px;
+	border: 1px solid var(--tt-item-tint-border);
+	background: var(--tt-item-tint-bg);
+	color: var(--tt-item-accent);
+}
+.tt-managed-list-color-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+.tt-managed-list-color-row.is-collapsed {
+	display: none;
+}
+.tt-managed-list-swatches {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+.tt-managed-list-swatch {
+	appearance: none;
+	-webkit-appearance: none;
+	width: 16px;
+	height: 16px;
+	min-width: 16px;
+	min-height: 16px;
+	border-radius: 999px;
+	border: 1px solid color-mix(in srgb, var(--tt-swatch-color, var(--background-modifier-border)) 40%, var(--background-modifier-border));
+	padding: 0;
+	cursor: pointer;
+	background: none !important;
+	background-color: var(--tt-swatch-color, var(--background-modifier-border)) !important;
+	background-image: none !important;
+	box-shadow: none !important;
+}
+.tt-managed-list-swatch:hover {
+	transform: scale(1.06);
+}
+.tt-managed-list-swatch.is-selected {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 1px var(--background-primary), 0 0 0 2px var(--interactive-accent) !important;
+}
+.tt-managed-list-clear-color {
+	font-size: 0.76rem;
+	padding: 4px 8px;
+}
+.tt-managed-list-input {
+	width: 100%;
+	min-width: 0;
+	min-height: 30px;
+	padding: 4px 8px;
+}
+.tt-managed-list-meta {
+	font-size: 0.74rem;
+	line-height: 1.2;
+	color: var(--text-muted);
+	min-height: 0;
+}
+.tt-managed-list-meta:empty {
+	display: none;
+}
+.tt-managed-list-color {
+	width: 28px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	background: transparent;
+}
+.tt-managed-list-row-actions {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	padding-top: 1px;
+}
+.tt-managed-list-row-actions button {
+	padding: 6px 10px;
+	font-size: 0.8rem;
+}
+.tt-managed-list-row-actions .tt-managed-list-color-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--tt-item-accent);
+	border-color: var(--tt-item-tint-border);
+	background: var(--tt-item-tint-bg);
+}
+.tt-managed-list-color-toggle-dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 999px;
+	background: var(--tt-item-accent);
+	border: 1px solid color-mix(in srgb, var(--tt-item-accent) 35%, var(--background-modifier-border));
+	flex: 0 0 auto;
+}
+.tt-managed-list-row-actions .tt-managed-list-color-toggle.is-active {
+	box-shadow: inset 0 0 0 1px var(--tt-item-tint-border);
+}
+.tt-managed-list-row-actions .tt-managed-list-remove {
+	color: var(--text-muted);
+	background: transparent;
+	border-color: var(--background-modifier-border);
+}
+.tt-managed-list-row-actions .tt-managed-list-remove:hover:not(:disabled) {
+	color: var(--color-red);
+	border-color: color-mix(in srgb, var(--color-red) 35%, var(--background-modifier-border));
+	background: color-mix(in srgb, var(--color-red) 8%, var(--background-primary));
+}
+.tt-managed-list-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 12px;
+}
+.tt-managed-list-empty {
+	padding: 10px 12px;
+	border: 1px dashed var(--background-modifier-border);
+	border-radius: 10px;
+	color: var(--text-muted);
+	background: var(--background-primary);
 }
 
 /* ── Reminder Notice ─────────────────────────────────────────────────────── */

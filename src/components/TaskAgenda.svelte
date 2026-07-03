@@ -76,41 +76,9 @@
 		max-width: 660px;
 	}
 
-	.tt-empty {
-		padding: 32px 16px;
-		text-align: center;
-		color: var(--text-muted);
-		font-size: 0.9rem;
-	}
+	/* .tt-empty, .tt-group-heading, .tt-count are plugin-global (styles.css). */
+	/* The bucket label carries its own color, so the heading base stays muted. */
 
-	.tt-group-heading {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 0.72rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		padding: 0 12px 4px;
-		margin: 0;
-	}
-
-	.tt-count {
-		background: var(--background-modifier-border);
-		border-radius: 999px;
-		padding: 1px 7px;
-		font-size: 0.7rem;
-		font-weight: 600;
-		color: var(--text-muted);
-	}
-
-	.tt-task-list {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-	}
+	/* .tt-task-list (incl. row separators) is plugin-global (styles.css). */
 
 </style>

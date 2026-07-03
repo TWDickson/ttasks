@@ -27,6 +27,7 @@
 	import TaskDetailRelationships from './TaskDetailRelationships.svelte';
 	import TaskDetailNotes from './TaskDetailNotes.svelte';
 	import TaskDetailActions from './TaskDetailActions.svelte';
+	import { icon } from '../utils/icon';
 
 	export let plugin: TTasksPlugin;
 	export let tasks: Readable<Task[]>;
@@ -486,7 +487,7 @@
 							title="Open parent project"
 							on:click={openParentProject}
 							aria-label="Open parent project"
-						>↗</button>
+						><span use:icon={'arrow-up-right'}></span></button>
 					{/if}
 				</div>
 			</div>
@@ -551,7 +552,7 @@
 				</div>
 
 				{#if workweek_only}
-					<label class="tt-label" for="tt-holiday-dates">Holiday Dates</label>
+					<label class="tt-label" for="holiday_dates">Holiday Dates</label>
 					<TextField
 						value={holiday_dates_text}
 						onChange={onHolidayDatesChange}
@@ -592,7 +593,7 @@
 				</div>
 			{/if}
 
-			<label class="tt-label" for="tt-assigned-to">Assigned To</label>
+			<label class="tt-label" for="assigned_to">Assigned To</label>
 			{#if assignedToFieldProps}
 				<TextField
 					definition={assignedToFieldProps.definition}
@@ -603,7 +604,7 @@
 				/>
 			{/if}
 
-			<label class="tt-label" for="tt-est-days">Est. Days</label>
+			<label class="tt-label" for="estimated_days">Est. Days</label>
 			{#if estimatedDaysFieldProps}
 				<NumberField
 					definition={estimatedDaysFieldProps.definition}
@@ -617,7 +618,7 @@
 			{/if}
 
 			{#if showBlockedReason}
-				<label class="tt-label" for="tt-blocked-reason">Blocked Reason</label>
+				<label class="tt-label" for="blocked_reason">Blocked Reason</label>
 				{#if blockedReasonFieldProps}
 					<TextField
 						definition={blockedReasonFieldProps.definition}
@@ -629,7 +630,7 @@
 				{/if}
 			{/if}
 
-			<label class="tt-label" for="tt-recurrence">Repeats</label>
+			<label class="tt-label" for="recurrence">Repeats</label>
 			{#if recurrenceFieldProps}
 				<SelectField
 					definition={recurrenceFieldProps.definition}
@@ -761,19 +762,22 @@
 
 	.tt-parent-task-open {
 		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 28px;
+		min-height: 28px;
 		background: transparent;
 		border: 1px solid var(--background-modifier-border);
-		border-radius: 4px;
+		border-radius: var(--radius-s, 4px);
 		color: var(--text-muted);
 		cursor: pointer;
-		font-size: 0.85rem;
-		padding: 2px 6px;
-		line-height: 1.4;
+		padding: 2px;
 	}
 
 	.tt-parent-task-open:hover {
 		color: var(--text-normal);
-		border-color: var(--color-accent);
+		border-color: var(--background-modifier-border-focus);
 	}
 
 	.tt-checkbox-row {
@@ -789,13 +793,7 @@
 		color: var(--text-faint);
 	}
 
-	.tt-label {
-		font-size: 0.72rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--text-muted);
-	}
+	/* .tt-label, .tt-divider, .tt-field-group are plugin-global (styles.css). */
 
 	/* Read-only projected schedule inferred from the dependency chain — muted and borderless. */
 	.tt-projected-schedule {
@@ -812,12 +810,6 @@
 		opacity: 0.85;
 	}
 
-	.tt-field-group {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-
 	.tt-fields {
 		display: grid;
 		grid-template-columns: auto 1fr;
@@ -826,12 +818,4 @@
 	}
 
 	/* Relationship, notes, and action CSS live in their own sub-components. */
-
-
-	.tt-divider {
-		border: none;
-		border-top: 1px solid var(--background-modifier-border);
-		margin: 0;
-	}
-
 </style>

@@ -9,10 +9,7 @@ import {
 import { renderArchiveSettingsSection } from './archiveSettingsSection';
 import { renderCaptureSourcesSettingsSection } from './captureSourcesSettingsSection';
 import { renderKanbanSettingsSection } from './kanbanSettingsSection';
-import {
-	renderManagedListSettingSection,
-	renderManagedListStyles,
-} from './managedListSettingsSection';
+import { renderManagedListSettingSection } from './managedListSettingsSection';
 import { renderMigrationSettingsSection } from './migrationSettingsSection';
 import { renderQuickActionsSettingsSection } from './quickActionsSettingsSection';
 import { renderRemindersSettingsSection } from './remindersSettingsSection';
@@ -57,7 +54,6 @@ export class TTasksSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		renderManagedListStyles(containerEl);
 		containerEl.createEl('h2', { text: 'TTasks Settings' });
 
 		new Setting(containerEl)
