@@ -4,6 +4,44 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
+## Progress Notes (2026-07-04)
+
+Worked through `BUGFIX_TASKS.md` (Taylor's 2026-07-04 report). The earlier
+`AUDIT_TASKS.md` Sweep 2 (A1–A6, B1–B3, C1–C6, D1–D7) was already implemented
+in prior sessions and verified present.
+
+Shipped this session:
+
+- **#3/#4** — Detail pane derives its task from `$tasks` (fixes "Task Not
+  Found" on create); `TaskWriter.update` applies an optimistic in-memory patch
+  so completion/edits propagate to all views without waiting on a metadata
+  rescan.
+- **#2** — Selected rows/kanban cards use an accent tint distinct from the
+  neutral hover grey, plus a stronger selected+hovered state.
+- **#5/#6** — Universal `holidays` list + per-area `areaWorkweek` toggle in
+  settings, threaded via `CalendarConfig` through the working-day date math;
+  new "Working calendar" settings section. Legacy per-task fields still read.
+- **#13** — Per-role colour descriptions for the status/area/label sections.
+- **#10** — Native `title=` tooltips on graph controls/nodes replaced with
+  `aria-label` (no more OS tooltip during pan/zoom).
+- **#12** — Clicking a graph node pins its dependency chain highlight (sticky);
+  empty-canvas press or Esc clears it.
+- **#8** — Weekend Overview bands strengthened with a theme-aware hatch;
+  holidays stay a distinct red.
+- **#7** — Detail pane topbar and main-view filter bar share a 44px header
+  height so their bottom borders align.
+
+Deferred (need the live app / a design workshop with Taylor):
+
+- **#9** graph zoom edge/arrowhead detachment — flagged `[LEAD]`, requires
+  reproduction at 2×–8× zoom to confirm whether edges or just arrowheads drift.
+- **#11** graph detail-view layout improvement — explicitly the larger,
+  workshop-with-Taylor item.
+
+Validation: full suite **1216 tests / 107 files** passing; build + lint clean.
+
+---
+
 ## Progress Notes (2026-05-25)
 
 Stream J is now complete (J1-J6). The backlog focus shifts from stream completion to post-J hardening and reliability polish.

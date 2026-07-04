@@ -6,6 +6,12 @@ leads with file:line pointers below so the next agent can go straight to the fix
 Legend: **[DONE]** shipped this session · **[ROOT CAUSE]** confirmed in code ·
 **[LEAD]** strong hypothesis, verify live · **[DESIGN]** needs a small design pass.
 
+> **Progress (2026-07-04, Opus):** #1–#8, #10, #12, #13 shipped. Remaining:
+> **#9** (graph zoom edges) and **#11** (graph detail layout) are deferred —
+> both need live reproduction / a design workshop that can't be done headlessly.
+> The whole prior AUDIT_TASKS.md Sweep 2 (A1–A6, B1–B3, C1–C6, D1–D7) was
+> already implemented in earlier sessions and verified present.
+
 ---
 
 ## 1. [DONE] ArchiveService.test.ts failing tests
