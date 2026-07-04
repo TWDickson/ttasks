@@ -497,6 +497,11 @@
 
 	.tt-kanban-card.is-active {
 		border-left-color: var(--interactive-accent);
+		background: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-primary));
+	}
+
+	.tt-kanban-card.is-active:hover {
+		background: color-mix(in srgb, var(--interactive-accent) 20%, var(--background-primary));
 	}
 
 	.tt-kanban-card.is-dragging {

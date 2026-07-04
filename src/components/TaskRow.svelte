@@ -188,9 +188,16 @@
 		background: var(--background-modifier-hover);
 	}
 
+	/* Selected uses an accent tint (not the neutral hover grey) so it stays
+	   distinguishable from a hovered-but-unselected row. */
 	.tt-task.is-active {
-		background: var(--background-modifier-hover);
+		background: color-mix(in srgb, var(--interactive-accent) 14%, var(--background-primary));
 		box-shadow: inset 2px 0 0 var(--interactive-accent);
+	}
+
+	/* Selected + hovered = a distinct third state (stronger tint). */
+	.tt-task.is-active:hover {
+		background: color-mix(in srgb, var(--interactive-accent) 22%, var(--background-primary));
 	}
 
 	.tt-task-checkbox {
