@@ -170,7 +170,11 @@
 
 	// Resolve dependency-chain schedules once for the whole board; passed to list
 	// rows so tasks whose finish is implied by their chain show a projected badge.
-	$: schedule = buildTaskSchedule($tasks);
+	$: calendarConfig = {
+		holidays: plugin.settings.holidays,
+		areaWorkweek: plugin.settings.areaWorkweek,
+	};
+	$: schedule = buildTaskSchedule($tasks, { calendarConfig });
 
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
 		filter: currentBoardQuery.filter,

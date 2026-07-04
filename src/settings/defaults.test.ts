@@ -130,4 +130,21 @@ describe('normalizeSettingsFromSources', () => {
 		]);
 		expect(result.showCompletedByViewId).toEqual({ list: true, logbook: false });
 	});
+
+	it('defaults the working calendar to empty', () => {
+		const result = normalizeSettingsFromSources([]);
+		expect(result.holidays).toEqual([]);
+		expect(result.areaWorkweek).toEqual({});
+	});
+
+	it('keeps only valid ISO holiday dates and boolean area toggles', () => {
+		const result = normalizeSettingsFromSources([
+			{
+				holidays: ['2026-12-25', 'not-a-date', '2026/01/01', '2026-07-04'],
+				areaWorkweek: { Work: true, Personal: false, bogus: 'yes' },
+			},
+		]);
+		expect(result.holidays).toEqual(['2026-12-25', '2026-07-04']);
+		expect(result.areaWorkweek).toEqual({ Work: true, Personal: false });
+	});
 });

@@ -6,6 +6,7 @@ import {
 	createWorkingCalendarResolver,
 	addCalendarDays,
 	type ResolvedTaskDate,
+	type CalendarConfig,
 } from './taskGraphDates';
 import { buildTaskSchedule } from '../taskSchedule';
 
@@ -71,6 +72,8 @@ export type HybridTimelineGrouping = 'none' | 'project' | 'dependency';
 
 export interface BuildHybridTimelineOptions {
 	grouping?: HybridTimelineGrouping;
+	/** Universal calendar config threaded to the working-day date math. */
+	calendarConfig?: CalendarConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -186,8 +189,9 @@ export function buildHybridTimeline(
 
 	const visibleTasks = tasks.filter((task) => task.type === 'task');
 	const taskByPath   = new Map(visibleTasks.map((task) => [task.path, task]));
-	const resolved     = buildTaskSchedule(visibleTasks, { allTasks: tasks });
-	const resolveCalendar = createWorkingCalendarResolver(visibleTasks, { allTasks: tasks });
+	const calendarConfig = options.calendarConfig;
+	const resolved     = buildTaskSchedule(visibleTasks, { allTasks: tasks, calendarConfig });
+	const resolveCalendar = createWorkingCalendarResolver(visibleTasks, { allTasks: tasks, calendarConfig });
 	const resolveGroup    = createTimelineGroupingResolver(grouping, visibleTasks, tasks);
 
 	const resolvedEntries = [...resolved.entries()]

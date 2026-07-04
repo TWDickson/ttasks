@@ -11,6 +11,20 @@ export interface WorkingCalendar {
 	holidayDates: Set<string>;
 }
 
+/**
+ * Universal working-calendar configuration resolved from plugin settings.
+ * Holidays are a single vault-wide list; whether a task actually skips
+ * weekends/holidays is decided per area via `areaWorkweek`. Kept Obsidian-free
+ * so this module stays a pure dependency of the graph/timeline layers.
+ */
+export interface CalendarConfig {
+	/** Universal holiday dates (YYYY-MM-DD). */
+	holidays: string[];
+	/** Per-area "skip weekends & holidays" toggle. Areas absent fall back to
+	 *  legacy per-task/project `workweek_only`. */
+	areaWorkweek: Record<string, boolean>;
+}
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -26,6 +40,9 @@ export interface ResolvedTaskDate {
 
 export interface ResolveTaskDatesOptions {
 	allTasks?: Task[];
+	/** Universal calendar config (holidays + per-area workweek toggle). When
+	 *  omitted, only legacy per-task/project fields drive the calendar. */
+	calendarConfig?: CalendarConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,8 +83,14 @@ export function createWorkingCalendarResolver(
 ): (task: Task) => WorkingCalendar {
 	const allTasks = options?.allTasks ?? tasks;
 	const allTaskByPath = new Map(allTasks.map((task) => [task.path, task]));
-	const projectCalendarByPath = new Map<string, WorkingCalendar>();
 
+	// Universal config from settings (holidays + per-area skip toggle).
+	const universalHolidays = parseHolidayDates(options?.calendarConfig?.holidays);
+	const areaWorkweek = options?.calendarConfig?.areaWorkweek ?? {};
+
+	// Legacy per-project fields, kept for notes not yet migrated to the
+	// area-driven model.
+	const projectCalendarByPath = new Map<string, WorkingCalendar>();
 	for (const candidate of allTasks) {
 		if (candidate.type !== 'project') continue;
 		projectCalendarByPath.set(candidate.path, {
@@ -76,12 +99,33 @@ export function createWorkingCalendarResolver(
 		});
 	}
 
-	const defaultCalendar: WorkingCalendar = { workweekOnly: false, holidayDates: new Set<string>() };
+	// A calendar that skips nothing — shared so the common (default) case does
+	// not allocate a fresh Set per task.
+	const noSkipCalendar: WorkingCalendar = { workweekOnly: false, holidayDates: new Set<string>() };
 
 	return (task: Task): WorkingCalendar => {
 		const projectPath = resolveOwningProjectPath(task, allTaskByPath);
-		if (!projectPath) return defaultCalendar;
-		return projectCalendarByPath.get(projectPath) ?? defaultCalendar;
+		const legacyProject = projectPath ? projectCalendarByPath.get(projectPath) : undefined;
+
+		// A single "skip weekends & holidays" toggle governs both. Prefer the
+		// per-area setting when the task's area is configured; otherwise fall
+		// back to the legacy owning-project / per-task flag.
+		let workweekOnly: boolean;
+		if (task.area != null && task.area in areaWorkweek) {
+			workweekOnly = areaWorkweek[task.area] === true;
+		} else {
+			workweekOnly = (legacyProject?.workweekOnly ?? false) || task.workweek_only === true;
+		}
+
+		if (!workweekOnly) return noSkipCalendar;
+
+		// When skipping, non-working days = weekends plus the union of universal,
+		// legacy-project, and legacy-per-task holidays.
+		const holidayDates = new Set<string>(universalHolidays);
+		if (legacyProject) for (const date of legacyProject.holidayDates) holidayDates.add(date);
+		for (const date of parseHolidayDates(task.holiday_dates)) holidayDates.add(date);
+
+		return { workweekOnly: true, holidayDates };
 	};
 }
 

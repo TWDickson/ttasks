@@ -74,6 +74,8 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	},
 	areas: ['database', 'general'],
 	areaColors: {},
+	areaWorkweek: {},
+	holidays: [],
 	labelValues: ['feature', 'bug', 'research', 'docs', 'action'],
 	labelColors: {},
 	quickActions: {
@@ -214,6 +216,8 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		statusColors: { ...settings.statusColors },
 		areas: [...settings.areas],
 		areaColors: { ...settings.areaColors },
+		areaWorkweek: { ...(settings.areaWorkweek ?? {}) },
+		holidays: [...(settings.holidays ?? [])],
 		labelValues: [...settings.labelValues],
 		labelColors: { ...settings.labelColors },
 		quickActions: {
@@ -574,6 +578,18 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		target.areaColors = Object.fromEntries(
 			Object.entries(areaColors).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
 		);
+	}
+
+	const areaWorkweek = asRecord(root.areaWorkweek);
+	if (areaWorkweek !== null) {
+		target.areaWorkweek = Object.fromEntries(
+			Object.entries(areaWorkweek).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean')
+		);
+	}
+
+	const holidays = asStringArray(root.holidays);
+	if (holidays !== null) {
+		target.holidays = holidays.filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value));
 	}
 
 	const labelValues = asStringArray(root.labelValues);

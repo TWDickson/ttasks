@@ -101,6 +101,14 @@ export interface TTasksSettings {
 	statusColors: Record<string, string>;
 	areas: string[];
 	areaColors: Record<string, string>;
+	/** Per-area "skip weekends & holidays" toggle. Areas present here drive their
+	 *  tasks' working calendar; areas absent fall back to legacy per-task
+	 *  workweek_only. Personal areas leave this off (weekend scheduling allowed);
+	 *  work areas turn it on. */
+	areaWorkweek: Record<string, boolean>;
+	/** Universal holiday dates (YYYY-MM-DD) skipped by any area whose workweek
+	 *  toggle is on. Replaces per-task holiday_dates as the source of truth. */
+	holidays: string[];
 	labelValues: string[];
 	labelColors: Record<string, string>;
 	quickActions: QuickActionsSettings;

@@ -527,7 +527,7 @@ describe('resolveTaskDates', () => {
 		expect(resolvedB!.end.toISOString().slice(0, 10)).toBe('2026-04-15'); // Tuesday is a holiday
 	});
 
-	it('skips configured holidays for estimated durations even when workweek mode is off', () => {
+	it('does not skip holidays when the workweek toggle is off (unified toggle governs both)', () => {
 		const project = makeTask({
 			path: 'Tasks/proj.md',
 			name: 'Project',
@@ -548,7 +548,48 @@ describe('resolveTaskDates', () => {
 
 		expect(resolvedTask).toBeDefined();
 		expect(resolvedTask!.start.toISOString().slice(0, 10)).toBe('2026-04-13');
-		expect(resolvedTask!.end.toISOString().slice(0, 10)).toBe('2026-04-15');
+		// Toggle off → calendar days: start + 1 = the 14th, holiday not skipped.
+		expect(resolvedTask!.end.toISOString().slice(0, 10)).toBe('2026-04-14');
+	});
+
+	it('uses the per-area workweek toggle and universal holidays from calendarConfig', () => {
+		const task = makeTask({
+			path: 'Tasks/a.md',
+			name: 'A',
+			area: 'Work',
+			start_date: '2026-04-13', // Monday
+			estimated_days: 3,
+		});
+
+		const result = resolveTaskDates([task], {
+			allTasks: [task],
+			calendarConfig: { holidays: ['2026-04-15'], areaWorkweek: { Work: true } },
+		});
+		const resolved = result.get('Tasks/a.md');
+
+		expect(resolved).toBeDefined();
+		// 3 working days from Mon 13th, skipping the 15th holiday: 13, 14, 16.
+		expect(resolved!.end.toISOString().slice(0, 10)).toBe('2026-04-16');
+	});
+
+	it('honors a per-area toggle set to false (personal area allows weekend scheduling)', () => {
+		const task = makeTask({
+			path: 'Tasks/a.md',
+			name: 'A',
+			area: 'Personal',
+			start_date: '2026-04-17', // Friday
+			estimated_days: 3,
+		});
+
+		const result = resolveTaskDates([task], {
+			allTasks: [task],
+			calendarConfig: { holidays: [], areaWorkweek: { Personal: false } },
+		});
+		const resolved = result.get('Tasks/a.md');
+
+		expect(resolved).toBeDefined();
+		// Toggle off → calendar days across the weekend: Fri 17 + 2 = Sun 19.
+		expect(resolved!.end.toISOString().slice(0, 10)).toBe('2026-04-19');
 	});
 });
 

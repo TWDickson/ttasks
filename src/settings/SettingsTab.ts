@@ -14,6 +14,7 @@ import { renderMigrationSettingsSection } from './migrationSettingsSection';
 import { renderQuickActionsSettingsSection } from './quickActionsSettingsSection';
 import { renderRemindersSettingsSection } from './remindersSettingsSection';
 import { renderViewsSettingsSection } from './viewsSettingsSection';
+import { renderWorkingCalendarSettingsSection } from './workingCalendarSettingsSection';
 
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
@@ -196,6 +197,11 @@ export class TTasksSettingTab extends PluginSettingTab {
 			},
 		});
 
+		renderWorkingCalendarSettingsSection({
+			containerEl,
+			plugin: this.plugin,
+			rerender: () => this.display(),
+		});
 		renderViewsSettingsSection({
 			containerEl,
 			plugin: this.plugin,

@@ -56,11 +56,26 @@ describe('buildTaskSchedule', () => {
 		expect(buildTaskSchedule(b)).not.toBe(buildTaskSchedule(a));
 	});
 
-	it('does not cache when options are passed', () => {
+	it('does not cache when allTasks options are passed', () => {
 		const tasks = [makeTask({ path: 'Tasks/a.md', name: 'A', due_date: '2026-04-05' })];
 		const withOptions = buildTaskSchedule(tasks, { allTasks: tasks });
 		const cached = buildTaskSchedule(tasks);
 		expect(withOptions).not.toBe(cached);
+	});
+
+	it('reuses the cache for the same calendar-config signature', () => {
+		const tasks = [makeTask({ path: 'Tasks/a.md', name: 'A', due_date: '2026-04-05' })];
+		const config = { holidays: ['2026-04-06'], areaWorkweek: { Work: true } };
+		const first = buildTaskSchedule(tasks, { calendarConfig: config });
+		const second = buildTaskSchedule(tasks, { calendarConfig: { holidays: ['2026-04-06'], areaWorkweek: { Work: true } } });
+		expect(second).toBe(first);
+	});
+
+	it('invalidates the cache when the calendar config changes', () => {
+		const tasks = [makeTask({ path: 'Tasks/a.md', name: 'A', due_date: '2026-04-05' })];
+		const first = buildTaskSchedule(tasks, { calendarConfig: { holidays: [], areaWorkweek: {} } });
+		const second = buildTaskSchedule(tasks, { calendarConfig: { holidays: ['2026-04-06'], areaWorkweek: {} } });
+		expect(second).not.toBe(first);
 	});
 
 	it('propagates dates through a dependency chain', () => {

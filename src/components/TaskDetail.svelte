@@ -370,7 +370,12 @@
 	}
 
 	$: projectedSchedule = task
-		? resolveProjectedSchedule(task, buildTaskSchedule($tasks).get(task.path))
+		? resolveProjectedSchedule(task, buildTaskSchedule($tasks, {
+			calendarConfig: {
+				holidays: plugin.settings.holidays,
+				areaWorkweek: plugin.settings.areaWorkweek,
+			},
+		}).get(task.path))
 		: null;
 
 	$: completionStatus = getCompletionStatus();

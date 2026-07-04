@@ -4,6 +4,7 @@ import { parseWikiLink } from '../../utils/wikiLink';
 import { optimizeLaneBandOrder } from './graphCrossingOptimizer';
 import { parseIsoDate } from '../../utils/dateUtils';
 import { buildTaskSchedule } from '../taskSchedule';
+import type { CalendarConfig } from './taskGraphDates';
 
 export interface TaskGraphNode {
 	path: string;
@@ -61,6 +62,8 @@ export interface BuildTaskGraphOptions {
 	padding?: number;
 	/** Extra-wide left padding (e.g. a lane-header gutter). Falls back to `padding`. */
 	paddingLeft?: number;
+	/** Universal calendar config threaded to the working-day date math. */
+	calendarConfig?: CalendarConfig;
 }
 
 interface ComponentInfo {
@@ -314,6 +317,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	const taskByPath = new Map(visibleTasks.map((task) => [task.path, task]));
 	const resolvedTemporalDates = buildTaskSchedule(visibleTasks.filter((task) => task.type === 'task'), {
 		allTasks,
+		calendarConfig: options.calendarConfig,
 	});
 	const getTemporalKeyForTask = (task: Task): number => {
 		const resolved = resolvedTemporalDates.get(task.path);
@@ -872,7 +876,7 @@ export function resolveConnectedDependencyPaths(tasks: Task[]): Set<string> {
 // Re-exports — keep the public API surface stable for all existing imports
 // ---------------------------------------------------------------------------
 
-export type { ResolvedTaskDate, ResolveTaskDatesOptions } from './taskGraphDates';
+export type { ResolvedTaskDate, ResolveTaskDatesOptions, CalendarConfig } from './taskGraphDates';
 export { resolveTaskDates } from './taskGraphDates';
 
 export type {

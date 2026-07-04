@@ -17,20 +17,33 @@ export type { ResolvedTaskDate };
 
 // The store replaces the task array on every change, so caching on array
 // identity is sufficient: a new array means a recompute, the same array reuses.
-const cache = new WeakMap<Task[], Map<string, ResolvedTaskDate>>();
+// The cached entry also records the calendar-config signature so a settings
+// change (holidays / per-area workweek) invalidates a stale schedule.
+interface ScheduleCacheEntry {
+	sig: string;
+	result: Map<string, ResolvedTaskDate>;
+}
+const cache = new WeakMap<Task[], ScheduleCacheEntry>();
+
+function calendarConfigSignature(options?: ResolveTaskDatesOptions): string {
+	const config = options?.calendarConfig;
+	if (!config) return '';
+	return JSON.stringify([config.holidays, config.areaWorkweek]);
+}
 
 /**
  * Resolve every task's effective schedule. Memoized on the `tasks` array
- * identity when called without options (the presentation path). Calls that pass
- * options (the graph/timeline layout, which resolve over filtered sub-lists) are
- * computed directly and not cached, since those arrays are freshly built.
+ * identity (plus the calendar-config signature) on the presentation path. Calls
+ * that pass `allTasks` (the graph/timeline layout, which resolve over freshly
+ * built filtered sub-lists) are computed directly and not cached.
  */
 export function buildTaskSchedule(tasks: Task[], options?: ResolveTaskDatesOptions): Map<string, ResolvedTaskDate> {
-	if (options) return resolveTaskDates(tasks, options);
+	if (options?.allTasks) return resolveTaskDates(tasks, options);
+	const sig = calendarConfigSignature(options);
 	const cached = cache.get(tasks);
-	if (cached) return cached;
-	const result = resolveTaskDates(tasks);
-	cache.set(tasks, result);
+	if (cached && cached.sig === sig) return cached.result;
+	const result = resolveTaskDates(tasks, options);
+	cache.set(tasks, { sig, result });
 	return result;
 }
 

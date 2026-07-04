@@ -95,9 +95,17 @@
 			!connectedDependencyPaths.has(task.path),
 	).length;
 
+	// Universal working-calendar config (holidays + per-area workweek toggle),
+	// threaded into every date resolution so the graph, timeline, and node cards
+	// all agree with the list/detail views.
+	$: calendarConfig = {
+		holidays: plugin.settings.holidays,
+		areaWorkweek: plugin.settings.areaWorkweek,
+	};
+
 	// Same resolution the layout uses, exposed so undated node cards can show a
 	// projected finish (~date) inferred from the dependency chain.
-	$: graphSchedule = buildTaskSchedule(dependencyGraphTasks.filter((task) => task.type === 'task'), { allTasks: tasks });
+	$: graphSchedule = buildTaskSchedule(dependencyGraphTasks.filter((task) => task.type === 'task'), { allTasks: tasks, calendarConfig });
 	function projectedEndLabel(path: string): string | null {
 		const entry = graphSchedule.get(path);
 		if (!entry) return null;
@@ -111,6 +119,7 @@
 		verticalGap: DEPENDENCY_ROW_GAP,
 		padding: DEPENDENCY_GRAPH_PADDING,
 		paddingLeft: DEPENDENCY_GRAPH_PADDING_LEFT,
+		calendarConfig,
 	});
 	// User zoom multiplies the fit-to-width base scale; Ctrl/Cmd+wheel, toolbar
 	// buttons, and drag-panning make large graphs navigable.
@@ -246,7 +255,7 @@
 	$: overviewTasks = showCompletedInOverview
 		? tasks
 		: tasks.filter((task) => task.type !== 'task' || !task.is_complete);
-	$: hybridTimeline = buildHybridTimeline(overviewTasks, { grouping: overviewGrouping });
+	$: hybridTimeline = buildHybridTimeline(overviewTasks, { grouping: overviewGrouping, calendarConfig });
 	$: timelineTaskCount = hybridTimeline.defined.length + hybridTimeline.underdefined.length;
 	$: hiddenCompletedCount = Math.max(0, tasks.filter((task) => task.type === 'task' && task.is_complete).length - overviewTasks.filter((task) => task.type === 'task' && task.is_complete).length);
 	$: timelineEmpty = timelineTaskCount === 0;
@@ -261,7 +270,11 @@
 	$: visibleDefined = hybridTimeline.defined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
 	$: visibleUnderdefined = hybridTimeline.underdefined.filter((item) => intersectsViewport(item.leftPercent, item.widthPercent, virtualStartPercent, virtualEndPercent));
 	$: timelineTicks = buildTimelineTicks(hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
-	$: overviewHolidayDates = collectProjectHolidayDates(overviewTasks);
+	// Bands show the universal holiday list plus any legacy per-project holidays.
+	$: overviewHolidayDates = new Set<string>([
+		...collectProjectHolidayDates(overviewTasks),
+		...plugin.settings.holidays.filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value)),
+	]);
 	$: nonWorkingBands = buildTimelineNonWorkingBands(hybridTimeline.rangeStart, hybridTimeline.rangeEnd, overviewHolidayDates);
 	$: definedTrackHeightPx = Math.max(42, hybridTimeline.definedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.definedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
 	$: underdefinedTrackHeightPx = Math.max(42, hybridTimeline.underdefinedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.underdefinedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
