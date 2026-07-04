@@ -354,6 +354,8 @@
 		if (event.button !== 0 || !dependencyScrollEl) return;
 		const target = event.target as HTMLElement;
 		if (target.closest('button, a, input')) return;
+		// Empty-canvas press clears a pinned chain highlight.
+		pinnedTracePath = null;
 		isPanning = true;
 		panStart = {
 			x: event.clientX,
@@ -381,6 +383,9 @@
 	// the node itself) so the hover "+" button stays reachable and the traced
 	// chain can be read while moving across empty canvas.
 	let hoverTracePath: string | null = null;
+	// A clicked node pins its chain so studying it survives mouse movement.
+	// Pin wins over hover; cleared by clicking empty canvas or pressing Esc.
+	let pinnedTracePath: string | null = null;
 
 	function computeTrace(path: string, edges: TaskGraphEdge[]): { nodes: Set<string>; edges: Set<string> } {
 		const nodes = new Set<string>([path]);
@@ -412,11 +417,13 @@
 		};
 	}
 
-	// Only trace/dim when the hovered node actually has a chain — hovering an
-	// independent node shouldn't fade the whole graph.
+	// Only trace/dim when the active node actually has a chain — a pinned node
+	// takes precedence over hover, so the highlight stays put while you move the
+	// mouse; hover is the transient preview only when nothing is pinned.
 	$: traceSets = (() => {
-		if (!hoverTracePath || !nodesByPath.has(hoverTracePath)) return null;
-		const sets = computeTrace(hoverTracePath, layout.edges);
+		const activePath = pinnedTracePath ?? hoverTracePath;
+		if (!activePath || !nodesByPath.has(activePath)) return null;
+		const sets = computeTrace(activePath, layout.edges);
 		return sets.edges.size > 0 ? sets : null;
 	})();
 
@@ -427,6 +434,20 @@
 
 	function clearTrace(): void {
 		hoverTracePath = null;
+	}
+
+	// Click = open the task and pin its chain (re-pins when a different node is
+	// clicked). The pin is cleared on empty-canvas click or Esc.
+	function onNodeClick(path: string): void {
+		pinnedTracePath = path;
+		onOpen(path);
+	}
+
+	function onGraphKeydown(event: KeyboardEvent): void {
+		if (event.key === 'Escape' && pinnedTracePath) {
+			pinnedTracePath = null;
+			event.stopPropagation();
+		}
 	}
 
 	// ── Create dependent task from a hovered node ───────────────────────────────
@@ -541,13 +562,13 @@
 			</div>
 			{#if graphMode === 'dependency'}
 				<div class="tt-graph-zoom" role="group" aria-label="Zoom (or Ctrl+scroll)">
-					<button type="button" class="tt-zoom-btn" title="Zoom out" aria-label="Zoom out" on:click={() => zoomBy(1 / 1.25)}>
+					<button type="button" class="tt-zoom-btn" aria-label="Zoom out" on:click={() => zoomBy(1 / 1.25)}>
 						<span class="tt-zoom-icon" use:icon={'minus'}></span>
 					</button>
-					<button type="button" class="tt-zoom-btn tt-zoom-reset" title="Reset to fit width" on:click={resetZoom}>
+					<button type="button" class="tt-zoom-btn tt-zoom-reset" aria-label="Reset to fit width" on:click={resetZoom}>
 						{Math.round(dependencyScale * 100)}%
 					</button>
-					<button type="button" class="tt-zoom-btn" title="Zoom in" aria-label="Zoom in" on:click={() => zoomBy(1.25)}>
+					<button type="button" class="tt-zoom-btn" aria-label="Zoom in" on:click={() => zoomBy(1.25)}>
 						<span class="tt-zoom-icon" use:icon={'plus'}></span>
 					</button>
 				</div>
@@ -677,7 +698,8 @@
 							class:is-blocked={node.isBlockedChain}
 							class:is-dim={traceSets && !traceSets.nodes.has(node.path)}
 							style={nodeStyle(node)}
-							on:click={() => onOpen(node.path)}
+							on:click={() => onNodeClick(node.path)}
+							on:keydown={onGraphKeydown}
 							on:mouseenter={(event) => onNodeHover(event, node)}
 							on:contextmenu={(event) => handleTaskContextMenu(event, node.task)}
 						>
@@ -693,7 +715,7 @@
 							{:else if node.task.due_date}
 								<span>Due {formatHumanDate(node.task.due_date, formatDateISO(startOfToday()))}</span>
 							{:else if projectedEndLabel(node.path)}
-								<span title="Projected from dependencies">~{projectedEndLabel(node.path)}</span>
+								<span aria-label="Projected from dependencies">~{projectedEndLabel(node.path)}</span>
 								{/if}
 							</div>
 						</button>
@@ -703,8 +725,7 @@
 								type="button"
 								class="tt-node-add"
 								style={`left:${node.x + node.width - 4}px;top:${node.y + node.height / 2 - 14}px;`}
-								title="New task blocked by “{node.task.name}”"
-								aria-label="New dependent task"
+								aria-label={`New task blocked by ${node.task.name}`}
 								on:click|stopPropagation={() => createDependentTask(node.task)}
 							>
 								<span class="tt-node-add-icon" use:icon={'plus'}></span>
