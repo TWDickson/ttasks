@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import { TFile } from 'obsidian';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { buildTaskFrontmatter, TaskWriter } from './TaskWriter';
@@ -61,7 +61,7 @@ function makeFile(path: string): TFile {
 	return file;
 }
 
-function makeWriterForUpdateTest(initialFrontmatter: Record<string, unknown>) {
+function makeWriterForUpdateTest(initialFrontmatter: Record<string, unknown>, seedTask?: Partial<Task>) {
 	const frontmatter = { ...initialFrontmatter };
 	const file = makeFile('Planner/Tasks/abc123-test-task.md');
 	const processFrontMatter = vi.fn(async (_file: TFile, cb: (fm: Record<string, unknown>) => void) => {
@@ -84,8 +84,11 @@ function makeWriterForUpdateTest(initialFrontmatter: Record<string, unknown>) {
 		log: vi.fn(),
 	};
 
-	const writer = new TaskWriter(plugin as any, writable([]), 'Planner/Tasks', () => undefined);
-	return { writer, file, frontmatter, processFrontMatter };
+	const tasks = writable<Task[]>(
+		seedTask ? [makeTask({ path: file.path, ...seedTask })] : [],
+	);
+	const writer = new TaskWriter(plugin as any, tasks, 'Planner/Tasks', () => undefined);
+	return { writer, file, frontmatter, processFrontMatter, tasks };
 }
 
 describe('buildTaskFrontmatter', () => {
@@ -285,5 +288,70 @@ describe('TaskWriter.update status_changed transitions', () => {
 
 		expect(frontmatter.status).toBe('Active');
 		expect(frontmatter.status_changed).toBe('2026-05-25');
+	});
+});
+
+describe('TaskWriter.update optimistic in-memory patch', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-05-25T12:00:00'));
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('merges the write into the tasks store without waiting for a rescan', async () => {
+		const { writer, file, tasks } = makeWriterForUpdateTest(
+			{ status: 'Active', status_changed: '2026-05-01' },
+			{ status: 'Active', priority: 'None' },
+		);
+
+		await writer.update(file.path, { priority: 'High' });
+
+		const patched = get(tasks).find((t) => t.path === file.path);
+		expect(patched?.priority).toBe('High');
+	});
+
+	it('flips is_complete and stamps completed when transitioning into the completion status', async () => {
+		const { writer, file, tasks } = makeWriterForUpdateTest(
+			{ status: 'Active', status_changed: '2026-05-01' },
+			{ status: 'Active', is_complete: false, completed: null },
+		);
+
+		await writer.update(file.path, { status: 'Done' });
+
+		const patched = get(tasks).find((t) => t.path === file.path);
+		expect(patched?.status).toBe('Done');
+		expect(patched?.is_complete).toBe(true);
+		expect(patched?.completed).toBe('2026-05-25');
+		expect(patched?.status_changed).toBe('2026-05-25');
+	});
+
+	it('clears is_complete and completed when transitioning out of the completion status', async () => {
+		const { writer, file, tasks } = makeWriterForUpdateTest(
+			{ status: 'Done', status_changed: '2026-05-01', completed: '2026-05-01' },
+			{ status: 'Done', is_complete: true, completed: '2026-05-01' },
+		);
+
+		await writer.update(file.path, { status: 'Active' });
+
+		const patched = get(tasks).find((t) => t.path === file.path);
+		expect(patched?.status).toBe('Active');
+		expect(patched?.is_complete).toBe(false);
+		expect(patched?.completed).toBeNull();
+	});
+
+	it('recomputes is_inbox when the area changes', async () => {
+		const { writer, file, tasks } = makeWriterForUpdateTest(
+			{ status: 'Active', area: null },
+			{ status: 'Active', area: null, is_inbox: true },
+		);
+
+		await writer.update(file.path, { area: 'Work' });
+
+		const patched = get(tasks).find((t) => t.path === file.path);
+		expect(patched?.area).toBe('Work');
+		expect(patched?.is_inbox).toBe(false);
 	});
 });

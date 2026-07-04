@@ -35,8 +35,11 @@
 	export let store: TaskStore;
 
 	// ── Derived task ────────────────────────────────────────────────────────────
+	// Depend on $tasks so the derivation re-runs when the store parses a
+	// just-created/updated file — not only when $activeTaskPath changes.
+	// Otherwise a freshly created task shows "Task Not Found" until reselected.
 	$: task = $activeTaskPath
-		? (store.getByPath($activeTaskPath) ?? null)
+		? ($tasks.find((t) => t.path === $activeTaskPath) ?? store.getByPath($activeTaskPath) ?? null)
 		: null;
 
 	// ── Local editable state (mirrors task, reset when task changes) ─────────

@@ -103,17 +103,23 @@ export class TaskWriter {
 		if (!(file instanceof TFile)) return;
 		const currentTask = get(this.tasks).find((task) => task.path === normalizedPath) ?? null;
 
+		// Persisted fields that mirror straight into the in-memory Task on success.
+		const writtenFields: (keyof Task)[] = [
+			'name', 'status', 'priority', 'area', 'labels',
+			'blocked_reason', 'assigned_to', 'source', 'due_time',
+			'start_date', 'due_date', 'estimated_days', 'completed',
+			'workweek_only', 'holiday_dates',
+			'recurrence', 'recurrence_type', 'reminder_override',
+		];
+		// Captured inside processFrontMatter so the optimistic store patch below
+		// can reproduce exactly what was persisted without re-reading the file.
+		let derivedStatusChanged: string | undefined;
+		let derivedCompleted: string | null | undefined;
+
 		try {
 			await this.app.fileManager.processFrontMatter(file, (fm) => {
 				const previousStatus = typeof fm.status === 'string' ? fm.status : undefined;
-				const fields: (keyof Task)[] = [
-					'name', 'status', 'priority', 'area', 'labels',
-					'blocked_reason', 'assigned_to', 'source', 'due_time',
-					'start_date', 'due_date', 'estimated_days', 'completed',
-					'workweek_only', 'holiday_dates',
-					'recurrence', 'recurrence_type', 'reminder_override',
-				];
-				for (const key of fields) {
+				for (const key of writtenFields) {
 					if (key in updates) fm[key] = (updates as Record<string, unknown>)[key] ?? null;
 				}
 
@@ -124,7 +130,10 @@ export class TaskWriter {
 					updates.status,
 					today,
 				);
-				if (changed !== undefined) fm.status_changed = changed;
+				if (changed !== undefined) {
+					fm.status_changed = changed;
+					derivedStatusChanged = changed;
+				}
 
 				// Derive the completion date from status transitions unless the
 				// caller supplied an explicit `completed` value (which wins).
@@ -139,7 +148,10 @@ export class TaskWriter {
 						completionStatus,
 						today,
 					);
-					if (nextCompleted !== undefined) fm.completed = nextCompleted;
+					if (nextCompleted !== undefined) {
+						fm.completed = nextCompleted;
+						derivedCompleted = nextCompleted;
+					}
 				}
 			});
 		} catch (error) {
@@ -147,6 +159,13 @@ export class TaskWriter {
 			new Notice('TTasks: failed to update task file. Check vault permissions or disk space.');
 			return;
 		}
+
+		// Optimistically merge the write into the in-memory store so every view
+		// reflects it immediately, instead of waiting for the metadataCache
+		// 'changed' event (which can be delayed, debounced, or skipped when
+		// processFrontMatter produces no textual change). The event-driven
+		// rescan later reconciles from the file as the source of truth.
+		this.applyOptimisticUpdate(normalizedPath, updates, writtenFields, derivedStatusChanged, derivedCompleted);
 
 		if (currentTask && typeof updates.status === 'string') {
 			const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
@@ -167,6 +186,50 @@ export class TaskWriter {
 				this.plugin.log(`syncCompletionToSource failed for ${normalizedPath}: ${String(error)}`);
 			}
 		}
+	}
+
+	/**
+	 * Merge a just-persisted update into the in-memory `tasks` writable and
+	 * recompute the derived fields (`is_complete`, `is_inbox`) the same way
+	 * `TaskStore.fileToTask` does, so views update without a metadata rescan.
+	 */
+	private applyOptimisticUpdate(
+		normalizedPath: string,
+		updates: Partial<Task>,
+		writtenFields: (keyof Task)[],
+		derivedStatusChanged: string | undefined,
+		derivedCompleted: string | null | undefined,
+	): void {
+		this.tasks.update((tasks) => {
+			const idx = tasks.findIndex((task) => task.path === normalizedPath);
+			if (idx === -1) return tasks;
+
+			const previous = tasks[idx];
+			const next: Task = { ...previous };
+			// Alias as an index-signature record so we can copy the written fields
+			// by key; mutating the alias mutates `next` (same object reference).
+			// Same double-cast idiom used by getFieldValue in query/engine.ts.
+			const nextRecord = next as unknown as Record<string, unknown>;
+			const updateRecord = updates as Record<string, unknown>;
+			for (const key of writtenFields) {
+				if (key in updates) {
+					nextRecord[key] = updateRecord[key] ?? null;
+				}
+			}
+			if (derivedStatusChanged !== undefined) next.status_changed = derivedStatusChanged;
+			if (derivedCompleted !== undefined) next.completed = derivedCompleted;
+
+			const completionStatus = resolveCompletionStatus(
+				this.plugin.settings.statuses,
+				this.plugin.settings.completionStatus,
+			);
+			next.is_complete = next.status === completionStatus;
+			next.is_inbox = next.area === null;
+
+			const copy = tasks.slice();
+			copy[idx] = next;
+			return copy;
+		});
 	}
 
 	async updateNotes(path: string, notes: string): Promise<string> {
