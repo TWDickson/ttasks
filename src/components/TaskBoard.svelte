@@ -743,6 +743,10 @@
 		align-items: center;
 		gap: 6px;
 		padding: 6px 10px;
+		/* Shared header height so the main-view header border-bottom lines up */
+		/* pixel-for-pixel with the detail pane's topbar (BUGFIX #7). */
+		min-height: 44px;
+		box-sizing: border-box;
 		border-bottom: 1px solid var(--background-modifier-border);
 		flex-shrink: 0;
 		background: var(--background-primary);
@@ -917,6 +921,9 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 6px 8px;
+		/* Matches .tt-filter-bar so the two pane headers align (BUGFIX #7). */
+		min-height: 44px;
+		box-sizing: border-box;
 		border-bottom: 1px solid var(--background-modifier-border);
 		flex-shrink: 0;
 	}
