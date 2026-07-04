@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { writable } from 'svelte/store';
 import { TFile } from 'obsidian';
 import { ArchiveService } from './ArchiveService';
@@ -77,6 +77,17 @@ function makeFile(path: string, name: string): TFile {
 }
 
 describe('ArchiveService.archiveEligibleTasks', () => {
+	// Pin the clock so the relative "days ago" fixtures below are deterministic.
+	// Without this the tests use the real system date and become time-bombs:
+	// a task "completed" 2026-05-19 is <45 days old only until 2026-07-03.
+	beforeAll(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date(2026, 5, 15)); // 2026-06-15 (month is 0-indexed)
+	});
+	afterAll(() => {
+		vi.useRealTimers();
+	});
+
 	it('returns 0 when no tasks are eligible', async () => {
 		const tasks = [
 			makeTask({ path: 'Planner/Tasks/abc-recent.md', completed: '2026-05-19', is_complete: true }),
