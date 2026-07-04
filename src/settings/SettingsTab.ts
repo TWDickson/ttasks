@@ -129,7 +129,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 			rerender: () => this.display(),
 			config: {
 				name: 'Statuses',
-			description: 'Manage statuses as a draggable ordered list. Renames migrate existing tasks on save. The completion status can be renamed but not removed. Removing other statuses launches a remap.',
+			description: 'Manage statuses as a draggable ordered list. Renames migrate existing tasks on save. The completion status can be renamed but not removed. Removing other statuses launches a remap. Status colours drive the status pill and Kanban column headers.',
 			singularLabel: 'Status',
 			placeholder: 'Status name',
 			requireOne: true,
@@ -154,7 +154,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 			rerender: () => this.display(),
 			config: {
 				name: 'Areas',
-			description: 'Lines of work (e.g. Database, General, Work, Home). Tasks without an area are treated as inbox. Renames migrate existing tasks. Removing an area opens a remap or lets you clear it.',
+			description: 'Lines of work (e.g. Database, General, Work, Home). Tasks without an area are treated as inbox. Renames migrate existing tasks. Removing an area opens a remap or lets you clear it. Area colours tint the area chip on cards and rows.',
 			singularLabel: 'Area',
 			placeholder: 'Area name',
 			allowClearMigration: true,
@@ -179,7 +179,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 			rerender: () => this.display(),
 			config: {
 				name: 'Labels',
-			description: 'Cross-cutting labels applied to tasks and projects (e.g. feature, bug, research). Multi-value — a task can have several. Pre-seeded with defaults but fully user-configurable.',
+			description: 'Cross-cutting labels applied to tasks and projects (e.g. feature, bug, research). Multi-value — a task can have several. Pre-seeded with defaults but fully user-configurable. Label colours tint the label dot on cards and rows.',
 			singularLabel: 'Label',
 			placeholder: 'Label name',
 			allowClearMigration: true,
