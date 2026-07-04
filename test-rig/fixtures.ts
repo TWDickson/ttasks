@@ -252,6 +252,11 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			showCompletedByViewId: {},
 			quickActions: { blockStatus: 'Blocked' },
 			fabPosition: 'right',
+			holidays: [],
+			areaWorkweek: {},
+			graphDiagnosticsEnabled: false,
+			overviewGraphShowCompleted: false,
+			overviewGraphGrouping: 'none',
 	};
 
 	return {

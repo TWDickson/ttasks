@@ -9,9 +9,13 @@ import './vendor/theme-underwater.css';
 import '../styles.css';
 import './rig.css';
 
+import { writable } from 'svelte/store';
 import TaskBoard from '../src/components/TaskBoard.svelte';
+import TaskRail from '../src/components/TaskRail.svelte';
+import TaskDetail from '../src/components/TaskDetail.svelte';
 import { CreateTaskModal } from '../src/modals/CreateTaskModal';
-import { createBoardStateService } from '../src/store/BoardStateService';
+import { combineBoardTasks, createBoardStateService } from '../src/store/BoardStateService';
+import { getRegisteredTaskViews } from '../src/views/viewRegistry';
 import { buildRigPlugin } from './fixtures';
 import { fetchVaultPayload, mapVaultTasks } from './vaultTasks';
 
@@ -84,16 +88,52 @@ dataBtn.addEventListener('click', () => {
 	window.location.href = next.toString();
 });
 
-// ── Mount the board ──────────────────────────────────────────────────────────
+// ── Mount the three workspace panes ──────────────────────────────────────────
+// Mirrors the real layout: rail = left sidebar leaf, board = main leaf,
+// detail = right sidebar leaf (drawer overlay on mobile viewports).
 
 const stage = root.createDiv({ cls: 'rig-stage' });
+const railPane = stage.createDiv({ cls: 'rig-rail tt-rail-view' });
+const boardPane = stage.createDiv({ cls: 'rig-board' });
+const detailPane = stage.createDiv({ cls: 'rig-detail tt-detail-view' });
+
+const railViews = writable(getRegisteredTaskViews(plugin.settings as never));
+
+new TaskRail({
+	target: railPane,
+	props: {
+		views: railViews,
+		currentViewId: boardState.currentViewId,
+		onSelectView: (id: string) => boardState.currentViewId.set(id),
+		onAddSmartList: () => console.info('[rig] addSmartList'),
+		onSmartListContextMenu: (id: string) => console.info(`[rig] smartListMenu:${id}`),
+		onNewTask: () => new CreateTaskModal(plugin.app as never, plugin as never).open(),
+		onNewProject: () => new CreateTaskModal(plugin.app as never, plugin as never, 'project').open(),
+		onOpenSettings: () => console.info('[rig] openSettings'),
+	},
+});
 
 new TaskBoard({
-	target: stage,
+	target: boardPane,
 	props: {
 		plugin: plugin as never,
 		boardState,
 	},
+});
+
+new TaskDetail({
+	target: detailPane,
+	props: {
+		plugin: plugin as never,
+		tasks: combineBoardTasks(plugin.taskStore.tasks, plugin.scanEngine.tasks),
+		activeTaskPath: plugin.activeTaskPath,
+		store: plugin.taskStore as never,
+	},
+});
+
+// The right "sidebar" expands whenever a task is active, like revealLeaf would.
+plugin.activeTaskPath.subscribe((path) => {
+	stage.classList.toggle('detail-open', path !== null);
 });
 
 function openFirstDetail(): void {

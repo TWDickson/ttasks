@@ -3,11 +3,16 @@
    request — edit a task file in the vault and reload the rig to see it. */
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { load as yamlLoad } from 'js-yaml';
 import type { Plugin } from 'vite';
 
-const VAULT = 'C:/Users/DICKSOTAYL/Projects/Obsidian/Taylor';
+// First existing candidate wins (Windows work machine, then macOS).
+const VAULT = [
+	'C:/Users/DICKSOTAYL/Projects/Obsidian/Taylor',
+	path.join(os.homedir(), 'Obsidian/Taylor'),
+].find((p) => existsSync(p)) ?? 'C:/Users/DICKSOTAYL/Projects/Obsidian/Taylor';
 const PLUGIN_DATA = path.join(VAULT, '.obsidian/plugins/ttasks/data.json');
 
 interface RawTaskFile {

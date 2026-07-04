@@ -22,6 +22,10 @@ const BROWSERS = [
 	path.join(rigDir, '.browser/chromium/win64-1656505/chrome-win/chrome.exe'),
 	'C:/Program Files/Google/Chrome/Application/chrome.exe',
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+	/* Edge before Chrome on macOS: this machine's Chrome (107) predates the
+	   current headless mode that puppeteer-core 25 expects. */
+	'/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+	'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ];
 
 const DESKTOP = { width: 1280, height: 800 };

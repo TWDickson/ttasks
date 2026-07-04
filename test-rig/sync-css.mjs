@@ -4,6 +4,7 @@
 
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,8 +12,17 @@ const rigDir = path.dirname(fileURLToPath(import.meta.url));
 const vendorDir = path.join(rigDir, 'vendor');
 const repoRoot = path.join(rigDir, '..');
 
-const OBSIDIAN_ASAR = 'C:/Users/DICKSOTAYL/AppData/Local/Programs/obsidian/resources/obsidian.asar';
-const VAULT_THEME = 'C:/Users/DICKSOTAYL/Projects/Obsidian/Taylor/.obsidian/themes/Underwater/theme.css';
+// First existing candidate wins (Windows work machine, then macOS).
+const firstExisting = (candidates) => candidates.find((p) => existsSync(p)) ?? candidates[0];
+
+const OBSIDIAN_ASAR = firstExisting([
+	'C:/Users/DICKSOTAYL/AppData/Local/Programs/obsidian/resources/obsidian.asar',
+	'/Applications/Obsidian.app/Contents/Resources/obsidian.asar',
+]);
+const VAULT_THEME = firstExisting([
+	'C:/Users/DICKSOTAYL/Projects/Obsidian/Taylor/.obsidian/themes/Underwater/theme.css',
+	path.join(os.homedir(), 'Obsidian/Taylor/.obsidian/themes/Underwater/theme.css'),
+]);
 
 mkdirSync(vendorDir, { recursive: true });
 
