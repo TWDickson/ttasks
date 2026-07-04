@@ -1060,11 +1060,19 @@
 	}
 
 	.tt-hybrid-calendar-band.is-weekend {
-		background: color-mix(in srgb, var(--background-modifier-border) 24%, transparent);
+		background:
+			repeating-linear-gradient(
+				45deg,
+				color-mix(in srgb, var(--text-muted) 14%, transparent) 0,
+				color-mix(in srgb, var(--text-muted) 14%, transparent) 3px,
+				transparent 3px,
+				transparent 7px
+			),
+			color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
 	}
 
 	.tt-hybrid-calendar-band.is-holiday {
-		background: color-mix(in srgb, var(--color-red) 14%, transparent);
+		background: color-mix(in srgb, var(--color-red) 22%, transparent);
 	}
 
 	.tt-hybrid-track {
@@ -1224,11 +1232,19 @@
 	}
 
 	.tt-overview-nonworking.is-weekend {
-		background: color-mix(in srgb, var(--background-modifier-border) 22%, transparent);
+		background:
+			repeating-linear-gradient(
+				45deg,
+				color-mix(in srgb, var(--text-muted) 14%, transparent) 0,
+				color-mix(in srgb, var(--text-muted) 14%, transparent) 3px,
+				transparent 3px,
+				transparent 7px
+			),
+			color-mix(in srgb, var(--background-modifier-border) 38%, transparent);
 	}
 
 	.tt-overview-nonworking.is-holiday {
-		background: color-mix(in srgb, var(--color-red) 16%, transparent);
+		background: color-mix(in srgb, var(--color-red) 24%, transparent);
 	}
 
 	.tt-overview-axis-inner {
