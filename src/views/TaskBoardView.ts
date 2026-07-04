@@ -5,10 +5,7 @@ import TaskBoard from '../components/TaskBoard.svelte';
 import { type BoardShortcutId, DEFAULT_KEYMAP, isInputFocused, resolveShortcut } from '../integration/boardKeymap';
 import { moveBoardFocus } from '../integration/boardFocus';
 import { runArchiveAndClear } from '../integration/taskActionPorts';
-import {
-	createBoardStateService,
-	type BoardStateStores,
-} from '../store/BoardStateService';
+import type { BoardStateStores } from '../store/BoardStateService';
 
 export const TASK_BOARD_VIEW_TYPE = 'ttasks-board';
 
@@ -20,7 +17,8 @@ export class TaskBoardView extends ItemView {
 	constructor(leaf: WorkspaceLeaf, plugin: TTasksPlugin) {
 		super(leaf);
 		this.plugin = plugin;
-		this.boardState = createBoardStateService({ defaultViewId: 'list' });
+		// Board state is plugin-owned so the rail and detail leaves share it.
+		this.boardState = plugin.boardState;
 	}
 
 	getViewType():    string { return TASK_BOARD_VIEW_TYPE; }
@@ -28,12 +26,6 @@ export class TaskBoardView extends ItemView {
 	getIcon():        string { return 'check-square'; }
 
 	async onOpen(): Promise<void> {
-		this.boardState = createBoardStateService({
-			defaultViewId: 'list',
-			activeTaskPath: this.plugin.activeTaskPath,
-			focusedTaskPath: this.plugin.focusedTaskPath,
-		});
-
 		this.contentEl.addClass('tt-board-view');
 		this.component = new TaskBoard({
 			target: this.contentEl,

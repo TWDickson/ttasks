@@ -1,17 +1,15 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { derived } from 'svelte/store';
-	import { Menu, Notice, setIcon } from 'obsidian';
+	import { writable } from 'svelte/store';
+	import { Notice } from 'obsidian';
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import type { ExternalTask } from '../integration/types';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
-	import { QueryEditorModal } from '../modals/QueryEditorModal';
 	import TaskList from './TaskList.svelte';
 	import TaskKanban from './TaskKanban.svelte';
 	import TaskAgenda from './TaskAgenda.svelte';
 	import TaskGraph from './TaskGraph.svelte';
-	import TaskDetail from './TaskDetail.svelte';
 	import { createTaskQuery } from '../query/useTaskQuery';
 	import { buildTaskSchedule } from '../store/taskSchedule';
 	import { resolveAreaOptions } from '../settings/managedListUtils';
@@ -23,6 +21,7 @@
 	import {
 		type BoardStateStores,
 		clearSelectionOnViewChange,
+		combineBoardTasks,
 		createBoardStateService,
 	} from '../store/BoardStateService';
 	import { localDateString } from '../utils/dateUtils';
@@ -31,12 +30,12 @@
 	import { buildBoardQuery } from './boardQuery';
 	import type { FilterCondition } from '../query/types';
 	import {
-		createCustomViewDefinition,
 		getRegisteredTaskViews,
 		resolveTaskViewDefinition,
-		resolveTaskViewIcon,
 		resolveTaskViewId,
 	} from '../views/viewRegistry';
+	import { editSmartList } from '../views/smartListActions';
+	import { icon } from '../utils/icon';
 	import { promoteTaskToTTasks } from '../integration/promoteTaskToTTasks';
 	import {
 		PRIORITIES,
@@ -61,22 +60,16 @@
 	const currentViewId = resolvedBoardState.currentViewId;
 	const searchQuery = resolvedBoardState.searchQuery;
 	const selectedPaths = resolvedBoardState.selectedPaths;
-	const nativeTasks    = plugin.taskStore.tasks;
-	const capturedTasks = plugin.scanEngine.tasks;
-	const tasks = derived([nativeTasks, capturedTasks], ([$native, $captured]) => [
-		...$captured
-			.slice()
-			.sort((a, b) => (a.fromPreviousDay === b.fromPreviousDay ? 0 : a.fromPreviousDay ? -1 : 1)),
-		...$native,
-	]);
+	const tasks = combineBoardTasks(plugin.taskStore.tasks, plugin.scanEngine.tasks);
 
+	// Re-derive settings-based state whenever any leaf saves settings (e.g. the
+	// rail adds a Smart List, or a Smart List query is edited in place).
+	const settingsRevision = plugin.settingsRevision ?? writable(0);
 	let registeredViews = getRegisteredTaskViews(plugin.settings);
-	$: builtinViews = registeredViews.filter((view) => view.source === 'builtin');
-	$: smartListViews = registeredViews.filter((view) => view.source === 'custom');
 	let currentView = resolveTaskViewDefinition(plugin.settings, $currentViewId) ?? registeredViews[0];
-	$: registeredViews = getRegisteredTaskViews(plugin.settings);
-	$: currentViewId.set(resolveTaskViewId(plugin.settings, $currentViewId));
-	$: currentView = resolveTaskViewDefinition(plugin.settings, $currentViewId) ?? registeredViews[0];
+	$: { void $settingsRevision; registeredViews = getRegisteredTaskViews(plugin.settings); }
+	$: { void $settingsRevision; currentViewId.set(resolveTaskViewId(plugin.settings, $currentViewId)); }
+	$: { void $settingsRevision; currentView = resolveTaskViewDefinition(plugin.settings, $currentViewId) ?? registeredViews[0]; }
 
 	// Allow external callers (e.g. ReminderService) to switch the active view.
 	const unsubscribeActiveViewMode = plugin.activeViewMode.subscribe(mode => {
@@ -89,11 +82,6 @@
 
 	const unsubscribeSelectionReset = clearSelectionOnViewChange(currentViewId, selectedPaths);
 	onDestroy(unsubscribeSelectionReset);
-
-	// Panel open state is decoupled from task selection so the panel can show
-	// an empty state (e.g. after deletion) without collapsing.
-	let panelOpen = false;
-	$: if ($activeTaskPath !== null) panelOpen = true;
 
 	// ── Multi-select ──────────────────────────────────────────────────────────
 	$: eligibility = batchEligibility($selectedPaths, $tasks);
@@ -239,8 +227,6 @@
 	}
 
 	function openNewTask()    { new CreateTaskModal(plugin.app, plugin).open(); }
-	function openNewProject() { new CreateTaskModal(plugin.app, plugin, 'project').open(); }
-	function closeDetail()    { panelOpen = false; activeTaskPath.set(null); }
 	function openContextMenu(task: Task, event: MouseEvent) {
 		if ((task as ExternalTask).external) return;
 		plugin.showTaskContextMenu(task, event);
@@ -249,180 +235,19 @@
 	async function promoteCapturedTask(external: ExternalTask): Promise<void> {
 		try {
 			const created = await promoteTaskToTTasks(external, plugin);
-			activeTaskPath.set(created.path);
-			panelOpen = true;
+			await plugin.taskStore.openDetail(created.path);
 			new Notice(`Promoted: ${created.name}`);
 		} catch (error) {
 			new Notice(error instanceof Error ? error.message : 'Unable to promote captured task.');
 		}
 	}
-	function openSettings()   {
-		plugin.openPluginSettings();
-	}
-
-	async function addSmartList() {
-		const created = createCustomViewDefinition(plugin.settings.customViews);
-		plugin.settings.customViews = [...plugin.settings.customViews, created];
-		await plugin.saveSettings();
-		registeredViews = getRegisteredTaskViews(plugin.settings);
-		currentViewId.set(created.id);
-		new QueryEditorModal(
-			plugin.app,
-			created.name,
-			created.query,
-			created.renderer,
-			{
-				statuses: plugin.settings.statuses,
-				areas: [...areaOptions.managed, ...areaOptions.unmanaged],
-				labelValues: plugin.settings.labelValues,
-			},
-			async (updatedQuery, updatedRenderer, updatedName) => {
-				plugin.settings.customViews = plugin.settings.customViews.map((view) => (
-					view.id === created.id
-						? { ...view, query: updatedQuery, renderer: updatedRenderer, name: updatedName }
-						: view
-				));
-				await plugin.saveSettings();
-				registeredViews = getRegisteredTaskViews(plugin.settings);
-				currentViewId.set(created.id);
-			},
-		).open();
-		new Notice(`Created Smart List: ${created.name}. Use Edit View to customize query and type.`);
-	}
-
-	function editSmartList(viewId: string) {
-		const target = plugin.settings.customViews.find((view) => view.id === viewId);
-		if (!target) {
-			new Notice('Smart List not found.');
-			return;
-		}
-
-		new QueryEditorModal(
-			plugin.app,
-			target.name,
-			target.query,
-			target.renderer,
-			{
-				statuses: plugin.settings.statuses,
-				areas: [...areaOptions.managed, ...areaOptions.unmanaged],
-				labelValues: plugin.settings.labelValues,
-			},
-			async (updatedQuery, updatedRenderer, updatedName) => {
-				plugin.settings.customViews = plugin.settings.customViews.map((view) => (
-					view.id === viewId
-						? { ...view, query: updatedQuery, renderer: updatedRenderer, name: updatedName }
-						: view
-				));
-				await plugin.saveSettings();
-				registeredViews = getRegisteredTaskViews(plugin.settings);
-				currentViewId.set(viewId);
-			},
-			async () => {
-				plugin.settings.customViews = plugin.settings.customViews.filter((view) => view.id !== viewId);
-				await plugin.saveSettings();
-				registeredViews = getRegisteredTaskViews(plugin.settings);
-				currentViewId.set(resolveTaskViewId(plugin.settings, null));
-				new Notice('Smart List deleted.');
-			},
-		).open();
-	}
-
-	function openSmartListMenu(viewId: string, event: MouseEvent) {
-		event.preventDefault();
-		const target = plugin.settings.customViews.find((view) => view.id === viewId);
-		if (!target) return;
-
-		const menu = new Menu();
-		menu.addItem((item) => {
-			item
-				.setTitle('Edit Smart List')
-				.setIcon('sliders-horizontal')
-				.onClick(() => editSmartList(viewId));
-		});
-		menu.showAtMouseEvent(event);
-	}
-
-	function icon(el: HTMLElement, name: string) {
-		setIcon(el, name);
-		return { update: (n: string) => setIcon(el, n) };
-	}
 </script>
 
 <div class="tt-board">
 
-	<!-- ── Desktop nav rail (hidden on mobile) ──────────────────────────────── -->
-	<nav class="tt-board-rail">
-		<div class="tt-rail-views">
-			<div class="tt-rail-group-title">Default Views</div>
-			{#each builtinViews as view}
-				<button
-					class="tt-rail-item"
-					class:is-active={$currentViewId === view.id}
-					on:click={() => currentViewId.set(view.id)}
-					aria-label={view.name}
-				>
-					<span class="tt-rail-icon" use:icon={resolveTaskViewIcon(view)}></span>
-					<span class="tt-rail-label">{view.name}</span>
-				</button>
-			{/each}
-
-			<div class="tt-rail-group-title tt-rail-group-title--smart">Smart Lists</div>
-			{#if smartListViews.length === 0}
-				<div class="tt-rail-empty">No smart lists yet</div>
-			{/if}
-			{#each smartListViews as view}
-				<button
-					class="tt-rail-item tt-rail-item--smart"
-					class:is-active={$currentViewId === view.id}
-					on:click={() => currentViewId.set(view.id)}
-					on:contextmenu={(event) => openSmartListMenu(view.id, event)}
-					aria-label={view.name}
-					title="Right-click for Smart List options"
-				>
-					<span class="tt-rail-icon" use:icon={resolveTaskViewIcon(view)}></span>
-					<span class="tt-rail-label">{view.name}</span>
-				</button>
-			{/each}
-
-			<button class="tt-rail-add" on:click={addSmartList} aria-label="Add smart list">
-				<span class="tt-rail-icon" use:icon={'plus'}></span>
-				<span class="tt-rail-label">Add Smart List</span>
-			</button>
-		</div>
-
-		<div class="tt-rail-actions">
-			<button class="tt-rail-item" on:click={openNewTask}    aria-label="New task">
-				<span class="tt-rail-icon" use:icon={'plus'}></span>
-				<span class="tt-rail-label">New task</span>
-			</button>
-			<button class="tt-rail-item" on:click={openNewProject} aria-label="New project">
-				<span class="tt-rail-icon" use:icon={'folder-plus'}></span>
-				<span class="tt-rail-label">New project</span>
-			</button>
-			<div class="tt-rail-divider"></div>
-			<button class="tt-rail-item" on:click={openSettings} aria-label="Settings">
-				<span class="tt-rail-icon" use:icon={'settings'}></span>
-				<span class="tt-rail-label">Settings</span>
-			</button>
-		</div>
-	</nav>
-
-	<!-- ── Main body ─────────────────────────────────────────────────────────── -->
-	<div class="tt-board-body">
-
-		<!-- Inner column: tabs + filter + content always stack vertically -->
-		<div class="tt-board-main">
-
-			<!-- Mobile tab bar (hidden on desktop) -->
-			<div class="tt-board-tabs">
-				{#each registeredViews as view}
-					<button
-						class="tt-tab-btn"
-						class:is-active={$currentViewId === view.id}
-						on:click={() => currentViewId.set(view.id)}
-					>{view.name}</button>
-				{/each}
-			</div>
+	<!-- Column: filter + content. The nav rail and detail pane live in their
+		own sidebar leaves (TaskRailView / TaskDetailView). -->
+	<div class="tt-board-main">
 
 			<!-- Filter bar -->
 			<div class="tt-filter-bar">
@@ -482,7 +307,7 @@
 				{#if currentView.source === 'custom'}
 					<button
 						class="tt-filter-edit-view"
-						on:click={() => editSmartList(currentView.id)}
+						on:click={() => editSmartList(plugin, currentView.id)}
 						aria-label="Edit current Smart List"
 					>
 						<span use:icon={'sliders-horizontal'}></span>
@@ -577,34 +402,6 @@
 				{/if}
 			</div>
 
-		</div>
-
-		<!-- Backdrop: mobile gets dark overlay, desktop is transparent click-target -->
-		{#if panelOpen}
-			<button class="tt-detail-backdrop" type="button" aria-label="Close detail panel" on:click={closeDetail}></button>
-		{/if}
-
-		<!-- Detail panel -->
-		<div class="tt-board-detail" class:is-visible={panelOpen}>
-			<div class="tt-detail-topbar">
-				<button class="tt-back-btn" on:click={closeDetail}>
-					<span use:icon={'arrow-left'}></span>
-					<span>Back</span>
-				</button>
-				<button class="tt-close-btn" on:click={closeDetail} aria-label="Close">
-					<span use:icon={'x'}></span>
-				</button>
-			</div>
-			<div class="tt-detail-scroll">
-				<TaskDetail
-					{plugin}
-					{tasks}
-					{activeTaskPath}
-					store={plugin.taskStore}
-				/>
-			</div>
-		</div>
-
 	</div>
 
 	<!-- ── FAB ───────────────────────────────────────────────────────────────── -->
@@ -612,7 +409,6 @@
 		<button
 			class="tt-fab"
 			class:tt-fab-left={plugin.settings.fabPosition === 'left'}
-			class:tt-fab-hidden={panelOpen}
 			on:click={openNewTask}
 			aria-label="New task"
 		>
@@ -627,114 +423,22 @@
 	/* on .tt-board and inherit to every descendant component. */
 
 	/* ── Root ──────────────────────────────────────────────────────────────────── */
+	/* The board leaf is a single column: filter bar + view content. The nav
+		rail and detail pane live in their own sidebar leaves. */
 	.tt-board {
 		display: flex;
-		flex-direction: row;
+		flex-direction: column;
 		height: 100%;
 		overflow: hidden;
-		position: relative;
+		position: relative; /* anchor for the FAB */
 	}
 
-	/* ── Desktop nav rail ──────────────────────────────────────────────────────── */
-	.tt-board-rail {
-		width: 160px;
-		flex-shrink: 0;
+	.tt-board-main {
+		flex: 1;
 		display: flex;
 		flex-direction: column;
-		justify-content: space-between;
-		border-right: 1px solid var(--background-modifier-border);
-		padding: 8px 0;
-		background: var(--background-secondary);
-		position: relative;
-		z-index: 1; /* paint above content hover backgrounds */
-	}
-
-	.tt-rail-views,
-	.tt-rail-actions {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		padding: 0 8px;
-	}
-
-	.tt-rail-group-title {
-		font-size: 0.68rem;
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--text-faint);
-		padding: 8px 10px 4px;
-	}
-
-	.tt-rail-group-title--smart {
-		margin-top: 10px;
-	}
-
-	.tt-rail-empty {
-		font-size: 0.76rem;
-		color: var(--text-faint);
-		padding: 2px 10px 6px;
-	}
-
-	.tt-rail-item {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		padding: 8px 10px;
-		border: none;
-		border-radius: var(--tt-button-radius);
-		background: transparent;
-		color: var(--text-muted);
-		font-size: 0.88rem;
-		font-weight: 500;
-		cursor: pointer;
-		text-align: left;
-		transition: background 0.1s, color 0.1s;
-		width: 100%;
-	}
-	.tt-rail-item:hover {
-		background: var(--background-modifier-hover);
-		color: var(--text-normal);
-	}
-	.tt-rail-item.is-active {
-		background: var(--background-modifier-hover);
-		color: var(--interactive-accent);
-		font-weight: 600;
-	}
-
-	.tt-rail-add {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		padding: 8px 10px;
-		border: 1px dashed var(--background-modifier-border);
-		border-radius: var(--tt-button-radius);
-		background: transparent;
-		color: var(--text-muted);
-		font-size: 0.82rem;
-		cursor: pointer;
-		margin-top: 4px;
-	}
-
-	.tt-rail-add:hover {
-		color: var(--interactive-accent);
-		border-color: var(--interactive-accent);
-		background: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
-	}
-
-	.tt-rail-divider {
-		height: 1px;
-		background: var(--background-modifier-border);
-		margin: 4px 0;
-	}
-
-	.tt-rail-icon {
-		width: 18px;
-		height: 18px;
-		flex-shrink: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		overflow: hidden;
+		min-width: 0;
 	}
 
 	/* ── Filter bar ────────────────────────────────────────────────────────────── */
@@ -854,107 +558,12 @@
 		background: var(--interactive-hover, var(--background-modifier-hover));
 	}
 
-	/* ── Body ──────────────────────────────────────────────────────────────────── */
-	.tt-board-body {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-		position: relative; /* anchor for absolute detail panel */
-	}
-
-	/* Inner column that always stacks tabs → filter → content vertically */
-	.tt-board-main {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-		min-width: 0;
-	}
-
-	/* Mobile tab bar — hidden on desktop */
-	.tt-board-tabs {
-		display: none;
-	}
-
+	/* ── View content ──────────────────────────────────────────────────────────── */
 	.tt-board-content {
 		flex: 1;
 		overflow: hidden; /* each view manages its own scroll */
 		display: flex;
 		flex-direction: column;
-	}
-
-	/* ── Detail panel — absolute overlay on both viewports ──────────────────────── */
-	.tt-board-detail {
-		position: absolute;
-		top: 0;
-		right: 0;
-		bottom: 0;
-		width: 440px;
-		display: flex;
-		flex-direction: column;
-		background: var(--background-primary);
-		border-left: 2px solid var(--interactive-accent);
-		box-shadow: -6px 0 28px rgba(var(--mono-rgb-100), 0.18);
-		transform: translateX(100%);
-		transition: transform 0.22s ease;
-		z-index: 5;
-	}
-	.tt-board-detail.is-visible {
-		transform: translateX(0);
-	}
-
-	/* ── Backdrop ───────────────────────────────────────────────────────────────── */
-	.tt-detail-backdrop {
-		position: absolute;
-		inset: 0;
-		z-index: 4;
-		border: 0;
-		background: rgba(var(--mono-rgb-100), 0.28);
-		pointer-events: auto;
-		cursor: default;
-	}
-
-	/* ── Detail topbar ──────────────────────────────────────────────────────────── */
-	.tt-detail-topbar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 6px 8px;
-		/* Matches .tt-filter-bar so the two pane headers align (BUGFIX #7). */
-		min-height: 44px;
-		box-sizing: border-box;
-		border-bottom: 1px solid var(--background-modifier-border);
-		flex-shrink: 0;
-	}
-
-	.tt-back-btn,
-	.tt-close-btn {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 6px 10px;
-		border: none;
-		border-radius: var(--tt-button-radius);
-		background: transparent;
-		color: var(--text-muted);
-		font-size: 0.88rem;
-		cursor: pointer;
-		transition: background 0.1s, color 0.1s;
-	}
-	.tt-back-btn:hover,
-	.tt-close-btn:hover {
-		background: var(--background-modifier-hover);
-		color: var(--text-normal);
-	}
-
-	/* Desktop: hide back button, show close button */
-	.tt-back-btn  { display: none; }
-	.tt-close-btn { display: flex; margin-left: auto; }
-
-	.tt-detail-scroll {
-		flex: 1;
-		overflow-y: auto;
 	}
 
 	/* ── FAB ───────────────────────────────────────────────────────────────────── */
@@ -980,103 +589,11 @@
 	.tt-fab:hover { background: var(--interactive-accent-hover); }
 	.tt-fab-left  { right: unset; left: 16px; }
 
-
-	/* ── Wide: persistent side-by-side detail panel ───────────────────────────── */
-	@media (min-width: 900px) {
-		.tt-board-body {
-			flex-direction: row;
-		}
-
-		/* tt-board-main already flex: 1 — no change needed */
-
-		.tt-board-content {
-			flex: 1;
-			min-width: 0;
-		}
-
-		/* Switch from transform slide to width expansion so list reflows smoothly */
-		.tt-board-detail {
-			position: relative;
-			width: 0;
-			flex-shrink: 0;
-			overflow: hidden;
-			transform: none;
-			box-shadow: none;
-			border-left: none;
-			transition: width 0.22s ease;
-		}
-
-		.tt-board-detail.is-visible {
-			width: 440px;
-			border-left: 1px solid var(--background-modifier-border);
-		}
-
-		/* No backdrop needed — panel is a sibling, not an overlay */
-		.tt-detail-backdrop {
-			display: none;
-		}
-	}
-
 	/* ── Mobile ────────────────────────────────────────────────────────────────── */
 	@media (max-width: 768px) {
-		.tt-board-rail { display: none; }
-
-		/* Tab bar — scrolls horizontally when many views are registered */
-		.tt-board-tabs {
-			display: flex;
-			flex-shrink: 0;
-			border-bottom: 1px solid var(--background-modifier-border);
-			background: var(--background-secondary);
-			overflow-x: auto;
-			scrollbar-width: none;
-		}
-		.tt-board-tabs::-webkit-scrollbar { display: none; }
-
-		.tt-tab-btn {
-			flex: 1 0 auto;
-			white-space: nowrap;
-			height: auto;
-			padding: 12px 8px;
-			border: none;
-			background: transparent;
-			color: var(--text-muted);
-			font-size: 0.88rem;
-			font-weight: 500;
-			cursor: pointer;
-			border-bottom: 2px solid transparent;
-			transition: color 0.1s, border-color 0.1s;
-		}
-		.tt-tab-btn.is-active {
-			color: var(--interactive-accent);
-			border-bottom-color: var(--interactive-accent);
-			font-weight: 600;
-		}
-
-		/* Detail: full-screen on mobile */
-		.tt-board-detail {
-			inset: 0;
-			width: 100%;
-			border-left: none;
-			box-shadow: none;
-		}
-
-		/* Mobile backdrop: dark overlay */
-		.tt-detail-backdrop {
-			background: rgba(var(--mono-rgb-100), 0.35);
-		}
-
-		/* Mobile: show back button, hide X close button */
-		.tt-back-btn  { display: flex; }
-		.tt-close-btn { display: none; }
-
 		/* FAB above safe area */
 		.tt-fab {
 			bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-		}
-
-		/* Hide FAB when detail panel covers content on mobile */
-		.tt-fab.tt-fab-hidden {
-			display: none;
 		}
 	}
 </style>

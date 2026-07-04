@@ -14,6 +14,10 @@ import {
 } from './settings/captureSourcesSettings';
 import { TaskStore } from './store/TaskStore';
 import { TaskBoardView, TASK_BOARD_VIEW_TYPE } from './views/TaskBoardView';
+import { TaskRailView, TASK_RAIL_VIEW_TYPE } from './views/TaskRailView';
+import { TaskDetailView, TASK_DETAIL_VIEW_TYPE } from './views/TaskDetailView';
+import { createBoardStateService, type BoardStateStores } from './store/BoardStateService';
+import { resolveTaskViewId } from './views/viewRegistry';
 import { CreateTaskModal } from './modals/CreateTaskModal';
 import { ReminderService } from './store/ReminderService';
 import type { Task } from './types';
@@ -31,7 +35,7 @@ import { createTaskContextMenuDeps } from './integration/taskActionPorts';
 import { ScanEngine } from './integration/ScanEngine';
 import type { ExternalTask } from './integration/types';
 import { AUTO_ARCHIVE_CHECK_INTERVAL_MS, METADATA_CACHE_TIMEOUT_MS } from './constants';
-import type { ExtendedWorkspace, HoverLinkPayload } from './types/obsidianExtended';
+import type { ExtendedWorkspace, HoverLinkPayload, SidedockWithSize } from './types/obsidianExtended';
 import type { SettingsHost } from './types/settingsHost';
 
 export type BoardViewMode = string;
@@ -45,6 +49,10 @@ export default class TTasksPlugin extends Plugin {
 	activeTaskPath: Writable<string | null> = writable(null);
 	focusedTaskPath: Writable<string | null> = writable(null);
 	activeViewMode: Writable<BoardViewMode | null> = writable(null);
+	/** Bumped after every saveSettings() so open views re-derive settings-based state. */
+	settingsRevision: Writable<number> = writable(0);
+	/** Shared UI state for the board, rail, and detail leaves. */
+	boardState!: BoardStateStores;
 	private statusBarEl: HTMLElement | null = null;
 	private isApplyingExternalSettings = false;
 	private reminderStartTimeoutId: number | null = null;
@@ -56,6 +64,12 @@ export default class TTasksPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
+		this.boardState = createBoardStateService({
+			defaultViewId: resolveTaskViewId(this.settings, null),
+			activeTaskPath: this.activeTaskPath,
+			focusedTaskPath: this.focusedTaskPath,
+		});
+
 		this.taskStore = new TaskStore(this);
 		this.taskStore.register();
 		this.archiveService = new ArchiveService(this);
@@ -65,6 +79,14 @@ export default class TTasksPlugin extends Plugin {
 		this.registerView(
 			TASK_BOARD_VIEW_TYPE,
 			leaf => new TaskBoardView(leaf, this)
+		);
+		this.registerView(
+			TASK_RAIL_VIEW_TYPE,
+			leaf => new TaskRailView(leaf, this)
+		);
+		this.registerView(
+			TASK_DETAIL_VIEW_TYPE,
+			leaf => new TaskDetailView(leaf, this)
 		);
         this.registerHoverLinkSource('ttasks-board', { display: 'TTasks Board', defaultMod: true });
 
@@ -214,22 +236,68 @@ export default class TTasksPlugin extends Plugin {
 			window.clearTimeout(this.reminderStartTimeoutId);
 			this.reminderStartTimeoutId = null;
 		}
-		this.app.workspace.detachLeavesOfType(TASK_BOARD_VIEW_TYPE);
+		// Leaves are intentionally NOT detached here: per the plugin guidelines,
+		// detaching in onunload resets the user's layout on every plugin update.
 	}
 
 	openNewTask(): void {
 		new CreateTaskModal(this.app, this).open();
 	}
 
+	/**
+	 * One-shot workspace setup: board in the main area plus, on desktop, the
+	 * rail and detail panes revealed alongside it. On mobile the sidebars are
+	 * drawers that would cover the board, so only the rail leaf is ensured
+	 * (reachable via the left drawer) and nothing is force-revealed.
+	 */
 	async openBoard(): Promise<void> {
+		await this.revealBoardLeaf();
+		if (Platform.isMobile) {
+			await this.app.workspace.ensureSideLeaf(TASK_RAIL_VIEW_TYPE, 'left', { reveal: false });
+			return;
+		}
+		await this.app.workspace.ensureSideLeaf(TASK_RAIL_VIEW_TYPE, 'left', { reveal: true, active: false });
+		await this.openDetailPane();
+	}
+
+	/** Reveal (or create) just the board leaf, leaving the sidebars alone. */
+	async revealBoardLeaf(): Promise<void> {
 		const existing = this.app.workspace.getLeavesOfType(TASK_BOARD_VIEW_TYPE);
 		if (existing.length > 0) {
-			this.app.workspace.revealLeaf(existing[0]);
+			await this.app.workspace.revealLeaf(existing[0]);
 			return;
 		}
 		const leaf = this.app.workspace.getLeaf('tab');
 		await leaf.setViewState({ type: TASK_BOARD_VIEW_TYPE, active: true });
-		this.app.workspace.revealLeaf(leaf);
+		await this.app.workspace.revealLeaf(leaf);
+	}
+
+	/**
+	 * Open (or reveal) the task detail pane in the right sidebar. On mobile the
+	 * right sidebar is a drawer, so this slides the detail over the main view.
+	 */
+	async openDetailPane(): Promise<void> {
+		const hadLeaf = this.app.workspace.getLeavesOfType(TASK_DETAIL_VIEW_TYPE).length > 0;
+		await this.app.workspace.ensureSideLeaf(TASK_DETAIL_VIEW_TYPE, 'right', { reveal: true, active: false });
+		if (!hadLeaf) this.applyDefaultDetailPaneWidth();
+	}
+
+	/**
+	 * Give the right sidebar a workable width the first time the detail leaf is
+	 * created, clamped for laptop screens. Only runs on creation, so any manual
+	 * resize the user makes afterwards is persisted by Obsidian and untouched.
+	 */
+	private applyDefaultDetailPaneWidth(): void {
+		if (Platform.isMobile) return; // drawers are always full-width
+		const rightSplit = this.app.workspace.rightSplit as SidedockWithSize | null;
+		if (!rightSplit?.setSize) return;
+		const width = Math.max(360, Math.min(480, Math.round(window.innerWidth * 0.3)));
+		rightSplit.setSize(width);
+	}
+
+	/** Collapse the right sidebar drawer/dock that hosts the detail pane. */
+	closeDetailPane(): void {
+		this.app.workspace.rightSplit?.collapse();
 	}
 
 	async loadSettings() {
@@ -246,6 +314,7 @@ export default class TTasksPlugin extends Plugin {
 	async saveSettings() {
 		this.settings = normalizeSettingsFromSources([DEFAULT_SETTINGS, this.settings]);
 		await this.saveData(this.settings);
+		this.settingsRevision.update((n) => n + 1);
 	}
 
 	async onExternalSettingsChange() {
@@ -268,6 +337,7 @@ export default class TTasksPlugin extends Plugin {
 
 			// Canonicalize persisted settings to remove legacy keys and stale fields.
 			await this.saveData(this.settings);
+			if (changed) this.settingsRevision.update((n) => n + 1);
 		} finally {
 			this.isApplyingExternalSettings = false;
 		}

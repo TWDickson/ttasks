@@ -21,3 +21,11 @@ export type ExtendedWorkspace = Workspace & {
 	on(event: 'editor-menu', callback: (menu: Menu, editor: Editor, view: MarkdownView) => void): EventRef;
 	on(event: 'files-menu', callback: (menu: Menu, files: TAbstractFile[]) => void): EventRef;
 };
+
+/**
+ * `setSize` is an undocumented member of the desktop sidedock splits. It is
+ * optional here so callers stay guarded if Obsidian removes it.
+ */
+export type SidedockWithSize = Workspace['rightSplit'] & {
+	setSize?: (size: number) => void;
+};

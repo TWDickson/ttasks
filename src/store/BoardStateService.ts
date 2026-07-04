@@ -1,4 +1,6 @@
 import { derived, get, writable, type Readable, type Writable } from 'svelte/store';
+import type { Task } from '../types';
+import type { ExternalTask } from '../integration/types';
 
 export interface BoardStateStores {
 	activeTaskPath: Writable<string | null>;
@@ -22,6 +24,23 @@ export function createBoardStateService(options: CreateBoardStateOptions): Board
 		searchQuery: writable(''),
 		selectedPaths: writable(new Set<string>()),
 	};
+}
+
+/**
+ * Combined board task list: captured (external) tasks first — rolled-over ones
+ * before today's — followed by native tasks. Shared by the board and detail
+ * leaves so both resolve the same paths.
+ */
+export function combineBoardTasks(
+	nativeTasks: Readable<Task[]>,
+	capturedTasks: Readable<ExternalTask[]>,
+): Readable<Task[]> {
+	return derived([nativeTasks, capturedTasks], ([$native, $captured]) => [
+		...$captured
+			.slice()
+			.sort((a, b) => (a.fromPreviousDay === b.fromPreviousDay ? 0 : a.fromPreviousDay ? -1 : 1)),
+		...$native,
+	]);
 }
 
 export function isTaskActive(

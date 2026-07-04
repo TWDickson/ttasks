@@ -1,0 +1,60 @@
+import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { derived } from 'svelte/store';
+import type TTasksPlugin from '../main';
+import TaskRail from '../components/TaskRail.svelte';
+import { CreateTaskModal } from '../modals/CreateTaskModal';
+import { getRegisteredTaskViews } from './viewRegistry';
+import { addSmartList, openSmartListMenu } from './smartListActions';
+
+export const TASK_RAIL_VIEW_TYPE = 'ttasks-rail';
+
+/**
+ * Left-sidebar leaf hosting the TTasks nav rail (views, Smart Lists, actions).
+ * On mobile the left sidebar is a drawer, so the rail sits alongside the file
+ * explorer instead of being hidden behind a horizontal tab bar.
+ */
+export class TaskRailView extends ItemView {
+	private plugin: TTasksPlugin;
+	private component: TaskRail | null = null;
+
+	constructor(leaf: WorkspaceLeaf, plugin: TTasksPlugin) {
+		super(leaf);
+		this.plugin = plugin;
+		this.navigation = false;
+	}
+
+	getViewType():    string { return TASK_RAIL_VIEW_TYPE; }
+	getDisplayText(): string { return 'TTasks views'; }
+	getIcon():        string { return 'check-square'; }
+
+	async onOpen(): Promise<void> {
+		this.contentEl.addClass('tt-rail-view');
+		const views = derived(
+			this.plugin.settingsRevision,
+			() => getRegisteredTaskViews(this.plugin.settings),
+		);
+		this.component = new TaskRail({
+			target: this.contentEl,
+			props: {
+				views,
+				currentViewId: this.plugin.boardState.currentViewId,
+				onSelectView: (viewId: string) => {
+					this.plugin.boardState.currentViewId.set(viewId);
+					// Reveal the board so picking a view on mobile dismisses the drawer.
+					void this.plugin.revealBoardLeaf();
+				},
+				onAddSmartList: () => { void addSmartList(this.plugin); },
+				onSmartListContextMenu: (viewId: string, event: MouseEvent) => openSmartListMenu(this.plugin, viewId, event),
+				onNewTask: () => new CreateTaskModal(this.app, this.plugin).open(),
+				onNewProject: () => new CreateTaskModal(this.app, this.plugin, 'project').open(),
+				onOpenSettings: () => this.plugin.openPluginSettings(),
+			},
+		});
+	}
+
+	async onClose(): Promise<void> {
+		this.component?.$destroy();
+		this.component = null;
+		this.contentEl.empty();
+	}
+}

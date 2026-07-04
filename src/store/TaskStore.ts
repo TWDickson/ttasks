@@ -208,7 +208,10 @@ export class TaskStore {
 
 	async openDetail(path: string): Promise<void> {
 		this.plugin.activeTaskPath.set(path);
-		await this.plugin.openBoard();
+		// Reveal only the board + detail; openBoard() would also pop the rail
+		// sidebar open, which is intrusive on every task click.
+		await this.plugin.revealBoardLeaf();
+		await this.plugin.openDetailPane();
 	}
 
 	async openFile(path: string): Promise<void> {

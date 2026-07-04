@@ -19,6 +19,8 @@
 /* ── Design tokens (plugin roots; custom properties inherit to children) ────── */
 
 .tt-board,
+.tt-rail-view,
+.tt-detail-view,
 .tt-create-modal,
 .tt-modal,
 .tt-query-editor-modal,
@@ -32,6 +34,18 @@
 	--tt-button-radius: var(--button-radius, var(--radius-m, 8px));
 	--tt-border-width: var(--input-border-width, var(--border-width, 1px));
 	--tt-font-label: 0.72rem;
+}
+
+/* Sidebar leaf containers (nav rail left, task detail right). The leaf's
+   view-content is the scroll container; components inside carry layout. */
+.tt-rail-view {
+	padding: 0;
+	overflow-y: auto;
+}
+
+.tt-detail-view {
+	padding: 0;
+	overflow-y: auto;
 }
 
 /* ── Shared primitives ──────────────────────────────────────────────────────── */
@@ -249,7 +263,6 @@
 
 /* Reduced motion: collapse the plugin's slide/expand animations */
 @media (prefers-reduced-motion: reduce) {
-	.tt-board-detail,
 	.tt-modal-section-body,
 	.tt-modal-section-chevron,
 	.tt-badge,
