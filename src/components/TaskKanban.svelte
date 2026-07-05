@@ -383,7 +383,7 @@
 	}
 
 	/* Title + count share one vertical writing-mode wrapper so they read as a
-	   single continuous line; the chevron stays pinned at the bottom. */
+	single continuous line; the chevron stays pinned at the bottom. */
 	.tt-col-collapsed-run {
 		flex: 1;
 		min-height: 0;
