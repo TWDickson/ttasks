@@ -4,6 +4,27 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
+## Handoff (2026-07-04, evening)
+
+Unattended execution set up in **`AUTOPILOT.md`** (batch queue + per-session
+protocol) with driver script **`run-autopilot.fish`** — one fresh
+auto-mode `/goal` session per batch, all work on `feat/ui-polish-autopilot`,
+never pushed/merged. N7 and final design decisions stay with Taylor.
+
+Native-integration backlog written up in **`NATIVE_FEATURES_TASKS.md`** —
+seven specced tasks: leaf header actions (N1), view state persistence (N2),
+public plugin API design doc (N3, plan-first), jump-to-task fuzzy switcher
+(N4), protocol-handler extension + docs (N5), status bar polish (N6), Bases
+sample + schema check (N7). Note: protocol handler, status bar, and file
+context menus already exist — N5/N6 extend them.
+
+New UI polish backlog written up in **`UI_POLISH_TASKS.md`** — investigated
+with file:line pointers, ready to hand to another model: kanban collapsed
+header one-line (P1), list-row visual pass (P2), selected-box size (P3),
+graph mobile friendliness (P4), detail-pane centering (P5), detail top/bottom
+actions (P6), settings pane overhaul (P7), plus carry-overs C1/C2 (= #9/#11
+below).
+
 ## Progress Notes (2026-07-04)
 
 Worked through `BUGFIX_TASKS.md` (Taylor's 2026-07-04 report). The earlier
