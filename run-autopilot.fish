@@ -8,10 +8,17 @@ set goal "/goal Read AUTOPILOT.md and follow its Protocol: execute exactly ONE b
 
 while grep -q '^- \[ \] \*\*Batch' AUTOPILOT.md
     set batch (grep -m1 '^- \[ \] \*\*Batch' AUTOPILOT.md)
-    echo "=== Starting session for: $batch ==="
+    set started_at (date "+%Y-%m-%d %H:%M:%S %Z")
+
+    echo "=== [$started_at] Starting session for: $batch ==="
 
     claude --permission-mode auto -p "$goal"
-    or begin
+    set claude_status $status
+
+    set finished_at (date "+%Y-%m-%d %H:%M:%S %Z")
+    echo "=== [$finished_at] Session ended (exit $claude_status) ==="
+
+    if test $claude_status -ne 0
         echo "Session exited non-zero — stopping so you can inspect." >&2
         break
     end
