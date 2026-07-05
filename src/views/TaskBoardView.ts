@@ -27,6 +27,16 @@ export class TaskBoardView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.contentEl.addClass('tt-board-view');
+
+		// Native header actions (N1). addAction prepends, so add the rescan
+		// first to keep "New task" as the leftmost, most prominent action.
+		this.addAction('refresh-cw', 'Rescan tasks', () => {
+			void this.plugin.taskStore.load();
+		});
+		this.addAction('plus', 'New task', () => {
+			this.plugin.openNewTask();
+		});
+
 		this.component = new TaskBoard({
 			target: this.contentEl,
 			props: { plugin: this.plugin, boardState: this.boardState },

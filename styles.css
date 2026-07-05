@@ -48,6 +48,29 @@
 	overflow-y: auto;
 }
 
+/* Detail leaf header actions hide when no native task is selected (P6/N1).
+   Scoped under .view-action so no other clickable-icon is caught. */
+.view-action.tt-view-action-hidden {
+	display: none;
+}
+
+/* Detail pane top block (status / project / priority) centers within the
+   pane width (P5). Scoped to .tt-detail so the create modal's identical
+   field groups stay left-aligned, and the .tt-fields grid below the divider
+   keeps its label/value alignment. */
+.tt-detail > .tt-field-group {
+	align-items: center;
+}
+
+.tt-detail > .tt-field-group .tt-chips-container {
+	justify-content: center;
+}
+
+.tt-detail > .tt-field-group .tt-parent-task-row {
+	align-self: stretch;
+	justify-content: center;
+}
+
 /* ── Shared primitives ──────────────────────────────────────────────────────── */
 
 /* Uppercase micro-label used for every field/group/column heading */

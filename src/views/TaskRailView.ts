@@ -29,6 +29,12 @@ export class TaskRailView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.contentEl.addClass('tt-rail-view');
+
+		// Native header action (N1): quick-add a Smart List from the rail chrome.
+		this.addAction('plus', 'New Smart List', () => {
+			void addSmartList(this.plugin);
+		});
+
 		const views = derived(
 			this.plugin.settingsRevision,
 			() => getRegisteredTaskViews(this.plugin.settings),

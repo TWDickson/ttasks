@@ -88,6 +88,12 @@ describe('TaskDetailActions.svelte', () => {
 		expect(onDelete).toHaveBeenCalledTimes(1);
 	});
 
+	it('orders buttons as Open in editor, Mark Complete, Delete', () => {
+		renderActions(buildTask({ is_complete: false }));
+		const names = screen.getAllByRole('button').map((el) => el.textContent?.trim());
+		expect(names).toEqual(['Open in editor', 'Mark Complete', 'Delete']);
+	});
+
 	it('renders created/completed metadata when present', () => {
 		renderActions(buildTask({ created: '2026-05-01', completed: '2026-05-20', is_complete: true }), true);
 		expect(screen.getByText('Created 2026-05-01')).toBeInTheDocument();

@@ -11,6 +11,9 @@
 
 <hr class="tt-divider" />
 <div class="tt-actions">
+	<button class="tt-btn" on:click={onOpenInEditor}>
+		Open in editor
+	</button>
 	{#if !task.is_complete}
 		<button class="tt-btn tt-btn-primary" on:click={onMarkComplete}>
 			<span class="tt-btn-icon" use:icon={'check'}></span>
@@ -22,9 +25,6 @@
 			Archive
 		</button>
 	{/if}
-	<button class="tt-btn" on:click={onOpenInEditor}>
-		Open in editor
-	</button>
 	<button class="tt-btn tt-btn-danger tt-actions-delete" on:click={onDelete}>
 		Delete
 	</button>
@@ -44,8 +44,9 @@
 		flex-wrap: wrap;
 	}
 
+	/* Fixed gap (not an auto push) so Delete sits just apart from the pair. */
 	.tt-actions-delete {
-		margin-left: auto;
+		margin-left: var(--tt-space-4, 16px);
 	}
 
 	.tt-btn-icon {
