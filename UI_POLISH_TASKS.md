@@ -43,7 +43,42 @@ reload too.
 
 ---
 
-## P2. [DESIGN] List view rows — visual pass
+## P2. [DONE] [DESIGN] List view rows — visual pass
+
+**[DONE 2026-07-05, Batch C]** Conservative pass; three changes landed:
+
+1. **No dot for `None` priority** — the faint grey dot on unprioritized rows
+   was pure noise. Hidden via `visibility: hidden` (span stays, so names keep
+   a shared left edge across rows). Applied identically to kanban cards for
+   consistency.
+2. **Mobile dot alignment** — on wrapped two-line names the 8px dot floated
+   above the text; it now pins to the first line (`align-items: flex-start` +
+   `margin-top: 6px` in the mobile media query), mirroring the kanban-card
+   pattern.
+3. **Overdue vs selected made explicit** — overdue-red on the name previously
+   beat the selected-accent color only by stylesheet order; added an explicit
+   higher-specificity rule so the composition survives rule reshuffles.
+   Verified hover/selected/selected+hover still read as three states.
+
+**Deliberately not changed** (alternatives considered): badge sizing/weights
+— after the 2026-07 design overhaul the shots show badges already clearly
+subordinate to names (0.7rem muted pills vs 0.9rem names; area is the loudest
+by design per the `styles.css` color-hierarchy comment), so no global
+`.tt-badge` edits. Badge order is already consistent (captured → area → date →
+labels) and matches kanban. Row `min-height: 36px` sits on the 4px sub-grid
+and was left alone — P3 already established the row shouldn't get taller.
+Desktop name truncation on badge-heavy rows (visible on the stress fixture)
+was left as-is; a `+N` label-overflow badge or a meta-strip max-width were
+considered but are bigger swings than this pass warranted — flag if wanted.
+
+**Shots** (gitignored, regenerate with `npm run rig:shots fixtures`): the rig
+fixture set now includes a stress row (checkbox + chevron-capable child + 3
+labels + overdue) and the shot matrix gained `list-fixtures-*` /
+`mobile-list-fixtures-*` cells (desktop+mobile × dark+light) so the stress
+row is captured on every future run. Before/after delta in the four cells:
+None-dot rows ("Subtask under the stress row", "Water the plants") lose their
+grey dots; the mobile stress row's dot sits on the name's first line instead
+of hovering above it; everything else pixel-identical.
 
 **Symptom:** List view items "need some visual work" — general polish, not one
 specific defect.

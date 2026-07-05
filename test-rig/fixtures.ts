@@ -101,6 +101,23 @@ export function buildFixtureTasks(): Task[] {
 		estimated_days: 1,
 	});
 
+	// P2 stress row: overdue + three labels + a child (chevron) to rag the meta strip
+	const stress = makeTask({
+		name: 'Stress row with three labels that pushes the meta strip',
+		area: 'Work',
+		priority: 'High',
+		labels: ['feature', 'bug', 'research'],
+		parent_task: stripMd(project.path),
+		due_date: isoDaysFromToday(-3),
+		status: 'In Progress',
+	});
+
+	const stressChild = makeTask({
+		name: 'Subtask under the stress row',
+		labels: ['bug'],
+		parent_task: stripMd(stress.path),
+	});
+
 	const blocked = makeTask({
 		name: 'Migrate analytics dashboard',
 		area: 'Database',
@@ -143,7 +160,7 @@ export function buildFixtureTasks(): Task[] {
 	wireframes.blocks = [stripMd(implement.path)];
 	implement.blocks = [stripMd(review.path)];
 
-	return [project, wireframes, implement, review, blocked, today, inbox, done, doneOld];
+	return [project, wireframes, implement, review, stress, stressChild, blocked, today, inbox, done, doneOld];
 }
 
 export interface RigPlugin {

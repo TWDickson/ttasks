@@ -131,6 +131,7 @@
 		<div class="tt-task-main">
 			<span
 				class="tt-priority-dot"
+				class:is-none={task.priority === 'None'}
 				style={`background:${PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.None}`}
 				title={`Priority: ${task.priority}`}
 			></span>
@@ -349,6 +350,11 @@
 		color: var(--color-red);
 	}
 
+	/* Overdue red outranks the selected accent even if rule order changes. */
+	.tt-task.is-overdue .tt-task-btn.is-active .tt-task-name {
+		color: var(--color-red);
+	}
+
 	.tt-task-main {
 		display: flex;
 		align-items: center;
@@ -361,6 +367,11 @@
 		height: 8px;
 		border-radius: 50%;
 		flex-shrink: 0;
+	}
+
+	/* No-priority rows show no dot; the hidden span keeps names aligned. */
+	.tt-priority-dot.is-none {
+		visibility: hidden;
 	}
 
 	.tt-task-name {
@@ -385,6 +396,15 @@
 			flex-direction: column;
 			align-items: flex-start;
 			gap: 4px;
+		}
+
+		/* Names wrap on mobile; pin the dot to the first line like kanban cards. */
+		.tt-task-main {
+			align-items: flex-start;
+		}
+
+		.tt-priority-dot {
+			margin-top: 6px;
 		}
 
 		.tt-task-meta {

@@ -53,7 +53,7 @@ needs live Obsidian/vault, needs Taylor's judgment):
   implement the detail actions once)
 - [x] **Batch B** — UI_POLISH P1 + P3 (kanban collapsed one-line header;
   selected-row box size)
-- [ ] **Batch C** ⚖ — UI_POLISH P2 (list-row visual pass; conservative, with
+- [x] **Batch C** ⚖ — UI_POLISH P2 (list-row visual pass; conservative, with
   before/after rig shots committed or described in the task-file note)
 - [ ] **Batch D** — NATIVE N4 + N5 (jump-to-task fuzzy switcher, then protocol
   `action=jump` + prefill + URI docs)

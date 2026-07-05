@@ -34,6 +34,11 @@ const PHONE = { width: 390, height: 844 };
 const SHOTS = [
 	{ name: 'list-dark', url: '/?view=list', viewport: DESKTOP },
 	{ name: 'list-light', url: '/?view=list&theme=light', viewport: DESKTOP },
+	/* Fixture data includes the P2 stress row (chevron + 3 labels + overdue). */
+	{ name: 'list-fixtures-dark', url: '/?view=list&data=fixtures', viewport: DESKTOP },
+	{ name: 'list-fixtures-light', url: '/?view=list&data=fixtures&theme=light', viewport: DESKTOP },
+	{ name: 'mobile-list-fixtures-dark', url: '/?view=list&data=fixtures', viewport: PHONE },
+	{ name: 'mobile-list-fixtures-light', url: '/?view=list&data=fixtures&theme=light', viewport: PHONE },
 	{ name: 'kanban-dark', url: '/?view=kanban', viewport: DESKTOP },
 	{ name: 'kanban-light', url: '/?view=kanban&theme=light', viewport: DESKTOP },
 	{ name: 'agenda-dark', url: '/?view=agenda', viewport: DESKTOP },

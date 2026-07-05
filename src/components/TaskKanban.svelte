@@ -228,6 +228,7 @@
 								<div class="tt-card-top">
 									<span
 										class="tt-priority-dot"
+										class:is-none={task.priority === 'None'}
 										style="background:{PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.None}"
 										title="Priority: {task.priority}"
 									></span>
@@ -533,6 +534,11 @@
 		border-radius: 50%;
 		flex-shrink: 0;
 		margin-top: 4px;
+	}
+
+	/* No-priority cards show no dot; the hidden span keeps names aligned. */
+	.tt-priority-dot.is-none {
+		visibility: hidden;
 	}
 
 	.tt-card-name {
