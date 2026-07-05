@@ -51,7 +51,7 @@ needs live Obsidian/vault, needs Taylor's judgment):
 - [x] **Batch A** — UI_POLISH P5 + P6, NATIVE N1 (detail-pane centering, top +
   bottom actions via `addAction`, board/rail header actions — P6/N1 overlap,
   implement the detail actions once)
-- [ ] **Batch B** — UI_POLISH P1 + P3 (kanban collapsed one-line header;
+- [x] **Batch B** — UI_POLISH P1 + P3 (kanban collapsed one-line header;
   selected-row box size)
 - [ ] **Batch C** ⚖ — UI_POLISH P2 (list-row visual pass; conservative, with
   before/after rig shots committed or described in the task-file note)

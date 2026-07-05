@@ -177,12 +177,14 @@
 						aria-label="Expand {col.label} column"
 						on:click={() => handleToggleCollapse(col.id)}
 					>
-						<span
-							id={getColumnLabelId(col.id)}
-							class="tt-kanban-col-label"
-							style={col.accent ? `color:${col.accent}` : ''}
-						>{col.label}</span>
-						<span class="tt-count">{cards.length}</span>
+						<span class="tt-col-collapsed-run">
+							<span
+								id={getColumnLabelId(col.id)}
+								class="tt-kanban-col-label"
+								style={col.accent ? `color:${col.accent}` : ''}
+							>{col.label}</span>
+							<span class="tt-count">{cards.length}</span>
+						</span>
 						<span class="tt-col-collapse-icon" use:icon={'chevron-right'}></span>
 					</button>
 				{:else}
@@ -375,15 +377,25 @@
 		align-items: center;
 		gap: 6px;
 		padding: 10px 6px;
-		writing-mode: vertical-rl;
 		height: 100%;
 		cursor: pointer;
 	}
 
-	.tt-col-collapsed .tt-kanban-col-label {
-		writing-mode: vertical-rl;
+	/* Title + count share one vertical writing-mode wrapper so they read as a
+	   single continuous line; the chevron stays pinned at the bottom. */
+	.tt-col-collapsed-run {
 		flex: 1;
-		text-align: center;
+		min-height: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		writing-mode: vertical-rl;
+		overflow: hidden;
+	}
+
+	.tt-col-collapsed .tt-kanban-col-label {
+		flex: none;
 	}
 
 	/* Collapsed header is a single full-height expand button */

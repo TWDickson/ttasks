@@ -189,18 +189,32 @@
 	}
 
 	/* Selected uses an accent tint (not the neutral hover grey) so it stays */
-	/* distinguishable from a hovered-but-unselected row. */
-	.tt-task.is-active {
+	/* distinguishable from a hovered-but-unselected row. The tint is painted */
+	/* on an inset overlay, not the row, so the box hugs the content instead */
+	/* of filling the full 36px row slab. */
+	.tt-task.is-active,
+	.tt-task.is-active:hover {
+		background: transparent;
+	}
+
+	.tt-task.is-active::before {
+		content: '';
+		position: absolute;
+		inset: 3px 2px;
+		border-radius: var(--radius-s, 6px);
 		background: color-mix(in srgb, var(--interactive-accent) 14%, var(--background-primary));
 		box-shadow: inset 2px 0 0 var(--interactive-accent);
+		pointer-events: none;
 	}
 
 	/* Selected + hovered = a distinct third state (stronger tint). */
-	.tt-task.is-active:hover {
+	.tt-task.is-active:hover::before {
 		background: color-mix(in srgb, var(--interactive-accent) 22%, var(--background-primary));
 	}
 
+	/* Positioned so the selection overlay (::before) can't paint over it. */
 	.tt-task-checkbox {
+		position: relative;
 		flex-shrink: 0;
 		width: 16px;
 		height: 16px;
@@ -210,6 +224,7 @@
 	}
 
 	.tt-expand-btn {
+		position: relative;
 		flex-shrink: 0;
 		width: 20px;
 		min-height: 24px;
@@ -272,6 +287,7 @@
 	}
 
 	.tt-inline-reopen {
+		position: relative;
 		align-self: center;
 		margin-left: var(--tt-space-1);
 		padding: 4px 8px;
@@ -291,6 +307,7 @@
 	}
 
 	.tt-inline-promote {
+		position: relative;
 		align-self: center;
 		margin-left: var(--tt-space-1);
 		padding: 4px 8px;

@@ -16,7 +16,13 @@ BUGFIX_TASKS.md (2026-07-04) and still open.
 
 ---
 
-## P1. [UI] Kanban collapsed column — title and count on one line
+## P1. [DONE] [UI] Kanban collapsed column — title and count on one line
+
+**[DONE 2026-07-04, Batch B]** Label + count wrapped in a `.tt-col-collapsed-run`
+span carrying `writing-mode: vertical-rl`, so they flow as one continuous
+vertical line; `.tt-count` is wrapped, not forked; chevron stays pinned at the
+bottom of the full-height expand button. Verified in `rig:shots` (kanban
+desktop dark/light + mobile) — collapsed Future/On Hold columns read as one run.
 
 **Symptom:** In a collapsed kanban column, the title and the count render as
 separate stacked segments; they should read as one continuous line.
@@ -64,7 +70,17 @@ plus inline Reopen/Promote buttons. Mobile stacks name over meta (`:366-386`).
 
 ---
 
-## P3. [CSS] Active (list) view — selected box too big
+## P3. [DONE] [CSS] Active (list) view — selected box too big
+
+**[DONE 2026-07-04, Batch B]** The accent tint now paints on an inset
+`::before` overlay (`inset: 3px 2px`, `--radius-s`) instead of the full 36px
+row slab, so the selected box hugs the content; row min-height/padding
+untouched. Hover, selected, and selected+hover remain three distinct states
+(14% vs 22% mix on the overlay). Interactive children (checkbox, expand,
+reopen/promote) got `position: relative` so the overlay can't paint over
+them. Kanban card `is-active` checked for consistency — cards are already
+compact bordered boxes, no change needed. Verified in `rig:shots` detail view
+(selected row visible).
 
 **Symptom:** The selected-row highlight box in the Active list view is too
 big/tall relative to the row content.
