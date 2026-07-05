@@ -28,6 +28,7 @@ import { dispatchProtocolAction, parseProtocolAction } from './integration/proto
 import { buildStatusSummary } from './integration/statusSummary';
 import { pathToLinktext } from './integration/hoverLink';
 import { TaskLinkSuggestModal } from './editor/TaskLinkSuggestModal';
+import { TaskJumpSuggestModal } from './editor/TaskJumpSuggestModal';
 import { buildAliasedLink } from './integration/relationshipLink';
 import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
 import { localDateString } from './utils/dateUtils';
@@ -108,6 +109,12 @@ export default class TTasksPlugin extends Plugin {
 			id: 'new-project',
 			name: 'New project',
 			callback: () => new CreateTaskModal(this.app, this, 'project').open(),
+		});
+
+		this.addCommand({
+			id: 'jump-to-task',
+			name: 'Jump to task…',
+			callback: () => this.openJumpToTask(),
 		});
 
 		this.addCommand({
@@ -457,9 +464,10 @@ export default class TTasksPlugin extends Plugin {
 			void dispatchProtocolAction(parsed, {
 				openBoard: () => this.openBoard(),
 				openTask: (path) => this.taskStore.openDetail(path),
-				createTask: async () => { new CreateTaskModal(this.app, this).open(); },
+				createTask: async (prefill) => { new CreateTaskModal(this.app, this, 'task', prefill ? { prefill } : undefined).open(); },
 				createProject: async () => { new CreateTaskModal(this.app, this, 'project').open(); },
 				runQuickAction: (action, path) => this.runQuickAction(action, path),
+				openJump: async (query) => { this.openJumpToTask(query); },
 				notice: (message) => { new Notice(message); },
 			});
 		});
@@ -525,6 +533,21 @@ export default class TTasksPlugin extends Plugin {
 		});
 		this.register(() => unsubscribe());
 		this.updateStatusBar();
+	}
+
+	/**
+	 * Open the "Jump to task" fuzzy switcher. Open (non-complete) tasks only —
+	 * archived tasks never reach the store, so no extra filtering is needed.
+	 */
+	openJumpToTask(initialQuery?: string): void {
+		const tasks = get(this.taskStore.tasks).filter((task) => !task.is_complete);
+		if (tasks.length === 0) {
+			new Notice('TTasks: no open tasks to jump to.');
+			return;
+		}
+		new TaskJumpSuggestModal(this.app, tasks, (task) => {
+			void this.taskStore.openDetail(task.path);
+		}, initialQuery ?? '').open();
 	}
 
 	private openTaskLinkSuggest(): void {

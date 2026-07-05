@@ -55,7 +55,7 @@ needs live Obsidian/vault, needs Taylor's judgment):
   selected-row box size)
 - [x] **Batch C** ⚖ — UI_POLISH P2 (list-row visual pass; conservative, with
   before/after rig shots committed or described in the task-file note)
-- [ ] **Batch D** — NATIVE N4 + N5 (jump-to-task fuzzy switcher, then protocol
+- [x] **Batch D** — NATIVE N4 + N5 (jump-to-task fuzzy switcher, then protocol
   `action=jump` + prefill + URI docs)
 - [ ] **Batch E** — NATIVE N2 + N6 (view state persistence; status bar polish)
 - [ ] **Batch F** ⚖ — UI_POLISH P7 (settings overhaul; IA/presentation only,

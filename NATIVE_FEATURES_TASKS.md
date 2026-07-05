@@ -125,7 +125,17 @@ The API layer is a curated, frozen façade over these — not new capability.
 
 ---
 
-## N4. [NEW] "Jump to task" fuzzy switcher
+## N4. [DONE] [NEW] "Jump to task" fuzzy switcher
+
+**[DONE 2026-07-05, Batch D]** `TaskJumpSuggestModal` (`src/editor/`) uses
+native FuzzySuggestModal scoring over `name + area + labels` (name first);
+priority dot (hidden for None, per P2) + status · area meta row, styles in
+`styles.css`. Command `jump-to-task`; selection → `taskStore.openDetail`.
+Took the spec's "simplest v1" option: open tasks only (archived never reach
+the store; completed excluded — revisit with a ✓-marked variant if Taylor
+misses them). Accepts an initial query for N5's `action=jump`. No shared base
+extracted from TaskLinkSuggestModal — the two modals share no meaningful
+logic (link modal uses custom prefix filtering; this one native fuzzy).
 
 **What:** A command (`TTasks: Jump to task…`) opening a `FuzzySuggestModal`
 over task names; selecting a task opens board + detail.
@@ -154,7 +164,21 @@ leaf.
 
 ---
 
-## N5. [EXTEND] Protocol handler — search/list endpoint + docs
+## N5. [DONE] [EXTEND] Protocol handler — search/list endpoint + docs
+
+**[DONE 2026-07-05, Batch D]** `action=jump` (+ `search` alias, optional
+`query=`) opens the N4 switcher pre-filled. `new-task` now accepts
+`name`/`area`/`due` (alias `due_date`; validated `YYYY-MM-DD`, invalid
+dropped) passed to `CreateTaskModal` prefill (added `name` to its prefill
+options) — never writes without the modal. `parseProtocolAction` stays pure
+(added to `architectureBoundaries.test.ts`); `protocol.test.ts` extended
+(parse + dispatch for jump/prefill). Docs: new `PROTOCOL.md` (no README
+exists) covering every action with example URLs. Reminder check: verified —
+`ReminderService` only emits aggregate summary notices (counts, not
+per-task); its Open action deep-links board → agenda via
+`buildReminderNotice`, so there is no per-task notice to wire to
+`openDetail`. If per-task reminder notices land later, give them an Open
+action calling `taskStore.openDetail(taskPath)`.
 
 **What:** The `ttasks://` handler exists with `open-board`, `open`,
 `new-task`, `new-project`, `quick` (`src/integration/protocol.ts:49-80`).

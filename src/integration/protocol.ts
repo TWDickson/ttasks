@@ -6,20 +6,31 @@ export type ProtocolActionName =
 	| 'open'
 	| 'new-task'
 	| 'new-project'
-	| 'quick';
+	| 'quick'
+	| 'jump';
+
+/** Prefill values passed through to the create modal — never written directly. */
+export interface NewTaskPrefill {
+	name?: string;
+	area?: string;
+	due_date?: string;
+}
 
 export interface ParsedProtocolAction {
 	action: ProtocolActionName;
 	path?: string;
 	quickAction?: Exclude<QuickActionId, 'none'>;
+	query?: string;
+	prefill?: NewTaskPrefill;
 }
 
 export interface ProtocolDispatchDeps {
 	openBoard: () => Promise<void>;
 	openTask: (path: string) => Promise<void>;
-	createTask: () => Promise<void>;
+	createTask: (prefill?: NewTaskPrefill) => Promise<void>;
 	createProject: () => Promise<void>;
 	runQuickAction: (action: Exclude<QuickActionId, 'none'>, path?: string) => Promise<boolean>;
+	openJump: (query?: string) => Promise<void>;
 	notice: (message: string) => void;
 }
 
@@ -46,6 +57,23 @@ function normalizeQuickAction(value: string | undefined): Exclude<QuickActionId,
 	return undefined;
 }
 
+const DATE_PARAM_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Collect recognised new-task prefill params; unknown/invalid values are ignored. */
+function parseNewTaskPrefill(params: Record<string, unknown>): NewTaskPrefill | undefined {
+	const name = firstString(params.name);
+	const area = firstString(params.area);
+	const rawDue = firstString(params.due) ?? firstString(params.due_date);
+	const due_date = rawDue && DATE_PARAM_PATTERN.test(rawDue) ? rawDue : undefined;
+
+	if (!name && !area && !due_date) return undefined;
+	return {
+		...(name ? { name } : {}),
+		...(area ? { area } : {}),
+		...(due_date ? { due_date } : {}),
+	};
+}
+
 export function parseProtocolAction(params: Record<string, unknown>): ParsedProtocolAction {
 	const rawAction = firstString(params.action) ?? 'open-board';
 	const rawPath = firstString(params.path);
@@ -58,7 +86,12 @@ export function parseProtocolAction(params: Record<string, unknown>): ParsedProt
 		return { action: 'open', path: normalizedPath };
 	}
 	if (rawAction === 'new-task') {
-		return { action: 'new-task' };
+		const prefill = parseNewTaskPrefill(params);
+		return prefill ? { action: 'new-task', prefill } : { action: 'new-task' };
+	}
+	if (rawAction === 'jump' || rawAction === 'search') {
+		const query = firstString(params.query);
+		return query ? { action: 'jump', query } : { action: 'jump' };
 	}
 	if (rawAction === 'new-project') {
 		return { action: 'new-project' };
@@ -96,12 +129,17 @@ export async function dispatchProtocolAction(action: ParsedProtocolAction, deps:
 	}
 
 	if (action.action === 'new-task') {
-		await deps.createTask();
+		await deps.createTask(action.prefill);
 		return;
 	}
 
 	if (action.action === 'new-project') {
 		await deps.createProject();
+		return;
+	}
+
+	if (action.action === 'jump') {
+		await deps.openJump(action.query);
 		return;
 	}
 

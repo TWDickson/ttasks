@@ -663,6 +663,49 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
+
+/* ── Jump-to-task switcher rows ────────────────────────────────────────────── */
+
+.suggestion-item.tt-jump-suggest-item {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.tt-jump-suggest-main {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.tt-jump-suggest-item .tt-priority-dot {
+	flex-shrink: 0;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+}
+
+.tt-jump-suggest-item .tt-priority-dot.is-none {
+	display: none;
+}
+
+.tt-jump-suggest-title {
+	font-size: 0.86rem;
+	font-weight: 600;
+	color: var(--text-normal);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tt-jump-suggest-meta {
+	font-size: 0.74rem;
+	color: var(--text-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
 .tt-modal-textarea:focus {
 	outline: none;
 	border-color: var(--background-modifier-border-focus);

@@ -50,6 +50,7 @@ export class CreateTaskModal extends Modal {
 			initialDependsOn?: string[];
 			/** Inherited context for "create dependent/sibling task" flows. */
 			prefill?: {
+				name?: string;
 				parent_task?: string | null;
 				area?: string | null;
 				labels?: string[];
@@ -68,6 +69,7 @@ export class CreateTaskModal extends Modal {
 		}
 		const prefill = options?.prefill;
 		if (prefill) {
+			if (prefill.name) this.formValues.name = prefill.name;
 			if (prefill.parent_task) this.formValues.parent_task = prefill.parent_task.replace(/\.md$/, '');
 			if (prefill.area) this.formValues.area = prefill.area;
 			if (prefill.labels?.length) this.formValues.labels = [...prefill.labels];
