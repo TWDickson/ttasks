@@ -10,7 +10,9 @@ interface RenderKanbanSettingsParams {
 export function renderKanbanSettingsSection(params: RenderKanbanSettingsParams): void {
 	const { containerEl, plugin } = params;
 
-	containerEl.createEl('h2', { text: 'Kanban cards' });
+	new Setting(containerEl)
+		.setName('Kanban cards')
+		.setHeading();
 
 	new Setting(containerEl)
 		.setName('Visible card fields')

@@ -115,9 +115,12 @@ let importInProgress = false;
 export function renderMigrationSettingsSection(params: RenderMigrationSettingsSectionParams): void {
 	const { containerEl, plugin } = params;
 
-	containerEl.createEl('h2', { text: 'Advanced' });
+	new Setting(containerEl)
+		.setName('Migration')
+		.setDesc('One-shot bulk import of markdown checkboxes from your configured capture sources into TTasks notes.')
+		.setHeading();
 	const detailsEl = containerEl.createEl('details');
-	detailsEl.createEl('summary', { text: 'Migration' });
+	detailsEl.createEl('summary', { text: 'Bulk import from capture sources' });
 	const contentEl = detailsEl.createDiv();
 
 	new Setting(contentEl)

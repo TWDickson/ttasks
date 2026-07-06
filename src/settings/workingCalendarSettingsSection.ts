@@ -17,12 +17,10 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export function renderWorkingCalendarSettingsSection(params: RenderWorkingCalendarSettingsParams): void {
 	const { containerEl, plugin, rerender } = params;
 
-	containerEl.createEl('h2', { text: 'Working calendar' });
-	containerEl.createEl('p', {
-		text: 'Choose which areas skip weekends and holidays when projecting dependency-chain dates. Personal areas can keep weekend scheduling; work areas skip non-working days. Holidays are a single shared list applied to any area that skips them.',
-		cls: 'setting-item-description',
-		attr: { style: 'margin-bottom: 12px;' },
-	});
+	new Setting(containerEl)
+		.setName('Working calendar')
+		.setDesc('Choose which areas skip weekends and holidays when projecting dependency-chain dates. Personal areas can keep weekend scheduling; work areas skip non-working days. Holidays are a single shared list applied to any area that skips them.')
+		.setHeading();
 
 	const areas = plugin.settings.areas ?? [];
 	if (areas.length === 0) {
@@ -44,11 +42,10 @@ export function renderWorkingCalendarSettingsSection(params: RenderWorkingCalend
 				}));
 	}
 
-	containerEl.createEl('h3', { text: 'Holidays' });
-	containerEl.createEl('p', {
-		text: 'Dates (YYYY-MM-DD) skipped by any area that skips non-working days.',
-		cls: 'setting-item-description',
-	});
+	new Setting(containerEl)
+		.setName('Holidays')
+		.setDesc('Dates (YYYY-MM-DD) skipped by any area that skips non-working days.')
+		.setHeading();
 
 	const holidays = [...plugin.settings.holidays].sort();
 	if (holidays.length === 0) {

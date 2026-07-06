@@ -9,12 +9,10 @@ interface RenderRemindersSettingsParams {
 export function renderRemindersSettingsSection(params: RenderRemindersSettingsParams): void {
 	const { containerEl, plugin } = params;
 
-	containerEl.createEl('h2', { text: 'Reminders' });
-	containerEl.createEl('p', {
-		text: 'Reminders fire as Obsidian notices when tasks are due, overdue, or stale. Each reminder fires at most once per task per day.',
-		cls: 'setting-item-description',
-		attr: { style: 'margin-bottom: 12px;' },
-	});
+	new Setting(containerEl)
+		.setName('Reminders')
+		.setDesc('Reminders fire as Obsidian notices when tasks are due, overdue, or stale. Each reminder fires at most once per task per day.')
+		.setHeading();
 
 	const r = plugin.settings.reminders;
 

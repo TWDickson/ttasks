@@ -15,18 +15,15 @@ interface RenderViewsSettingsParams {
 export function renderViewsSettingsSection(params: RenderViewsSettingsParams): void {
 	const { containerEl, plugin, app, rerender } = params;
 
-	containerEl.createEl('h2', { text: 'Views' });
-	containerEl.createEl('p', {
-		text: 'Built-in views and Smart Lists now share one registry model. Smart Lists are saved query + renderer definitions with sidebar navigation.',
-		cls: 'setting-item-description',
-		attr: { style: 'margin-bottom: 12px;' },
-	});
+	new Setting(containerEl)
+		.setName('Views')
+		.setDesc('Built-in views and Smart Lists share one registry model. Smart Lists are saved query + renderer definitions with sidebar navigation.')
+		.setHeading();
 
 	const registeredViews = getRegisteredTaskViews(plugin.settings);
 	const builtinViews = registeredViews.filter((view) => view.source === 'builtin');
 	const customViews = plugin.settings.customViews;
 
-	containerEl.createEl('h3', { text: 'Built-in Views' });
 	for (const view of builtinViews) {
 		new Setting(containerEl)
 			.setName(view.name)
@@ -38,7 +35,7 @@ export function renderViewsSettingsSection(params: RenderViewsSettingsParams): v
 			});
 	}
 
-	containerEl.createEl('h3', { text: 'Smart Lists' });
+	new Setting(containerEl).setName('Smart Lists').setHeading();
 	if (customViews.length === 0) {
 		containerEl.createEl('p', {
 			text: 'No Smart Lists yet. Add one to create another board tab backed by the persisted query model.',
@@ -189,12 +186,10 @@ export function renderViewsSettingsSection(params: RenderViewsSettingsParams): v
 }
 
 function renderStatusBarSettings(containerEl: HTMLElement, plugin: TTasksPlugin): void {
-	containerEl.createEl('h3', { text: 'Status bar' });
-	containerEl.createEl('p', {
-		text: 'Desktop-only summary in the bottom status bar. Shows overdue / blocked counts with a full breakdown on hover.',
-		cls: 'setting-item-description',
-		attr: { style: 'margin-bottom: 12px;' },
-	});
+	new Setting(containerEl)
+		.setName('Status bar')
+		.setDesc('Desktop-only summary in the bottom status bar. Shows overdue / blocked counts with a full breakdown on hover.')
+		.setHeading();
 
 	new Setting(containerEl)
 		.setName('Hide when all clear')

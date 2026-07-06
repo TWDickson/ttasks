@@ -233,7 +233,42 @@ mobile drawer.
 
 ---
 
-## P7. [DESIGN] Settings pane overhaul
+## P7. [DONE] [DESIGN] Settings pane overhaul
+
+**[DONE 2026-07-06, Batch F]** IA/presentation pass — no schema changes, every
+setting stays functional (build + full suite green, 1241 tests).
+
+- **Dropped the plugin's own page title** (`h2` "TTasks Settings") per Obsidian
+  convention — plugin settings shouldn't render a page title.
+- **Every section heading is now `new Setting(el).setName(…).setHeading()`**
+  instead of raw `createEl('h2'/'h3')`, so headings get Obsidian's native
+  heading styling/spacing and the intro `<p>` blocks fold into `setDesc()`.
+  Converted in: archive, capture sources (+ its two sub-headings), kanban,
+  quick actions, reminders, views (+ Smart Lists / Status bar), working
+  calendar (+ Holidays), migration. Managed-list boxes (Statuses/Areas/Labels)
+  keep their custom `.tt-managed-list-section-header` — deliberately, the
+  legend/swatch layout depends on it.
+- **Information architecture / order** (by how often Taylor touches them):
+  General (folder, FAB, link trigger) → Completion status + Statuses/Areas/
+  Labels → Views & board (Views, Smart Lists, Status bar, Kanban) → Reminders
+  & quick actions → Working calendar → Capture & import (Capture sources,
+  Migration) → Advanced (graph diagnostics, Archive). Completion status moved
+  down next to the Statuses list; the developer-only graph-diagnostics toggle
+  moved out of the top block into Advanced.
+- **Sentence-case names, no trailing colons** ("Capture sources", "Quick
+  actions", "Views"). "Built-in Views" sub-heading dropped as redundant right
+  under "Views". Migration's old "Advanced" heading became "Migration"; its
+  collapsible relabelled "Bulk import from capture sources".
+- **Scroll preserved on rerender** — `display()` captures `containerEl.scrollTop`
+  before `empty()` and restores it after rebuild, so section `rerender: () =>
+  this.display()` callbacks (add/remove a status, edit a source, etc.) no
+  longer jump the pane to the top.
+
+**Not done / for Taylor:** the rig doesn't cover the settings tab, so the
+before/after visual verification is a live-Obsidian check. Deliberately kept
+conservative — no collapsible mega-groups or a jump-to nav (spec says don't
+over-engineer; flat headings + ordering match Obsidian core). Managed-list
+custom headers left as-is rather than reworked into `setHeading` boxes.
 
 **Symptom:** Settings have grown section-by-section (12+ sections appended in
 sequence) and need a cohesive overhaul.

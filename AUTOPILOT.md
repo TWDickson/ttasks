@@ -58,7 +58,7 @@ needs live Obsidian/vault, needs Taylor's judgment):
 - [x] **Batch D** — NATIVE N4 + N5 (jump-to-task fuzzy switcher, then protocol
   `action=jump` + prefill + URI docs)
 - [x] **Batch E** — NATIVE N2 + N6 (view state persistence; status bar polish)
-- [ ] **Batch F** ⚖ — UI_POLISH P7 (settings overhaul; IA/presentation only,
+- [x] **Batch F** ⚖ — UI_POLISH P7 (settings overhaul; IA/presentation only,
   every existing setting stays functional)
 - [ ] **Batch G** — UI_POLISH P4 + C1 (graph mobile touch/pinch; zoom-edge
   repro in the rig — if unreproducible, follow the Stuck protocol for C1 only)

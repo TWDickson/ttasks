@@ -23,12 +23,10 @@ type CaptureSourceMode = CaptureSourceConfig['mode'];
 export function renderCaptureSourcesSettingsSection(params: RenderCaptureSourcesSettingsParams): void {
 	const { containerEl, plugin, app, rerender } = params;
 
-	containerEl.createEl('h2', { text: 'Capture Sources' });
-	containerEl.createEl('p', {
-		text: 'Configure directories that feed markdown checkboxes into TTasks. Each source controls mode, section filtering, filename date inheritance, and default task values.',
-		cls: 'setting-item-description',
-		attr: { style: 'margin-bottom: 12px;' },
-	});
+	new Setting(containerEl)
+		.setName('Capture sources')
+		.setDesc('Configure directories that feed markdown checkboxes into TTasks. Each source controls mode, section filtering, filename date inheritance, and default task values.')
+		.setHeading();
 
 	if (detectRolloverPlugin(app)) {
 		containerEl.createEl('div', {
@@ -58,7 +56,7 @@ export function renderCaptureSourcesSettingsSection(params: RenderCaptureSources
 	const detectedPaths = new Set(detectedSources.map((source) => source.path));
 	const configuredSources = plugin.settings.captureSources;
 
-	containerEl.createEl('h3', { text: 'Auto-detected sources' });
+	new Setting(containerEl).setName('Auto-detected sources').setHeading();
 	const autoSources = configuredSources.filter((source) => detectedPaths.has(source.path));
 	if (autoSources.length === 0) {
 		containerEl.createEl('p', {
@@ -71,7 +69,7 @@ export function renderCaptureSourcesSettingsSection(params: RenderCaptureSources
 		});
 	}
 
-	containerEl.createEl('h3', { text: 'Additional directories' });
+	new Setting(containerEl).setName('Additional directories').setHeading();
 	const manualSources = configuredSources.filter((source) => !detectedPaths.has(source.path));
 	if (manualSources.length === 0) {
 		containerEl.createEl('p', {

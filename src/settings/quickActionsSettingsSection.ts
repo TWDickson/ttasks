@@ -9,12 +9,10 @@ interface RenderQuickActionsSettingsParams {
 export function renderQuickActionsSettingsSection(params: RenderQuickActionsSettingsParams): void {
 	const { containerEl, plugin } = params;
 
-	containerEl.createEl('h2', { text: 'Quick Actions' });
-	containerEl.createEl('p', {
-		text: 'Quick actions update task status and due dates. On mobile, touch-and-hold opens a thumb menu that uses these preferences.',
-		cls: 'setting-item-description',
-		attr: { style: 'margin-bottom: 12px;' },
-	});
+	new Setting(containerEl)
+		.setName('Quick actions')
+		.setDesc('Quick actions update task status and due dates. On mobile, touch-and-hold opens a thumb menu that uses these preferences.')
+		.setHeading();
 
 	const statuses = plugin.settings.statuses ?? [];
 	const qa = plugin.settings.quickActions;

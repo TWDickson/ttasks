@@ -54,21 +54,13 @@ export class TTasksSettingTab extends PluginSettingTab {
 
 	display(): void {
 		const { containerEl } = this;
+		// Preserve scroll position across the full-pane rebuilds that section
+		// `rerender: () => this.display()` callbacks trigger.
+		const scrollTop = containerEl.scrollTop;
 		containerEl.empty();
-		containerEl.createEl('h2', { text: 'TTasks Settings' });
 
-		new Setting(containerEl)
-			.setName('FAB position')
-			.setDesc('Position of the floating action button for creating new tasks.')
-			.addDropdown(dd => dd
-				.addOption('right', 'Bottom right')
-				.addOption('left', 'Bottom left')
-				.addOption('hidden', 'Hidden')
-				.setValue(this.plugin.settings.fabPosition)
-				.onChange(async (value) => {
-					this.plugin.settings.fabPosition = value as FabPosition;
-					await this.plugin.saveSettings();
-				}));
+		// --- General ---------------------------------------------------------
+		new Setting(containerEl).setName('General').setHeading();
 
 		new Setting(containerEl)
 			.setName('Tasks folder')
@@ -86,6 +78,19 @@ export class TTasksSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
+			.setName('FAB position')
+			.setDesc('Position of the floating action button for creating new tasks.')
+			.addDropdown(dd => dd
+				.addOption('right', 'Bottom right')
+				.addOption('left', 'Bottom left')
+				.addOption('hidden', 'Hidden')
+				.setValue(this.plugin.settings.fabPosition)
+				.onChange(async (value) => {
+					this.plugin.settings.fabPosition = value as FabPosition;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName('Inline task link trigger')
 			.setDesc('Token used by inline editor suggestions for task linking (for example @task).')
 			.addText(text => text
@@ -97,16 +102,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 				})
 			);
 
-		new Setting(containerEl)
-			.setName('Graph diagnostics logging')
-			.setDesc('Developer mode: log dependency graph quality metrics (crossings, bend score, lane breakdown) to console when graph layout changes.')
-			.addToggle((toggle) => toggle
-				.setValue(this.plugin.settings.graphDiagnosticsEnabled)
-				.onChange(async (value) => {
-					this.plugin.settings.graphDiagnosticsEnabled = value;
-					await this.plugin.saveSettings();
-				}));
-
+		// --- Statuses, areas & labels ---------------------------------------
 		const statuses = this.plugin.settings.statuses ?? [];
 
 		new Setting(containerEl)
@@ -197,44 +193,67 @@ export class TTasksSettingTab extends PluginSettingTab {
 			},
 		});
 
-		renderWorkingCalendarSettingsSection({
-			containerEl,
-			plugin: this.plugin,
-			rerender: () => this.display(),
-		});
+		// --- Views & board ---------------------------------------------------
 		renderViewsSettingsSection({
 			containerEl,
 			plugin: this.plugin,
 			app: this.app,
 			rerender: () => this.display(),
 		});
+		renderKanbanSettingsSection({
+			containerEl,
+			plugin: this.plugin,
+		});
+
+		// --- Reminders & quick actions --------------------------------------
+		renderRemindersSettingsSection({
+			containerEl,
+			plugin: this.plugin,
+		});
+		renderQuickActionsSettingsSection({
+			containerEl,
+			plugin: this.plugin,
+		});
+
+		// --- Working calendar ------------------------------------------------
+		renderWorkingCalendarSettingsSection({
+			containerEl,
+			plugin: this.plugin,
+			rerender: () => this.display(),
+		});
+
+		// --- Capture & import ------------------------------------------------
 		renderCaptureSourcesSettingsSection({
 			containerEl,
 			plugin: this.plugin,
 			app: this.app,
 			rerender: () => this.display(),
 		});
-		renderQuickActionsSettingsSection({
+		renderMigrationSettingsSection({
 			containerEl,
 			plugin: this.plugin,
 		});
-		renderRemindersSettingsSection({
-			containerEl,
-			plugin: this.plugin,
-		});
-		renderKanbanSettingsSection({
-			containerEl,
-			plugin: this.plugin,
-		});
+
+		// --- Advanced --------------------------------------------------------
+		new Setting(containerEl).setName('Advanced').setHeading();
+		new Setting(containerEl)
+			.setName('Graph diagnostics logging')
+			.setDesc('Developer mode: log dependency graph quality metrics (crossings, bend score, lane breakdown) to console when graph layout changes.')
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.settings.graphDiagnosticsEnabled)
+				.onChange(async (value) => {
+					this.plugin.settings.graphDiagnosticsEnabled = value;
+					await this.plugin.saveSettings();
+				}));
+
 		renderArchiveSettingsSection({
 			containerEl,
 			plugin: this.plugin,
 			rerender: () => this.display(),
 		});
-		renderMigrationSettingsSection({
-			containerEl,
-			plugin: this.plugin,
-		});
+
+		// Restore scroll after the pane has been rebuilt.
+		containerEl.scrollTop = scrollTop;
 	}
 
 
