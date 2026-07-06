@@ -170,6 +170,17 @@ export class TTasksSettingTab extends PluginSettingTab {
 				this.plugin.settings.areaColors = colors;
 			},
 				getDefaultMigrationTarget: () => null,
+				renderRowExtra: (container, area) => {
+					const label = container.createEl('label', { cls: 'tt-managed-list-row-toggle' });
+					const checkbox = label.createEl('input', { attr: { type: 'checkbox' } });
+					checkbox.checked = this.plugin.settings.areaWorkweek[area] === true;
+					label.createSpan({ text: 'Skip weekends & holidays when scheduling' });
+					checkbox.addEventListener('change', async () => {
+						this.plugin.settings.areaWorkweek = { ...this.plugin.settings.areaWorkweek, [area]: checkbox.checked };
+						await this.plugin.saveSettings();
+						await this.plugin.taskStore.load();
+					});
+				},
 			},
 		});
 

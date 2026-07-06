@@ -9,6 +9,8 @@ import { normalizeTaskPath, resolveOwningProjectPath, dedupePaths } from './task
 export interface WorkingCalendar {
 	workweekOnly: boolean;
 	holidayDates: Set<string>;
+	/** Recurring holidays as MM-DD, matched against any year. */
+	recurringHolidays: Set<string>;
 }
 
 /**
@@ -18,8 +20,10 @@ export interface WorkingCalendar {
  * so this module stays a pure dependency of the graph/timeline layers.
  */
 export interface CalendarConfig {
-	/** Universal holiday dates (YYYY-MM-DD). */
+	/** Universal one-off holiday dates (YYYY-MM-DD). */
 	holidays: string[];
+	/** Universal recurring holidays as MM-DD, matched against any year. */
+	recurringHolidays?: string[];
 	/** Per-area "skip weekends & holidays" toggle. Areas absent fall back to
 	 *  legacy per-task/project `workweek_only`. */
 	areaWorkweek: Record<string, boolean>;
@@ -54,15 +58,22 @@ function parseHolidayDates(value: unknown): string[] {
 	return value.filter((entry): entry is string => typeof entry === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry));
 }
 
+function parseRecurringHolidays(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	return value.filter((entry): entry is string => typeof entry === 'string' && /^\d{2}-\d{2}$/.test(entry));
+}
+
 function isNonWorkingDay(date: Date, calendar: WorkingCalendar): boolean {
-	if (calendar.holidayDates.has(formatDateISO(date))) return true;
+	const iso = formatDateISO(date);
+	if (calendar.holidayDates.has(iso)) return true;
+	if (calendar.recurringHolidays.has(iso.slice(5))) return true;
 	if (!calendar.workweekOnly) return false;
 	return isWeekend(date);
 }
 
 export function addCalendarDays(date: Date, days: number, calendar: WorkingCalendar): Date {
 	if (days === 0) return addDays(date, days);
-	if (!calendar.workweekOnly && calendar.holidayDates.size === 0) return addDays(date, days);
+	if (!calendar.workweekOnly && calendar.holidayDates.size === 0 && calendar.recurringHolidays.size === 0) return addDays(date, days);
 
 	let cursor = new Date(date.getTime());
 	let remaining = Math.abs(days);
@@ -86,6 +97,7 @@ export function createWorkingCalendarResolver(
 
 	// Universal config from settings (holidays + per-area skip toggle).
 	const universalHolidays = parseHolidayDates(options?.calendarConfig?.holidays);
+	const universalRecurringHolidays = parseRecurringHolidays(options?.calendarConfig?.recurringHolidays);
 	const areaWorkweek = options?.calendarConfig?.areaWorkweek ?? {};
 
 	// Legacy per-project fields, kept for notes not yet migrated to the
@@ -96,12 +108,13 @@ export function createWorkingCalendarResolver(
 		projectCalendarByPath.set(candidate.path, {
 			workweekOnly: candidate.workweek_only === true,
 			holidayDates: new Set(parseHolidayDates(candidate.holiday_dates)),
+			recurringHolidays: new Set<string>(),
 		});
 	}
 
 	// A calendar that skips nothing — shared so the common (default) case does
 	// not allocate a fresh Set per task.
-	const noSkipCalendar: WorkingCalendar = { workweekOnly: false, holidayDates: new Set<string>() };
+	const noSkipCalendar: WorkingCalendar = { workweekOnly: false, holidayDates: new Set<string>(), recurringHolidays: new Set<string>() };
 
 	return (task: Task): WorkingCalendar => {
 		const projectPath = resolveOwningProjectPath(task, allTaskByPath);
@@ -119,13 +132,13 @@ export function createWorkingCalendarResolver(
 
 		if (!workweekOnly) return noSkipCalendar;
 
-		// When skipping, non-working days = weekends plus the union of universal,
-		// legacy-project, and legacy-per-task holidays.
+		// When skipping, non-working days = weekends plus the union of universal
+		// (one-off + recurring), legacy-project, and legacy-per-task holidays.
 		const holidayDates = new Set<string>(universalHolidays);
 		if (legacyProject) for (const date of legacyProject.holidayDates) holidayDates.add(date);
 		for (const date of parseHolidayDates(task.holiday_dates)) holidayDates.add(date);
 
-		return { workweekOnly: true, holidayDates };
+		return { workweekOnly: true, holidayDates, recurringHolidays: new Set(universalRecurringHolidays) };
 	};
 }
 

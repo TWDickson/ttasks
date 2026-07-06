@@ -98,7 +98,12 @@ export function buildTimelineTicks(start: Date, end: Date): TimelineTick[] {
 	return ticks;
 }
 
-export function buildTimelineNonWorkingBands(start: Date, end: Date, holidayDates: Set<string>): TimelineNonWorkingBand[] {
+export function buildTimelineNonWorkingBands(
+	start: Date,
+	end: Date,
+	holidayDates: Set<string>,
+	recurringHolidays: Set<string> = new Set<string>(),
+): TimelineNonWorkingBand[] {
 	const span = Math.max(1, diffDays(start, end) + 1);
 	const widthPercent = 100 / span;
 	const bands: TimelineNonWorkingBand[] = [];
@@ -106,7 +111,7 @@ export function buildTimelineNonWorkingBands(start: Date, end: Date, holidayDate
 	for (let offset = 0; offset <= span - 1; offset += 1) {
 		const date = addDays(start, offset);
 		const isoDate = formatDateISO(date);
-		const holiday = holidayDates.has(isoDate);
+		const holiday = holidayDates.has(isoDate) || recurringHolidays.has(isoDate.slice(5));
 		if (!holiday && !isWeekend(date)) continue;
 
 		bands.push({

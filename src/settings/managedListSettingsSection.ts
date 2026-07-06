@@ -25,6 +25,10 @@ export interface ManagedListConfig {
 	getColors: () => Record<string, string>;
 	applyColors: (colors: Record<string, string>) => void;
 	getDefaultMigrationTarget: (nextValues: string[]) => string | null;
+	/** Optional per-row control rendered under a *saved* item (e.g. the per-area
+	 *  working-calendar toggle). Called with the saved value; not shown for
+	 *  unsaved new rows. */
+	renderRowExtra?: (container: HTMLElement, savedValue: string) => void;
 }
 
 interface RenderManagedListSettingParams {
@@ -212,6 +216,11 @@ export function renderManagedListSettingSection(params: RenderManagedListSetting
 				state.items = state.items.filter(entry => entry.id !== item.id);
 				renderRows();
 			});
+
+			if (config.renderRowExtra && item.originalValue) {
+				const extraEl = mainEl.createDiv({ cls: 'tt-managed-list-row-extra' });
+				config.renderRowExtra(extraEl, item.originalValue);
+			}
 		});
 	};
 

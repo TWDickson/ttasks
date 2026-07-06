@@ -78,6 +78,13 @@ describe('buildTaskSchedule', () => {
 		expect(second).not.toBe(first);
 	});
 
+	it('invalidates the cache when recurring holidays change', () => {
+		const tasks = [makeTask({ path: 'Tasks/a.md', name: 'A', due_date: '2026-04-05' })];
+		const first = buildTaskSchedule(tasks, { calendarConfig: { holidays: [], recurringHolidays: [], areaWorkweek: {} } });
+		const second = buildTaskSchedule(tasks, { calendarConfig: { holidays: [], recurringHolidays: ['04-06'], areaWorkweek: {} } });
+		expect(second).not.toBe(first);
+	});
+
 	it('propagates dates through a dependency chain', () => {
 		const tasks = [
 			makeTask({ path: 'Tasks/a.md', name: 'A', start_date: '2026-04-01', due_date: '2026-04-03' }),

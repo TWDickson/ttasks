@@ -14,6 +14,15 @@ export interface CaptureSourceDefaults {
 	assignedTo: string | null;
 }
 
+export interface HolidayEntry {
+	/** Anchor date, YYYY-MM-DD. When repeatYearly is true only the MM-DD matters. */
+	date: string;
+	/** Human-readable label (e.g. "Christmas Day"). May be empty. */
+	name: string;
+	/** When true, the holiday applies to this MM-DD in every year. */
+	repeatYearly: boolean;
+}
+
 export interface CaptureSourceConfig {
 	path: string;
 	includeSubdirectories: boolean;
@@ -118,9 +127,10 @@ export interface TTasksSettings {
 	 *  workweek_only. Personal areas leave this off (weekend scheduling allowed);
 	 *  work areas turn it on. */
 	areaWorkweek: Record<string, boolean>;
-	/** Universal holiday dates (YYYY-MM-DD) skipped by any area whose workweek
-	 *  toggle is on. Replaces per-task holiday_dates as the source of truth. */
-	holidays: string[];
+	/** Universal holidays skipped by any area whose workweek toggle is on.
+	 *  Replaces per-task holiday_dates as the source of truth. Each entry has a
+	 *  date, an optional name, and a yearly-repeat flag. */
+	holidays: HolidayEntry[];
 	labelValues: string[];
 	labelColors: Record<string, string>;
 	quickActions: QuickActionsSettings;

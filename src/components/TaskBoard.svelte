@@ -12,6 +12,7 @@
 	import TaskGraph from './TaskGraph.svelte';
 	import { createTaskQuery } from '../query/useTaskQuery';
 	import { buildTaskSchedule } from '../store/taskSchedule';
+	import { splitHolidayCalendar } from '../settings/holidays';
 	import { resolveAreaOptions } from '../settings/managedListUtils';
 	import { canToggleBuiltinCompleted, defaultCompletedVisibility } from './builtinViewCompletionToggle';
 	import { canToggleLogbookRenderer, resolveViewRenderer, toggleLogbookRendererMode } from './logbookViewMode';
@@ -158,8 +159,10 @@
 
 	// Resolve dependency-chain schedules once for the whole board; passed to list
 	// rows so tasks whose finish is implied by their chain show a projected badge.
+	$: holidayCalendar = splitHolidayCalendar(plugin.settings.holidays);
 	$: calendarConfig = {
-		holidays: plugin.settings.holidays,
+		holidays: holidayCalendar.holidays,
+		recurringHolidays: holidayCalendar.recurringHolidays,
 		areaWorkweek: plugin.settings.areaWorkweek,
 	};
 	$: schedule = buildTaskSchedule($tasks, { calendarConfig });

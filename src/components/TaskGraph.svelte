@@ -23,6 +23,7 @@
 		startOfToday,
 	} from '../store/graph/graphTimeline';
 	import { computeDependencyLaneWidth, groupingLabel, laneHeaderClass } from '../store/graph/graphPresentation';
+	import { splitHolidayCalendar } from '../settings/holidays';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
 	import { icon } from '../utils/icon';
 
@@ -98,8 +99,10 @@
 	// Universal working-calendar config (holidays + per-area workweek toggle),
 	// threaded into every date resolution so the graph, timeline, and node cards
 	// all agree with the list/detail views.
+	$: holidayCalendar = splitHolidayCalendar(plugin.settings.holidays);
 	$: calendarConfig = {
-		holidays: plugin.settings.holidays,
+		holidays: holidayCalendar.holidays,
+		recurringHolidays: holidayCalendar.recurringHolidays,
 		areaWorkweek: plugin.settings.areaWorkweek,
 	};
 
@@ -273,9 +276,10 @@
 	// Bands show the universal holiday list plus any legacy per-project holidays.
 	$: overviewHolidayDates = new Set<string>([
 		...collectProjectHolidayDates(overviewTasks),
-		...plugin.settings.holidays.filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value)),
+		...holidayCalendar.holidays,
 	]);
-	$: nonWorkingBands = buildTimelineNonWorkingBands(hybridTimeline.rangeStart, hybridTimeline.rangeEnd, overviewHolidayDates);
+	$: overviewRecurringHolidays = new Set<string>(holidayCalendar.recurringHolidays);
+	$: nonWorkingBands = buildTimelineNonWorkingBands(hybridTimeline.rangeStart, hybridTimeline.rangeEnd, overviewHolidayDates, overviewRecurringHolidays);
 	$: definedTrackHeightPx = Math.max(42, hybridTimeline.definedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.definedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
 	$: underdefinedTrackHeightPx = Math.max(42, hybridTimeline.underdefinedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.underdefinedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
 	$: definedStatusSummary = summarizeByStatus(hybridTimeline.defined.map((item) => item.task));

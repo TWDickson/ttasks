@@ -164,14 +164,34 @@ describe('normalizeSettingsFromSources', () => {
 		expect(result.areaWorkweek).toEqual({});
 	});
 
-	it('keeps only valid ISO holiday dates and boolean area toggles', () => {
+	it('coerces legacy string holidays, drops invalid dates, and keeps boolean area toggles', () => {
 		const result = normalizeSettingsFromSources([
 			{
 				holidays: ['2026-12-25', 'not-a-date', '2026/01/01', '2026-07-04'],
 				areaWorkweek: { Work: true, Personal: false, bogus: 'yes' },
 			},
 		]);
-		expect(result.holidays).toEqual(['2026-12-25', '2026-07-04']);
+		// Legacy bare-string dates become unnamed one-off entries, sorted by date.
+		expect(result.holidays).toEqual([
+			{ date: '2026-07-04', name: '', repeatYearly: false },
+			{ date: '2026-12-25', name: '', repeatYearly: false },
+		]);
 		expect(result.areaWorkweek).toEqual({ Work: true, Personal: false });
+	});
+
+	it('parses named and recurring holiday objects', () => {
+		const result = normalizeSettingsFromSources([
+			{
+				holidays: [
+					{ date: '2026-12-25', name: 'Christmas', repeatYearly: true },
+					{ date: 'bad', name: 'Nope', repeatYearly: true },
+					{ date: '2026-07-04', name: '  Independence Day  ' },
+				],
+			},
+		]);
+		expect(result.holidays).toEqual([
+			{ date: '2026-12-25', name: 'Christmas', repeatYearly: true },
+			{ date: '2026-07-04', name: 'Independence Day', repeatYearly: false },
+		]);
 	});
 });

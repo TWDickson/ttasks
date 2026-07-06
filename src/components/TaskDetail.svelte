@@ -9,6 +9,7 @@
 	import { RECURRENCE_LABELS, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 	import { localDateString } from '../utils/dateUtils';
 	import { buildTaskSchedule, resolveProjectedSchedule } from '../store/taskSchedule';
+	import { splitHolidayCalendar } from '../settings/holidays';
 	import { formatHumanDate } from './taskDateMeta';
 	import { isBlockedStatus } from '../schema/fieldVisibility';
 	import type { FieldComponentProps } from '../schema/fieldAdapters';
@@ -369,10 +370,12 @@
 		blockedReasonFieldProps = detailFieldProps.blockedReasonFieldProps;
 	}
 
+	$: detailHolidayCalendar = splitHolidayCalendar(plugin.settings.holidays);
 	$: projectedSchedule = task
 		? resolveProjectedSchedule(task, buildTaskSchedule($tasks, {
 			calendarConfig: {
-				holidays: plugin.settings.holidays,
+				holidays: detailHolidayCalendar.holidays,
+				recurringHolidays: detailHolidayCalendar.recurringHolidays,
 				areaWorkweek: plugin.settings.areaWorkweek,
 			},
 		}).get(task.path))

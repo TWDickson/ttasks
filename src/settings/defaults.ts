@@ -21,6 +21,7 @@ import type {
 	SortSpec,
 } from '../query/types';
 import { RENDERER_KANBAN, RENDERER_LIST } from '../constants';
+import { normalizeHolidayEntries } from './holidays';
 export const DEFAULT_STATUSES = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Completed'];
 
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
@@ -223,7 +224,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		areas: [...settings.areas],
 		areaColors: { ...settings.areaColors },
 		areaWorkweek: { ...(settings.areaWorkweek ?? {}) },
-		holidays: [...(settings.holidays ?? [])],
+		holidays: (settings.holidays ?? []).map((entry) => ({ ...entry })),
 		labelValues: [...settings.labelValues],
 		labelColors: { ...settings.labelColors },
 		quickActions: {
@@ -597,9 +598,8 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		);
 	}
 
-	const holidays = asStringArray(root.holidays);
-	if (holidays !== null) {
-		target.holidays = holidays.filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value));
+	if (Array.isArray(root.holidays)) {
+		target.holidays = normalizeHolidayEntries(root.holidays);
 	}
 
 	const labelValues = asStringArray(root.labelValues);

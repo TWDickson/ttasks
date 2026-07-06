@@ -28,7 +28,7 @@ const cache = new WeakMap<Task[], ScheduleCacheEntry>();
 function calendarConfigSignature(options?: ResolveTaskDatesOptions): string {
 	const config = options?.calendarConfig;
 	if (!config) return '';
-	return JSON.stringify([config.holidays, config.areaWorkweek]);
+	return JSON.stringify([config.holidays, config.recurringHolidays ?? [], config.areaWorkweek]);
 }
 
 /**
