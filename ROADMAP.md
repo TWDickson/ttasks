@@ -4,34 +4,59 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
-## Handoff (2026-07-04, evening)
+## Consolidated Status (2026-07-06)
 
-Unattended execution set up in **`AUTOPILOT.md`** (batch queue + per-session
-protocol) with driver script **`run-autopilot.fish`** — one fresh
-auto-mode `/goal` session per batch, all work on `feat/ui-polish-autopilot`,
-never pushed/merged. N7 and final design decisions stay with Taylor.
+Single source of truth for what's done and what's left across every backlog
+file. Supersedes the older per-sweep handoffs — those files are kept as history
+with their items marked `[DONE]`. Validation at this checkpoint: full suite
+**1241 tests / 109 files** passing; production build clean.
+Branch: `feat/ui-polish-autopilot` (never pushed/merged — Taylor reviews).
 
-Native-integration backlog written up in **`NATIVE_FEATURES_TASKS.md`** —
-seven specced tasks: leaf header actions (N1), view state persistence (N2),
-public plugin API design doc (N3, plan-first), jump-to-task fuzzy switcher
-(N4), protocol-handler extension + docs (N5), status bar polish (N6), Bases
-sample + schema check (N7). Note: protocol handler, status bar, and file
-context menus already exist — N5/N6 extend them.
+### Closed sweeps (verified done in-tree)
 
-New UI polish backlog written up in **`UI_POLISH_TASKS.md`** — investigated
-with file:line pointers, ready to hand to another model: kanban collapsed
-header one-line (P1), list-row visual pass (P2), selected-box size (P3),
-graph mobile friendliness (P4), detail-pane centering (P5), detail top/bottom
-actions (P6), settings pane overhaul (P7), plus carry-overs C1/C2 (= #9/#11
-below).
+| Backlog file | Scope | State |
+| --- | --- | --- |
+| `AUDIT_TASKS.md` | Sweep 2 — A1–A6, B1–B3, C1–C6, D1–D7 | ✅ complete |
+| `DESIGN_AUDIT.md` | P0-1…P0-6, P1-1…P1-6, P2-1…P2-7 | ✅ complete (exceptions below) |
+| `BUGFIX_TASKS.md` | #1–#8, #10, #12, #13 | ✅ complete (#9/#11 → open, below) |
+| `NATIVE_FEATURES_TASKS.md` | N1, N2, N4, N5, N6 | ✅ complete (N3/N7 → open) |
+| `UI_POLISH_TASKS.md` | P1, P2, P3, P5, P6 | ✅ complete (P4/P7/C1/C2 → open) |
+
+### Open work — the Autopilot queue is the live backlog
+
+Remaining scope lives in `AUTOPILOT.md`'s batch queue (batches A–E done). The
+older identifiers collapse onto these batches — same work, different files:
+
+| Batch | Aliases | Scope | Gate |
+| --- | --- | --- | --- |
+| **F** ⚖ | UI_POLISH P7 | Settings pane IA/presentation overhaul | autopilot-able |
+| **G** | UI_POLISH P4 + C1 = BUGFIX #9 | Graph mobile touch/pinch; zoom-edge detach repro | autopilot + may need live repro |
+| **H** | NATIVE N3 | Write `API_DESIGN.md` (design doc only, no `src/` changes) | autopilot-able |
+| **I** ⚖ | UI_POLISH C2 = BUGFIX #11 | Graph layout: baseline metrics + 2–3 variant proposals | **present options, Taylor picks** |
+
+### Fenced off — need Taylor (not autopilot-able)
+
+- **N7** (Bases sample `.base` + schema check) — needs the real vault with
+  Bases enabled.
+- **C2 / #11 final layout** — Batch I produces options; the pick is Taylor's.
+- **N3 API surface** — the design doc (Batch H) is written headlessly, but the
+  API itself ships only after Taylor's review.
+- **DESIGN_AUDIT P2-8** (soften overdue-red) — deliberately not done; a taste
+  call flagged for Taylor.
+- **Visual regression pass** — dark + light, desktop + phone, per the
+  STYLING_NOTES.md mobile-modal checklist (noted pending in DESIGN_AUDIT and
+  the bugfix graph items).
+
+---
 
 ## Progress Notes (2026-07-04)
 
-Worked through `BUGFIX_TASKS.md` (Taylor's 2026-07-04 report). The earlier
+Worked through `BUGFIX_TASKS.md` (Taylor's 2026-07-04 report), then the
+Autopilot batches A–E on `feat/ui-polish-autopilot`. The earlier
 `AUDIT_TASKS.md` Sweep 2 (A1–A6, B1–B3, C1–C6, D1–D7) was already implemented
 in prior sessions and verified present.
 
-Shipped this session:
+Bugfix report shipped:
 
 - **#3/#4** — Detail pane derives its task from `$tasks` (fixes "Task Not
   Found" on create); `TaskWriter.update` applies an optimistic in-memory patch
@@ -52,14 +77,20 @@ Shipped this session:
 - **#7** — Detail pane topbar and main-view filter bar share a 44px header
   height so their bottom borders align.
 
-Deferred (need the live app / a design workshop with Taylor):
+Autopilot batches A–E (native integration + UI polish):
 
-- **#9** graph zoom edge/arrowhead detachment — flagged `[LEAD]`, requires
-  reproduction at 2×–8× zoom to confirm whether edges or just arrowheads drift.
-- **#11** graph detail-view layout improvement — explicitly the larger,
-  workshop-with-Taylor item.
+- **Batch A** — UI_POLISH P5 (detail-pane centering) + P6 (detail top/bottom
+  actions) + NATIVE N1 (native `addAction` header buttons on all three leaves).
+- **Batch B** — UI_POLISH P1 (kanban collapsed one-line header) + P3 (inset
+  selected-row highlight).
+- **Batch C** — UI_POLISH P2 (conservative list-row visual pass).
+- **Batch D** — NATIVE N4 (jump-to-task fuzzy switcher) + N5 (protocol
+  `action=jump` + new-task prefill + `PROTOCOL.md`).
+- **Batch E** — NATIVE N2 (view state persistence via `getState`/`setState`) +
+  N6 (status-bar tooltip/warning/hide-when-zero + click-target setting).
 
-Validation: full suite **1216 tests / 107 files** passing; build + lint clean.
+Remaining after Batch E: batches **F–I** (see Consolidated Status above) plus
+the Taylor-gated items.
 
 ---
 

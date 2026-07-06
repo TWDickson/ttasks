@@ -119,11 +119,41 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 ## Current Priorities
 
-1. **Follow-on hardening** — continue narrowing board/data-model debt after I/J slices land
-2. **Reliability polishing** — keep capture/import migration and board flows stable under large vaults
-3. **Stream K hardening** — execute scan reliability, deterministic scan ordering, and exact completion-link matching
+Backlog is consolidated in `ROADMAP.md` → **Consolidated Status (2026-07-06)**.
+All prior sweeps are closed (AUDIT Sweep 2, DESIGN_AUDIT P0–P2, BUGFIX #1–13,
+NATIVE N1/N2/N4/N5/N6, UI_POLISH P1/P2/P3/P5/P6). The live backlog is the
+`AUTOPILOT.md` batch queue on `feat/ui-polish-autopilot`:
 
-PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`, `Scripts/TASK_I1.md`-`Scripts/TASK_I5.md`, `Scripts/TASK_J1.md`-`Scripts/TASK_J6.md`, `Scripts/TASK_K1.md`-`Scripts/TASK_K6.md`
+1. **Batch F** — settings pane IA/presentation overhaul (UI_POLISH P7)
+2. **Batch G** — graph mobile touch/pinch + zoom-edge repro (UI_POLISH P4 / BUGFIX #9)
+3. **Batch H** — `API_DESIGN.md` public-API design doc (NATIVE N3, doc only)
+4. **Batch I** — graph layout variants + baseline metrics (UI_POLISH C2 / BUGFIX #11) — present options, Taylor picks
+
+Taylor-gated (not autopilot-able): N7 Bases sample (needs live vault),
+DESIGN_AUDIT P2-8 overdue-red softening (taste call), and a dark/light +
+desktop/phone visual regression pass.
+
+Task-file backlogs: `AUDIT_TASKS.md`, `BUGFIX_TASKS.md`, `DESIGN_AUDIT.md`,
+`NATIVE_FEATURES_TASKS.md`, `UI_POLISH_TASKS.md` (items marked `[DONE]` inline).
+Older PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`,
+`Scripts/TASK_I1.md`-`Scripts/TASK_I5.md`, `Scripts/TASK_J1.md`-`Scripts/TASK_J6.md`,
+`Scripts/TASK_K1.md`-`Scripts/TASK_K6.md`
+
+## Recent Updates (2026-07-06)
+
+- **Backlog consolidated** — six overlapping status files reconciled into one
+  checkpoint in `ROADMAP.md` (Consolidated Status 2026-07-06). All prior sweeps
+  closed; live backlog is the `AUTOPILOT.md` batch queue (A–E done, F–I open).
+- **Native three-pane workspace** — rail / board / detail now render as
+  workspace leaves with native header `addAction` buttons (N1), `getState`/
+  `setState` layout persistence (N2), a jump-to-task fuzzy switcher + protocol
+  `action=jump`/prefill + `PROTOCOL.md` (N4/N5), and a richer status bar (N6).
+- **UI polish (Autopilot A–E)** — detail-pane centering + top/bottom actions
+  (P5/P6), kanban collapsed one-line header + inset selected-row highlight
+  (P1/P3), conservative list-row visual pass (P2).
+- **BUGFIX report (2026-07-04)** — #1–#8, #10, #12, #13 shipped; #9 (graph zoom
+  edges) and #11 (graph layout) carried into Batches G and I.
+- Validation status: production build passing; **test suite: 1241 passing (109 files)**.
 
 ## Recent Updates (2026-05-25)
 
