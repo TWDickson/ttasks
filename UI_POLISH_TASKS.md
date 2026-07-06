@@ -264,11 +264,28 @@ setting stays functional (build + full suite green, 1241 tests).
   this.display()` callbacks (add/remove a status, edit a source, etc.) no
   longer jump the pane to the top.
 
+**Round-2 follow-ups from Taylor's review (2026-07-06):** after the first pass
+he asked for more. Landed on `feat/ui-polish-autopilot` in two commits:
+- **Collapsible + jumpable** — reversed the earlier "don't over-engineer" call;
+  each area is now a `<details>` group with a sticky jump-nav (collapse state
+  survives in-pane rerenders).
+- **Hide built-in views** — per-view toggles + `hiddenBuiltinViews` setting;
+  rail filters hidden built-ins while they stay resolvable by id.
+- **Preview reminders** — a button fires a sample notice per enabled rule
+  (pure `buildReminderPreviews`, shared wording with real reminders).
+- **Capture sources** — plain-language rewrite; clearer per-source rows; add
+  input gets folder-path autocomplete.
+- **Archive** promoted out of Advanced to its own group.
+- **Holidays** gained names + yearly-repeat (`HolidayEntry[]`, recurring
+  threaded through the calendar math); the per-area weekend toggle moved onto
+  each area in the Areas list.
+
+**Still open — the colour model (#1):** Taylor wants an in-depth pass with rig
+screenshots + 2–3 variants to pick from (status/area/label colours compete on
+cards despite the documented channel hierarchy). Not started; its own chunk.
+
 **Not done / for Taylor:** the rig doesn't cover the settings tab, so the
-before/after visual verification is a live-Obsidian check. Deliberately kept
-conservative — no collapsible mega-groups or a jump-to nav (spec says don't
-over-engineer; flat headings + ordering match Obsidian core). Managed-list
-custom headers left as-is rather than reworked into `setHeading` boxes.
+before/after visual verification is a live-Obsidian check.
 
 **Symptom:** Settings have grown section-by-section (12+ sections appended in
 sequence) and need a cohesive overhaul.
