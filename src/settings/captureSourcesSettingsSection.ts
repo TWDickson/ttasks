@@ -10,6 +10,9 @@ import {
 	normalizeCaptureSource,
 	normalizeCaptureSourceDefaults,
 } from './defaults';
+import { FolderSuggest } from './folderSuggest';
+
+const MODE_HELP = 'Manual: captured checkboxes show up in TTasks but stay put until you promote them. Auto-capture: they are surfaced in TTasks automatically. Auto-promote: they are converted into TTasks notes automatically.';
 
 interface RenderCaptureSourcesSettingsParams {
 	containerEl: HTMLElement;
@@ -25,7 +28,7 @@ export function renderCaptureSourcesSettingsSection(params: RenderCaptureSources
 
 	new Setting(containerEl)
 		.setName('Capture sources')
-		.setDesc('Configure directories that feed markdown checkboxes into TTasks. Each source controls mode, section filtering, filename date inheritance, and default task values.')
+		.setDesc('TTasks can read plain markdown checkboxes ("- [ ] …") from other folders in your vault — like your daily notes — and pull them in as tasks. Each folder you list here is a capture source.')
 		.setHeading();
 
 	if (detectRolloverPlugin(app)) {
@@ -40,7 +43,7 @@ export function renderCaptureSourcesSettingsSection(params: RenderCaptureSources
 
 	new Setting(containerEl)
 		.setName('Default mode for new sources')
-		.setDesc('Applied when adding a directory source from settings.')
+		.setDesc(`Capture mode applied to each folder you add below. ${MODE_HELP}`)
 		.addDropdown((dropdown) => {
 			addModeOptions(dropdown);
 			dropdown.setValue(plugin.settings.captureSourceDefaultMode);
@@ -56,11 +59,11 @@ export function renderCaptureSourcesSettingsSection(params: RenderCaptureSources
 	const detectedPaths = new Set(detectedSources.map((source) => source.path));
 	const configuredSources = plugin.settings.captureSources;
 
-	new Setting(containerEl).setName('Auto-detected sources').setHeading();
+	new Setting(containerEl).setName('Auto-detected folders').setHeading();
 	const autoSources = configuredSources.filter((source) => detectedPaths.has(source.path));
 	if (autoSources.length === 0) {
 		containerEl.createEl('p', {
-			text: 'No daily or periodic note folders detected.',
+			text: 'TTasks found no daily- or periodic-note folders to read from. Add one below if you keep checkboxes elsewhere.',
 			cls: 'setting-item-description',
 		});
 	} else {
@@ -69,11 +72,11 @@ export function renderCaptureSourcesSettingsSection(params: RenderCaptureSources
 		});
 	}
 
-	new Setting(containerEl).setName('Additional directories').setHeading();
+	new Setting(containerEl).setName('Folders you added').setHeading();
 	const manualSources = configuredSources.filter((source) => !detectedPaths.has(source.path));
 	if (manualSources.length === 0) {
 		containerEl.createEl('p', {
-			text: 'No extra directories configured.',
+			text: 'None yet. Use "Add a folder" below to read checkboxes from any folder in your vault.',
 			cls: 'setting-item-description',
 		});
 	}
@@ -84,17 +87,18 @@ export function renderCaptureSourcesSettingsSection(params: RenderCaptureSources
 	});
 
 	new Setting(containerEl)
-		.setName('Add directory source')
-		.setDesc('Enter a vault-relative directory path (for example Journal/Daily).')
+		.setName('Add a folder')
+		.setDesc('Start typing a folder name to pick it from your vault, then choose Add.')
 		.addText((text) => {
-			text.setPlaceholder('Folder/path');
+			text.setPlaceholder('Journal/Daily');
+			new FolderSuggest(app, text.inputEl);
 			text.onChange(async (value) => {
 				const normalizedPath = value.replace(/\\/g, '/').trim().replace(/^\/+|\/+$/g, '');
 				text.inputEl.dataset.pendingPath = normalizedPath;
 			});
 		})
 		.addButton((button) => {
-			button.setButtonText('Add directory');
+			button.setButtonText('Add');
 			button.setCta();
 			button.onClick(async () => {
 				const inputEl = button.buttonEl.parentElement?.querySelector('input');
@@ -165,41 +169,51 @@ function renderSourceEditor(
 	allowRemove: boolean,
 	rerender: () => void,
 ): void {
-	new Setting(containerEl)
+	const header = new Setting(containerEl)
 		.setName(source.path)
-		.setDesc('Source directory')
+		.setDesc('Capture mode for this folder.')
 		.addDropdown((dropdown) => {
 			addModeOptions(dropdown);
 			dropdown.setValue(source.mode);
 			dropdown.onChange(async (value) => {
 				await updateSource(plugin, sourceIndex, { mode: value as CaptureSourceMode });
 			});
-		})
+		});
+	if (allowRemove) {
+		header.addExtraButton((button) => {
+			button.setIcon('trash');
+			button.setTooltip(`Remove ${source.path}`);
+			button.onClick(async () => {
+				plugin.settings.captureSources = plugin.settings.captureSources.filter((_, index) => index !== sourceIndex);
+				await plugin.saveSettings();
+				rerender();
+			});
+		});
+	}
+
+	new Setting(containerEl)
+		.setName('Use the note’s date as the task date')
+		.setDesc('When the note’s filename is a date (e.g. 2026-07-06), use it as the captured task’s date.')
 		.addToggle((toggle) => {
 			toggle.setValue(source.inheritDateFromFilename);
 			toggle.onChange(async (value) => {
 				await updateSource(plugin, sourceIndex, { inheritDateFromFilename: value });
 			});
-		})
-		.addExtraButton((button) => {
-			button.setIcon('gear');
-			button.setTooltip('Refresh settings view');
-			button.onClick(() => rerender());
 		});
 
 	new Setting(containerEl)
-		.setName('Section filter')
-		.setDesc(`For ${source.path}: leave empty to scan whole note or set a heading name.`)
+		.setName('Only under a heading')
+		.setDesc('Leave empty to scan the whole note, or name a heading to only capture checkboxes beneath it (e.g. Tasks).')
 		.addText((text) => text
-			.setPlaceholder('Tasks')
+			.setPlaceholder('Whole note')
 			.setValue(source.sectionFilter)
 			.onChange(async (value) => {
 				await updateSource(plugin, sourceIndex, { sectionFilter: value.trim() });
 			}));
 
 	new Setting(containerEl)
-		.setName('Include subdirectories')
-		.setDesc(`For ${source.path}: include notes in nested folders.`)
+		.setName('Include subfolders')
+		.setDesc('Also read checkboxes from notes in nested folders.')
 		.addToggle((toggle) => {
 			toggle.setValue(source.includeSubdirectories);
 			toggle.onChange(async (value) => {
@@ -208,8 +222,8 @@ function renderSourceEditor(
 		});
 
 	new Setting(containerEl)
-		.setName('Defaults')
-		.setDesc(`For ${source.path}: defaults applied when capture creates or promotes tasks.`)
+		.setName('Default area and labels')
+		.setDesc('Applied to tasks captured or promoted from this folder. Leave the area blank for inbox.')
 		.addText((text) => text
 			.setPlaceholder('Area')
 			.setValue(source.defaults.area ?? '')
@@ -222,7 +236,7 @@ function renderSourceEditor(
 				});
 			}))
 		.addText((text) => text
-			.setPlaceholder('labels (csv)')
+			.setPlaceholder('labels (comma-separated)')
 			.setValue(source.defaults.labels.join(', '))
 			.onChange(async (value) => {
 				await updateSource(plugin, sourceIndex, {
@@ -232,21 +246,6 @@ function renderSourceEditor(
 					}),
 				});
 			}));
-
-	if (allowRemove) {
-		new Setting(containerEl)
-			.setName('Remove source')
-			.setDesc(`Delete ${source.path} from capture sources.`)
-			.addButton((button) => {
-				button.setButtonText('Remove');
-				button.setWarning();
-				button.onClick(async () => {
-					plugin.settings.captureSources = plugin.settings.captureSources.filter((_, index) => index !== sourceIndex);
-					await plugin.saveSettings();
-					rerender();
-				});
-			});
-	}
 }
 
 async function updateSource(

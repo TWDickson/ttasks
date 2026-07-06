@@ -11,6 +11,22 @@ export interface FiredReminder {
 	message: string;
 }
 
+export function formatDueTodayMessage(name: string): string {
+	return `Due today: ${name}`;
+}
+
+export function formatOverdueMessage(name: string): string {
+	return `Overdue: ${name}`;
+}
+
+export function formatLeadTimeMessage(name: string, daysUntilDue: number): string {
+	return `Coming up: ${name} (in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'})`;
+}
+
+export function formatStaleMessage(name: string, daysInProgress: number): string {
+	return `Stale in-progress: ${name} (${daysInProgress} day${daysInProgress === 1 ? '' : 's'})`;
+}
+
 export function evaluateReminders(
 	task: Task,
 	today: string,
@@ -46,7 +62,7 @@ export function checkDueToday(task: Task, today: string): FiredReminder | null {
 		ruleId: 'due-today',
 		taskPath: task.path,
 		taskName: task.name,
-		message: `Due today: ${task.name}`,
+		message: formatDueTodayMessage(task.name),
 	};
 }
 
@@ -56,7 +72,7 @@ export function checkOverdue(task: Task, today: string): FiredReminder | null {
 		ruleId: 'overdue',
 		taskPath: task.path,
 		taskName: task.name,
-		message: `Overdue: ${task.name}`,
+		message: formatOverdueMessage(task.name),
 	};
 }
 
@@ -68,7 +84,7 @@ export function checkLeadTime(task: Task, today: string, leadDays: number): Fire
 		ruleId: 'lead-time',
 		taskPath: task.path,
 		taskName: task.name,
-		message: `Coming up: ${task.name} (in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'})`,
+		message: formatLeadTimeMessage(task.name, daysUntilDue),
 	};
 }
 
@@ -87,6 +103,6 @@ export function checkStaleInProgress(
 		ruleId: 'stale',
 		taskPath: task.path,
 		taskName: task.name,
-		message: `Stale in-progress: ${task.name} (${daysInProgress} day${daysInProgress === 1 ? '' : 's'})`,
+		message: formatStaleMessage(task.name, daysInProgress),
 	};
 }

@@ -3,7 +3,7 @@ import { derived } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import TaskRail from '../components/TaskRail.svelte';
 import { CreateTaskModal } from '../modals/CreateTaskModal';
-import { getRegisteredTaskViews } from './viewRegistry';
+import { getVisibleTaskViews } from './viewRegistry';
 import { addSmartList, openSmartListMenu } from './smartListActions';
 
 export const TASK_RAIL_VIEW_TYPE = 'ttasks-rail';
@@ -37,7 +37,7 @@ export class TaskRailView extends ItemView {
 
 		const views = derived(
 			this.plugin.settingsRevision,
-			() => getRegisteredTaskViews(this.plugin.settings),
+			() => getVisibleTaskViews(this.plugin.settings),
 		);
 		this.component = new TaskRail({
 			target: this.contentEl,

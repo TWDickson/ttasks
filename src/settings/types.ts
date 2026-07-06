@@ -105,6 +105,9 @@ export interface TTasksSettings {
 	overviewGraphShowCompleted: boolean;
 	graphDiagnosticsEnabled: boolean;
 	customViews: CustomTaskViewDefinition[];
+	/** Built-in view ids the user has hidden from the board rail. Hidden views
+	 *  stay resolvable by id (protocol / jump), they just don't show in the rail. */
+	hiddenBuiltinViews: string[];
 	statuses: string[];
 	completionStatus: string;
 	statusColors: Record<string, string>;

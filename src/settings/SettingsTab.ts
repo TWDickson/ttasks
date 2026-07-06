@@ -1,4 +1,4 @@
-﻿import { AbstractInputSuggest, App, PluginSettingTab, Setting, TFolder } from 'obsidian';
+﻿import { App, PluginSettingTab, Setting } from 'obsidian';
 import type TTasksPlugin from '../main';
 import type {
 	FabPosition,
@@ -6,6 +6,7 @@ import type {
 import {
 	normalizeEditorSuggestTrigger,
 } from './defaults';
+import { FolderSuggest } from './folderSuggest';
 import { renderArchiveSettingsSection } from './archiveSettingsSection';
 import { renderCaptureSourcesSettingsSection } from './captureSourcesSettingsSection';
 import { renderKanbanSettingsSection } from './kanbanSettingsSection';
@@ -17,33 +18,6 @@ import { renderViewsSettingsSection } from './viewsSettingsSection';
 import { renderWorkingCalendarSettingsSection } from './workingCalendarSettingsSection';
 
 
-class FolderSuggest extends AbstractInputSuggest<TFolder> {
-	private inputEl: HTMLInputElement;
-
-	constructor(app: App, inputEl: HTMLInputElement) {
-		super(app, inputEl);
-		this.inputEl = inputEl;
-	}
-
-	getSuggestions(query: string): TFolder[] {
-		const q = query.toLowerCase();
-		return this.app.vault.getAllLoadedFiles()
-			.filter((f): f is TFolder => f instanceof TFolder)
-			.filter(f => f.path.toLowerCase().includes(q))
-			.slice(0, 20);
-	}
-
-	renderSuggestion(folder: TFolder, el: HTMLElement): void {
-		el.setText(folder.path);
-	}
-
-	selectSuggestion(folder: TFolder): void {
-		this.setValue(folder.path);
-		this.inputEl.dispatchEvent(new Event('input'));
-		this.close();
-	}
-}
-
 export class TTasksSettingTab extends PluginSettingTab {
 	plugin: TTasksPlugin;
 
@@ -52,17 +26,47 @@ export class TTasksSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	/** Group ids the user has collapsed this session (survives rerenders, not reloads). */
+	private collapsedGroups = new Set<string>();
+
+	/**
+	 * Create a collapsible settings group and register a "jump to" button for it
+	 * in the sticky nav. Returns the body element sections render into.
+	 */
+	private group(nav: HTMLElement, id: string, title: string): HTMLElement {
+		const details = this.containerEl.createEl('details', { cls: 'tt-settings-group' });
+		if (!this.collapsedGroups.has(id)) details.setAttribute('open', '');
+		details.addEventListener('toggle', () => {
+			if (details.open) this.collapsedGroups.delete(id);
+			else this.collapsedGroups.add(id);
+		});
+		details.createEl('summary', { cls: 'tt-settings-group-summary', text: title });
+		const body = details.createDiv({ cls: 'tt-settings-group-body' });
+
+		const jump = nav.createEl('button', { cls: 'tt-settings-jump-btn', text: title });
+		jump.addEventListener('click', () => {
+			this.collapsedGroups.delete(id);
+			details.open = true;
+			details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		});
+
+		return body;
+	}
+
 	display(): void {
 		const { containerEl } = this;
 		// Preserve scroll position across the full-pane rebuilds that section
 		// `rerender: () => this.display()` callbacks trigger.
 		const scrollTop = containerEl.scrollTop;
 		containerEl.empty();
+		containerEl.addClass('tt-settings');
+
+		const nav = containerEl.createDiv({ cls: 'tt-settings-nav' });
 
 		// --- General ---------------------------------------------------------
-		new Setting(containerEl).setName('General').setHeading();
+		const generalEl = this.group(nav, 'general', 'General');
 
-		new Setting(containerEl)
+		new Setting(generalEl)
 			.setName('Tasks folder')
 			.setDesc('The folder TTasks owns. All task and project files will be stored here.')
 			.addText(text => {
@@ -77,7 +81,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 					});
 			});
 
-		new Setting(containerEl)
+		new Setting(generalEl)
 			.setName('FAB position')
 			.setDesc('Position of the floating action button for creating new tasks.')
 			.addDropdown(dd => dd
@@ -90,7 +94,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		new Setting(containerEl)
+		new Setting(generalEl)
 			.setName('Inline task link trigger')
 			.setDesc('Token used by inline editor suggestions for task linking (for example @task).')
 			.addText(text => text
@@ -103,9 +107,10 @@ export class TTasksSettingTab extends PluginSettingTab {
 			);
 
 		// --- Statuses, areas & labels ---------------------------------------
+		const classificationEl = this.group(nav, 'classification', 'Statuses, areas & labels');
 		const statuses = this.plugin.settings.statuses ?? [];
 
-		new Setting(containerEl)
+		new Setting(classificationEl)
 			.setName('Completion status')
 			.setDesc('Tasks with this status are treated as done. Used for filtering, reminders, and dependency checks.')
 			.addDropdown(dd => {
@@ -119,7 +124,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 			});
 
 		renderManagedListSettingSection({
-			containerEl,
+			containerEl: classificationEl,
 			plugin: this.plugin,
 			app: this.app,
 			rerender: () => this.display(),
@@ -144,7 +149,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 		});
 
 		renderManagedListSettingSection({
-			containerEl,
+			containerEl: classificationEl,
 			plugin: this.plugin,
 			app: this.app,
 			rerender: () => this.display(),
@@ -169,7 +174,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 		});
 
 		renderManagedListSettingSection({
-			containerEl,
+			containerEl: classificationEl,
 			plugin: this.plugin,
 			app: this.app,
 			rerender: () => this.display(),
@@ -194,49 +199,61 @@ export class TTasksSettingTab extends PluginSettingTab {
 		});
 
 		// --- Views & board ---------------------------------------------------
+		const viewsEl = this.group(nav, 'views', 'Views & board');
 		renderViewsSettingsSection({
-			containerEl,
+			containerEl: viewsEl,
 			plugin: this.plugin,
 			app: this.app,
 			rerender: () => this.display(),
 		});
 		renderKanbanSettingsSection({
-			containerEl,
+			containerEl: viewsEl,
 			plugin: this.plugin,
 		});
 
 		// --- Reminders & quick actions --------------------------------------
+		const remindersEl = this.group(nav, 'reminders', 'Reminders & quick actions');
 		renderRemindersSettingsSection({
-			containerEl,
+			containerEl: remindersEl,
 			plugin: this.plugin,
 		});
 		renderQuickActionsSettingsSection({
-			containerEl,
+			containerEl: remindersEl,
 			plugin: this.plugin,
 		});
 
 		// --- Working calendar ------------------------------------------------
+		const calendarEl = this.group(nav, 'calendar', 'Working calendar');
 		renderWorkingCalendarSettingsSection({
-			containerEl,
+			containerEl: calendarEl,
 			plugin: this.plugin,
 			rerender: () => this.display(),
 		});
 
 		// --- Capture & import ------------------------------------------------
+		const captureEl = this.group(nav, 'capture', 'Capture & import');
 		renderCaptureSourcesSettingsSection({
-			containerEl,
+			containerEl: captureEl,
 			plugin: this.plugin,
 			app: this.app,
 			rerender: () => this.display(),
 		});
 		renderMigrationSettingsSection({
-			containerEl,
+			containerEl: captureEl,
 			plugin: this.plugin,
 		});
 
+		// --- Archive ---------------------------------------------------------
+		const archiveEl = this.group(nav, 'archive', 'Archive');
+		renderArchiveSettingsSection({
+			containerEl: archiveEl,
+			plugin: this.plugin,
+			rerender: () => this.display(),
+		});
+
 		// --- Advanced --------------------------------------------------------
-		new Setting(containerEl).setName('Advanced').setHeading();
-		new Setting(containerEl)
+		const advancedEl = this.group(nav, 'advanced', 'Advanced');
+		new Setting(advancedEl)
 			.setName('Graph diagnostics logging')
 			.setDesc('Developer mode: log dependency graph quality metrics (crossings, bend score, lane breakdown) to console when graph layout changes.')
 			.addToggle((toggle) => toggle
@@ -245,12 +262,6 @@ export class TTasksSettingTab extends PluginSettingTab {
 					this.plugin.settings.graphDiagnosticsEnabled = value;
 					await this.plugin.saveSettings();
 				}));
-
-		renderArchiveSettingsSection({
-			containerEl,
-			plugin: this.plugin,
-			rerender: () => this.display(),
-		});
 
 		// Restore scroll after the pane has been rebuilt.
 		containerEl.scrollTop = scrollTop;

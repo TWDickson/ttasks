@@ -1,5 +1,7 @@
-import { Setting } from 'obsidian';
+import { Notice, Setting } from 'obsidian';
 import type TTasksPlugin from '../main';
+import { buildReminderPreviews } from '../store/reminderPreview';
+import { buildReminderNotice } from '../store/reminderNoticeBuilder';
 
 interface RenderRemindersSettingsParams {
 	containerEl: HTMLElement;
@@ -24,6 +26,27 @@ export function renderRemindersSettingsSection(params: RenderRemindersSettingsPa
 			.onChange(async (value) => {
 				plugin.settings.reminders.enabled = value;
 				await plugin.saveSettings();
+			}));
+
+	new Setting(containerEl)
+		.setName('Preview reminders')
+		.setDesc('Fire a sample notice for each rule you have enabled, so you can see what they look like. Uses example data — no real tasks are touched.')
+		.addButton(button => button
+			.setButtonText('Preview')
+			.onClick(() => {
+				const previews = buildReminderPreviews(plugin.settings.reminders);
+				if (previews.length === 0) {
+					new Notice(plugin.settings.reminders.enabled
+						? 'No reminder rules are enabled — turn one on to preview it.'
+						: 'Reminders are turned off — enable them to preview.');
+					return;
+				}
+				for (const preview of previews) {
+					buildReminderNotice(preview.message, [
+						{ label: 'Open', onClick: () => { /* preview only */ } },
+						{ label: 'Dismiss', onClick: () => { /* notice hides itself */ } },
+					], 6000);
+				}
 			}));
 
 	new Setting(containerEl)

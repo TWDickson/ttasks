@@ -293,6 +293,7 @@ function iconForRenderer(renderer: TaskViewRenderer): string {
 }
 
 type ViewRegistrySettings = Pick<TTasksSettings, 'customViews' | 'quickActions'>;
+type VisibleViewSettings = ViewRegistrySettings & Pick<TTasksSettings, 'hiddenBuiltinViews'>;
 
 /**
  * Substitutes the user-configured block status into the built-in Blocked view,
@@ -321,6 +322,18 @@ export function getRegisteredTaskViews(settings: ViewRegistrySettings): Register
 				source: 'custom' as const,
 			})),
 	];
+}
+
+/**
+ * Rail-facing view list: all registered views minus any built-ins the user has
+ * hidden. Custom views are always shown. Hidden built-ins remain resolvable via
+ * {@link getRegisteredTaskViews} so protocol/jump to a hidden view still works.
+ */
+export function getVisibleTaskViews(settings: VisibleViewSettings): RegisteredTaskViewDefinition[] {
+	const hidden = new Set(settings.hiddenBuiltinViews ?? []);
+	return getRegisteredTaskViews(settings).filter(
+		(view) => view.source !== 'builtin' || !hidden.has(view.id),
+	);
 }
 
 export function resolveTaskViewDefinition(

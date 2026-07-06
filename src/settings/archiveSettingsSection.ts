@@ -10,10 +10,10 @@ interface RenderArchiveSettingsParams {
 export function renderArchiveSettingsSection(params: RenderArchiveSettingsParams): void {
 	const { containerEl, plugin, rerender } = params;
 
-	new Setting(containerEl)
-		.setName('Archive')
-		.setDesc('Completed tasks can be archived to a sibling "Archive" folder. Archived tasks are removed from active views but remain searchable.')
-		.setHeading();
+	containerEl.createEl('p', {
+		text: 'Completed tasks can be archived to a sibling "Archive" folder. Archived tasks are removed from active views but remain searchable.',
+		cls: 'setting-item-description',
+	});
 
 	const a = plugin.settings.archive;
 

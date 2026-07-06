@@ -64,6 +64,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	overviewGraphShowCompleted: false,
 	graphDiagnosticsEnabled: false,
 	customViews: [],
+	hiddenBuiltinViews: [],
 	statuses: DEFAULT_STATUSES,
 	completionStatus: 'Completed',
 	statusColors: {
@@ -215,6 +216,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		overviewGraphShowCompleted: settings.overviewGraphShowCompleted,
 		graphDiagnosticsEnabled: settings.graphDiagnosticsEnabled,
 		customViews: settings.customViews.map(cloneCustomTaskViewDefinition),
+		hiddenBuiltinViews: [...(settings.hiddenBuiltinViews ?? [])],
 		statuses: [...settings.statuses],
 		completionStatus: settings.completionStatus,
 		statusColors: { ...settings.statusColors },
@@ -670,6 +672,9 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		}
 		target.showCompletedByViewId = cleaned;
 	}
+
+	const hiddenBuiltinViews = asStringArray(root.hiddenBuiltinViews);
+	if (hiddenBuiltinViews !== null) target.hiddenBuiltinViews = hiddenBuiltinViews;
 
 	const archive = asRecord(root.archive);
 	if (archive !== null) {

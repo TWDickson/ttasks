@@ -24,6 +24,7 @@
 .tt-create-modal,
 .tt-modal,
 .tt-query-editor-modal,
+.tt-settings,
 .tt-managed-list-section {
 	--tt-space-1: var(--size-4-1, 4px);
 	--tt-space-2: var(--size-4-2, 8px);
@@ -1345,6 +1346,72 @@
 
 .tt-qe-save {
 	padding: var(--tt-space-1) var(--tt-space-4);
+}
+
+/* ── Settings pane: collapsible groups + sticky jump nav (P7) ──────────────── */
+
+.tt-settings-nav {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--tt-space-2);
+	padding: var(--tt-space-2) 0;
+	margin-bottom: var(--tt-space-2);
+	background: var(--background-primary);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tt-settings-jump-btn {
+	padding: var(--tt-space-1) var(--tt-space-3);
+	font-size: var(--font-ui-small, 0.8rem);
+	color: var(--text-muted);
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--tt-button-radius);
+	cursor: pointer;
+}
+.tt-settings-jump-btn:hover {
+	color: var(--text-normal);
+	border-color: var(--background-modifier-border-hover);
+}
+
+.tt-settings-group {
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tt-settings-group-summary {
+	list-style: none;
+	cursor: pointer;
+	padding: var(--tt-space-3) 0;
+	font-size: var(--font-ui-medium, 1rem);
+	font-weight: var(--font-semibold, 600);
+	color: var(--text-normal);
+	display: flex;
+	align-items: center;
+	gap: var(--tt-space-2);
+}
+.tt-settings-group-summary::-webkit-details-marker {
+	display: none;
+}
+/* Disclosure caret drawn with a rotating triangle so it flips when open. */
+.tt-settings-group-summary::before {
+	content: '';
+	width: 0;
+	height: 0;
+	border-left: 5px solid currentColor;
+	border-top: 4px solid transparent;
+	border-bottom: 4px solid transparent;
+	transition: transform 120ms ease;
+	color: var(--text-muted);
+}
+.tt-settings-group[open] > .tt-settings-group-summary::before {
+	transform: rotate(90deg);
+}
+
+.tt-settings-group-body {
+	padding-bottom: var(--tt-space-3);
 }
 
 /* ── Managed list settings (moved out of a JS-injected <style> element) ────── */

@@ -15,19 +15,30 @@ interface RenderViewsSettingsParams {
 export function renderViewsSettingsSection(params: RenderViewsSettingsParams): void {
 	const { containerEl, plugin, app, rerender } = params;
 
-	new Setting(containerEl)
-		.setName('Views')
-		.setDesc('Built-in views and Smart Lists share one registry model. Smart Lists are saved query + renderer definitions with sidebar navigation.')
-		.setHeading();
-
 	const registeredViews = getRegisteredTaskViews(plugin.settings);
 	const builtinViews = registeredViews.filter((view) => view.source === 'builtin');
 	const customViews = plugin.settings.customViews;
+
+	new Setting(containerEl)
+		.setName('Built-in views')
+		.setDesc('Toggle a view off to hide it from the board rail. Hidden views can still be reached by protocol link or the jump-to-task switcher.')
+		.setHeading();
 
 	for (const view of builtinViews) {
 		new Setting(containerEl)
 			.setName(view.name)
 			.setDesc(`${view.id} • ${view.renderer} • ${describeTaskView(view)}`)
+			.addToggle((toggle) => {
+				toggle.setTooltip('Show in the board rail');
+				toggle.setValue(!plugin.settings.hiddenBuiltinViews.includes(view.id));
+				toggle.onChange(async (value) => {
+					const hidden = new Set(plugin.settings.hiddenBuiltinViews);
+					if (value) hidden.delete(view.id);
+					else hidden.add(view.id);
+					plugin.settings.hiddenBuiltinViews = [...hidden];
+					await plugin.saveSettings();
+				});
+			})
 			.addExtraButton((button) => {
 				button.setIcon(resolveTaskViewIcon(view));
 				button.setTooltip('Built-in view');

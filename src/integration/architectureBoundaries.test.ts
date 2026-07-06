@@ -69,6 +69,7 @@ describe('architecture boundaries', () => {
 			'src/integration/protocol.ts',
 			'src/store/reminderRules.ts',
 			'src/store/reminderStorage.ts',
+			'src/store/reminderPreview.ts',
 			'src/views/detailHeaderActions.ts',
 		]) {
 			const content = readWorkspaceFile(relativePath);
