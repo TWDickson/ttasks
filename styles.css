@@ -1589,3 +1589,20 @@
 	border-radius: var(--radius-s, 4px);
 	cursor: pointer;
 }
+
+/* ── Status bar item (N6) ────────────────────────────────────────────────── */
+
+.ttasks-statusbar {
+	cursor: pointer;
+}
+
+/* Overdue tasks tint the summary with the theme warning colour — no hardcoded
+   hex, tokens only. */
+.ttasks-statusbar-warning {
+	color: var(--color-red);
+}
+
+/* Hide-when-zero: collapse the item entirely when nothing is overdue/blocked. */
+.ttasks-statusbar-hidden {
+	display: none;
+}

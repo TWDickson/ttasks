@@ -1,7 +1,7 @@
 import { Setting } from 'obsidian';
 import type { App } from 'obsidian';
 import type TTasksPlugin from '../main';
-import type { CustomTaskViewDefinition, TaskViewPresentation, TaskViewRenderer } from './types';
+import type { CustomTaskViewDefinition, StatusBarClickTarget, TaskViewPresentation, TaskViewRenderer } from './types';
 import { createCustomViewDefinition, getRegisteredTaskViews, resolveTaskViewIcon } from '../views/viewRegistry';
 import { QueryEditorModal } from '../modals/QueryEditorModal';
 
@@ -182,6 +182,42 @@ export function renderViewsSettingsSection(params: RenderViewsSettingsParams): v
 			button.onClick(async () => {
 				const nextViews = [...plugin.settings.customViews, createCustomViewDefinition(plugin.settings.customViews)];
 				await saveCustomViews(plugin, nextViews, true, rerender);
+			});
+		});
+
+	renderStatusBarSettings(containerEl, plugin);
+}
+
+function renderStatusBarSettings(containerEl: HTMLElement, plugin: TTasksPlugin): void {
+	containerEl.createEl('h3', { text: 'Status bar' });
+	containerEl.createEl('p', {
+		text: 'Desktop-only summary in the bottom status bar. Shows overdue / blocked counts with a full breakdown on hover.',
+		cls: 'setting-item-description',
+		attr: { style: 'margin-bottom: 12px;' },
+	});
+
+	new Setting(containerEl)
+		.setName('Hide when all clear')
+		.setDesc('Hide the status-bar item entirely when nothing is overdue or blocked.')
+		.addToggle((toggle) => toggle
+			.setValue(plugin.settings.statusBar.hideWhenZero)
+			.onChange(async (value) => {
+				plugin.settings.statusBar.hideWhenZero = value;
+				await plugin.saveSettings();
+			})
+		);
+
+	new Setting(containerEl)
+		.setName('Click opens')
+		.setDesc('Which view opens when you click the status-bar item.')
+		.addDropdown((dropdown) => {
+			dropdown.addOption('agenda', 'Agenda');
+			dropdown.addOption('today', 'Today');
+			dropdown.addOption('board', 'Board (current view)');
+			dropdown.setValue(plugin.settings.statusBar.clickTarget);
+			dropdown.onChange(async (value) => {
+				plugin.settings.statusBar.clickTarget = value as StatusBarClickTarget;
+				await plugin.saveSettings();
 			});
 		});
 }

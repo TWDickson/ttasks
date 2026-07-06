@@ -84,6 +84,15 @@ export interface ArchiveSettings {
 	daysAfterComplete: number;
 }
 
+export type StatusBarClickTarget = 'agenda' | 'board' | 'today';
+
+export interface StatusBarSettings {
+	/** Hide the desktop status-bar item entirely when nothing is overdue/blocked. */
+	hideWhenZero: boolean;
+	/** Which view the status-bar click opens. */
+	clickTarget: StatusBarClickTarget;
+}
+
 export interface TTasksSettings {
 	tasksFolder: string;
 	editorSuggestTrigger: string;
@@ -114,6 +123,7 @@ export interface TTasksSettings {
 	quickActions: QuickActionsSettings;
 	reminders: RemindersSettings;
 	archive: ArchiveSettings;
+	statusBar: StatusBarSettings;
 	kanbanCardFields: KanbanCardField[];
 	kanbanCollapsedColumns: string[];
 	/** Per-view "Show completed" choice, keyed by view id. Unset views fall back

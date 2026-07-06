@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, setIcon } from 'obsidian';
+import { ItemView, type ViewStateResult, WorkspaceLeaf, setIcon } from 'obsidian';
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task } from '../types';
@@ -46,6 +46,15 @@ export class TaskDetailView extends ItemView {
 		this.register(this.plugin.boardState.activeTaskPath.subscribe(refresh));
 		this.register(this.plugin.taskStore.tasks.subscribe(refresh));
 
+		// N2: persist the selected task path into Obsidian's workspace layout so a
+		// restart restores the same selection. Skip the initial subscribe emit so
+		// merely opening the leaf doesn't request a layout save.
+		let skipInitialPathEmit = true;
+		this.register(this.plugin.boardState.activeTaskPath.subscribe(() => {
+			if (skipInitialPathEmit) { skipInitialPathEmit = false; return; }
+			this.app.workspace.requestSaveLayout();
+		}));
+
 		this.component = new TaskDetail({
 			target: this.contentEl,
 			props: {
@@ -63,6 +72,29 @@ export class TaskDetailView extends ItemView {
 		this.completeActionEl = null;
 		this.editActionEl = null;
 		this.contentEl.empty();
+	}
+
+	/**
+	 * N2: snapshot the selected task path for workspace layout persistence.
+	 */
+	getState(): Record<string, unknown> {
+		return {
+			...super.getState(),
+			taskPath: get(this.plugin.boardState.activeTaskPath),
+		};
+	}
+
+	async setState(state: unknown, result: ViewStateResult): Promise<void> {
+		if (state && typeof state === 'object') {
+			const taskPath = (state as { taskPath?: unknown }).taskPath;
+			// Apply optimistically: the store loads async, so getByPath may miss on
+			// startup. The component's reactive derivation resolves the path once
+			// tasks are parsed; if it never exists the pane just shows empty state.
+			if (typeof taskPath === 'string' && taskPath) {
+				this.plugin.boardState.activeTaskPath.set(taskPath);
+			}
+		}
+		await super.setState(state, result);
 	}
 
 	/**

@@ -51,7 +51,20 @@ leaf so crowding is unlikely — check on iOS when convenient.
 
 ---
 
-## N2. [NEW] View state persistence (`getState`/`setState`)
+## N2. [DONE] [NEW] View state persistence (`getState`/`setState`)
+
+**[DONE 2026-07-06, Batch E]** `TaskBoardView` now overrides
+`getState()`/`setState()` to snapshot/restore `boardState.currentViewId` (the
+one id that covers both view mode and Smart List); `setState` guards unknown /
+deleted ids via `resolveTaskViewDefinition` and falls back to the default.
+`TaskDetailView` snapshots/restores `activeTaskPath`, applied **optimistically**
+(store loads async, so the reactive derivation resolves it; a permanently
+missing path just shows empty state). Both leaves call
+`app.workspace.requestSaveLayout()` when their state store changes, skipping the
+initial subscribe emit so merely opening a leaf doesn't churn the layout. State
+stays small/serializable (ids and a path only). Duplicate-leaf behaviour: state
+lives in the shared `BoardStateService`, so `getState` just snapshots it and
+last-restore wins — acceptable per spec.
 
 **What:** Workspace-native persistence so Obsidian's layout restore reopens
 the same view mode, Smart List, and selected task after a restart — and saved
@@ -203,7 +216,22 @@ Extend it and document it.
 
 ---
 
-## N6. [EXTEND] Status bar — richer summary + configurable click
+## N6. [DONE] [EXTEND] Status bar — richer summary + configurable click
+
+**[DONE 2026-07-06, Batch E]** `buildStatusSummary` (pure) now returns
+`dueToday` / `overdue` / `inProgress` / `blocked` counts plus a four-line
+`tooltip`; `label` stays urgency-only (overdue + blocked) to keep the bar text
+compact. `updateStatusBar` sets the tooltip via `setTooltip`, toggles
+`.ttasks-statusbar-warning` (theme `--color-red`) when overdue > 0, and
+`.ttasks-statusbar-hidden` when the new hide-when-zero option is on and nothing
+is urgent. The inline `style.cursor` is gone — cursor now lives on the
+`.ttasks-statusbar` class in `styles.css` (no-JS-styles convention). New
+`statusBar` settings (`hideWhenZero` toggle + `clickTarget` = agenda/today/board
+dropdown) live in the Views section; the status bar re-renders on
+`settingsRevision` so toggling reflects immediately. Click routes through
+`activeViewMode` for agenda/today and keeps the current view for board.
+`statusSummary.test.ts` + `defaults.test.ts` extended. Desktop-only (unchanged);
+not covered by the rig (no leaf/status-bar chrome), so no rig shots.
 
 **What:** Status bar item exists (desktop-only, `src/main.ts:512-528`):
 shows `buildStatusSummary` text, click opens board → agenda. Polish it.

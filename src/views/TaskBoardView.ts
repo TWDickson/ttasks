@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, type ViewStateResult, WorkspaceLeaf } from 'obsidian';
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import TaskBoard from '../components/TaskBoard.svelte';
@@ -6,6 +6,7 @@ import { type BoardShortcutId, DEFAULT_KEYMAP, isInputFocused, resolveShortcut }
 import { moveBoardFocus } from '../integration/boardFocus';
 import { runArchiveAndClear } from '../integration/taskActionPorts';
 import type { BoardStateStores } from '../store/BoardStateService';
+import { resolveTaskViewDefinition } from './viewRegistry';
 
 export const TASK_BOARD_VIEW_TYPE = 'ttasks-board';
 
@@ -42,6 +43,16 @@ export class TaskBoardView extends ItemView {
 			props: { plugin: this.plugin, boardState: this.boardState },
 		});
 
+		// N2: persist the current view id into Obsidian's workspace layout so a
+		// restart (or saved workspace) reopens the same view / Smart List. The
+		// subscribe fires once immediately with the current value — skip that so
+		// opening the leaf doesn't trigger a spurious layout save.
+		let skipInitialViewEmit = true;
+		this.register(this.boardState.currentViewId.subscribe(() => {
+			if (skipInitialViewEmit) { skipInitialViewEmit = false; return; }
+			this.app.workspace.requestSaveLayout();
+		}));
+
 		this.registerDomEvent(document, 'keydown', (e: KeyboardEvent) => {
 			// Only fire when this leaf is the active leaf
 			if (this.app.workspace.activeLeaf !== this.leaf) return;
@@ -60,6 +71,30 @@ export class TaskBoardView extends ItemView {
 		this.component?.$destroy();
 		this.component = null;
 		this.contentEl.empty();
+	}
+
+	/**
+	 * N2: snapshot the shared board state (view / Smart List id) for workspace
+	 * layout persistence. State stays small and serializable — an id only, no
+	 * Task objects.
+	 */
+	getState(): Record<string, unknown> {
+		return {
+			...super.getState(),
+			viewId: get(this.boardState.currentViewId),
+		};
+	}
+
+	async setState(state: unknown, result: ViewStateResult): Promise<void> {
+		if (state && typeof state === 'object') {
+			const viewId = (state as { viewId?: unknown }).viewId;
+			// Guard against unknown/deleted Smart List ids: only apply a saved id
+			// that still resolves to a registered view, else keep the default.
+			if (typeof viewId === 'string' && resolveTaskViewDefinition(this.plugin.settings, viewId)) {
+				this.boardState.currentViewId.set(viewId);
+			}
+		}
+		await super.setState(state, result);
 	}
 
 	private getVisibleListTaskPaths(): string[] {

@@ -28,6 +28,33 @@ describe('defaults.ts direct imports', () => {
 		expect(typeof DEFAULT_REMINDERS_SETTINGS.enabled).toBe('boolean');
 		expect(typeof DEFAULT_REMINDERS_SETTINGS.staleThresholdDays).toBe('number');
 	});
+
+	it('defaults the status-bar block to a visible agenda-click item', () => {
+		expect(DEFAULT_SETTINGS.statusBar.hideWhenZero).toBe(false);
+		expect(DEFAULT_SETTINGS.statusBar.clickTarget).toBe('agenda');
+	});
+});
+
+describe('statusBar settings normalization', () => {
+	it('applies valid persisted statusBar values', () => {
+		const merged = normalizeSettingsFromSources([
+			{ statusBar: { hideWhenZero: true, clickTarget: 'today' } },
+		]);
+		expect(merged.statusBar.hideWhenZero).toBe(true);
+		expect(merged.statusBar.clickTarget).toBe('today');
+	});
+
+	it('ignores an invalid clickTarget and keeps the default', () => {
+		const merged = normalizeSettingsFromSources([
+			{ statusBar: { clickTarget: 'nonsense' } },
+		]);
+		expect(merged.statusBar.clickTarget).toBe('agenda');
+	});
+
+	it('falls back to defaults when statusBar is absent', () => {
+		const merged = normalizeSettingsFromSources([{}]);
+		expect(merged.statusBar).toEqual(DEFAULT_SETTINGS.statusBar);
+	});
 });
 
 describe('THEME_SWATCHES and getDefaultThemeColor', () => {

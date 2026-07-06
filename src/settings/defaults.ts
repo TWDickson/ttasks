@@ -88,6 +88,10 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		mode: 'manual',
 		daysAfterComplete: 45,
 	},
+	statusBar: {
+		hideWhenZero: false,
+		clickTarget: 'agenda',
+	},
 	kanbanCardFields: ['area', 'dueDate', 'labels', 'depCount'] as KanbanCardField[],
 	kanbanCollapsedColumns: [],
 	showCompletedByViewId: {},
@@ -240,6 +244,10 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		archive: {
 			mode: settings.archive?.mode ?? DEFAULT_SETTINGS.archive.mode,
 			daysAfterComplete: settings.archive?.daysAfterComplete ?? DEFAULT_SETTINGS.archive.daysAfterComplete,
+		},
+		statusBar: {
+			hideWhenZero: settings.statusBar?.hideWhenZero ?? DEFAULT_SETTINGS.statusBar.hideWhenZero,
+			clickTarget: settings.statusBar?.clickTarget ?? DEFAULT_SETTINGS.statusBar.clickTarget,
 		},
 		kanbanCardFields: settings.kanbanCardFields ?? [...DEFAULT_SETTINGS.kanbanCardFields],
 		kanbanCollapsedColumns: settings.kanbanCollapsedColumns ?? [...DEFAULT_SETTINGS.kanbanCollapsedColumns],
@@ -670,6 +678,17 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 
 		const days = asInteger(archive.daysAfterComplete);
 		if (days !== null) target.archive.daysAfterComplete = days;
+	}
+
+	const statusBar = asRecord(root.statusBar);
+	if (statusBar !== null) {
+		const hideWhenZero = asBoolean(statusBar.hideWhenZero);
+		if (hideWhenZero !== null) target.statusBar.hideWhenZero = hideWhenZero;
+
+		const clickTarget = asString(statusBar.clickTarget);
+		if (clickTarget === 'agenda' || clickTarget === 'board' || clickTarget === 'today') {
+			target.statusBar.clickTarget = clickTarget;
+		}
 	}
 }
 

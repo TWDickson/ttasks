@@ -1,4 +1,4 @@
-import { Menu, Notice, Platform, Plugin, TFile } from 'obsidian';
+import { Menu, Notice, Platform, Plugin, setTooltip, TFile } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import {
 	type QuickActionId,
@@ -521,17 +521,23 @@ export default class TTasksPlugin extends Plugin {
 		if (Platform.isMobile) return;
 		this.statusBarEl = this.addStatusBarItem();
 		this.statusBarEl.addClass('ttasks-statusbar');
-		this.statusBarEl.style.cursor = 'pointer';
 		this.statusBarEl.addEventListener('click', () => {
+			const target = this.settings.statusBar.clickTarget;
 			void this.openBoard().then(() => {
-				this.activeViewMode.set('agenda');
+				// 'board' keeps whatever view is current; the others switch to it.
+				if (target !== 'board') this.activeViewMode.set(target);
 			});
 		});
 
-		const unsubscribe = this.taskStore.tasks.subscribe(() => {
+		const unsubscribeTasks = this.taskStore.tasks.subscribe(() => {
 			this.updateStatusBar();
 		});
-		this.register(() => unsubscribe());
+		this.register(() => unsubscribeTasks());
+		// Settings changes (hide-when-zero, block/start status) re-render the item.
+		const unsubscribeSettings = this.settingsRevision.subscribe(() => {
+			this.updateStatusBar();
+		});
+		this.register(() => unsubscribeSettings());
 		this.updateStatusBar();
 	}
 
@@ -584,8 +590,13 @@ export default class TTasksPlugin extends Plugin {
 		if (!this.statusBarEl) return;
 		const summary = buildStatusSummary(get(this.taskStore.tasks), {
 			blockStatus: this.settings.quickActions.blockStatus,
+			inProgressStatus: this.settings.quickActions.startStatus,
 		});
+		const attentionZero = summary.overdue === 0 && summary.blocked === 0;
+		this.statusBarEl.toggleClass('ttasks-statusbar-hidden', attentionZero && this.settings.statusBar.hideWhenZero);
+		this.statusBarEl.toggleClass('ttasks-statusbar-warning', summary.overdue > 0);
 		this.statusBarEl.setText(summary.label);
+		setTooltip(this.statusBarEl, summary.tooltip, { placement: 'top' });
 	}
 
 	async runQuickAction(action: QuickActionId, path?: string, options?: { showNotice?: boolean }): Promise<boolean> {
