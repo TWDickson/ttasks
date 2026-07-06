@@ -14,11 +14,15 @@ Branch: `feat/ui-polish-autopilot` (never pushed/merged — Taylor reviews).
 
 ### Closed sweeps (verified done in-tree)
 
+Fully-closed sweep files are archived under `Scripts/archive/` (historical
+record with `[DONE]` markers + root-cause notes); the two with open items stay
+in the repo root because the Autopilot queue reads them for live specs.
+
 | Backlog file | Scope | State |
 | --- | --- | --- |
-| `AUDIT_TASKS.md` | Sweep 2 — A1–A6, B1–B3, C1–C6, D1–D7 | ✅ complete |
-| `DESIGN_AUDIT.md` | P0-1…P0-6, P1-1…P1-6, P2-1…P2-7 | ✅ complete (exceptions below) |
-| `BUGFIX_TASKS.md` | #1–#8, #10, #12, #13 | ✅ complete (#9/#11 → open, below) |
+| `Scripts/archive/AUDIT_TASKS.md` | Sweep 2 — A1–A6, B1–B3, C1–C6, D1–D7 | ✅ complete |
+| `Scripts/archive/DESIGN_AUDIT.md` | P0-1…P0-6, P1-1…P1-6, P2-1…P2-7 | ✅ complete (exceptions below) |
+| `Scripts/archive/BUGFIX_TASKS.md` | #1–#8, #10, #12, #13 | ✅ complete (#9/#11 → open, below) |
 | `NATIVE_FEATURES_TASKS.md` | N1, N2, N4, N5, N6 | ✅ complete (N3/N7 → open) |
 | `UI_POLISH_TASKS.md` | P1, P2, P3, P5, P6 | ✅ complete (P4/P7/C1/C2 → open) |
 

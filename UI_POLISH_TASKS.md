@@ -271,7 +271,7 @@ Managed-list UI pattern: `managedListSettingsSection.ts`;
 
 ## C1. [CARRY-OVER] Graph pan/zoom — edges detach when zooming
 
-Deferred from BUGFIX_TASKS.md #9 — needs live reproduction. Full notes there.
+Deferred from `Scripts/archive/BUGFIX_TASKS.md` #9 — needs live reproduction. Full notes there.
 Short version: nodes and edge SVG share the scaled `.tt-graph-stage`, so
 suspicion falls on the `markerUnits="userSpaceOnUse"` arrowheads, the zoom
 re-anchor rAF scroll math, or `edgeYOffsets`/`edgePath` recompute lag
@@ -284,7 +284,7 @@ the rig, document exact steps tried and hand back to Taylor for a live repro.
 
 ## C2. [CARRY-OVER] Graph detail-view layout improvement (larger)
 
-Deferred from BUGFIX_TASKS.md #11 — flagged as a bigger task wanting a design
+Deferred from `Scripts/archive/BUGFIX_TASKS.md` #11 — flagged as a bigger task wanting a design
 workshop. Layout comes from `src/store/graph/taskGraph.ts`, rendered at
 `TaskGraph.svelte:622-686`; quality metrics already exist
 (`computeGraphQualityMetrics`, `:161`).

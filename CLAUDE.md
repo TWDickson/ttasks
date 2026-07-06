@@ -133,8 +133,10 @@ Taylor-gated (not autopilot-able): N7 Bases sample (needs live vault),
 DESIGN_AUDIT P2-8 overdue-red softening (taste call), and a dark/light +
 desktop/phone visual regression pass.
 
-Task-file backlogs: `AUDIT_TASKS.md`, `BUGFIX_TASKS.md`, `DESIGN_AUDIT.md`,
-`NATIVE_FEATURES_TASKS.md`, `UI_POLISH_TASKS.md` (items marked `[DONE]` inline).
+Task-file backlogs: `NATIVE_FEATURES_TASKS.md`, `UI_POLISH_TASKS.md` (open
+items; read by the Autopilot queue). Closed sweeps archived under
+`Scripts/archive/`: `AUDIT_TASKS.md`, `BUGFIX_TASKS.md`, `DESIGN_AUDIT.md`
+(items marked `[DONE]` inline).
 Older PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`,
 `Scripts/TASK_I1.md`-`Scripts/TASK_I5.md`, `Scripts/TASK_J1.md`-`Scripts/TASK_J6.md`,
 `Scripts/TASK_K1.md`-`Scripts/TASK_K6.md`
@@ -227,7 +229,7 @@ Older PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`,
 - `!important` required — Obsidian's built-in styles have higher specificity
 - Mobile modal and token usage conventions are documented in `Scripts/STYLING_NOTES.md` (synced notes)
 
-### Design system (2026-07 overhaul — see DESIGN_AUDIT.md)
+### Design system (2026-07 overhaul — see Scripts/archive/DESIGN_AUDIT.md)
 
 - **Tokens are defined once** at the top of `styles.css` on the plugin roots
   (`.tt-board`, `.tt-create-modal`, `.tt-query-editor-modal`, …) and inherit.
