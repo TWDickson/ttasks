@@ -354,8 +354,38 @@
 	let isPanning = false;
 	let panStart = { x: 0, y: 0, scrollX: 0, scrollY: 0 };
 
+	// Two-finger pinch-to-zoom. Every live touch point is tracked; with two down
+	// we zoom by their distance ratio and anchor at the pinch midpoint (reusing
+	// zoomBy's re-anchor math). Panning is suspended while pinching.
+	const activePointers = new Map<number, { x: number; y: number }>();
+	let pinchLastDist = 0;
+
+	function pinchDistance(): number {
+		const pts = [...activePointers.values()];
+		if (pts.length < 2) return 0;
+		return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+	}
+
+	function pinchMidpoint(): { clientX: number; clientY: number } {
+		const pts = [...activePointers.values()];
+		return { clientX: (pts[0].x + pts[1].x) / 2, clientY: (pts[0].y + pts[1].y) / 2 };
+	}
+
 	function onDependencyPointerDown(event: PointerEvent): void {
-		if (event.button !== 0 || !dependencyScrollEl) return;
+		if (!dependencyScrollEl) return;
+		// Track touch points for pinch detection even when a tap lands on a node
+		// button — the event still bubbles to this scroll surface.
+		if (event.pointerType === 'touch') {
+			activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+			if (activePointers.size === 2) {
+				// Entering a pinch: cancel any in-progress pan.
+				isPanning = false;
+				pinchLastDist = pinchDistance();
+				return;
+			}
+			if (activePointers.size > 2) return;
+		}
+		if (event.button !== 0) return;
 		const target = event.target as HTMLElement;
 		if (target.closest('button, a, input')) return;
 		// Empty-canvas press clears a pinned chain highlight.
@@ -371,14 +401,36 @@
 	}
 
 	function onDependencyPointerMove(event: PointerEvent): void {
+		if (event.pointerType === 'touch' && activePointers.has(event.pointerId)) {
+			activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+		}
+		if (activePointers.size >= 2) {
+			const dist = pinchDistance();
+			if (pinchLastDist > 0 && dist > 0) {
+				zoomBy(dist / pinchLastDist, pinchMidpoint());
+			}
+			pinchLastDist = dist;
+			return;
+		}
 		if (!isPanning || !dependencyScrollEl) return;
 		dependencyScrollEl.scrollLeft = panStart.scrollX - (event.clientX - panStart.x);
 		dependencyScrollEl.scrollTop = panStart.scrollY - (event.clientY - panStart.y);
 		dependencyScrollLeft = dependencyScrollEl.scrollLeft;
 	}
 
-	function onDependencyPointerUp(): void {
-		isPanning = false;
+	function onDependencyPointerUp(event: PointerEvent): void {
+		activePointers.delete(event.pointerId);
+		if (activePointers.size < 2) {
+			pinchLastDist = 0;
+			// Hand a lingering single finger back to panning from its current
+			// spot so lifting one pinch finger doesn't jump the graph.
+			if (activePointers.size === 1 && dependencyScrollEl) {
+				const [pt] = [...activePointers.values()];
+				isPanning = true;
+				panStart = { x: pt.x, y: pt.y, scrollX: dependencyScrollEl.scrollLeft, scrollY: dependencyScrollEl.scrollTop };
+			}
+		}
+		if (activePointers.size === 0) isPanning = false;
 	}
 
 	// ── Hover chain tracing ─────────────────────────────────────────────────────
@@ -723,8 +775,9 @@
 								{/if}
 							</div>
 						</button>
-						{#if hoverTracePath === node.path && node.task.type === 'task'}
-							<!-- Hover affordance: spawn a task depending on this one (inherits project/area/labels/priority). -->
+						{#if (hoverTracePath === node.path || pinnedTracePath === node.path) && node.task.type === 'task'}
+							<!-- Spawn a task depending on this one (inherits project/area/labels/priority).
+							     Shown on hover (mouse) or when the node is pinned by a tap (touch). -->
 							<button
 								type="button"
 								class="tt-node-add"
@@ -938,6 +991,18 @@
 		min-width: 44px;
 	}
 
+	/* Touch devices: zoom controls need ≥44px hit targets. */
+	@media (pointer: coarse) {
+		.tt-zoom-btn {
+			min-width: 44px;
+			min-height: 44px;
+		}
+
+		.tt-zoom-reset {
+			min-width: 56px;
+		}
+	}
+
 	.tt-zoom-icon {
 		display: flex;
 		align-items: center;
@@ -1022,6 +1087,9 @@
 		overflow: auto;
 		padding: 8px 12px 16px;
 		cursor: grab;
+		/* Pan and pinch-zoom are handled manually via pointer events; opt out of
+		   the browser's own touch scrolling/zooming so those gestures reach us. */
+		touch-action: none;
 	}
 
 	.tt-graph-scroll.is-panning {
@@ -1380,7 +1448,12 @@
 
 	.tt-graph-stage {
 		position: relative;
-		min-width: 100%;
+		/* No min-width: the stage box must stay exactly layout.width so the
+		   absolutely-positioned <svg> (inset:0, viewBox 0 0 layout.width
+		   layout.height) maps 1:1. A min-width:100% inflated the box past the
+		   inline width once dependencyScale > 1 (fit width = layout.width*scale),
+		   which made preserveAspectRatio rescale edges while nodes stayed in
+		   unscaled coords — edges detached above 100% zoom (C1). */
 		transform-origin: top left;
 	}
 
@@ -1555,6 +1628,16 @@
 	.tt-node-add:hover {
 		background: var(--interactive-accent);
 		color: var(--text-on-accent);
+	}
+
+	/* Touch devices: keep the 28px visual chip but expand the tap area to ≥44px
+	   so the "add dependent" affordance meets the mobile hit-target minimum. */
+	@media (pointer: coarse) {
+		.tt-node-add::after {
+			content: '';
+			position: absolute;
+			inset: -8px;
+		}
 	}
 
 	.tt-node-add-icon {

@@ -43,6 +43,7 @@ const SHOTS = [
 	{ name: 'kanban-light', url: '/?view=kanban&theme=light', viewport: DESKTOP },
 	{ name: 'agenda-dark', url: '/?view=agenda', viewport: DESKTOP },
 	{ name: 'graph-dark', url: '/?view=graph', viewport: { width: 1440, height: 900 } },
+	{ name: 'mobile-graph-dark', url: '/?view=graph', viewport: PHONE },
 	{ name: 'detail-dark', url: '/?view=list&detail=1', viewport: DESKTOP },
 	{ name: 'detail-light', url: '/?view=list&detail=1&theme=light', viewport: DESKTOP },
 	{ name: 'modal-dark', url: '/?view=list&modal=1', viewport: DESKTOP },

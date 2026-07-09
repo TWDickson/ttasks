@@ -60,7 +60,7 @@ needs live Obsidian/vault, needs Taylor's judgment):
 - [x] **Batch E** — NATIVE N2 + N6 (view state persistence; status bar polish)
 - [x] **Batch F** ⚖ — UI_POLISH P7 (settings overhaul; IA/presentation only,
   every existing setting stays functional)
-- [ ] **Batch G** — UI_POLISH P4 + C1 (graph mobile touch/pinch; zoom-edge
+- [x] **Batch G** — UI_POLISH P4 + C1 (graph mobile touch/pinch; zoom-edge
   repro in the rig — if unreproducible, follow the Stuck protocol for C1 only)
 - [ ] **Batch H** — NATIVE N3 (write `API_DESIGN.md` per spec — design doc
   only, no changes under `src/`)

@@ -137,7 +137,28 @@ for consistency.
 
 ---
 
-## P4. [DESIGN] Dependency graph — mobile friendliness
+## P4. [DONE] [DESIGN] Dependency graph — mobile friendliness
+
+**[DONE 2026-07-09, Batch G]** Added two-finger **pinch-to-zoom** on the
+dependency surface: `TaskGraph.svelte` now tracks live touch points in an
+`activePointers` map and zooms by their distance ratio, anchored at the pinch
+midpoint (reuses `zoomBy`'s re-anchor math); panning is suspended during a
+pinch and a lingering single finger hands back to panning. `.tt-graph-scroll`
+gets `touch-action: none` so gestures reach the pointer handlers. **Touch
+targets** (`@media (pointer: coarse)`): zoom buttons → 44×44 (reset → 56 wide),
+and the node "+" add-dependent chip keeps its 28px visual but gets a −8px
+`::after` overlay for a 44px tap area. **Hover-only audit:** the add-dependent
+"+" was hover-gated (unreachable on touch); it now also appears when a node is
+**pinned by a tap**, so tap → detail opens + chain pins + "+" shows. The native
+hover page-preview is absent on touch (graceful — tap opens detail); chain
+tracing already has a tap equivalent via pinning; create-dependent also remains
+on the long-press context menu. Node hit areas are already 122px tall.
+Fit-to-width remains the initial scale (phone defaults to ~22%). Verified with a
+scripted synthetic-pointer pinch in the rig (zoom 37%→250%→35%, both
+directions) and a new `mobile-graph-dark` rig shot at 390px.
+**Gotcha:** `touch-action: none` means the graph surface no longer
+browser-scrolls on touch — pan is fully manual via pointer events, which was
+already the case on desktop.
 
 **Symptom:** The dependency graph is not very mobile friendly.
 
@@ -321,7 +342,23 @@ Managed-list UI pattern: `managedListSettingsSection.ts`;
 
 ---
 
-## C1. [CARRY-OVER] Graph pan/zoom — edges detach when zooming
+## C1. [DONE] Graph pan/zoom — edges detach when zooming
+
+**[DONE 2026-07-09, Batch G]** **Reproduced** in the rig with a scripted
+edge-anchoring probe: at fit (66%) all 28 edge endpoints landed inside a node
+box (0px gap); the instant zoom crossed 100% (130%) they detached
+catastrophically (1192px gap → 12625px at 250%). The threshold at scale=1.0 was
+the tell. **Root cause:** `.tt-graph-stage { min-width: 100% }`. The stage sits
+in `.tt-graph-fit`, whose width is `layout.width * dependencyScale`. Once
+`dependencyScale > 1`, `min-width:100%` inflated the stage's *layout box* past
+its inline `width:layout.width`; the `<svg>` (`position:absolute; inset:0`,
+`viewBox 0 0 layout.width layout.height`) grew with it, so `preserveAspectRatio`
+rescaled the edges while the absolutely-positioned nodes stayed in unscaled
+layout coords. Below scale 1 the inline width won and min-width was inert — hence
+zero gap at fit. **Fix:** removed the `min-width` so the stage box always equals
+`layout.width` and the SVG maps 1:1 at any zoom. Re-probed: 28/28 edges anchored
+(0px gap) at 66%/130%/250%. Not the arrowhead/rAF/edgeYOffsets suspects listed
+below. So arrowheads did *not* drift independently — the whole edge layer did.
 
 Deferred from `Scripts/archive/BUGFIX_TASKS.md` #9 — needs live reproduction. Full notes there.
 Short version: nodes and edge SVG share the scaled `.tt-graph-stage`, so
