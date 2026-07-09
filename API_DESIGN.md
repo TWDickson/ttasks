@@ -8,6 +8,16 @@ document specifies a stable, versioned API surface other plugins and scripts
 app.plugins.plugins['ttasks'].api
 ```
 
+> **Decisions (2026-07-09, Taylor).** The five open questions in §12 are
+> resolved: **Q1 (a)** ship as `0.x`, explicitly *not* frozen; **Q2 (a)** expose
+> the full internal `Task` verbatim with **no projection layer** — Taylor is the
+> sole consumer and the `0.x` API is deliberately unstable, so decoupling the
+> public shape from internal churn is a non-goal for now; **Q3 (a)** memoize the
+> frozen snapshot per store revision, and **measure the real freeze cost during
+> implementation** before adding any further optimization; **Q4 (a)** no
+> `deleteTask` in v1; **Q5 (a)** in-repo `api/types.ts`, no published package.
+> These settle the design; implementation is still a separate, Taylor-gated task.
+
 The API is a **curated, frozen façade** over capabilities that already exist on
 `TaskStore` (`src/store/TaskStore.ts`) and the shared query engine
 (`src/query/`). It is *not* new capability — it is a narrow, guaranteed-stable
