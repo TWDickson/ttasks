@@ -36,8 +36,8 @@
 
 	type GraphMode = 'dependency' | 'overview';
 	export let defaultGraphMode: GraphMode = 'dependency';
-	const DEPENDENCY_NODE_HEIGHT = 122;
-	const DEPENDENCY_ROW_GAP = 12;
+	const DEPENDENCY_NODE_HEIGHT = 96;
+	const DEPENDENCY_ROW_GAP = 10;
 	const DEPENDENCY_LANE_GUTTER = 152;
 	const DEPENDENCY_LANE_MIN_WIDTH = 112;
 	const DEPENDENCY_LANE_MAX_WIDTH = 148;
@@ -116,9 +116,9 @@
 	}
 
 	$: layout = buildTaskGraph(dependencyGraphTasks, {
-		nodeWidth: 226,
+		nodeWidth: 196,
 		nodeHeight: DEPENDENCY_NODE_HEIGHT,
-		horizontalGap: 52,
+		horizontalGap: 40,
 		verticalGap: DEPENDENCY_ROW_GAP,
 		padding: DEPENDENCY_GRAPH_PADDING,
 		paddingLeft: DEPENDENCY_GRAPH_PADDING_LEFT,
@@ -142,6 +142,7 @@
 			startRow: lane.startRow,
 			endRow: lane.endRow,
 			count: lane.taskPaths.length,
+			gapOffsetPx: lane.gapOffsetPx,
 		})),
 		DEPENDENCY_NODE_HEIGHT,
 		DEPENDENCY_ROW_GAP,
@@ -683,7 +684,7 @@
 		</div>
 		<p class="tt-graph-note">
 			{#if graphMode === 'dependency'}
-				Graph respects current filters. Solid amber paths have unfinished upstream dependencies. Dashed gray paths show project containment. Red rings mark cycles. Independent tasks are hidden by default to keep the dependency map readable.
+				Graph respects current filters. Solid amber paths have unfinished upstream dependencies. Dashed gray paths show subtask containment (a task nested under a parent task); project grouping is shown by the swim lanes. Red rings mark cycles. Independent tasks are hidden by default to keep the dependency map readable.
 			{:else}
 				Defined track shows dated/inferred windows. Underdefined track shows no-estimate tasks that anchor after resolved upstream work. Timeline opens focused around today; drag horizontally for history/future.
 			{/if}

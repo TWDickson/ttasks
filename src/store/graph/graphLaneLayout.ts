@@ -16,7 +16,7 @@ export interface LaneHeader {
  * Parameters match the constants used in TaskGraph.svelte.
  */
 export function buildLaneHeaders(
-	groups: Array<{ key: string; label: string; startRow: number; endRow: number; count?: number }>,
+	groups: Array<{ key: string; label: string; startRow: number; endRow: number; count?: number; gapOffsetPx?: number }>,
 	rowHeight: number,
 	rowGap: number,
 	trackPadding: number,
@@ -24,7 +24,9 @@ export function buildLaneHeaders(
 	return groups.map(group => ({
 		key: group.key,
 		label: group.label,
-		topPx: trackPadding + group.startRow * (rowHeight + rowGap),
+		// gapOffsetPx is the fixed inter-lane pixel gap the layout shifted this
+		// lane's nodes down by; the header must match so it stays aligned.
+		topPx: trackPadding + group.startRow * (rowHeight + rowGap) + (group.gapOffsetPx ?? 0),
 		heightPx:
 			(group.endRow - group.startRow + 1) * rowHeight
 			+ Math.max(0, group.endRow - group.startRow) * rowGap,

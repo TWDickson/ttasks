@@ -1,13 +1,22 @@
 # Dependency-graph layout — C2 workshop (Batch I)
 
-**Status:** options for review — **nothing landed.** `src/store/graph/taskGraph.ts`
-and `src/components/TaskGraph.svelte` are unchanged on this branch. This document
-presents baseline metrics + variant proposals so Taylor can pick a direction; the
-pick is deliberately gated (per `AUTOPILOT.md` Batch I / `UI_POLISH_TASKS.md` C2).
+> **Update (2026-07-09) — follow-ups landed.** After the workshop below, Taylor
+> greenlit the follow-ups. Landed on this branch: **V1 Compact** density (the
+> recommended variant), **F1** (fixed-pixel inter-lane gap: 116px → 50px, and
+> the unassigned lane no longer wastes a full empty row), **F5** (unassigned
+> lane pinned below all project lanes — fixes the "unassigned task behind the
+> UDM lane" report), and **F4** (graph legend corrected: dashed gray = *subtask*
+> containment; project grouping is the swim lanes). **F3** (edge-bundle routing)
+> was already implemented — `graphEdgeRouting.ts` sorts attachment points by each
+> neighbour's Y, which is the anti-crossing technique F3 asked for; no change.
+> **F2** (mid-column whitespace) is a **semantic decision left to Taylor** — see
+> [Follow-up outcomes](#follow-up-outcomes-2026-07-09). After-shot:
+> [`Scripts/graph-c2/after-v1-f1-f5-77pct.png`](Scripts/graph-c2/after-v1-f1-f5-77pct.png)
+> (fit rose 66% → 77%, two lanes visible, gaps halved).
 
-Screenshots referenced below live in [`Scripts/graph-c2/`](Scripts/graph-c2/).
-(The rig's own `test-rig/shots/` is gitignored, so the review copies were moved
-into the repo.)
+**Original status:** options for review. This document presents baseline metrics
++ variant proposals; screenshots live in [`Scripts/graph-c2/`](Scripts/graph-c2/)
+(the rig's own `test-rig/shots/` is gitignored, so review copies were moved in).
 
 ---
 
@@ -167,29 +176,48 @@ one-commit follow-up.
 
 ---
 
-## Follow-ups (need Taylor's greenlight)
+## Follow-up outcomes (2026-07-09)
 
-These change the layout *algorithm* (not just spacing), so per the Batch I
-mandate they're written down rather than built. Ordered by value/risk:
+Taylor greenlit the follow-ups. Outcomes, by original label:
 
-- **F1 — Inter-lane gap.** Lanes are separated by a fixed 2 empty rows
-  (`taskGraph.ts` `laneRowCursor = endRow + 2`). Dropping to 1 row, or making it
-  proportional to lane size, would reclaim vertical space on multi-lane graphs
-  with low risk. Cheap; worth pairing with whichever density variant you pick.
-- **F2 — Mid-column whitespace.** The biggest visual void (see the baseline
-  shot) is a lane whose early rows have no nodes in the middle dependency
-  columns. A "pull isolated / shallow chains leftward to fill gaps" pass could
-  compact this, but it interacts with the temporal (date-based) column nudging —
-  medium risk, wants its own workshop.
-- **F3 — Edge-routing polish.** `edgeYOffsets` spreads multiple edges across a
-  node's face evenly; on high-fan-out nodes the current even-spread can still
-  produce shallow crossings *within* the arrow bundle. Low value given crossings
-  are already ~0, but noted.
-- **F4 — Project containment edges.** Parent edges never render because
-  `parent_task` points at project records that are filtered out of the node set.
-  If Taylor wants the dashed containment lines to actually show for
-  task-under-task hierarchies, that's a separate behavioural change (and a test).
-  Flagging because the metric `parentEdgeCount: 0` surfaced it.
+- **F1 — Inter-lane gap → LANDED.** Was framed as "drop 2 rows to 1," but the
+  row grid can't express a sub-row gap (one empty row = a full node pitch, ~116px
+  at compact dims). Implemented a **fixed-pixel inter-lane gap** instead: lanes
+  now pack row-contiguous (`endRow + 1`) and each lane after the first is shifted
+  down by a cumulative `laneGap` (default 40px). Node `y` carries the shift so
+  edges follow; lane-header geometry adds the same offset (`gapOffsetPx` on
+  `GraphLane`, threaded through `buildLaneHeaders`). Verified: gaps 116px → 50px,
+  headers stay aligned with nodes. Tests in `taskGraph.test.ts`.
+- **F5 (Taylor's swimlane report) — LANDED.** "An unassigned task passes behind
+  the UDM lane." Root cause via a rig DOM probe: no band overlap — the
+  **unassigned lane was being ordered *between* project lanes** by
+  `optimizeLaneBandOrder` (a cross-lane edge pulled it up next to UDM). Fix:
+  hold the null-key lane out of the optimizer and **pin it to the bottom**, matching
+  the header-descriptor order. Independent work now sits after all projects.
+- **F4 — Legend corrected → LANDED (not a defect).** `parentEdgeCount: 0` in the
+  workshop fixture was an artifact: every `parent_task` there pointed at a
+  *project* (which is a swim lane, not a node), so no edge is drawn — correct.
+  Parent edges **do** render for task-under-task (subtask) hierarchies. The graph
+  legend said dashed gray = "project containment," which is the misleading part;
+  corrected to "**subtask containment** (a task nested under a parent task);
+  project grouping is shown by the swim lanes." No layout/behaviour change.
+- **F3 — Edge routing → already done.** `graphEdgeRouting.ts`
+  `compareByRoutingRank` already orders attachment points by each neighbour's
+  actual `y` (directional), same-lane first — precisely the "spread the bundle so
+  edges don't cross before they meet the node" technique F3 asked for. Nothing to
+  change; crossings remain ~0.
+- **F2 — Mid-column whitespace → NEEDS TAYLOR'S CALL (not landed).** The
+  remaining void is horizontal: a level-0 task feeding a level-3 task leaves the
+  intermediate columns empty in that row (inherent to layered layout, where
+  `column = dependency depth from the start`). Compacting it means **pulling
+  source-only nodes rightward** to sit just left of their consumer — i.e.
+  `column = min(consumer columns) − 1` instead of longest-path-from-source. That
+  is a **semantic change**: today a node's column reads as "how deep in the
+  dependency chain from the start"; the alternative reads as "how close to its
+  dependents." It can also perturb the current 0-crossing result. This is a
+  genuine design tradeoff, not a safe mechanical fix, so it's left for Taylor to
+  choose. **Note:** V1 + F1 + F5 already reclaimed most of the *practical*
+  whitespace (fit 66% → 77%, two lanes on screen), so F2 is now lower urgency.
 
 ---
 

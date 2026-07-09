@@ -371,7 +371,22 @@ the rig, document exact steps tried and hand back to Taylor for a live repro.
 
 ---
 
-## C2. [DONE — options presented, awaiting Taylor's pick] Graph detail-view layout improvement (larger)
+## C2. [DONE — V1 + F1/F4/F5 landed; F2 awaits Taylor's semantic call] Graph detail-view layout improvement (larger)
+
+**[FOLLOW-UPS LANDED 2026-07-09]** Taylor greenlit the follow-ups. Landed:
+**V1 Compact** density (nodeH 122→96, rowGap 12→10, nodeW 226→196, hGap 52→40);
+**F1** fixed-pixel inter-lane gap (116px→50px, `gapOffsetPx` on `GraphLane`
+threaded through `buildLaneHeaders`); **F5** unassigned lane pinned below all
+project lanes (fixes the "unassigned task behind the UDM lane" report — root
+cause was `optimizeLaneBandOrder` wedging the null lane between projects);
+**F4** graph legend corrected (dashed gray = subtask containment, not "project
+containment" — projects are the swim lanes). **F3** edge routing already did the
+bundle-spread it asked for (`graphEdgeRouting.ts`); no change. **F2** (mid-column
+whitespace) is a semantic tradeoff — pulling source-only nodes rightward changes
+what a column *means* and can perturb the 0-crossing result — so it's left for
+Taylor. Build + full suite green (1259 tests); after-shots in `Scripts/graph-c2/`.
+Details in [`GRAPH_LAYOUT_C2.md`](GRAPH_LAYOUT_C2.md).
+
 
 **[DONE 2026-07-09, Batch I — workshop only, no layout landed]** Wrote the
 design workshop to [`GRAPH_LAYOUT_C2.md`](GRAPH_LAYOUT_C2.md) with baseline

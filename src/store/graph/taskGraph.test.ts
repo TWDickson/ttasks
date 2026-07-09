@@ -231,6 +231,50 @@ describe('buildTaskGraph', () => {
 		expect(nodePaths.has('Tasks/proj-b.md')).toBe(false);
 	});
 
+	it('pins the unassigned lane below every project lane, even with a cross-lane dep (F5)', () => {
+		// The orphan depends on a project task, which the lane-order optimizer would
+		// otherwise use to wedge the unassigned lane between project lanes.
+		const tasks = [
+			makeTask({ path: 'Tasks/proj-a.md', name: 'Project A', type: 'project' }),
+			makeTask({ path: 'Tasks/proj-b.md', name: 'Project B', type: 'project' }),
+			makeTask({ path: 'Tasks/a1.md', name: 'A1', parent_task: 'Tasks/proj-a' }),
+			makeTask({ path: 'Tasks/b1.md', name: 'B1', parent_task: 'Tasks/proj-b' }),
+			makeTask({ path: 'Tasks/orphan.md', name: 'Orphan', depends_on: ['Tasks/a1'] }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const unassigned = layout.lanes.find((lane) => lane.key === null);
+		const projectLanes = layout.lanes.filter((lane) => lane.key !== null);
+		expect(unassigned).toBeDefined();
+		expect(projectLanes.length).toBeGreaterThan(0);
+		// Unassigned starts at or below the last row of every project lane.
+		const maxProjectEndRow = Math.max(...projectLanes.map((lane) => lane.endRow));
+		expect(unassigned!.startRow).toBeGreaterThan(maxProjectEndRow);
+	});
+
+	it('separates lanes with a fixed pixel gap decoupled from the row grid (F1)', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/proj-a.md', name: 'Project A', type: 'project' }),
+			makeTask({ path: 'Tasks/proj-b.md', name: 'Project B', type: 'project' }),
+			makeTask({ path: 'Tasks/a1.md', name: 'A1', parent_task: 'Tasks/proj-a' }),
+			makeTask({ path: 'Tasks/b1.md', name: 'B1', parent_task: 'Tasks/proj-b' }),
+		];
+
+		const laneGap = 40;
+		const layout = buildTaskGraph(tasks, { laneGap, nodeHeight: 96, verticalGap: 10, padding: 20 });
+		const lanesByOffset = [...layout.lanes].sort((a, b) => (a.gapOffsetPx ?? 0) - (b.gapOffsetPx ?? 0));
+		// First lane has zero offset; each subsequent lane is shifted by one more laneGap.
+		expect(lanesByOffset[0].gapOffsetPx ?? 0).toBe(0);
+		for (let i = 1; i < lanesByOffset.length; i += 1) {
+			expect((lanesByOffset[i].gapOffsetPx ?? 0) - (lanesByOffset[i - 1].gapOffsetPx ?? 0)).toBe(laneGap);
+		}
+		// Nodes in a shifted lane carry the offset in their y so edges follow.
+		const b1 = layout.nodes.find((node) => node.path === 'Tasks/b1.md')!;
+		const bLane = layout.lanes.find((lane) => lane.taskPaths.includes('Tasks/b1.md'))!;
+		const rowY = 20 + b1.row * (96 + 10);
+		expect(b1.y).toBe(rowY + (bLane.gapOffsetPx ?? 0));
+	});
+
 	it('resolves lanes to the owning project when parent_task points to an intermediate task', () => {
 		const tasks = [
 			makeTask({ path: 'Tasks/proj-a.md', name: 'Project A', type: 'project' }),

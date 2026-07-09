@@ -38,6 +38,10 @@ export interface GraphLane {
 	taskPaths: string[];  // All task paths in this lane
 	startRow: number;
 	endRow: number;
+	/** Extra vertical pixels this lane (and its nodes) are shifted down by, so
+	 *  inter-lane spacing is a fixed gap decoupled from the row grid. Lane header
+	 *  geometry must add this to its row-derived top. */
+	gapOffsetPx?: number;
 }
 
 export interface TaskGraphLayout {
@@ -62,6 +66,8 @@ export interface BuildTaskGraphOptions {
 	padding?: number;
 	/** Extra-wide left padding (e.g. a lane-header gutter). Falls back to `padding`. */
 	paddingLeft?: number;
+	/** Fixed pixel gap inserted between swim lanes (decoupled from the row grid). */
+	laneGap?: number;
 	/** Universal calendar config threaded to the working-day date math. */
 	calendarConfig?: CalendarConfig;
 }
@@ -80,6 +86,7 @@ interface LaneBand {
 	startRow: number;
 	endRow: number;
 	paths: string[];
+	gapOffsetPx: number;
 }
 
 /**
@@ -163,6 +170,10 @@ const DEFAULT_NODE_HEIGHT = 92;
 const DEFAULT_HORIZONTAL_GAP = 88;
 const DEFAULT_VERTICAL_GAP = 28;
 const DEFAULT_PADDING = 28;
+// Fixed pixel gap between swim lanes. Decoupled from the row grid so lanes read
+// as separate without reserving a full empty node-row (which, at compact node
+// sizes, wasted ~110px between every lane). See F1 in GRAPH_LAYOUT_C2.md.
+const DEFAULT_LANE_GAP = 40;
 
 /**
  * Pack lane nodes into rows with branch-aware verticality.
@@ -290,6 +301,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	const verticalGap = options.verticalGap ?? DEFAULT_VERTICAL_GAP;
 	const padding = options.padding ?? DEFAULT_PADDING;
 	const paddingLeft = options.paddingLeft ?? padding;
+	const laneGap = options.laneGap ?? DEFAULT_LANE_GAP;
 
 	// Hide project records from graph nodes; project lanes are still derived
 	// from parent_task links and project metadata in allTaskByPath.
@@ -611,13 +623,18 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	// "completed before others" signal without spreading the chain horizontally.
 	const temporalKeyByPath = new Map(visibleTasks.map((task) => [task.path, getTemporalKeyForTask(task)]));
 
-	// Optimize lane ordering to minimize cross-lane edge distance.
+	// Optimize lane ordering to minimize cross-lane edge distance. The unassigned
+	// (null-key) lane is held out of the optimizer and pinned to the bottom —
+	// independent work belongs after the project lanes, not wedged between them
+	// (which read as an unassigned task hanging off a project). See F5.
 	const laneBandsForOptimization = laneKeysSorted
 		.filter((key) => (laneAssignments.get(key) ?? []).length > 0)
 		.map((key) => ({ key, paths: laneAssignments.get(key) ?? [] }));
+	const projectLaneBands = laneBandsForOptimization.filter((band) => band.key !== null);
+	const unassignedLaneBands = laneBandsForOptimization.filter((band) => band.key === null);
 	const nodesByPathForOpt = new Map(nodes.map((n) => [n.path, n]));
-	const optimizedLaneBands = optimizeLaneBandOrder(laneBandsForOptimization, nodesByPathForOpt, edges);
-	const optimizedLaneKeys = optimizedLaneBands.map((b) => b.key);
+	const optimizedProjectBands = optimizeLaneBandOrder(projectLaneBands, nodesByPathForOpt, edges);
+	const optimizedLaneKeys = [...optimizedProjectBands, ...unassignedLaneBands].map((b) => b.key);
 
 	const laneBands = new Map<string | null, LaneBand>();
 	let laneRowCursor = 0;
@@ -637,13 +654,33 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 			startRow,
 			endRow,
 			paths: laneNodes.map((node) => node.path),
+			gapOffsetPx: 0,
 		});
 
-		// Leave one row gap between lanes for readability.
-		laneRowCursor = endRow + 2;
+		// Rows are now contiguous between lanes; the visual separation is a fixed
+		// pixel gap applied below, not a wasted empty row.
+		laneRowCursor = endRow + 1;
 	}
 
-	maxRow = Math.max(-1, laneRowCursor - 2);
+	// Apply the fixed inter-lane pixel gap: each lane after the first is shifted
+	// down by a cumulative multiple of `laneGap`, and its nodes shift with it so
+	// edges (which read node.y) follow. Lane header geometry adds the same offset.
+	const nodesByPathForGap = new Map(nodes.map((n) => [n.path, n]));
+	let laneOrderIndex = 0;
+	for (const band of laneBands.values()) {
+		const offset = laneOrderIndex * laneGap;
+		band.gapOffsetPx = offset;
+		if (offset > 0) {
+			for (const path of band.paths) {
+				const node = nodesByPathForGap.get(path);
+				if (node) node.y += offset;
+			}
+		}
+		laneOrderIndex += 1;
+	}
+	const totalLaneGapPx = Math.max(0, laneBands.size - 1) * laneGap;
+
+	maxRow = Math.max(-1, laneRowCursor - 1);
 
 	nodes.sort((left, right) => left.column - right.column || left.row - right.row || left.path.localeCompare(right.path));
 
@@ -676,6 +713,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 			taskPaths: laneBand.paths,
 			startRow: laneBand.startRow,
 			endRow: laneBand.endRow,
+			gapOffsetPx: laneBand.gapOffsetPx,
 		});
 	}
 
@@ -688,6 +726,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 				taskPaths: laneBand.paths,
 				startRow: laneBand.startRow,
 				endRow: laneBand.endRow,
+				gapOffsetPx: laneBand.gapOffsetPx,
 			});
 		}
 	}
@@ -701,7 +740,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		columns,
 		rows,
 		width: paddingLeft + padding + columns * nodeWidth + Math.max(0, columns - 1) * horizontalGap,
-		height: padding * 2 + rows * nodeHeight + Math.max(0, rows - 1) * verticalGap,
+		height: padding * 2 + rows * nodeHeight + Math.max(0, rows - 1) * verticalGap + totalLaneGapPx,
 		cycleCount: nodes.filter((node) => node.isCycle).length,
 		blockedNodeCount: nodes.filter((node) => node.isBlockedChain).length,
 		blockedEdgeCount: edges.filter((edge) => edge.isBlockedChain).length,
