@@ -371,7 +371,22 @@ the rig, document exact steps tried and hand back to Taylor for a live repro.
 
 ---
 
-## C2. [CARRY-OVER] Graph detail-view layout improvement (larger)
+## C2. [DONE — options presented, awaiting Taylor's pick] Graph detail-view layout improvement (larger)
+
+**[DONE 2026-07-09, Batch I — workshop only, no layout landed]** Wrote the
+design workshop to [`GRAPH_LAYOUT_C2.md`](GRAPH_LAYOUT_C2.md) with baseline
+metrics, 3 variants, and rig screenshots in [`Scripts/graph-c2/`](Scripts/graph-c2/).
+**Key finding:** `computeGraphQualityMetrics` shows the topology is already
+near-optimal — **0 crossings, bend 4** on a realistic 20-node fixture; the vault
+graph shows 0 cycles and no visible crossings. The actual pain is **footprint**:
+baseline packs 20 nodes into 1808×1770px and the vault graph fits-to-width at
+only 66%. So the lever is **card/gap density**, which leaves crossings untouched.
+Two density variants cut canvas area 31% (V1 Compact) / 46% (V2 Dense) and raise
+fit to 77% / 85%. **Recommended: V1 Compact** (density vs legibility sweet spot).
+`TaskGraph.svelte`/`taskGraph.ts` are unchanged — landing the pick is a
+four-constant edit. Algorithmic ideas (inter-lane gap, mid-column whitespace,
+edge routing, project containment edges) documented as greenlight-gated
+follow-ups. **Taylor picks the variant.**
 
 Deferred from `Scripts/archive/BUGFIX_TASKS.md` #11 — flagged as a bigger task wanting a design
 workshop. Layout comes from `src/store/graph/taskGraph.ts`, rendered at

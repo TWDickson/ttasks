@@ -119,19 +119,22 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 ## Current Priorities
 
-Backlog is consolidated in `ROADMAP.md` → **Consolidated Status (2026-07-06)**.
-All prior sweeps are closed (AUDIT Sweep 2, DESIGN_AUDIT P0–P2, BUGFIX #1–13,
-NATIVE N1/N2/N4/N5/N6, UI_POLISH P1/P2/P3/P5/P6). The live backlog is the
-`AUTOPILOT.md` batch queue on `feat/ui-polish-autopilot`:
+Backlog is consolidated in `ROADMAP.md` → **Consolidated Status (2026-07-06)**
+and the **Autopilot complete (2026-07-09)** checkpoint. All prior sweeps are
+closed (AUDIT Sweep 2, DESIGN_AUDIT P0–P2, BUGFIX #1–13, NATIVE N1/N2/N4/N5/N6,
+UI_POLISH P1–P7 + C1). The `AUTOPILOT.md` batch queue (A–I) on
+`feat/ui-polish-autopilot` is **fully worked** — nothing left in it.
 
-1. **Batch F** — settings pane IA/presentation overhaul (UI_POLISH P7)
-2. **Batch G** — graph mobile touch/pinch + zoom-edge repro (UI_POLISH P4 / BUGFIX #9)
-3. **Batch H** — `API_DESIGN.md` public-API design doc (NATIVE N3, doc only)
-4. **Batch I** — graph layout variants + baseline metrics (UI_POLISH C2 / BUGFIX #11) — present options, Taylor picks
+**Now needing Taylor** (gated, not autopilot-able):
 
-Taylor-gated (not autopilot-able): N7 Bases sample (needs live vault),
-DESIGN_AUDIT P2-8 overdue-red softening (taste call), and a dark/light +
-desktop/phone visual regression pass.
+- **C2 graph-layout variant pick** — workshop in `GRAPH_LAYOUT_C2.md` (shots in
+  `Scripts/graph-c2/`) found topology already near-optimal (0 crossings);
+  footprint is the lever. Recommends **V1 Compact** (−31% canvas, 66%→77% fit).
+  Landing it is a four-constant edit in `TaskGraph.svelte`; algorithmic
+  follow-ups (F1–F4) are greenlight-gated. **No layout change landed.**
+- **N3 API** ships only after Taylor reviews `API_DESIGN.md`.
+- **N7** Bases sample (needs live vault), **DESIGN_AUDIT P2-8** overdue-red
+  softening (taste call), and a dark/light + desktop/phone visual regression pass.
 
 Task-file backlogs: `NATIVE_FEATURES_TASKS.md`, `UI_POLISH_TASKS.md` (open
 items; read by the Autopilot queue). Closed sweeps archived under

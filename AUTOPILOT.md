@@ -64,9 +64,10 @@ needs live Obsidian/vault, needs Taylor's judgment):
   repro in the rig — if unreproducible, follow the Stuck protocol for C1 only)
 - [x] **Batch H** — NATIVE N3 (write `API_DESIGN.md` per spec — design doc
   only, no changes under `src/`)
-- [ ] **Batch I** ⚖ — UI_POLISH C2 (graph layout: baseline metrics + 2–3
+- [x] **Batch I** ⚖ — UI_POLISH C2 (graph layout: baseline metrics + 2–3
   variant proposals with screenshots in a writeup — commit the writeup, do
-  NOT land a layout change)
+  NOT land a layout change) — writeup at `GRAPH_LAYOUT_C2.md`, shots in
+  `Scripts/graph-c2/`; no `src/` layout change. **Awaits Taylor's variant pick.**
 
 **Excluded from autopilot** (need Taylor live): N7 (Bases, needs the real
 vault), final decisions on C2 variants, N3 review.

@@ -53,6 +53,37 @@ older identifiers collapse onto these batches — same work, different files:
 
 ---
 
+## Autopilot complete (2026-07-09)
+
+The `AUTOPILOT.md` batch queue (A–I) is fully worked. All boxes checked; branch
+`feat/ui-polish-autopilot` never pushed/merged — Taylor reviews.
+
+**Landed this run (Batches F–I):**
+
+- **Batch F** — settings IA/presentation overhaul + round-2 follow-ups
+  (collapsible jumpable sections, hide-built-in-views, reminder previews,
+  capture-source rewrite, named/recurring holidays, per-area workweek).
+- **Batch G** — graph pinch-to-zoom + coarse-pointer touch targets (UI_POLISH
+  P4); **zoom-edge detach reproduced and fixed** (C1 / BUGFIX #9 — root cause was
+  `.tt-graph-stage { min-width: 100% }` inflating the SVG above scale 1.0).
+- **Batch H** — `API_DESIGN.md` public-API design doc (NATIVE N3, doc only);
+  Taylor's decisions on the 5 open questions recorded.
+- **Batch I** — graph-layout C2 workshop → `GRAPH_LAYOUT_C2.md` (+ shots in
+  `Scripts/graph-c2/`). **No layout change landed.**
+
+**Now needing Taylor (gated / not autopilot-able):**
+
+- **C2 variant pick** — the workshop found topology already near-optimal (0
+  crossings); footprint is the lever. Recommends **V1 Compact** (−31% canvas,
+  66%→77% fit). Landing the pick is a four-constant edit in `TaskGraph.svelte`.
+  Algorithmic follow-ups (F1–F4 in the writeup) are greenlight-gated.
+- **N3 API** — ships only after Taylor reviews `API_DESIGN.md`.
+- **N7** Bases sample — needs the real vault with Bases enabled.
+- **DESIGN_AUDIT P2-8** overdue-red softening — deliberate taste call.
+- **Visual regression pass** — dark/light × desktop/phone, per STYLING_NOTES.md.
+
+---
+
 ## Progress Notes (2026-07-04)
 
 Worked through `BUGFIX_TASKS.md` (Taylor's 2026-07-04 report), then the
