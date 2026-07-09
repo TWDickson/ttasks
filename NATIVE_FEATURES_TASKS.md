@@ -96,7 +96,19 @@ overrides today). Runtime state lives in plugin-owned `BoardStateService`
 
 ---
 
-## N3. [PLAN-FIRST] Public API for other plugins
+## N3. [DONE] Public API for other plugins
+
+**[DONE 2026-07-09, Batch H]** Design doc only, per PLAN-FIRST scope — no code
+under `src/`. Wrote `API_DESIGN.md` covering: façade principles (frozen
+snapshots, reuse-existing-validation), `api.version` semver + additive-only
+policy with stable/experimental tiers, the read/subscribe/write/UI method set
+mapped to concrete `TaskStore`/`applyQuery` sources, deep-frozen `Task`
+snapshots, an `onTasksChanged` unsubscribe contract, type-distribution options
+(in-repo `api/types.ts` recommended), `ttasks://` protocol parity table + a
+proposed `action=search`, non-goals (no bulk/settings/archive/delete in v1),
+the proposed `TTasksApi` interface, 3 worked consumer examples (Templater,
+QuickAdd, Dataview-JS), and 5 open questions for Taylor. **Needs Taylor's
+review before any implementation task is scoped.**
 
 **What:** A stable, versioned API surface other plugins/scripts (Templater,
 QuickAdd, Dataview-JS, community plugins) can consume via

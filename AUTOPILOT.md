@@ -62,7 +62,7 @@ needs live Obsidian/vault, needs Taylor's judgment):
   every existing setting stays functional)
 - [x] **Batch G** — UI_POLISH P4 + C1 (graph mobile touch/pinch; zoom-edge
   repro in the rig — if unreproducible, follow the Stuck protocol for C1 only)
-- [ ] **Batch H** — NATIVE N3 (write `API_DESIGN.md` per spec — design doc
+- [x] **Batch H** — NATIVE N3 (write `API_DESIGN.md` per spec — design doc
   only, no changes under `src/`)
 - [ ] **Batch I** ⚖ — UI_POLISH C2 (graph layout: baseline metrics + 2–3
   variant proposals with screenshots in a writeup — commit the writeup, do
