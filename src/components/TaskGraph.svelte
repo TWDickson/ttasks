@@ -55,6 +55,9 @@
 	let appliedGraphMode: GraphMode = defaultGraphMode;
 	let lastGraphMode: GraphMode = defaultGraphMode;
 	let showIndependentInDependency = false;
+	// Highlight "ready" work: open (incomplete) tasks with no unfinished upstream
+	// dependency — i.e. the things that can actually be started right now.
+	let highlightReady = false;
 	let lastGraphDiagnosticsKey = '';
 	let dependencyScrollEl: HTMLDivElement | null = null;
 	let dependencyViewportWidth = 0;
@@ -159,6 +162,7 @@
 		DEPENDENCY_LANE_MAX_WIDTH,
 	);
 	$: dependencyEmpty = layout.nodes.length === 0;
+	$: readyCount = layout.nodes.filter(isReadyNode).length;
 
 	$: {
 		if (!plugin.settings.graphDiagnosticsEnabled || graphMode !== 'dependency') {
@@ -326,6 +330,15 @@
 
 	function toggleIndependentVisibility(): void {
 		showIndependentInDependency = !showIndependentInDependency;
+	}
+
+	// A node is "ready" when it's open and nothing incomplete is upstream of it.
+	function isReadyNode(node: TaskGraphNode): boolean {
+		return !node.task.is_complete && node.blockedIncomingCount === 0;
+	}
+
+	function toggleHighlightReady(): void {
+		highlightReady = !highlightReady;
 	}
 
 	// ── Pan & zoom (dependency mode) ────────────────────────────────────────────
@@ -673,6 +686,18 @@
 					<span class="tt-graph-pill-label">Cycle nodes</span>
 					<strong>{layout.cycleCount}</strong>
 				</div>
+				{#if readyCount > 0}
+					<button
+						type="button"
+						class="tt-graph-pill tt-graph-pill-toggle tt-graph-pill-ready"
+						class:is-active={highlightReady}
+						aria-pressed={highlightReady}
+						on:click={toggleHighlightReady}
+					>
+						<span class="tt-graph-pill-label">Ready now</span>
+						<strong>{readyCount}</strong>
+					</button>
+				{/if}
 				{#if hiddenIndependentCount > 0}
 					<button type="button" class="tt-graph-pill tt-graph-pill-toggle" on:click={toggleIndependentVisibility}>
 						<span class="tt-graph-pill-label">Independent</span>
@@ -705,7 +730,7 @@
 				</button>
 			{/if}
 		</div>
-		<p class="tt-graph-note">
+		<p class="tt-graph-note" id="tt-dep-graph-legend">
 			{#if graphMode === 'dependency'}
 				Graph respects current filters. Solid amber paths have unfinished upstream dependencies. Dashed gray paths show subtask containment (a task nested under a parent task); project grouping is shown by the swim lanes. Red rings mark cycles. Independent tasks are hidden by default to keep the dependency map readable.
 			{:else}
@@ -723,7 +748,7 @@
 				class:is-panning={isPanning}
 				bind:this={dependencyScrollEl}
 				role="application"
-				aria-label="Dependency graph — drag to pan, Ctrl+scroll to zoom"
+				aria-labelledby="tt-dep-graph-legend"
 				on:scroll={onDependencyScroll}
 				on:wheel|nonpassive={onDependencyWheel}
 				on:pointerdown={onDependencyPointerDown}
@@ -733,7 +758,7 @@
 				on:mouseleave={clearTrace}
 			>
 				<div class="tt-graph-fit" style={`width:${fittedDependencyWidth}px;height:${fittedDependencyHeight}px;`}>
-				<div class="tt-graph-stage" style={`width:${layout.width}px;height:${layout.height}px;transform:scale(${dependencyScale});`}>
+				<div class="tt-graph-stage" class:highlight-ready={highlightReady} style={`width:${layout.width}px;height:${layout.height}px;transform:scale(${dependencyScale});`}>
 					{#if dependencyLaneHeaders.length > 0}
 						<div class="tt-dependency-lanes" style={`--tt-dependency-lane-width:${dependencyLaneWidth}px;transform:translateX(${dependencyLaneStickyOffset}px);`}>
 							{#each dependencyLaneHeaders as lane (lane.key)}
@@ -743,7 +768,6 @@
 										class={`${getLaneHeaderClass(lane)} is-clickable`}
 										style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
 										aria-label={`Add task to ${lane.label}`}
-										title={`Add task to ${lane.label}`}
 										on:click={() => createTaskInProject(lane.key)}
 									>
 										<span class="tt-dependency-lane-add" use:icon={'plus'}></span>
@@ -792,6 +816,7 @@
 							class:is-active={$activeTaskPath === node.path}
 							class:is-cycle={node.isCycle}
 							class:is-blocked={node.isBlockedChain}
+							class:is-ready={highlightReady && isReadyNode(node)}
 							class:is-dim={traceSets && !traceSets.nodes.has(node.path)}
 							style={nodeStyle(node)}
 							on:click={() => onNodeClick(node.path)}
@@ -1113,6 +1138,15 @@
 
 	.tt-graph-pill-toggle {
 		cursor: pointer;
+	}
+
+	.tt-graph-pill-ready.is-active {
+		border-color: color-mix(in srgb, var(--color-green) 55%, var(--background-modifier-border));
+		background: color-mix(in srgb, var(--color-green) 15%, var(--background-primary));
+	}
+
+	.tt-graph-pill-ready.is-active strong {
+		color: var(--color-green);
 	}
 
 	.tt-graph-note {
@@ -1565,8 +1599,20 @@
 
 	.tt-dependency-lane-header.is-compact {
 		align-items: center;
-		padding: 8px 8px 8px 10px;
-		gap: 6px;
+		padding: 6px 6px 6px 8px;
+		gap: 4px;
+	}
+
+	/* Short lanes have little vertical room: let the label take all of it and
+	drop a notch in size so more of the name survives before the ellipsis. */
+	.tt-dependency-lane-header.is-compact .tt-dependency-lane-label {
+		flex: 1 1 auto;
+		min-height: 0;
+		font-size: 10.5px;
+	}
+
+	.tt-dependency-lane-header.is-compact .tt-dependency-lane-add {
+		opacity: 0.35;
 	}
 
 	.tt-dependency-lane-header.is-rotated .tt-dependency-lane-label {
@@ -1574,7 +1620,11 @@
 		font-size: 12px;
 		line-height: 1.05;
 		max-height: none;
-		white-space: normal;
+		/* One vertical line, never wrapped to extra columns (which overflow the
+		slim gutter on short lanes); long names truncate with an ellipsis. */
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 		writing-mode: vertical-rl;
 		text-orientation: mixed;
 		transform: rotate(180deg);
@@ -1803,6 +1853,23 @@
 
 	.tt-graph-node.is-blocked {
 		background: linear-gradient(180deg, color-mix(in srgb, var(--color-orange) 12%, var(--background-primary)), var(--background-primary));
+	}
+
+	/* "Ready now" highlight: open, unblocked work pops green; everything else
+	in the graph recedes so the actionable tasks read at a glance. */
+	.tt-graph-node.is-ready {
+		box-shadow:
+			inset 0 0 0 1px color-mix(in srgb, var(--color-green) 60%, transparent),
+			0 0 0 2px color-mix(in srgb, var(--color-green) 42%, transparent),
+			0 0 18px color-mix(in srgb, var(--color-green) 28%, transparent);
+	}
+
+	.tt-graph-stage.highlight-ready .tt-graph-node:not(.is-ready) {
+		opacity: 0.3;
+	}
+
+	.tt-graph-stage.highlight-ready .tt-graph-edge {
+		opacity: 0.22;
 	}
 
 	.tt-graph-node.is-cycle {
