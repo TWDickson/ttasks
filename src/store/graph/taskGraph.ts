@@ -33,7 +33,7 @@ export interface TaskGraphEdge {
 }
 
 export interface GraphLane {
-	key: string | null;  // Project path or null for independent
+	key: string | null;  // Project path, satellite key, or null for independent
 	label: string;       // Project name or "Unassigned"
 	taskPaths: string[];  // All task paths in this lane
 	startRow: number;
@@ -42,7 +42,14 @@ export interface GraphLane {
 	 *  inter-lane spacing is a fixed gap decoupled from the row grid. Lane header
 	 *  geometry must add this to its row-derived top. */
 	gapOffsetPx?: number;
+	/** True for a "satellite" lane: unassigned task(s) that connect to a single
+	 *  project, parked next to that project (thin header) so the cross-lane
+	 *  dependency arrow stays short instead of reaching a shared bottom lane. */
+	isSatellite?: boolean;
 }
+
+/** Prefix marking a synthetic satellite lane key: `${SATELLITE_PREFIX}${projectPath}`. */
+export const SATELLITE_LANE_PREFIX = '__satellite__:';
 
 export interface TaskGraphLayout {
 	nodes: TaskGraphNode[];
@@ -99,41 +106,6 @@ function getDateKey(task: Task): number {
 	// bare new Date('YYYY-MM-DD') would parse as UTC and skew by a day.
 	const date = parseIsoDate(task.start_date) ?? parseIsoDate(task.due_date) ?? parseIsoDate(task.created);
 	return date ? date.getTime() : Infinity;
-}
-
-/**
- * Group visible tasks by owning project lane.
- * Lane resolution walks parent_task ancestry until it reaches a project record.
- */
-function buildLaneAssignment(tasks: Task[], allTaskByPath: Map<string, Task>): Map<string | null, string[]> {
-	const lanesByKey = new Map<string | null, string[]>();
-
-	// First pass: collect all known project paths.
-	const projectPaths = new Set<string>();
-	for (const task of tasks) {
-		if (task.type === 'project') {
-			projectPaths.add(task.path);
-		}
-
-		const projectPath = resolveOwningProjectPath(task, allTaskByPath);
-		if (projectPath) {
-			projectPaths.add(projectPath);
-		}
-	}
-
-	// Initialize lanes for each project + one for unassigned
-	for (const projectPath of projectPaths) {
-		lanesByKey.set(projectPath, []);
-	}
-	lanesByKey.set(null, []);  // Unassigned/independent lane
-
-	// Assign visible tasks to their owning project lane.
-	for (const task of tasks) {
-		const laneKey = resolveOwningProjectPath(task, allTaskByPath);
-		lanesByKey.get(laneKey)?.push(task.path);
-	}
-
-	return lanesByKey;
 }
 
 function resolveNodeLaneKey(task: Task, allTaskByPath: Map<string, Task>): string | null {
@@ -607,15 +579,47 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		}
 	}
 
-	// Lane compaction pass: make rows contiguous inside project lanes so lane
-	// headers are meaningful and edge crossings are reduced by local ordering.
-	const laneAssignments = buildLaneAssignment(visibleTasks, allTaskByPath);
+	// Satellite lanes: an unassigned task (no owning project) that depends on / is
+	// depended on by project tasks rides in a thin lane next to the project it
+	// connects to most, rather than the shared bottom Unassigned lane — so its
+	// cross-lane arrow stays short instead of reaching across the whole graph.
+	// Truly independent unassigned tasks keep laneKey null (bottom lane).
+	const ownerProjectOf = (path: string): string | null => {
+		const neighborTask = taskByPath.get(path);
+		return neighborTask ? resolveOwningProjectPath(neighborTask, allTaskByPath) : null;
+	};
+	for (const node of nodes) {
+		if (node.laneKey !== null) continue;
+		// Count cross-lane connections to each project (deps + dependents); park the
+		// task next to the project it connects to most. Ties break deterministically.
+		const projectEdgeCount = new Map<string, number>();
+		for (const neighbor of [...(incoming.get(node.path) ?? []), ...(adjacency.get(node.path) ?? [])]) {
+			const project = ownerProjectOf(neighbor);
+			if (project) projectEdgeCount.set(project, (projectEdgeCount.get(project) ?? 0) + 1);
+		}
+		if (projectEdgeCount.size === 0) continue; // truly independent → bottom lane
+		const primaryProject = [...projectEdgeCount.entries()]
+			.sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0][0];
+		node.laneKey = SATELLITE_LANE_PREFIX + primaryProject;
+	}
+
+	// Lane compaction pass: make rows contiguous inside lanes so lane headers are
+	// meaningful and edge crossings are reduced by local ordering. Lanes are now
+	// derived directly from node.laneKey (which includes satellites).
+	const laneAssignments = new Map<string | null, string[]>();
+	for (const node of nodes) {
+		const list = laneAssignments.get(node.laneKey) ?? [];
+		list.push(node.path);
+		laneAssignments.set(node.laneKey, list);
+	}
+	const laneLabelOf = (key: string): string => {
+		const projectPath = key.startsWith(SATELLITE_LANE_PREFIX) ? key.slice(SATELLITE_LANE_PREFIX.length) : key;
+		return allTaskByPath.get(projectPath)?.name ?? pathLeaf(projectPath);
+	};
 	const laneKeysSorted = [...laneAssignments.keys()].sort((left, right) => {
 		if (left === null) return 1;
 		if (right === null) return -1;
-		const leftLabel = allTaskByPath.get(left)?.name ?? pathLeaf(left);
-		const rightLabel = allTaskByPath.get(right)?.name ?? pathLeaf(right);
-		return leftLabel.localeCompare(rightLabel);
+		return laneLabelOf(left).localeCompare(laneLabelOf(right)) || left.localeCompare(right);
 	});
 
 	// Temporal key per task so same-column nodes (e.g. the roots in column 0)
@@ -697,23 +701,21 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		}
 	}
 
-	// Sort project lanes by name
-	projectLanes.sort((a, b) => {
-		const aLabel = allTaskByPath.get(a[0])?.name ?? pathLeaf(a[0]);
-		const bLabel = allTaskByPath.get(b[0])?.name ?? pathLeaf(b[0]);
-		return aLabel.localeCompare(bLabel);
-	});
+	// Sort project lanes by name (array order only — vertical position comes from
+	// each band's rows). Satellites sort next to their owning project.
+	projectLanes.sort((a, b) => laneLabelOf(a[0]).localeCompare(laneLabelOf(b[0])) || a[0].localeCompare(b[0]));
 
 	// Build lane descriptors
 	for (const [laneKey, laneBand] of projectLanes) {
-		const label = allTaskByPath.get(laneKey)?.name ?? pathLeaf(laneKey);
+		const isSatellite = laneKey.startsWith(SATELLITE_LANE_PREFIX);
 		lanes.push({
 			key: laneKey,
-			label,
+			label: laneLabelOf(laneKey),
 			taskPaths: laneBand.paths,
 			startRow: laneBand.startRow,
 			endRow: laneBand.endRow,
 			gapOffsetPx: laneBand.gapOffsetPx,
+			isSatellite,
 		});
 	}
 

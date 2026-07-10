@@ -9,6 +9,7 @@ export interface LaneHeader {
 	topPx: number;
 	heightPx: number;
 	taskCount: number;
+	isSatellite: boolean;
 }
 
 /**
@@ -16,7 +17,7 @@ export interface LaneHeader {
  * Parameters match the constants used in TaskGraph.svelte.
  */
 export function buildLaneHeaders(
-	groups: Array<{ key: string; label: string; startRow: number; endRow: number; count?: number; gapOffsetPx?: number }>,
+	groups: Array<{ key: string; label: string; startRow: number; endRow: number; count?: number; gapOffsetPx?: number; isSatellite?: boolean }>,
 	rowHeight: number,
 	rowGap: number,
 	trackPadding: number,
@@ -31,5 +32,6 @@ export function buildLaneHeaders(
 			(group.endRow - group.startRow + 1) * rowHeight
 			+ Math.max(0, group.endRow - group.startRow) * rowGap,
 		taskCount: group.count ?? 0,
+		isSatellite: group.isSatellite ?? false,
 	}));
 }

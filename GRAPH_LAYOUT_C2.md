@@ -188,12 +188,21 @@ Taylor greenlit the follow-ups. Outcomes, by original label:
   edges follow; lane-header geometry adds the same offset (`gapOffsetPx` on
   `GraphLane`, threaded through `buildLaneHeaders`). Verified: gaps 116px → 50px,
   headers stay aligned with nodes. Tests in `taskGraph.test.ts`.
-- **F5 (Taylor's swimlane report) — LANDED.** "An unassigned task passes behind
-  the UDM lane." Root cause via a rig DOM probe: no band overlap — the
-  **unassigned lane was being ordered *between* project lanes** by
-  `optimizeLaneBandOrder` (a cross-lane edge pulled it up next to UDM). Fix:
-  hold the null-key lane out of the optimizer and **pin it to the bottom**, matching
-  the header-descriptor order. Independent work now sits after all projects.
+- **F5 (Taylor's swimlane report) — LANDED, then refined.** Taylor clarified the
+  real pain: an *unassigned* task that depends into a *project* draws a **really
+  long cross-lane arrow**. First pass pinned the null lane to the bottom (clean
+  ordering) — but that makes those arrows *longer*, not shorter. Final design
+  (Taylor's idea — "multiple skinny unassigned riding between the bands"):
+  **satellite lanes.** An unassigned task that connects to project tasks is
+  pulled out of the shared bottom lane into its own **thin "Unassigned" strip
+  parked next to the project it connects to most** (`SATELLITE_LANE_PREFIX` keys,
+  positioned by the existing `optimizeLaneBandOrder` distance minimiser). The
+  long arrow becomes a short adjacent-band arrow. Truly independent tasks (no
+  cross-lane edges) still fall to the bottom lane. Verified on the vault: "Case
+  LOB…" (feeds 2 UDM tasks) now rides in a skinny strip directly above the
+  "UDM/Dim Model Bug Reports" lane instead of at the far bottom. Columns are
+  untouched (F2 stays off — they encode time). Tests: F5, F5b, F5c in
+  `taskGraph.test.ts`.
 - **F4 — Legend corrected → LANDED (not a defect).** `parentEdgeCount: 0` in the
   workshop fixture was an artifact: every `parent_task` there pointed at a
   *project* (which is a swim lane, not a node), so no edge is drawn — correct.

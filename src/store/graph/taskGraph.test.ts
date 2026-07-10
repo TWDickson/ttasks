@@ -231,25 +231,64 @@ describe('buildTaskGraph', () => {
 		expect(nodePaths.has('Tasks/proj-b.md')).toBe(false);
 	});
 
-	it('pins the unassigned lane below every project lane, even with a cross-lane dep (F5)', () => {
-		// The orphan depends on a project task, which the lane-order optimizer would
-		// otherwise use to wedge the unassigned lane between project lanes.
+	it('pins the truly-independent unassigned lane below every project lane (F5)', () => {
 		const tasks = [
 			makeTask({ path: 'Tasks/proj-a.md', name: 'Project A', type: 'project' }),
 			makeTask({ path: 'Tasks/proj-b.md', name: 'Project B', type: 'project' }),
 			makeTask({ path: 'Tasks/a1.md', name: 'A1', parent_task: 'Tasks/proj-a' }),
 			makeTask({ path: 'Tasks/b1.md', name: 'B1', parent_task: 'Tasks/proj-b' }),
-			makeTask({ path: 'Tasks/orphan.md', name: 'Orphan', depends_on: ['Tasks/a1'] }),
+			// No cross-lane dependency → stays in the shared bottom lane.
+			makeTask({ path: 'Tasks/orphan.md', name: 'Orphan' }),
 		];
 
 		const layout = buildTaskGraph(tasks, {});
 		const unassigned = layout.lanes.find((lane) => lane.key === null);
-		const projectLanes = layout.lanes.filter((lane) => lane.key !== null);
+		const projectLanes = layout.lanes.filter((lane) => lane.key !== null && !lane.isSatellite);
 		expect(unassigned).toBeDefined();
 		expect(projectLanes.length).toBeGreaterThan(0);
 		// Unassigned starts at or below the last row of every project lane.
 		const maxProjectEndRow = Math.max(...projectLanes.map((lane) => lane.endRow));
 		expect(unassigned!.startRow).toBeGreaterThan(maxProjectEndRow);
+	});
+
+	it('parks an unassigned task that connects to a project in a satellite lane (F5b)', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/proj-a.md', name: 'Project A', type: 'project' }),
+			makeTask({ path: 'Tasks/proj-b.md', name: 'Project B', type: 'project' }),
+			makeTask({ path: 'Tasks/a1.md', name: 'A1', parent_task: 'Tasks/proj-a' }),
+			makeTask({ path: 'Tasks/b1.md', name: 'B1', parent_task: 'Tasks/proj-b' }),
+			// Connected to project A → rides in a satellite lane, not the bottom.
+			makeTask({ path: 'Tasks/rider.md', name: 'Rider', depends_on: ['Tasks/a1'] }),
+			// Truly independent → stays in the shared bottom (null) lane.
+			makeTask({ path: 'Tasks/lonely.md', name: 'Lonely' }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const satellite = layout.lanes.find((lane) => lane.isSatellite);
+		expect(satellite).toBeDefined();
+		expect(satellite!.taskPaths).toContain('Tasks/rider.md');
+		expect(satellite!.key).toContain('Tasks/proj-a.md'); // parked next to project A
+		// The independent task falls back to the shared bottom (null) lane.
+		const unassigned = layout.lanes.find((lane) => lane.key === null);
+		expect(unassigned?.taskPaths).toContain('Tasks/lonely.md');
+		expect(unassigned?.taskPaths ?? []).not.toContain('Tasks/rider.md');
+	});
+
+	it('parks a multi-project unassigned task next to its most-connected project (F5c)', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/proj-a.md', name: 'Project A', type: 'project' }),
+			makeTask({ path: 'Tasks/proj-b.md', name: 'Project B', type: 'project' }),
+			makeTask({ path: 'Tasks/a1.md', name: 'A1', parent_task: 'Tasks/proj-a' }),
+			makeTask({ path: 'Tasks/a2.md', name: 'A2', parent_task: 'Tasks/proj-a' }),
+			makeTask({ path: 'Tasks/b1.md', name: 'B1', parent_task: 'Tasks/proj-b' }),
+			// Two edges into A, one into B → most-connected is A.
+			makeTask({ path: 'Tasks/shared.md', name: 'Shared', depends_on: ['Tasks/a1', 'Tasks/a2', 'Tasks/b1'] }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const satellite = layout.lanes.find((lane) => lane.isSatellite && lane.taskPaths.includes('Tasks/shared.md'));
+		expect(satellite).toBeDefined();
+		expect(satellite!.key).toContain('Tasks/proj-a.md');
 	});
 
 	it('separates lanes with a fixed pixel gap decoupled from the row grid (F1)', () => {

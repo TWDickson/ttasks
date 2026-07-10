@@ -138,18 +138,22 @@
 	$: dependencyLaneHeaders = buildLaneHeaders(
 		layout.lanes.map((lane) => ({
 			key: lane.key ?? '__unassigned__',
-			label: lane.label,
+			// Satellites are unassigned tasks parked next to a project — label them
+			// like the bottom lane, not the project, so they don't read as a duplicate.
+			label: lane.isSatellite ? 'Unassigned' : lane.label,
 			startRow: lane.startRow,
 			endRow: lane.endRow,
 			count: lane.taskPaths.length,
 			gapOffsetPx: lane.gapOffsetPx,
+			isSatellite: lane.isSatellite ?? false,
 		})),
 		DEPENDENCY_NODE_HEIGHT,
 		DEPENDENCY_ROW_GAP,
 		DEPENDENCY_GRAPH_PADDING,
 	);
+	// Satellites are thin strips; keep them out of the shared gutter-width sizing.
 	$: dependencyLaneWidth = computeDependencyLaneWidth(
-		dependencyLaneHeaders,
+		dependencyLaneHeaders.filter((lane) => !lane.isSatellite),
 		DEPENDENCY_LANE_MIN_WIDTH,
 		DEPENDENCY_LANE_MAX_WIDTH,
 	);
@@ -561,8 +565,9 @@
 		dependencyScrollLeft = target?.scrollLeft ?? 0;
 	}
 
-	function getLaneHeaderClass(lane: { label: string; heightPx: number }): string {
-		return laneHeaderClass(lane, DEPENDENCY_LANE_COMPACT_HEIGHT, DEPENDENCY_LANE_ROTATE_LABEL_LENGTH);
+	function getLaneHeaderClass(lane: { label: string; heightPx: number; isSatellite?: boolean }): string {
+		const base = laneHeaderClass(lane, DEPENDENCY_LANE_COMPACT_HEIGHT, DEPENDENCY_LANE_ROTATE_LABEL_LENGTH);
+		return lane.isSatellite ? `${base} is-satellite` : base;
 	}
 
 	function groupBandStyle(band: { startRow: number; endRow: number }): string {
@@ -1563,6 +1568,35 @@
 
 	.tt-dependency-lane-header.is-compact .tt-dependency-lane-count {
 		margin-top: 0;
+	}
+
+	/* Satellite: an unassigned strip parked next to its related project. Thin,
+	   muted, dashed so it reads as "unassigned, but tied to the lane above/below"
+	   rather than a project of its own. */
+	.tt-dependency-lane-header.is-satellite {
+		right: auto;
+		width: 30%;
+		min-width: 22px;
+		padding: 6px 4px;
+		border-style: dashed;
+		border-color: color-mix(in srgb, var(--text-faint) 40%, transparent);
+		background: color-mix(in srgb, var(--background-secondary) 55%, transparent);
+		box-shadow: none;
+		opacity: 0.9;
+	}
+
+	.tt-dependency-lane-header.is-satellite .tt-dependency-lane-label {
+		font-size: 10px;
+		font-weight: 500;
+		color: var(--text-muted);
+		-webkit-line-clamp: 3;
+	}
+
+	.tt-dependency-lane-header.is-satellite .tt-dependency-lane-count {
+		background: transparent;
+		border-color: transparent;
+		color: var(--text-faint);
+		padding: 0;
 	}
 
 	.tt-graph-edge {

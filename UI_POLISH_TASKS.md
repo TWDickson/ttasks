@@ -376,9 +376,12 @@ the rig, document exact steps tried and hand back to Taylor for a live repro.
 **[FOLLOW-UPS LANDED 2026-07-09]** Taylor greenlit the follow-ups. Landed:
 **V1 Compact** density (nodeH 122→96, rowGap 12→10, nodeW 226→196, hGap 52→40);
 **F1** fixed-pixel inter-lane gap (116px→50px, `gapOffsetPx` on `GraphLane`
-threaded through `buildLaneHeaders`); **F5** unassigned lane pinned below all
-project lanes (fixes the "unassigned task behind the UDM lane" report — root
-cause was `optimizeLaneBandOrder` wedging the null lane between projects);
+threaded through `buildLaneHeaders`); **F5** unassigned lane ordering —
+**satellite lanes**: an unassigned task that connects to project tasks now rides
+in a thin "Unassigned" strip parked next to the project it connects to most
+(short arrow), instead of one fat lane pinned to the bottom that drew long
+cross-lane arrows (Taylor's "skinny unassigned riding between bands"); truly
+independent tasks still fall to the bottom;
 **F4** graph legend corrected (dashed gray = subtask containment, not "project
 containment" — projects are the swim lanes). **F3** edge routing already did the
 bundle-spread it asked for (`graphEdgeRouting.ts`); no change. **F2** (mid-column
