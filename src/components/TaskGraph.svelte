@@ -42,6 +42,9 @@
 	const DEPENDENCY_LANE_MIN_WIDTH = 48;
 	const DEPENDENCY_LANE_MAX_WIDTH = 60;
 	const DEPENDENCY_LANE_COMPACT_HEIGHT = 132;
+	// A short (e.g. single-task) lane's header gets a little extra height, spilling
+	// into the inter-lane gap, so its name has more room before it truncates.
+	const DEPENDENCY_LANE_MIN_HEADER_HEIGHT = 130;
 	// Labels rotate to vertical early so the slim gutter fits them without clipping.
 	const DEPENDENCY_LANE_ROTATE_LABEL_LENGTH = 8;
 	const DEPENDENCY_GRAPH_PADDING = 20;
@@ -154,7 +157,13 @@
 		DEPENDENCY_NODE_HEIGHT,
 		DEPENDENCY_ROW_GAP,
 		DEPENDENCY_GRAPH_PADDING,
-	);
+	).map((header) => {
+		// Give short project lanes a taller header (into the gap below) for the name.
+		const isProject = !header.isSatellite && header.key !== '__unassigned__';
+		return isProject
+			? { ...header, heightPx: Math.max(header.heightPx, DEPENDENCY_LANE_MIN_HEADER_HEIGHT) }
+			: header;
+	});
 	// Satellites are thin strips; keep them out of the shared gutter-width sizing.
 	$: dependencyLaneWidth = computeDependencyLaneWidth(
 		dependencyLaneHeaders.filter((lane) => !lane.isSatellite),
@@ -601,6 +610,36 @@
 		return lane.isSatellite ? `${base} is-satellite` : base;
 	}
 
+	// Marquee action for a project lane label: if the name is taller than its
+	// (vertical) viewport, expose the overflow so CSS can scroll it on hover —
+	// letting the full name be read without a tooltip. `label` is passed so the
+	// action re-measures when the text changes.
+	function marqueeLabel(run: HTMLElement, _label: string) {
+		const viewport = run.parentElement;
+		let raf = 0;
+		const measure = (): void => {
+			if (!viewport) return;
+			const overflow = viewport.scrollHeight - viewport.clientHeight;
+			if (overflow > 6) {
+				viewport.style.setProperty('--tt-marquee', `${overflow}px`);
+				viewport.style.setProperty('--tt-marquee-dur', `${Math.max(2.6, overflow / 24)}s`);
+				viewport.classList.add('is-truncated');
+			} else {
+				viewport.classList.remove('is-truncated');
+				viewport.style.removeProperty('--tt-marquee');
+				viewport.style.removeProperty('--tt-marquee-dur');
+			}
+		};
+		const schedule = (): void => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); };
+		schedule();
+		const observer = new ResizeObserver(schedule);
+		if (viewport) observer.observe(viewport);
+		return {
+			update: schedule,
+			destroy(): void { cancelAnimationFrame(raf); observer.disconnect(); },
+		};
+	}
+
 	function groupBandStyle(band: { startRow: number; endRow: number }): string {
 		const top = HYBRID_TRACK_PADDING + band.startRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
 		const height = (band.endRow - band.startRow + 1) * HYBRID_ROW_HEIGHT + Math.max(0, band.endRow - band.startRow) * HYBRID_ROW_GAP;
@@ -771,7 +810,9 @@
 										on:click={() => createTaskInProject(lane.key)}
 									>
 										<span class="tt-dependency-lane-add" use:icon={'plus'}></span>
-										<span class="tt-dependency-lane-label">{lane.label}</span>
+										<span class="tt-dependency-lane-label">
+											<span class="tt-dependency-lane-label-run" use:marqueeLabel={lane.label}>{lane.label}</span>
+										</span>
 										<span class="tt-dependency-lane-count">{lane.taskCount}</span>
 									</button>
 								{:else}
@@ -1603,20 +1644,16 @@
 		gap: 4px;
 	}
 
-	/* Short lanes have little vertical room: let the label take all of it and
-	drop a notch in size so more of the name survives before the ellipsis. */
-	.tt-dependency-lane-header.is-compact .tt-dependency-lane-label {
-		flex: 1 1 auto;
-		min-height: 0;
-		font-size: 10.5px;
-	}
-
 	.tt-dependency-lane-header.is-compact .tt-dependency-lane-add {
 		opacity: 0.35;
 	}
 
 	.tt-dependency-lane-header.is-rotated .tt-dependency-lane-label {
 		display: block;
+		/* Clip to the space the flex layout gives us (not to content), so a long
+		name overflows and can be measured / marqueed; short-lane names truncate. */
+		flex: 1 1 0;
+		min-height: 0;
 		font-size: 12px;
 		line-height: 1.05;
 		max-height: none;
@@ -1629,6 +1666,37 @@
 		text-orientation: mixed;
 		transform: rotate(180deg);
 		letter-spacing: 0.3px;
+	}
+
+	/* Inner text run of a project label — the element the marquee translates. */
+	.tt-dependency-lane-label-run {
+		display: block;
+		white-space: nowrap;
+	}
+
+	/* When the name is longer than its viewport: fade the cut edge to hint more,
+	and scroll the whole name through on hover/focus (a tooltip-free reveal). */
+	.tt-dependency-lane-label.is-truncated {
+		-webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent);
+		mask-image: linear-gradient(to bottom, #000 82%, transparent);
+	}
+
+	.tt-dependency-lane-header.is-clickable:hover .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run,
+	.tt-dependency-lane-header.is-clickable:focus-visible .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run {
+		animation: tt-lane-marquee var(--tt-marquee-dur, 3.5s) ease-in-out infinite;
+	}
+
+	@keyframes tt-lane-marquee {
+		0%, 14% { transform: translateY(0); }
+		50%, 64% { transform: translateY(calc(-1 * var(--tt-marquee, 0px))); }
+		100% { transform: translateY(0); }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tt-dependency-lane-header.is-clickable:hover .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run,
+		.tt-dependency-lane-header.is-clickable:focus-visible .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run {
+			animation: none;
+		}
 	}
 
 	@media (min-width: 1024px) {
