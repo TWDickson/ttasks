@@ -38,11 +38,12 @@
 	export let defaultGraphMode: GraphMode = 'dependency';
 	const DEPENDENCY_NODE_HEIGHT = 96;
 	const DEPENDENCY_ROW_GAP = 10;
-	const DEPENDENCY_LANE_GUTTER = 152;
-	const DEPENDENCY_LANE_MIN_WIDTH = 112;
-	const DEPENDENCY_LANE_MAX_WIDTH = 148;
+	const DEPENDENCY_LANE_GUTTER = 64;
+	const DEPENDENCY_LANE_MIN_WIDTH = 48;
+	const DEPENDENCY_LANE_MAX_WIDTH = 60;
 	const DEPENDENCY_LANE_COMPACT_HEIGHT = 132;
-	const DEPENDENCY_LANE_ROTATE_LABEL_LENGTH = 14;
+	// Labels rotate to vertical early so the slim gutter fits them without clipping.
+	const DEPENDENCY_LANE_ROTATE_LABEL_LENGTH = 8;
 	const DEPENDENCY_GRAPH_PADDING = 20;
 	const DEPENDENCY_GRAPH_PADDING_LEFT = DEPENDENCY_LANE_GUTTER + DEPENDENCY_GRAPH_PADDING;
 	const OVERVIEW_PIXELS_PER_DAY = 54;
@@ -1524,7 +1525,7 @@
 		justify-content: flex-start;
 		align-items: flex-start;
 		gap: 8px;
-		padding: 10px 10px 10px 12px;
+		padding: 8px 5px 8px 8px;
 		border-radius: var(--radius-m);
 		border: var(--border-width, 1px) solid color-mix(in srgb, var(--text-accent) 30%, var(--background-modifier-border));
 		background: linear-gradient(
