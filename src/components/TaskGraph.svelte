@@ -525,6 +525,23 @@
 		}).open();
 	}
 
+	// Clicking a project's lane header creates a new task already parented to it.
+	function createTaskInProject(projectPath: string): void {
+		const project = tasks.find((task) => task.path === projectPath);
+		new CreateTaskModal(plugin.app, plugin, 'task', {
+			prefill: {
+				parent_task: projectPath.replace(/\.md$/, ''),
+				area: project?.area ?? undefined,
+			},
+		}).open();
+	}
+
+	// Only genuine project lanes are clickable — satellite / unassigned strips
+	// aren't a project you can parent a task to.
+	function isProjectLaneHeader(header: { key: string; isSatellite: boolean }): boolean {
+		return !header.isSatellite && header.key !== '__unassigned__';
+	}
+
 	function nodeStyle(node: TaskGraphNode): string {
 		const accent = statusColors?.[node.task.status] ?? 'var(--interactive-accent)';
 		// Fixed height: the layout engine spaces rows assuming node.height, so the
@@ -717,15 +734,31 @@
 				<div class="tt-graph-fit" style={`width:${fittedDependencyWidth}px;height:${fittedDependencyHeight}px;`}>
 				<div class="tt-graph-stage" style={`width:${layout.width}px;height:${layout.height}px;transform:scale(${dependencyScale});`}>
 					{#if dependencyLaneHeaders.length > 0}
-						<div class="tt-dependency-lanes" style={`--tt-dependency-lane-width:${dependencyLaneWidth}px;transform:translateX(${dependencyLaneStickyOffset}px);`} aria-hidden="true">
+						<div class="tt-dependency-lanes" style={`--tt-dependency-lane-width:${dependencyLaneWidth}px;transform:translateX(${dependencyLaneStickyOffset}px);`}>
 							{#each dependencyLaneHeaders as lane (lane.key)}
-								<div
-									class={getLaneHeaderClass(lane)}
-									style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
-								>
-									<span class="tt-dependency-lane-label">{lane.label}</span>
-									<span class="tt-dependency-lane-count">{lane.taskCount}</span>
-								</div>
+								{#if isProjectLaneHeader(lane)}
+									<button
+										type="button"
+										class={`${getLaneHeaderClass(lane)} is-clickable`}
+										style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
+										aria-label={`Add task to ${lane.label}`}
+										title={`Add task to ${lane.label}`}
+										on:click={() => createTaskInProject(lane.key)}
+									>
+										<span class="tt-dependency-lane-add" use:icon={'plus'}></span>
+										<span class="tt-dependency-lane-label">{lane.label}</span>
+										<span class="tt-dependency-lane-count">{lane.taskCount}</span>
+									</button>
+								{:else}
+									<div
+										class={getLaneHeaderClass(lane)}
+										style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
+										aria-hidden="true"
+									>
+										<span class="tt-dependency-lane-label">{lane.label}</span>
+										<span class="tt-dependency-lane-count">{lane.taskCount}</span>
+									</div>
+								{/if}
 							{/each}
 						</div>
 					{/if}
@@ -1570,9 +1603,8 @@
 		margin-top: 0;
 	}
 
-	/* Satellite: an unassigned strip parked next to its related project. Thin,
-	   muted, dashed so it reads as "unassigned, but tied to the lane above/below"
-	   rather than a project of its own. */
+	/* Satellite: a thin, muted, dashed unassigned strip parked next to its
+	related project (reads as "unassigned, but tied to the adjacent lane"). */
 	.tt-dependency-lane-header.is-satellite {
 		right: auto;
 		width: 30%;
@@ -1597,6 +1629,52 @@
 		border-color: transparent;
 		color: var(--text-faint);
 		padding: 0;
+	}
+
+	/* Clickable project header — click to add a task already parented to it.
+	Overrides the app.css button defaults; height stays on the inline style. */
+	.tt-dependency-lane-header.is-clickable {
+		pointer-events: auto;
+		cursor: pointer;
+		font: inherit;
+		text-align: inherit;
+		color: inherit;
+		transition: border-color 120ms ease, background 120ms ease;
+	}
+
+	.tt-dependency-lane-header.is-clickable:hover {
+		border-color: color-mix(in srgb, var(--interactive-accent) 55%, var(--background-modifier-border));
+		background: linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--interactive-accent) 14%, var(--background-secondary)),
+			color-mix(in srgb, var(--background-secondary-alt) 92%, var(--background-primary))
+		);
+	}
+
+	.tt-dependency-lane-header.is-clickable:focus-visible {
+		outline: 2px solid var(--interactive-accent);
+		outline-offset: 1px;
+	}
+
+	.tt-dependency-lane-add {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 14px;
+		color: var(--text-faint);
+		opacity: 0.45;
+		transition: opacity 120ms ease, color 120ms ease;
+	}
+
+	.tt-dependency-lane-header.is-clickable:hover .tt-dependency-lane-add,
+	.tt-dependency-lane-header.is-clickable:focus-visible .tt-dependency-lane-add {
+		opacity: 1;
+		color: var(--interactive-accent);
+	}
+
+	.tt-dependency-lane-add :global(svg) {
+		width: 14px;
+		height: 14px;
 	}
 
 	.tt-graph-edge {
