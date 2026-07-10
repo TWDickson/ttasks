@@ -256,6 +256,7 @@
 			window.removeEventListener('resize', updateViewport);
 			resizeObserver?.disconnect();
 			resizeObserver = null;
+			cancelHoverClear();
 		};
 	});
 
@@ -416,7 +417,7 @@
 		if (event.button !== 0) return;
 		const target = event.target as HTMLElement;
 		if (target.closest('button, a, input')) return;
-		// Empty-canvas press clears a pinned chain highlight.
+		// Empty-canvas press clears the pinned chain highlight.
 		pinnedTracePath = null;
 		isPanning = true;
 		panStart = {
@@ -461,15 +462,19 @@
 		if (activePointers.size === 0) isPanning = false;
 	}
 
-	// ── Hover chain tracing ─────────────────────────────────────────────────────
+	// ── Hover state + click-pinned chain highlight ──────────────────────────────
 
-	// Set on node hover, cleared when the pointer leaves the graph surface (not
-	// the node itself) so the hover "+" button stays reachable and the traced
-	// chain can be read while moving across empty canvas.
+	// Set on node hover; drives the hover "+" add-dependent button and the task
+	// preview tooltip only (no longer the chain highlight). Cleared when the
+	// pointer leaves the graph surface (not the node itself) so the "+" stays
+	// reachable at the node's edge.
 	let hoverTracePath: string | null = null;
-	// A clicked node pins its chain so studying it survives mouse movement.
-	// Pin wins over hover; cleared by clicking empty canvas or pressing Esc.
+	// A clicked node pins its dependency chain highlight so it survives mouse
+	// movement; cleared by clicking empty canvas or pressing Esc.
 	let pinnedTracePath: string | null = null;
+	// Desktop has real hover, so the "+" tracks hover and hides on hover-off.
+	// Touch has no hover — there a tap-pin is what surfaces the "+".
+	const hoverCapable = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover)').matches;
 
 	function computeTrace(path: string, edges: TaskGraphEdge[]): { nodes: Set<string>; edges: Set<string> } {
 		const nodes = new Set<string>([path]);
@@ -501,23 +506,50 @@
 		};
 	}
 
-	// Only trace/dim when the active node actually has a chain — a pinned node
-	// takes precedence over hover, so the highlight stays put while you move the
-	// mouse; hover is the transient preview only when nothing is pinned.
+	// Chain highlight is click-driven only: clicking a node pins its chain, and
+	// clicking empty canvas (or Esc) clears it. Hover no longer traces — it was
+	// redundant with the pin and left the highlight lingering after click-off.
+	// (hoverTracePath still drives the hover "+" button and task preview below.)
 	$: traceSets = (() => {
-		const activePath = pinnedTracePath ?? hoverTracePath;
-		if (!activePath || !nodesByPath.has(activePath)) return null;
-		const sets = computeTrace(activePath, layout.edges);
+		if (!pinnedTracePath || !nodesByPath.has(pinnedTracePath)) return null;
+		const sets = computeTrace(pinnedTracePath, layout.edges);
 		return sets.edges.size > 0 ? sets : null;
 	})();
 
+	// Grace delay before the hover "+" hides, so the pointer has time to travel
+	// from the node to the small edge-anchored add button even at an off angle.
+	let hoverClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function cancelHoverClear(): void {
+		if (hoverClearTimer !== null) {
+			clearTimeout(hoverClearTimer);
+			hoverClearTimer = null;
+		}
+	}
+
 	function onNodeHover(event: MouseEvent, node: TaskGraphNode): void {
+		cancelHoverClear();
 		hoverTracePath = node.path;
 		showTaskHoverPreview(event, node.task);
 	}
 
 	function clearTrace(): void {
+		cancelHoverClear();
 		hoverTracePath = null;
+	}
+
+	// Hovering off a node hides its "+", but with a grace window. Keep it alive
+	// immediately when the pointer crosses onto the node's own add button (a
+	// sibling at its edge) or onto another node; otherwise schedule a short
+	// delayed clear so a near-miss on the way to the "+" doesn't kill it.
+	function onNodeHoverLeave(event: MouseEvent, node: TaskGraphNode): void {
+		const related = event.relatedTarget as HTMLElement | null;
+		if (related && typeof related.closest === 'function' && related.closest('.tt-graph-node, .tt-node-add')) return;
+		cancelHoverClear();
+		hoverClearTimer = setTimeout(() => {
+			if (hoverTracePath === node.path) hoverTracePath = null;
+			hoverClearTimer = null;
+		}, 800);
 	}
 
 	// Click = open the task and pin its chain (re-pins when a different node is
@@ -692,39 +724,22 @@
 				<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'dependency'} aria-pressed={graphMode === 'dependency'} on:click={() => graphMode = 'dependency'}>Dependency</button>
 				<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'overview'} aria-pressed={graphMode === 'overview'} on:click={() => graphMode = 'overview'}>Overview</button>
 			</div>
-			{#if graphMode === 'dependency'}
-				<div class="tt-graph-zoom" role="group" aria-label="Zoom (or Ctrl+scroll)">
-					<button type="button" class="tt-zoom-btn" aria-label="Zoom out" on:click={() => zoomBy(1 / 1.25)}>
-						<span class="tt-zoom-icon" use:icon={'minus'}></span>
-					</button>
-					<button type="button" class="tt-zoom-btn tt-zoom-reset" aria-label="Reset to fit width" on:click={resetZoom}>
-						{Math.round(dependencyScale * 100)}%
-					</button>
-					<button type="button" class="tt-zoom-btn" aria-label="Zoom in" on:click={() => zoomBy(1.25)}>
-						<span class="tt-zoom-icon" use:icon={'plus'}></span>
-					</button>
-				</div>
-			{/if}
 		</div>
 
 		<div class="tt-graph-summary">
 			{#if graphMode === 'dependency'}
-				<div class="tt-graph-pill">
-					<span class="tt-graph-pill-label">Tasks</span>
-					<strong>{layout.nodes.length}</strong>
-				</div>
-				<div class="tt-graph-pill">
-					<span class="tt-graph-pill-label">Links</span>
-					<strong>{layout.edges.length}</strong>
-				</div>
-				<div class="tt-graph-pill" class:tt-graph-pill-alert={layout.blockedEdgeCount > 0}>
-					<span class="tt-graph-pill-label">Blocked chains</span>
-					<strong>{layout.blockedEdgeCount}</strong>
-				</div>
-				<div class="tt-graph-pill" class:tt-graph-pill-alert={layout.cycleCount > 0}>
-					<span class="tt-graph-pill-label">Cycle nodes</span>
-					<strong>{layout.cycleCount}</strong>
-				</div>
+				{#if layout.blockedEdgeCount > 0}
+					<div class="tt-graph-pill tt-graph-pill-alert">
+						<span class="tt-graph-pill-label">Blocked chains</span>
+						<strong>{layout.blockedEdgeCount}</strong>
+					</div>
+				{/if}
+				{#if layout.cycleCount > 0}
+					<div class="tt-graph-pill tt-graph-pill-alert">
+						<span class="tt-graph-pill-label">Cycle nodes</span>
+						<strong>{layout.cycleCount}</strong>
+					</div>
+				{/if}
 				{#if readyCount > 0}
 					<button
 						type="button"
@@ -782,6 +797,7 @@
 		{#if dependencyEmpty}
 			<div class="tt-graph-empty">No dependency relationships found. Add depends_on links between tasks to see the graph.</div>
 		{:else}
+			<div class="tt-graph-canvas">
 			<div
 				class="tt-graph-scroll"
 				class:is-panning={isPanning}
@@ -863,6 +879,7 @@
 							on:click={() => onNodeClick(node.path)}
 							on:keydown={onGraphKeydown}
 							on:mouseenter={(event) => onNodeHover(event, node)}
+							on:mouseleave={(event) => onNodeHoverLeave(event, node)}
 							on:contextmenu={(event) => handleTaskContextMenu(event, node.task)}
 						>
 							<div class="tt-graph-node-top">
@@ -881,21 +898,35 @@
 								{/if}
 							</div>
 						</button>
-						{#if (hoverTracePath === node.path || pinnedTracePath === node.path) && node.task.type === 'task'}
+						{#if (hoverTracePath === node.path || (!hoverCapable && pinnedTracePath === node.path)) && node.task.type === 'task'}
 							<!-- Spawn a task depending on this one (inherits project/area/labels/priority).
-							     Shown on hover (mouse) or when the node is pinned by a tap (touch). -->
+							     Shown on hover (mouse) or, on touch (no hover), when the node is pinned by a tap. -->
 							<button
 								type="button"
 								class="tt-node-add"
 								style={`left:${node.x + node.width - 4}px;top:${node.y + node.height / 2 - 14}px;`}
 								aria-label={`New task blocked by ${node.task.name}`}
 								on:click|stopPropagation={() => createDependentTask(node.task)}
+								on:mouseenter={cancelHoverClear}
+								on:mouseleave={(event) => onNodeHoverLeave(event, node)}
 							>
 								<span class="tt-node-add-icon" use:icon={'plus'}></span>
 							</button>
 						{/if}
 					{/each}
 				</div>
+				</div>
+			</div>
+				<div class="tt-graph-zoom tt-graph-zoom-float" role="group" aria-label="Zoom (or Ctrl+scroll)">
+					<button type="button" class="tt-zoom-btn" aria-label="Zoom out" on:click={() => zoomBy(1 / 1.25)}>
+						<span class="tt-zoom-icon" use:icon={'minus'}></span>
+					</button>
+					<button type="button" class="tt-zoom-btn tt-zoom-reset" aria-label="Reset to fit width" on:click={resetZoom}>
+						{Math.round(dependencyScale * 100)}%
+					</button>
+					<button type="button" class="tt-zoom-btn" aria-label="Zoom in" on:click={() => zoomBy(1.25)}>
+						<span class="tt-zoom-icon" use:icon={'plus'}></span>
+					</button>
 				</div>
 			</div>
 		{/if}
@@ -1194,6 +1225,27 @@
 		margin: 0;
 		color: var(--text-muted);
 		font-size: 0.8rem;
+	}
+
+	.tt-graph-canvas {
+		position: relative;
+		flex: 1;
+		min-height: 0;
+		display: flex;
+	}
+
+	.tt-graph-zoom-float {
+		position: absolute;
+		/* Anchor top-right: the board's create-task FAB owns the bottom corners
+		   (bottom-right by default, bottom-left via settings), so the top-right is
+		   the only corner guaranteed clear of it. */
+		top: 12px;
+		right: 16px;
+		z-index: 11;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+		/* Sit above the pannable stage without stealing its drag gestures. */
+		background: color-mix(in srgb, var(--background-secondary) 88%, transparent);
+		backdrop-filter: blur(4px);
 	}
 
 	.tt-graph-scroll {

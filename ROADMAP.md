@@ -84,6 +84,24 @@ The `AUTOPILOT.md` batch queue (A–I) is fully worked. All boxes checked; branc
 
 ---
 
+## Graph polish thread (opened 2026-07-10)
+
+After the Autopilot A–I queue + C2 layout pick landed, the active thread is
+dependency-graph swim-lane polish (5 commits through `8289ca9`). Taylor's
+2026-07-10 feedback batch is captured in **`GRAPH_POLISH.md`** as GP1–GP7:
+
+- **GP1** 🔎 mobile pop-out / full-screen graph (needs Obsidian-API research)
+- **GP2** ✅ toolbar declutter (dropped noisy count pills) + zoom floated to the
+  canvas top-right, clear of the create-task FAB
+- **GP3** project filter dropdown (Unassigned = derived special case)
+- **GP4** swim-lane project-colour tint (top+bottom → centre gradient)
+- **GP5** lane-header tap-to-focus (grow + dim others) + `+` add-button subshape
+- **GP6** ✅ chain-highlight click-off bug fixed; hover-highlight retired (now
+  click-to-pin only), and the hover "+" gained an off-angle grace window
+- **GP7** split Dependency and Timeline (Gantt) into separate views (no toggle)
+
+---
+
 ## Progress Notes (2026-07-04)
 
 Worked through `BUGFIX_TASKS.md` (Taylor's 2026-07-04 report), then the
