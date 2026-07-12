@@ -144,7 +144,7 @@ const DEFAULT_VERTICAL_GAP = 28;
 const DEFAULT_PADDING = 28;
 // Fixed pixel gap between swim lanes. Decoupled from the row grid so lanes read
 // as separate without reserving a full empty node-row (which, at compact node
-// sizes, wasted ~110px between every lane). See F1 in GRAPH_LAYOUT_C2.md.
+// sizes, wasted ~110px between every lane). See F1 in Scripts/archive/GRAPH_LAYOUT_C2.md.
 const DEFAULT_LANE_GAP = 40;
 
 /**

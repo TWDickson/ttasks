@@ -6,6 +6,7 @@ A custom Obsidian plugin for task management with kanban, dependency tracking, a
 
 Use these files as the canonical status references:
 
+- `BACKLOG.md` — the single live backlog (all open items with specs)
 - `CLAUDE.md` — current state, priorities, conventions, and latest milestone snapshot
 - `ROADMAP.md` — dated progress log and backlog checkpoint by phase/slice
 - `Scripts/memory/project_ttasks.md` — synced high-level status note for quick reference from the vault side
@@ -119,30 +120,44 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 ## Current Priorities
 
-Backlog is consolidated in `ROADMAP.md` → **Consolidated Status (2026-07-06)**
-and the **Autopilot complete (2026-07-09)** checkpoint. All prior sweeps are
-closed (AUDIT Sweep 2, DESIGN_AUDIT P0–P2, BUGFIX #1–13, NATIVE N1/N2/N4/N5/N6,
-UI_POLISH P1–P7 + C1). The `AUTOPILOT.md` batch queue (A–I) on
-`feat/ui-polish-autopilot` is **fully worked** — nothing left in it.
+**The single live backlog is `BACKLOG.md`** (consolidated 2026-07-12). Open:
 
-**Now needing Taylor** (gated, not autopilot-able):
+1. **Graph polish thread** — GP3 project filter, GP4 lane tint, GP5 header
+   focus + `+` button, GP7 split Dependency/Timeline views, GP1 mobile pop-out
+   (🔎 research first)
+2. **Colour-model workshop** ⚖ — status/area/label colours compete on cards;
+   rig shots + 2–3 variants, Taylor picks
+3. **Gated on Taylor** — branch review/merge of `feat/ui-polish-autopilot`,
+   N3 API review (then implement), C2-F2 whitespace call, N7 Bases (live
+   vault), P2-8 overdue-red softening, dark/light × desktop/phone visual
+   regression pass
 
-- **C2 graph-layout variant pick** — workshop in `GRAPH_LAYOUT_C2.md` (shots in
-  `Scripts/graph-c2/`) found topology already near-optimal (0 crossings);
-  footprint is the lever. Recommends **V1 Compact** (−31% canvas, 66%→77% fit).
-  Landing it is a four-constant edit in `TaskGraph.svelte`; algorithmic
-  follow-ups (F1–F4) are greenlight-gated. **No layout change landed.**
-- **N3 API** ships only after Taylor reviews `API_DESIGN.md`.
-- **N7** Bases sample (needs live vault), **DESIGN_AUDIT P2-8** overdue-red
-  softening (taste call), and a dark/light + desktop/phone visual regression pass.
+All prior sweeps are closed (AUDIT Sweep 2, DESIGN_AUDIT P0–P2, BUGFIX #1–13,
+NATIVE N1–N6, UI_POLISH P1–P7 + C1 + C2, Autopilot batches A–I, graph GP2/GP6).
+Closed sweeps + their full histories live in `Scripts/archive/`:
+`AUDIT_TASKS.md`, `BUGFIX_TASKS.md`, `DESIGN_AUDIT.md`, `AUTOPILOT.md`,
+`UI_POLISH_TASKS.md`, `NATIVE_FEATURES_TASKS.md`, `GRAPH_POLISH.md`,
+`GRAPH_LAYOUT_C2.md`, `CODEBASE_MODAL_DETAIL_EXPLORATION.md`,
+`run-autopilot.fish`. Older PRDs (TASK_H*/I*/J*/K*) are vault-side synced
+notes.
 
-Task-file backlogs: `NATIVE_FEATURES_TASKS.md`, `UI_POLISH_TASKS.md` (open
-items; read by the Autopilot queue). Closed sweeps archived under
-`Scripts/archive/`: `AUDIT_TASKS.md`, `BUGFIX_TASKS.md`, `DESIGN_AUDIT.md`
-(items marked `[DONE]` inline).
-Older PRDs: `Scripts/TASK_H1.md`, `Scripts/TASK_H2.md`,
-`Scripts/TASK_I1.md`-`Scripts/TASK_I5.md`, `Scripts/TASK_J1.md`-`Scripts/TASK_J6.md`,
-`Scripts/TASK_K1.md`-`Scripts/TASK_K6.md`
+## Recent Updates (2026-07-12)
+
+- **Backlog re-consolidated into `BACKLOG.md`** — one live file for all open
+  items; the worked-out queue (`AUTOPILOT.md`), task files (`UI_POLISH_TASKS.md`,
+  `NATIVE_FEATURES_TASKS.md`, `GRAPH_POLISH.md`), the C2 workshop
+  (`GRAPH_LAYOUT_C2.md`), and the May modal exploration doc moved to
+  `Scripts/archive/`.
+- **Autopilot A–I complete (2026-07-09)** — Batch G: graph pinch-zoom + touch
+  targets, zoom-edge detach fixed (root cause `.tt-graph-stage min-width`);
+  Batch H: `API_DESIGN.md` + Taylor's decisions on the 5 open questions;
+  Batch I: C2 layout workshop, then Taylor greenlit **V1 Compact + F1/F4/F5**
+  (satellite unassigned lanes) which landed.
+- **Graph polish thread (2026-07-10)** — GP2 toolbar declutter + floating zoom
+  and GP6 chain-highlight click-off fix landed (hover-trace retired,
+  click-to-pin only); GP1/GP3/GP4/GP5/GP7 open in `BACKLOG.md`.
+- Validation status: production build passing; **test suite: 1259 passing**
+  (as of the C2 follow-ups).
 
 ## Recent Updates (2026-07-06)
 

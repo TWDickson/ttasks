@@ -93,5 +93,5 @@ spawn their next instance exactly as they would from the UI.
 - Parsing lives in `src/integration/protocol.ts` (`parseProtocolAction`) —
   a pure module with tests in `protocol.test.ts`. Dispatch wiring is in
   `src/main.ts` (`registerProtocolHandler`).
-- The planned public plugin API (see `NATIVE_FEATURES_TASKS.md` N3) should
+- The planned public plugin API (see `API_DESIGN.md`) should
   keep protocol parity for its UI-opening endpoints.

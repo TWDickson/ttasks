@@ -4,6 +4,19 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
+## Docs consolidation (2026-07-12)
+
+All open work now lives in **`BACKLOG.md`** (root) — graph polish GP1/GP3/GP4/
+GP5/GP7, the colour-model workshop, and the Taylor-gated items (branch
+review/merge, N3 API review, C2-F2, N7 Bases, P2-8, visual regression pass).
+The fully-worked planning files moved to `Scripts/archive/`: `AUTOPILOT.md`
+(A–I all checked), `UI_POLISH_TASKS.md`, `NATIVE_FEATURES_TASKS.md`,
+`GRAPH_POLISH.md` (GP2/GP6 landed), `GRAPH_LAYOUT_C2.md` (V1 Compact +
+F1/F4/F5 landed), `CODEBASE_MODAL_DETAIL_EXPLORATION.md`, and
+`run-autopilot.fish`. The sections below are history.
+
+---
+
 ## Consolidated Status (2026-07-06)
 
 Single source of truth for what's done and what's left across every backlog

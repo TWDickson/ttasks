@@ -11,11 +11,11 @@
 > neighbour's Y, which is the anti-crossing technique F3 asked for; no change.
 > **F2** (mid-column whitespace) is a **semantic decision left to Taylor** — see
 > [Follow-up outcomes](#follow-up-outcomes-2026-07-09). After-shot:
-> [`Scripts/graph-c2/after-v1-f1-f5-77pct.png`](Scripts/graph-c2/after-v1-f1-f5-77pct.png)
+> [`Scripts/graph-c2/after-v1-f1-f5-77pct.png`](../graph-c2/after-v1-f1-f5-77pct.png)
 > (fit rose 66% → 77%, two lanes visible, gaps halved).
 
 **Original status:** options for review. This document presents baseline metrics
-+ variant proposals; screenshots live in [`Scripts/graph-c2/`](Scripts/graph-c2/)
++ variant proposals; screenshots live in [`Scripts/graph-c2/`](../graph-c2/)
 (the rig's own `test-rig/shots/` is gitignored, so review copies were moved in).
 
 ---
@@ -117,7 +117,7 @@ graph — more whitespace, more panning. Not recommended; not screenshotted.
 
 ### Baseline — 66% fit
 
-![Baseline dependency graph at 66% fit](Scripts/graph-c2/baseline-66pct.png)
+![Baseline dependency graph at 66% fit](../graph-c2/baseline-66pct.png)
 
 Tall 122 px cards, wide gaps. Lane 1 ("Incremental and SCD Updates") uses the top
 half; lane 2 ("Stats Can Reporting") is pushed almost entirely below the fold.
@@ -126,7 +126,7 @@ columns leave a lane's early rows with nothing in the mid columns.
 
 ### V1 Compact — 77% fit  ⭐ recommended
 
-![V1 compact dependency graph at 77% fit](Scripts/graph-c2/v1-compact-77pct.png)
+![V1 compact dependency graph at 77% fit](../graph-c2/v1-compact-77pct.png)
 
 `nodeHeight 122→96`, `nodeWidth 226→196`, `horizontalGap 52→40`,
 `verticalGap 12→10`. Fit-to-width rises to 77%; the second lane's header and
@@ -136,7 +136,7 @@ little sooner ("DBT Sequential Prima…" vs "…Primary K…") but not painfully
 
 ### V2 Dense — 85% fit
 
-![V2 dense dependency graph at 85% fit](Scripts/graph-c2/v2-dense-85pct.png)
+![V2 dense dependency graph at 85% fit](../graph-c2/v2-dense-85pct.png)
 
 `nodeHeight 122→84`, `nodeWidth 226→176`, `horizontalGap 52→32`,
 `verticalGap 12→8`. Fit-to-width reaches 85% and most of two lanes fit on one
