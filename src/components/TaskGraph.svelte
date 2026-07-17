@@ -30,6 +30,7 @@
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
 	export let statusColors: Record<string, string>;
+	export let areaColors: Record<string, string> = {};
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
@@ -42,11 +43,14 @@
 	const DEPENDENCY_LANE_MIN_WIDTH = 48;
 	const DEPENDENCY_LANE_MAX_WIDTH = 60;
 	const DEPENDENCY_LANE_COMPACT_HEIGHT = 132;
-	// A short (e.g. single-task) lane's header gets a little extra height, spilling
-	// into the inter-lane gap, so its name has more room before it truncates.
-	const DEPENDENCY_LANE_MIN_HEADER_HEIGHT = 130;
 	// Labels rotate to vertical early so the slim gutter fits them without clipping.
 	const DEPENDENCY_LANE_ROTATE_LABEL_LENGTH = 8;
+	// GP4: a project lane's box (both the header chip and the tinted band) grows
+	// symmetrically past its node rows by this many pixels top and bottom, so cards
+	// sit with breathing room inside the lane and short lanes get room for their
+	// rotated label without a downward-only header inflation. Kept under half the
+	// inter-lane gap (40px) so adjacent lane boxes never overlap.
+	const DEPENDENCY_LANE_PAD = 16;
 	const DEPENDENCY_GRAPH_PADDING = 20;
 	const DEPENDENCY_GRAPH_PADDING_LEFT = DEPENDENCY_LANE_GUTTER + DEPENDENCY_GRAPH_PADDING;
 	const OVERVIEW_PIXELS_PER_DAY = 54;
@@ -142,7 +146,11 @@
 	$: fittedDependencyHeight = Math.max(1, Math.round(layout.height * dependencyScale));
 	$: dependencyLaneStickyOffset = dependencyScale > 0 ? dependencyScrollLeft / dependencyScale : 0;
 	$: nodesByPath = new Map(layout.nodes.map((node) => [node.path, node]));
-	$: dependencyLaneHeaders = buildLaneHeaders(
+	// Raw lane geometry: topPx/heightPx match the actual node rows exactly. The
+	// tint bands (GP4) use this so they stay inside their lane; the headers below
+	// inflate short lanes for label room, which the bands must NOT inherit or a
+	// short lane's tint would spill into the next lane's gap and overlap it.
+	$: dependencyLaneGeometry = buildLaneHeaders(
 		layout.lanes.map((lane) => ({
 			key: lane.key ?? '__unassigned__',
 			// Satellites are unassigned tasks parked next to a project — label them
@@ -157,12 +165,22 @@
 		DEPENDENCY_NODE_HEIGHT,
 		DEPENDENCY_ROW_GAP,
 		DEPENDENCY_GRAPH_PADDING,
-	).map((header) => {
-		// Give short project lanes a taller header (into the gap below) for the name.
+	);
+	$: dependencyLaneHeaders = dependencyLaneGeometry.map((header) => {
+		// Project lanes grow their box symmetrically by the lane pad (top and
+		// bottom) so the header chip and the tint band share one aligned box, and
+		// short lanes get label room without a downward-only inflation. `rawHeightPx`
+		// preserves the un-padded node-row height for the compact/rotate class
+		// decision (padding must not flip a lane's label layout).
 		const isProject = !header.isSatellite && header.key !== '__unassigned__';
 		return isProject
-			? { ...header, heightPx: Math.max(header.heightPx, DEPENDENCY_LANE_MIN_HEADER_HEIGHT) }
-			: header;
+			? {
+				...header,
+				topPx: header.topPx - DEPENDENCY_LANE_PAD,
+				heightPx: header.heightPx + DEPENDENCY_LANE_PAD * 2,
+				rawHeightPx: header.heightPx,
+			}
+			: { ...header, rawHeightPx: header.heightPx };
 	});
 	// Satellites are thin strips; keep them out of the shared gutter-width sizing.
 	$: dependencyLaneWidth = computeDependencyLaneWidth(
@@ -597,6 +615,22 @@
 		return !header.isSatellite && header.key !== '__unassigned__';
 	}
 
+	// Project records keyed by path, so a lane can resolve its owning project's
+	// configured colour (via its area) for the GP4 swim-lane tint.
+	$: projectsByPath = new Map(
+		tasks.filter((task) => task.type === 'project').map((project) => [project.path, project]),
+	);
+
+	// The lane-tint colour for a project lane: the project's area colour, if the
+	// project has an area and that area has a configured colour. Satellite /
+	// unassigned strips and projects without a colour resolve to null (no tint).
+	function laneTint(header: { key: string; isSatellite: boolean }): string | null {
+		if (!isProjectLaneHeader(header)) return null;
+		const area = projectsByPath.get(header.key)?.area;
+		if (!area) return null;
+		return areaColors?.[area] ?? null;
+	}
+
 	function nodeStyle(node: TaskGraphNode): string {
 		const accent = statusColors?.[node.task.status] ?? 'var(--interactive-accent)';
 		// Fixed height: the layout engine spaces rows assuming node.height, so the
@@ -637,8 +671,14 @@
 		dependencyScrollLeft = target?.scrollLeft ?? 0;
 	}
 
-	function getLaneHeaderClass(lane: { label: string; heightPx: number; isSatellite?: boolean }): string {
-		const base = laneHeaderClass(lane, DEPENDENCY_LANE_COMPACT_HEIGHT, DEPENDENCY_LANE_ROTATE_LABEL_LENGTH);
+	function getLaneHeaderClass(lane: { label: string; heightPx: number; rawHeightPx?: number; isSatellite?: boolean }): string {
+		// Decide compact/rotate from the un-padded node-row height so the symmetric
+		// lane padding never flips a lane's label layout.
+		const base = laneHeaderClass(
+			{ label: lane.label, heightPx: lane.rawHeightPx ?? lane.heightPx },
+			DEPENDENCY_LANE_COMPACT_HEIGHT,
+			DEPENDENCY_LANE_ROTATE_LABEL_LENGTH,
+		);
 		return lane.isSatellite ? `${base} is-satellite` : base;
 	}
 
@@ -813,6 +853,24 @@
 				on:mouseleave={clearTrace}
 			>
 				<div class="tt-graph-fit" style={`width:${fittedDependencyWidth}px;height:${fittedDependencyHeight}px;`}>
+				{#if dependencyLaneHeaders.length > 0}
+					<!-- Lane tint bands live in the fit box (not the scaled stage) so they
+					     span the full visible width even when the graph is narrower than the
+					     panel; positions are pre-scaled to match the stage. -->
+					<div class="tt-dependency-lane-bands" aria-hidden="true">
+						{#each dependencyLaneHeaders as lane (lane.key)}
+							{@const tint = laneTint(lane)}
+							{#if tint}
+								<!-- Band shares the header's padded box (pre-scaled), so tint and
+								     header chip stay aligned as one lane block. -->
+								<div
+									class="tt-dependency-lane-band"
+									style={`top:${lane.topPx * dependencyScale}px;height:${lane.heightPx * dependencyScale}px;--tt-lane-tint:${tint};`}
+								></div>
+							{/if}
+						{/each}
+					</div>
+				{/if}
 				<div class="tt-graph-stage" class:highlight-ready={highlightReady} style={`width:${layout.width}px;height:${layout.height}px;transform:scale(${dependencyScale});`}>
 					{#if dependencyLaneHeaders.length > 0}
 						<div class="tt-dependency-lanes" style={`--tt-dependency-lane-width:${dependencyLaneWidth}px;transform:translateX(${dependencyLaneStickyOffset}px);`}>
@@ -1252,7 +1310,9 @@
 		flex: 1;
 		min-height: 0;
 		overflow: auto;
-		padding: 8px 12px 16px;
+		/* Extra top/side breathing room so the first row of cards and the tinted
+		   lane bands don't sit flush against the board edges. */
+		padding: 22px 20px 20px;
 		cursor: grab;
 		/* Pan and pinch-zoom are handled manually via pointer events; opt out of
 		   the browser's own touch scrolling/zooming so those gestures reach us. */
@@ -1626,7 +1686,11 @@
 
 	.tt-graph-fit {
 		position: relative;
-		min-width: 1px;
+		/* Fill the scroll viewport when the graph is narrower than the panel, so
+		   the full-width lane tint bands reach the right edge instead of stopping
+		   at the graph's own (narrower) right edge. When the graph is wider, its
+		   explicit inline width wins and the box scrolls as before. */
+		min-width: 100%;
 	}
 
 	.tt-graph-svg {
@@ -1641,6 +1705,33 @@
 		width: var(--tt-dependency-lane-width, 136px);
 		pointer-events: none;
 		z-index: 10;
+	}
+
+	/* GP4: full-width swim-lane tint, keyed to the project's area colour. First
+	   child of the stage with no z-index, so edges/nodes paint on top of it. */
+	.tt-dependency-lane-bands {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+
+	.tt-dependency-lane-band {
+		position: absolute;
+		left: 0;
+		right: 0;
+		border-radius: 10px;
+		/* Symmetric vertical gradient: a soft tint cap at the top/bottom edges,
+		   fading to nothing across the middle of the lane. color-mix onto
+		   transparent keeps it a translucent overlay, readable in dark + light.
+		   Kept deliberately faint — a background hint, never competing with the
+		   node cards or edges that sit on top of it. */
+		background: linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--tt-lane-tint) 9%, transparent) 0%,
+			transparent 24%,
+			transparent 76%,
+			color-mix(in srgb, var(--tt-lane-tint) 9%, transparent) 100%
+		);
 	}
 
 	.tt-dependency-lane-header {

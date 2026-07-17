@@ -379,6 +379,7 @@
 						groups={groupedTasks}
 						defaultGraphMode={currentView.presentation.graphMode}
 						statusColors={configuredStatusColors}
+						areaColors={configuredCategoryColors}
 						{activeTaskPath}
 						onOpen={(path) => {
 							focusedTaskPath.set(path);

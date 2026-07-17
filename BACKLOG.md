@@ -41,7 +41,17 @@ toggle, not fight it.
 - Satellites remain iff still connected to a visible project.
 - State persists across view re-renders (consider `getState`/`setState` like N2).
 
-### GP4 — Swim-lane tinted box (project-colour gradient) `[ ]`
+### GP4 — Swim-lane tinted box (project-colour gradient) `[x]`
+
+*Landed 2026-07-17.* Each project lane gets a faint background tint keyed to its
+area colour (`laneTint()` → project `area` → `areaColors`), rendered as a
+symmetric top/bottom gradient cap (`color-mix(…, transparent)`, theme-aware, no
+hardcoded hex). Header chip and tint band share one symmetric-padded box
+(`DEPENDENCY_LANE_PAD`) so they stay aligned; bands live in the fit box
+(`min-width:100%`) so the tint spans the full canvas width even when the graph is
+narrower than the panel, and stays aligned when it's wider and scrolls.
+Unassigned/satellite lanes get no tint. `TaskGraph.svelte` + `TaskBoard.svelte`
+(new `areaColors` prop).
 
 **Problem.** Lanes read as bare columns; hard to scan which lane is which.
 
