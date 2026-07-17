@@ -5,8 +5,10 @@ closed sweeps and their full histories are under `Scripts/archive/` (see
 Cross-refs at the bottom). When an item lands, mark it `[x]` with a dated
 one-line note; when this file empties, add a checkpoint to `ROADMAP.md`.
 
-Current branch: `feat/ui-polish-autopilot` — never pushed/merged; **Taylor's
-review + merge to `main` is itself an open item** (see Gated section).
+Dev workflow: completed, verified work is merged into local `main` as we go (no
+review gate while in dev). `main` holds the full Autopilot A–I run + graph polish
+(merged 2026-07-17). Remote `origin/main` is a separate/divergent history and is
+not pushed to from here unless explicitly asked.
 
 Status legend: `[ ]` open · `[~]` in progress · `[x]` done · ⚖ needs a
 taste/UX call from Taylor · 🔎 needs research first.
@@ -155,9 +157,10 @@ never hardcoded hex/white on user colours) applies to every variant.
 
 ## Gated on Taylor (not headless-workable)
 
-- `[ ]` **Branch review + merge** — `feat/ui-polish-autopilot` holds the entire
-  Autopilot A–I run + graph polish (30+ commits, never pushed). Review, merge
-  to `main`, then prune stale branches (`feat/native-workspace-panes`).
+- `[x]` **Branch review + merge** — merged `feat/ui-polish-autopilot` (32
+  commits: Autopilot A–I + graph polish incl. GP4) into local `main` via
+  fast-forward (2026-07-17). Stale branches (`feat/ui-polish-autopilot`,
+  `feat/native-workspace-panes`) can be pruned whenever.
 - `[ ]` **N3 public API — review then implement** — `API_DESIGN.md` is written
   and Taylor's decisions on the 5 open questions are recorded; implementation
   ships only after his review of the final doc.

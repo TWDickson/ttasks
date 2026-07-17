@@ -222,6 +222,21 @@ notes.
 - Prefer narrow vertical slices with clear acceptance criteria over large speculative features
 - Status behavior still relies on configured status names, but the runtime now exposes derived `is_complete` / `is_inbox` fields and tracks `status_changed` for stale-progress reminders.
 
+## Dev Workflow (git)
+
+Still in solo dev — no review gate. When a slice is complete **and verified**
+(build passing, tests green, visually checked where UI-facing):
+
+1. Commit it on whatever branch you're on (feature branch or `main`).
+2. **Merge it into local `main`** — fast-forward when possible, otherwise a
+   normal merge. `main` is the running integration point; keep it current.
+3. Leave feature branches in place unless asked to prune; they're cheap.
+
+Do **not** push to `origin` or otherwise touch the remote unless explicitly
+asked — `origin/main` is a separate/divergent history from local `main`.
+Still confirm before genuinely destructive git ops (hard reset, force-delete,
+history rewrite).
+
 ## Key Conventions
 
 - All vault reads/writes go through `this.app.vault` and `this.app.fileManager`
