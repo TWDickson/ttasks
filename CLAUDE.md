@@ -122,9 +122,9 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 **The single live backlog is `BACKLOG.md`** (consolidated 2026-07-12). Open:
 
-1. **Graph polish thread** — GP3 project filter, GP4 lane tint, GP5 header
-   focus + `+` button, GP7 split Dependency/Timeline views, GP1 mobile pop-out
-   (🔎 research first)
+1. **Graph polish thread** — GP5 header focus + `+` button, GP7 split
+   Dependency/Timeline views, GP1 mobile pop-out (🔎 research first).
+   *Done: GP4 lane tint, GP3 project filter.*
 2. **Colour-model workshop** ⚖ — status/area/label colours compete on cards;
    rig shots + 2–3 variants, Taylor picks
 3. **Gated on Taylor** — branch review/merge of `feat/ui-polish-autopilot`,
@@ -140,6 +140,19 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 `GRAPH_LAYOUT_C2.md`, `CODEBASE_MODAL_DETAIL_EXPLORATION.md`,
 `run-autopilot.fish`. Older PRDs (TASK_H*/I*/J*/K*) are vault-side synced
 notes.
+
+## Recent Updates (2026-07-18)
+
+- **GP3 project filter landed** — a **Projects** pill in the dependency-graph
+  toolbar opens a checkbox popover (all projects, name-sorted, shown only when
+  ≥2 exist). Unchecking a project hides its lane + owned nodes/edges; the pill
+  reads `N hidden` with a **Show all** reset. Hidden projects are removed
+  *before* connectivity is computed (`visibleScopeTasks` feeds
+  `resolveConnectedDependencyPaths`), so a satellite that only linked to a
+  hidden project drops with it. New `graphHiddenProjects: string[]` setting
+  persists the choice across re-render/reload; menu is right-anchored to stay
+  on-screen on mobile. Rig fixture gained a second project (**API Platform**)
+  so the graph exercises multi-lane + GP3/GP4. Build green; **1261 tests**.
 
 ## Recent Updates (2026-07-12)
 

@@ -118,14 +118,38 @@ export function buildFixtureTasks(): Task[] {
 		parent_task: stripMd(stress.path),
 	});
 
+	// Second project — gives the graph a second swim lane so the GP4 lane tints
+	// and the GP3 project filter have something to act on.
+	const apiProject = makeTask({
+		name: 'API Platform',
+		type: 'project',
+		area: 'Database',
+		priority: 'Medium',
+		start_date: isoDaysFromToday(-4),
+		due_date: isoDaysFromToday(25),
+		estimated_days: 20,
+	});
+
 	const blocked = makeTask({
 		name: 'Migrate analytics dashboard',
 		area: 'Database',
 		priority: 'High',
 		labels: ['bug'],
 		status: 'Blocked',
+		parent_task: stripMd(apiProject.path),
 		blocked_reason: 'Waiting on prod DB credentials from IT',
 		due_date: isoDaysFromToday(1),
+	});
+
+	const apiEndpoints = makeTask({
+		name: 'Build export endpoints',
+		area: 'Database',
+		priority: 'Medium',
+		labels: ['feature'],
+		parent_task: stripMd(apiProject.path),
+		depends_on: [stripMd(blocked.path)],
+		due_date: isoDaysFromToday(10),
+		estimated_days: 4,
 	});
 
 	const today = makeTask({
@@ -159,8 +183,9 @@ export function buildFixtureTasks(): Task[] {
 	// Reverse-index blocks
 	wireframes.blocks = [stripMd(implement.path)];
 	implement.blocks = [stripMd(review.path)];
+	blocked.blocks = [stripMd(apiEndpoints.path)];
 
-	return [project, wireframes, implement, review, stress, stressChild, blocked, today, inbox, done, doneOld];
+	return [project, wireframes, implement, review, stress, stressChild, apiProject, blocked, apiEndpoints, today, inbox, done, doneOld];
 }
 
 export interface RigPlugin {

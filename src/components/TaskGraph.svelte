@@ -4,7 +4,7 @@
 	import type { Task } from '../types';
 	import type { TaskGroup } from '../query/types';
 	import type TTasksPlugin from '../main';
-	import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, type HybridTimelineGrouping, type TaskGraphEdge, type TaskGraphNode } from '../store/graph/taskGraph';
+	import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, resolveOwningProjectPath, type HybridTimelineGrouping, type TaskGraphEdge, type TaskGraphNode } from '../store/graph/taskGraph';
 	import { computeEdgePath, sortIncomingEdges, sortOutgoingEdges } from '../store/graph/graphEdgeRouting';
 	import { computeGraphQualityMetrics } from '../store/graph/graphQualityMetrics';
 	import { buildLaneHeaders } from '../store/graph/graphLaneLayout';
@@ -76,6 +76,12 @@
 	let showCompletedInOverview = false;
 	let overviewGrouping: HybridTimelineGrouping = 'project';
 	let overviewPrefsHydrated = false;
+	// GP3 project filter: paths of projects the user has hidden from the
+	// dependency graph. Persisted to settings so the choice survives re-renders
+	// and reloads (same pattern as the overview prefs above).
+	let hiddenProjectPaths = new Set<string>();
+	let projectFilterHydrated = false;
+	let projectFilterOpen = false;
 
 	$: if (defaultGraphMode !== appliedGraphMode) {
 		graphMode = defaultGraphMode;
@@ -83,14 +89,31 @@
 	}
 
 	$: tasks = flattenTaskGroups($groups);
-	$: connectedDependencyPaths = resolveConnectedDependencyPaths(tasks);
+	$: tasksByPath = new Map(tasks.map((task) => [task.path, task]));
+	// All project records, name-sorted — the source list for the GP3 filter menu.
+	$: graphProjects = tasks
+		.filter((task) => task.type === 'project')
+		.slice()
+		.sort((left, right) => (left.name ?? '').localeCompare(right.name ?? ''));
+	// GP3: drop hidden projects (their record + every task they own) before any
+	// connectivity is computed, so a satellite that only linked to a hidden
+	// project loses its connection here and falls away with it, per spec. Kept as
+	// a no-op reference to `tasks` when nothing is hidden.
+	$: visibleScopeTasks = hiddenProjectPaths.size === 0
+		? tasks
+		: tasks.filter((task) => {
+			if (task.type === 'project') return !hiddenProjectPaths.has(task.path);
+			const owner = resolveOwningProjectPath(task, tasksByPath);
+			return !(owner && hiddenProjectPaths.has(owner));
+		});
+	$: connectedDependencyPaths = resolveConnectedDependencyPaths(visibleScopeTasks);
 	// Completed tasks stay visible only while part of a dependency chain (they
 	// anchor downstream work); otherwise the graph shows open work. Independent
 	// open tasks join when toggled on, or when there are no chains yet.
 	$: dependencyGraphTasks = (() => {
-		const projectRecords = tasks.filter((task) => task.type === 'project');
+		const projectRecords = visibleScopeTasks.filter((task) => task.type === 'project');
 		const showIndependent = showIndependentInDependency || connectedDependencyPaths.size === 0;
-		const dependencyTasks = tasks.filter((task) => {
+		const dependencyTasks = visibleScopeTasks.filter((task) => {
 			if (task.type !== 'task') return false;
 			if (connectedDependencyPaths.has(task.path)) return true;
 			if (task.is_complete) return false;
@@ -99,13 +122,14 @@
 
 		return [...projectRecords, ...dependencyTasks];
 	})();
-	$: hiddenIndependentCount = tasks.filter(
+	$: hiddenIndependentCount = visibleScopeTasks.filter(
 		(task) =>
 			task.type === 'task' &&
 			!task.is_complete &&
 			!task.parent_task &&
 			!connectedDependencyPaths.has(task.path),
 	).length;
+	$: hiddenProjectCount = graphProjects.filter((project) => hiddenProjectPaths.has(project.path)).length;
 
 	// Universal working-calendar config (holidays + per-area workweek toggle),
 	// threaded into every date resolution so the graph, timeline, and node cards
@@ -263,6 +287,9 @@
 		overviewGrouping = plugin.settings.overviewGraphGrouping;
 		overviewPrefsHydrated = true;
 
+		hiddenProjectPaths = new Set(plugin.settings.graphHiddenProjects ?? []);
+		projectFilterHydrated = true;
+
 		updateViewport();
 
 		if (typeof ResizeObserver !== 'undefined') {
@@ -358,6 +385,30 @@
 
 	function toggleIndependentVisibility(): void {
 		showIndependentInDependency = !showIndependentInDependency;
+	}
+
+	// ── GP3 project filter ──────────────────────────────────────────────────────
+	function persistHiddenProjects(): void {
+		if (!projectFilterHydrated) return;
+		plugin.settings.graphHiddenProjects = [...hiddenProjectPaths];
+		void plugin.saveSettings();
+	}
+
+	function toggleProjectVisibility(projectPath: string): void {
+		const next = new Set(hiddenProjectPaths);
+		if (next.has(projectPath)) {
+			next.delete(projectPath);
+		} else {
+			next.add(projectPath);
+		}
+		hiddenProjectPaths = next;
+		persistHiddenProjects();
+	}
+
+	function showAllProjects(): void {
+		if (hiddenProjectPaths.size === 0) return;
+		hiddenProjectPaths = new Set();
+		persistHiddenProjects();
 	}
 
 	// A node is "ready" when it's open and nothing incomplete is upstream of it.
@@ -797,6 +848,53 @@
 						<span class="tt-graph-pill-label">Independent</span>
 						<strong>{showIndependentInDependency ? 'Shown' : `${hiddenIndependentCount} hidden`}</strong>
 					</button>
+				{/if}
+				{#if graphProjects.length > 1}
+					<div class="tt-graph-project-filter">
+						<button
+							type="button"
+							class="tt-graph-pill tt-graph-pill-toggle"
+							class:is-active={hiddenProjectCount > 0}
+							aria-haspopup="true"
+							aria-expanded={projectFilterOpen}
+							on:click={() => projectFilterOpen = !projectFilterOpen}
+						>
+							<span class="tt-graph-pill-icon" use:icon={'filter'}></span>
+							<span class="tt-graph-pill-label">Projects</span>
+							<strong>{hiddenProjectCount > 0 ? `${hiddenProjectCount} hidden` : 'All'}</strong>
+						</button>
+						{#if projectFilterOpen}
+							<button
+								type="button"
+								class="tt-graph-project-filter-backdrop"
+								aria-label="Close project filter"
+								on:click={() => projectFilterOpen = false}
+							></button>
+							<div class="tt-graph-project-filter-menu" role="menu">
+								<div class="tt-graph-project-filter-head">
+									<span class="tt-graph-project-filter-title">Show projects</span>
+									<button
+										type="button"
+										class="tt-btn tt-btn-sm"
+										disabled={hiddenProjectCount === 0}
+										on:click={showAllProjects}
+									>Show all</button>
+								</div>
+								<div class="tt-graph-project-filter-list">
+									{#each graphProjects as project (project.path)}
+										<label class="tt-graph-project-filter-item">
+											<input
+												type="checkbox"
+												checked={!hiddenProjectPaths.has(project.path)}
+												on:change={() => toggleProjectVisibility(project.path)}
+											/>
+											<span class="tt-graph-project-filter-name">{project.name}</span>
+										</label>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					</div>
 				{/if}
 			{:else}
 				<div class="tt-graph-pill">
@@ -1277,6 +1375,109 @@
 
 	.tt-graph-pill-ready.is-active strong {
 		color: var(--color-green);
+	}
+
+	.tt-graph-pill-icon {
+		display: inline-flex;
+		align-items: center;
+		align-self: center;
+	}
+
+	.tt-graph-pill-icon :global(svg) {
+		width: 14px;
+		height: 14px;
+	}
+
+	.tt-graph-pill-toggle.is-active {
+		border-color: color-mix(in srgb, var(--interactive-accent) 50%, var(--background-modifier-border));
+		background: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-primary));
+		color: var(--text-normal);
+	}
+
+	/* GP3 project filter popover */
+	.tt-graph-project-filter {
+		position: relative;
+		display: inline-flex;
+	}
+
+	.tt-graph-project-filter-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 40;
+		background: transparent;
+		border: none;
+		padding: 0;
+		cursor: default;
+	}
+
+	.tt-graph-project-filter-menu {
+		position: absolute;
+		top: calc(100% + 6px);
+		/* Anchor to the pill's right edge and expand leftward: the Projects pill
+		   sits toward the right of the (wrapping) toolbar, so a left anchor
+		   overflows the panel on narrow/mobile viewports. */
+		right: 0;
+		left: auto;
+		z-index: 41;
+		min-width: 220px;
+		max-width: min(320px, calc(100vw - 24px));
+		padding: 8px;
+		background: var(--background-primary);
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 10px;
+		box-shadow: var(--shadow-s);
+	}
+
+	.tt-graph-project-filter-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		padding: 2px 4px 8px;
+		border-bottom: 1px solid var(--background-modifier-border);
+		margin-bottom: 6px;
+	}
+
+	.tt-graph-project-filter-title {
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		font-size: 0.68rem;
+		font-weight: 700;
+		color: var(--text-muted);
+	}
+
+	.tt-graph-project-filter-list {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		max-height: 260px;
+		overflow-y: auto;
+	}
+
+	.tt-graph-project-filter-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 5px 4px;
+		border-radius: 6px;
+		cursor: pointer;
+		font-size: 0.85rem;
+		color: var(--text-normal);
+	}
+
+	.tt-graph-project-filter-item:hover {
+		background: var(--background-modifier-hover);
+	}
+
+	.tt-graph-project-filter-item input {
+		flex: 0 0 auto;
+		margin: 0;
+	}
+
+	.tt-graph-project-filter-name {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.tt-graph-note {

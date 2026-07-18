@@ -63,6 +63,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	logbookRendererMode: 'list',
 	overviewGraphGrouping: 'project',
 	overviewGraphShowCompleted: false,
+	graphHiddenProjects: [],
 	graphDiagnosticsEnabled: false,
 	customViews: [],
 	hiddenBuiltinViews: [],
@@ -215,6 +216,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		logbookRendererMode: settings.logbookRendererMode,
 		overviewGraphGrouping: settings.overviewGraphGrouping,
 		overviewGraphShowCompleted: settings.overviewGraphShowCompleted,
+		graphHiddenProjects: [...(settings.graphHiddenProjects ?? [])],
 		graphDiagnosticsEnabled: settings.graphDiagnosticsEnabled,
 		customViews: settings.customViews.map(cloneCustomTaskViewDefinition),
 		hiddenBuiltinViews: [...(settings.hiddenBuiltinViews ?? [])],
@@ -675,6 +677,9 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 
 	const hiddenBuiltinViews = asStringArray(root.hiddenBuiltinViews);
 	if (hiddenBuiltinViews !== null) target.hiddenBuiltinViews = hiddenBuiltinViews;
+
+	const graphHiddenProjects = asStringArray(root.graphHiddenProjects);
+	if (graphHiddenProjects !== null) target.graphHiddenProjects = graphHiddenProjects;
 
 	const archive = asRecord(root.archive);
 	if (archive !== null) {

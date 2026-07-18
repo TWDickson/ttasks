@@ -22,7 +22,18 @@ Source: Taylor feedback 2026-07-10 (GP numbering kept from the archived
 `src/components/TaskGraph.svelte` unless noted. Pure layout helpers live in
 `src/store/graph/` (`taskGraph.ts`, `graphPresentation.ts`).
 
-### GP3 — Project filter dropdown `[ ]`
+### GP3 — Project filter dropdown `[x]`
+
+*Landed 2026-07-18.* A **Projects** pill in the dependency toolbar opens a
+checkbox popover of all projects (name-sorted, shown only when ≥2 projects
+exist); unchecking one hides its lane + owned nodes/edges, and the pill shows
+`N hidden` / a **Show all** reset. Hidden projects are dropped **before**
+connectivity is computed (`visibleScopeTasks` → `resolveConnectedDependencyPaths`),
+so a satellite that only linked to a hidden project falls away with it per spec.
+Persisted via new `graphHiddenProjects: string[]` setting (survives re-render +
+reload). Menu right-anchored so it stays on-screen on mobile. Rig fixture gained
+a second project (**API Platform**) so the graph exercises multi-lane + GP3/GP4.
+`TaskGraph.svelte` + settings (`types.ts`/`defaults.ts`) + `test-rig/fixtures.ts`.
 
 **Problem.** No way to hide/show individual projects; the graph shows all lanes.
 

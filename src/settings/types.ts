@@ -112,6 +112,9 @@ export interface TTasksSettings {
 	logbookRendererMode: LogbookRendererMode;
 	overviewGraphGrouping: OverviewGraphGrouping;
 	overviewGraphShowCompleted: boolean;
+	/** Project note paths the user has hidden from the dependency graph via the
+	 *  project filter (GP3). Stale entries (deleted projects) are ignored. */
+	graphHiddenProjects: string[];
 	graphDiagnosticsEnabled: boolean;
 	customViews: CustomTaskViewDefinition[];
 	/** Built-in view ids the user has hidden from the board rail. Hidden views
