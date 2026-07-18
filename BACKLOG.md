@@ -79,7 +79,35 @@ bottom** (strongest tint at the header/footer edges, transparent mid-lane).
   `color-mix(in srgb, <color> N%, var(--background-primary))`; never hardcode
   hex/white on a user colour. Readable in dark + light.
 
-### GP5 — Lane-header focus interaction + add-button restructure `[ ]`
+### GP8 — Lane focus (hover spotlight + interaction pin) `[x]`
+
+*Landed 2026-07-18.* Swim-lane tints are now **focus-gated** (GP4's always-on
+tint became on-demand): a lane's tint band shows only while it's active — hovered
+(desktop) or held by interaction (tap/click a task, header, or the `+`
+new-item). The active lane pops (accent header + full tint, all its nodes full);
+other lanes recede (dimmed nodes/edges, no tint) **except** tasks connected to
+the active lane's dependency chain, which stay in full focus while *their* lane
+gets a softer tint — the cross-project spillover Taylor asked for. Focus is
+transient on hover and **pinned** by clicking a task / lane header / the add
+buttons; an empty-canvas press or Esc clears the pin. Reuses the existing
+`computeTrace` chain-walk; per-lane state precomputed into a reactive
+`laneStates` map (a plain helper reading `laneFocus` inside its body isn't seen
+as a template dependency, so bands/headers wouldn't update on hover). Touch uses
+tap-pin (no hover). `TaskGraph.svelte` + rig fixture (added a cross-project
+dependency so the spillover is exercised). Verified dark/light/mobile in the rig.
+
+This covers GP5's *focus/dim* intent via a hover+pin mechanism (rather than
+header-tap only). GP5's remaining scope below is now just: **grow** the focused
+lane to show its full title, and **move click-to-add** off the header tap onto a
+dedicated `+` subshape.
+
+### GP5 — Lane-header focus interaction + add-button restructure `[~]`
+
+**Note (2026-07-18).** The focus/dim half is covered by GP8 (hover spotlight +
+pin). What's left: grow the focused lane for the full untruncated title, and
+restructure add-task into a dedicated `+` button (subshape of the header chip)
+so the header tap is free for focus. Header tap currently still creates a task
+(and, post-GP8, also pins the lane).
 
 **Problem.** Two behaviours are currently fused onto the header: it's the
 add-task target (`TaskGraph.svelte:551` region) and there's no focus mode.

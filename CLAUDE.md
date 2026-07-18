@@ -143,6 +143,19 @@ notes.
 
 ## Recent Updates (2026-07-18)
 
+- **GP8 lane focus landed** — swim-lane tints are now focus-gated (GP4's
+  always-on tint became on-demand). A lane's tint shows only while it's active:
+  hovered on desktop, or held by interaction (tap/click a task, lane header, or
+  a `+` add button). The active lane pops (accent header + full tint, all its
+  nodes lit); other lanes recede — dimmed nodes/edges, no tint — **except**
+  tasks connected to the active lane's dependency chain, which stay fully in
+  focus while their own lane gets a softer tint (the cross-project spillover).
+  Hover is transient; click/interaction pins; empty-canvas press or Esc clears.
+  All layers (bands, nodes, edges, headers) fade via opacity transitions. Reuses
+  `computeTrace`; per-lane state precomputed into a reactive `laneStates` map
+  (Svelte won't track `laneFocus` read inside a helper body). Partly covers GP5
+  (focus/dim); GP5's grow-lane + `+`-button restructure still open.
+
 - **GP3 project filter landed** — a **Projects** pill in the dependency-graph
   toolbar opens a checkbox popover (all projects, name-sorted, shown only when
   ≥2 exist). Unchecking a project hides its lane + owned nodes/edges; the pill

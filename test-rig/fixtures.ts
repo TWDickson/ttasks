@@ -147,7 +147,10 @@ export function buildFixtureTasks(): Task[] {
 		priority: 'Medium',
 		labels: ['feature'],
 		parent_task: stripMd(apiProject.path),
-		depends_on: [stripMd(blocked.path)],
+		// Cross-project dependency: also waits on the Website Redesign review, so
+		// focusing one lane pulls the connected task in the other into focus and
+		// soft-tints that lane (exercises the lane-focus spillover).
+		depends_on: [stripMd(blocked.path), stripMd(review.path)],
 		due_date: isoDaysFromToday(10),
 		estimated_days: 4,
 	});
@@ -183,6 +186,7 @@ export function buildFixtureTasks(): Task[] {
 	// Reverse-index blocks
 	wireframes.blocks = [stripMd(implement.path)];
 	implement.blocks = [stripMd(review.path)];
+	review.blocks = [stripMd(apiEndpoints.path)];
 	blocked.blocks = [stripMd(apiEndpoints.path)];
 
 	return [project, wireframes, implement, review, stress, stressChild, apiProject, blocked, apiEndpoints, today, inbox, done, doneOld];

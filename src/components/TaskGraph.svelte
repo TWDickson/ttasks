@@ -67,8 +67,16 @@
 	let highlightReady = false;
 	let lastGraphDiagnosticsKey = '';
 	let dependencyScrollEl: HTMLDivElement | null = null;
+	let dependencyFitEl: HTMLDivElement | null = null;
 	let dependencyViewportWidth = 0;
 	let dependencyScrollLeft = 0;
+	// Lane focus: the swim lane the cursor is over (transient) and one held by
+	// interaction (clicking a task / header / new-item button). The active lane
+	// gets its tint band + full-opacity nodes; every other lane recedes, except
+	// cross-lane tasks that are part of the active lane's dependency chain — those
+	// stay in focus and their own lane gets a softer tint.
+	let hoveredLaneKey: string | null = null;
+	let pinnedLaneKey: string | null = null;
 	let overviewScrollEl: HTMLDivElement | null = null;
 	let overviewViewportWidth = 0;
 	let overviewScrollLeft = 0;
@@ -486,8 +494,9 @@
 		if (event.button !== 0) return;
 		const target = event.target as HTMLElement;
 		if (target.closest('button, a, input')) return;
-		// Empty-canvas press clears the pinned chain highlight.
+		// Empty-canvas press clears the pinned chain highlight + held lane focus.
 		pinnedTracePath = null;
+		pinnedLaneKey = null;
 		isPanning = true;
 		panStart = {
 			x: event.clientX,
@@ -529,6 +538,36 @@
 			}
 		}
 		if (activePointers.size === 0) isPanning = false;
+	}
+
+	// Map a viewport Y to the lane whose (pre-scaled) band contains it. Measured
+	// from the fit box, whose top-left is the origin the band positions use, so it
+	// stays correct through vertical scroll and zoom. Header chips share each
+	// lane's Y range, so hovering a header resolves to its lane too.
+	function laneAtClientY(clientY: number): string | null {
+		if (!dependencyFitEl) return null;
+		const relY = clientY - dependencyFitEl.getBoundingClientRect().top;
+		for (const lane of dependencyLaneHeaders) {
+			const top = lane.topPx * dependencyScale;
+			if (relY >= top && relY <= top + lane.heightPx * dependencyScale) return lane.key;
+		}
+		return null;
+	}
+
+	// Desktop hover drives transient lane focus (touch has no hover — there focus
+	// is held by a tap-pin instead). Suppressed mid-pan so dragging doesn't churn.
+	function onDependencyMouseMove(event: MouseEvent): void {
+		if (isPanning || !hoverCapable) return;
+		hoveredLaneKey = laneAtClientY(event.clientY);
+	}
+
+	function onDependencyMouseLeave(): void {
+		clearTrace();
+		hoveredLaneKey = null;
+	}
+
+	function laneKeyForPath(path: string): string {
+		return nodesByPath.get(path)?.laneKey ?? '__unassigned__';
 	}
 
 	// ── Hover state + click-pinned chain highlight ──────────────────────────────
@@ -585,6 +624,57 @@
 		return sets.edges.size > 0 ? sets : null;
 	})();
 
+	// Node → lane-header key (nulls map to the unassigned lane's key), so hover
+	// detection and focus classification agree with the rendered lane headers.
+	const laneKeyOf = (node: TaskGraphNode): string => node.laneKey ?? '__unassigned__';
+
+	$: activeLaneKey = pinnedLaneKey ?? hoveredLaneKey;
+
+	// Focus set for the active lane: the lane's own nodes plus every node reachable
+	// from them along dependency edges (the cross-lane chain), the edges internal
+	// to that set, and the *other* lanes those reached nodes live in (→ soft tint).
+	$: laneFocus = (() => {
+		if (!activeLaneKey) return null;
+		const laneNodes = layout.nodes.filter((node) => laneKeyOf(node) === activeLaneKey);
+		if (laneNodes.length === 0) return null;
+		const nodes = new Set<string>();
+		for (const node of laneNodes) {
+			for (const path of computeTrace(node.path, layout.edges).nodes) nodes.add(path);
+		}
+		const edges = new Set<string>();
+		for (const edge of layout.edges) {
+			if (nodes.has(edge.from) && nodes.has(edge.to)) edges.add(edge.id);
+		}
+		const softLanes = new Set<string>();
+		for (const node of layout.nodes) {
+			if (!nodes.has(node.path)) continue;
+			const key = laneKeyOf(node);
+			if (key !== activeLaneKey) softLanes.add(key);
+		}
+		return { active: activeLaneKey, nodes, edges, softLanes };
+	})();
+
+	// Per-lane focus state, precomputed reactively. It MUST reference `laneFocus`
+	// textually here so Svelte re-runs it (and the template class strings that read
+	// this map) whenever focus changes — a helper that reads `laneFocus` inside its
+	// body would not register as a template dependency, so the bands/headers would
+	// never update on hover. '' = nothing focused (resting).
+	$: laneStates = (() => {
+		const map = new Map<string, '' | 'active' | 'soft' | 'dim'>();
+		for (const lane of dependencyLaneHeaders) {
+			if (!laneFocus) {
+				map.set(lane.key, '');
+			} else if (lane.key === laneFocus.active) {
+				map.set(lane.key, 'active');
+			} else {
+				map.set(lane.key, laneFocus.softLanes.has(lane.key) ? 'soft' : 'dim');
+			}
+		}
+		return map;
+	})();
+
+	const laneStateClass = (state: '' | 'active' | 'soft' | 'dim'): string => (state ? `is-lane-${state}` : '');
+
 	// Grace delay before the hover "+" hides, so the pointer has time to travel
 	// from the node to the small edge-anchored add button even at an off angle.
 	let hoverClearTimer: ReturnType<typeof setTimeout> | null = null;
@@ -625,12 +715,14 @@
 	// clicked). The pin is cleared on empty-canvas click or Esc.
 	function onNodeClick(path: string): void {
 		pinnedTracePath = path;
+		pinnedLaneKey = laneKeyForPath(path);
 		onOpen(path);
 	}
 
 	function onGraphKeydown(event: KeyboardEvent): void {
-		if (event.key === 'Escape' && pinnedTracePath) {
+		if (event.key === 'Escape' && (pinnedTracePath || pinnedLaneKey)) {
 			pinnedTracePath = null;
+			pinnedLaneKey = null;
 			event.stopPropagation();
 		}
 	}
@@ -638,6 +730,8 @@
 	// ── Create dependent task from a hovered node ───────────────────────────────
 
 	function createDependentTask(task: Task): void {
+		// Adding a dependent from a node holds focus on that node's lane.
+		pinnedLaneKey = laneKeyForPath(task.path);
 		new CreateTaskModal(plugin.app, plugin, 'task', {
 			initialDependsOn: [task.path],
 			prefill: {
@@ -649,8 +743,10 @@
 		}).open();
 	}
 
-	// Clicking a project's lane header creates a new task already parented to it.
+	// Clicking a project's lane header creates a new task already parented to it,
+	// and holds focus on that lane so the new card lands in a focused lane.
 	function createTaskInProject(projectPath: string): void {
+		pinnedLaneKey = projectPath;
 		const project = tasks.find((task) => task.path === projectPath);
 		new CreateTaskModal(plugin.app, plugin, 'task', {
 			prefill: {
@@ -948,9 +1044,10 @@
 				on:pointermove={onDependencyPointerMove}
 				on:pointerup={onDependencyPointerUp}
 				on:pointercancel={onDependencyPointerUp}
-				on:mouseleave={clearTrace}
+				on:mousemove={onDependencyMouseMove}
+				on:mouseleave={onDependencyMouseLeave}
 			>
-				<div class="tt-graph-fit" style={`width:${fittedDependencyWidth}px;height:${fittedDependencyHeight}px;`}>
+				<div class="tt-graph-fit" bind:this={dependencyFitEl} style={`width:${fittedDependencyWidth}px;height:${fittedDependencyHeight}px;`}>
 				{#if dependencyLaneHeaders.length > 0}
 					<!-- Lane tint bands live in the fit box (not the scaled stage) so they
 					     span the full visible width even when the graph is narrower than the
@@ -958,11 +1055,14 @@
 					<div class="tt-dependency-lane-bands" aria-hidden="true">
 						{#each dependencyLaneHeaders as lane (lane.key)}
 							{@const tint = laneTint(lane)}
+							{@const state = laneStates.get(lane.key) ?? ''}
+							<!-- Tint is focus-gated: full for the active lane, reduced for the
+							     soft lanes its chain reaches, invisible at rest. Kept mounted
+							     (not {#if}-toggled) so the CSS opacity transition fades it in and
+							     out instead of popping. Shares the header's padded box. -->
 							{#if tint}
-								<!-- Band shares the header's padded box (pre-scaled), so tint and
-								     header chip stay aligned as one lane block. -->
 								<div
-									class="tt-dependency-lane-band"
+									class={`tt-dependency-lane-band ${state === 'active' ? 'is-active' : state === 'soft' ? 'is-soft' : ''}`}
 									style={`top:${lane.topPx * dependencyScale}px;height:${lane.heightPx * dependencyScale}px;--tt-lane-tint:${tint};`}
 								></div>
 							{/if}
@@ -976,7 +1076,7 @@
 								{#if isProjectLaneHeader(lane)}
 									<button
 										type="button"
-										class={`${getLaneHeaderClass(lane)} is-clickable`}
+										class={`${getLaneHeaderClass(lane)} is-clickable ${laneStateClass(laneStates.get(lane.key) ?? '')}`}
 										style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
 										aria-label={`Add task to ${lane.label}`}
 										on:click={() => createTaskInProject(lane.key)}
@@ -989,7 +1089,7 @@
 									</button>
 								{:else}
 									<div
-										class={getLaneHeaderClass(lane)}
+										class={`${getLaneHeaderClass(lane)} ${laneStateClass(laneStates.get(lane.key) ?? '')}`}
 										style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
 										aria-hidden="true"
 									>
@@ -1014,7 +1114,7 @@
 									class:is-blocked={edge.isBlockedChain}
 									class:is-parent={edge.isParentEdge}
 									class:is-traced={traceSets?.edges.has(edge.id)}
-									class:is-dim={traceSets && !traceSets.edges.has(edge.id)}
+									class:is-dim={laneFocus && !laneFocus.edges.has(edge.id)}
 									d={edgePath(edge)}
 									marker-end="url(#ttasks-graph-arrow)"
 								></path>
@@ -1030,7 +1130,7 @@
 							class:is-cycle={node.isCycle}
 							class:is-blocked={node.isBlockedChain}
 							class:is-ready={highlightReady && isReadyNode(node)}
-							class:is-dim={traceSets && !traceSets.nodes.has(node.path)}
+							class:is-dim={laneFocus && !laneFocus.nodes.has(node.path)}
 							style={nodeStyle(node)}
 							on:click={() => onNodeClick(node.path)}
 							on:keydown={onGraphKeydown}
@@ -1921,18 +2021,31 @@
 		left: 0;
 		right: 0;
 		border-radius: 10px;
-		/* Symmetric vertical gradient: a soft tint cap at the top/bottom edges,
-		   fading to nothing across the middle of the lane. color-mix onto
-		   transparent keeps it a translucent overlay, readable in dark + light.
-		   Kept deliberately faint — a background hint, never competing with the
-		   node cards or edges that sit on top of it. */
+		/* Symmetric vertical gradient: a tint cap at the top/bottom edges, fading to
+		   nothing across the middle of the lane. color-mix onto transparent keeps it
+		   a translucent overlay, readable in dark + light. Focus-gated (shown only
+		   for the active/soft lanes); `--tt-lane-cap` sets the strength per state. */
 		background: linear-gradient(
 			180deg,
-			color-mix(in srgb, var(--tt-lane-tint) 9%, transparent) 0%,
+			color-mix(in srgb, var(--tt-lane-tint) var(--tt-lane-cap, 9%), transparent) 0%,
 			transparent 24%,
 			transparent 76%,
-			color-mix(in srgb, var(--tt-lane-tint) 9%, transparent) 100%
+			color-mix(in srgb, var(--tt-lane-tint) var(--tt-lane-cap, 9%), transparent) 100%
 		);
+		/* Hidden at rest; the active/soft states fade it in. Mounted always so the
+		   transition runs both directions. */
+		opacity: 0;
+		transition: opacity 0.18s ease;
+	}
+
+	.tt-dependency-lane-band.is-active {
+		--tt-lane-cap: 17%;
+		opacity: 1;
+	}
+
+	.tt-dependency-lane-band.is-soft {
+		--tt-lane-cap: 7%;
+		opacity: 1;
 	}
 
 	.tt-dependency-lane-header {
@@ -1957,6 +2070,22 @@
 			inset 0 0 0 1px color-mix(in srgb, var(--background-primary) 35%, transparent),
 			0 1px 0 color-mix(in srgb, var(--text-faint) 18%, transparent);
 		overflow: hidden;
+		transition: border-color 120ms ease, background 120ms ease, opacity 160ms ease;
+	}
+
+	/* Lane focus: the active lane's header pops (accent border), soft lanes (the
+	   ones the active chain reaches) stay bright, and other lanes recede — but
+	   headers never fully hide, they are the lane map. */
+	.tt-dependency-lane-header.is-lane-dim {
+		opacity: 0.42;
+	}
+
+	.tt-dependency-lane-header.is-lane-active {
+		border-color: color-mix(in srgb, var(--interactive-accent) 60%, var(--background-modifier-border));
+		box-shadow:
+			inset 3px 0 0 var(--interactive-accent),
+			inset 0 0 0 1px color-mix(in srgb, var(--background-primary) 35%, transparent),
+			0 1px 0 color-mix(in srgb, var(--text-faint) 18%, transparent);
 	}
 
 	.tt-dependency-lane-label {
@@ -2102,7 +2231,7 @@
 		font: inherit;
 		text-align: inherit;
 		color: inherit;
-		transition: border-color 120ms ease, background 120ms ease;
+		transition: border-color 120ms ease, background 120ms ease, opacity 160ms ease;
 	}
 
 	.tt-dependency-lane-header.is-clickable:hover {
@@ -2146,6 +2275,7 @@
 		stroke-width: 1.75;
 		color: color-mix(in srgb, var(--text-faint) 72%, transparent);
 		opacity: 0.78;
+		transition: opacity 160ms ease;
 	}
 
 	.tt-graph-edge.is-blocked {
@@ -2241,6 +2371,7 @@
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--background-primary) 72%, transparent), 0 8px 24px rgba(var(--mono-rgb-100), 0.08);
 		cursor: pointer;
 		text-align: left;
+		transition: opacity 160ms ease;
 	}
 
 	.tt-graph-node::before {
