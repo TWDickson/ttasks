@@ -2027,25 +2027,24 @@
 		   for the active/soft lanes); `--tt-lane-cap` sets the strength per state. */
 		background: linear-gradient(
 			180deg,
-			color-mix(in srgb, var(--tt-lane-tint) var(--tt-lane-cap, 9%), transparent) 0%,
+			color-mix(in srgb, var(--tt-lane-tint) 17%, transparent) 0%,
 			transparent 24%,
 			transparent 76%,
-			color-mix(in srgb, var(--tt-lane-tint) var(--tt-lane-cap, 9%), transparent) 100%
+			color-mix(in srgb, var(--tt-lane-tint) 17%, transparent) 100%
 		);
-		/* Hidden at rest; the active/soft states fade it in. Mounted always so the
-		   transition runs both directions. */
+		/* Active vs soft differ only by opacity (not gradient strength) so every
+		   direction — rest↔active↔soft — is a single, smoothly animatable opacity
+		   change. Hidden at rest; mounted always so the transition runs both ways. */
 		opacity: 0;
-		transition: opacity 0.18s ease;
+		transition: opacity 0.32s ease;
 	}
 
 	.tt-dependency-lane-band.is-active {
-		--tt-lane-cap: 17%;
 		opacity: 1;
 	}
 
 	.tt-dependency-lane-band.is-soft {
-		--tt-lane-cap: 7%;
-		opacity: 1;
+		opacity: 0.42;
 	}
 
 	.tt-dependency-lane-header {
@@ -2070,7 +2069,7 @@
 			inset 0 0 0 1px color-mix(in srgb, var(--background-primary) 35%, transparent),
 			0 1px 0 color-mix(in srgb, var(--text-faint) 18%, transparent);
 		overflow: hidden;
-		transition: border-color 120ms ease, background 120ms ease, opacity 160ms ease;
+		transition: border-color 120ms ease, background 120ms ease, opacity 0.28s ease;
 	}
 
 	/* Lane focus: the active lane's header pops (accent border), soft lanes (the
@@ -2231,7 +2230,7 @@
 		font: inherit;
 		text-align: inherit;
 		color: inherit;
-		transition: border-color 120ms ease, background 120ms ease, opacity 160ms ease;
+		transition: border-color 120ms ease, background 120ms ease, opacity 0.28s ease;
 	}
 
 	.tt-dependency-lane-header.is-clickable:hover {
@@ -2275,7 +2274,7 @@
 		stroke-width: 1.75;
 		color: color-mix(in srgb, var(--text-faint) 72%, transparent);
 		opacity: 0.78;
-		transition: opacity 160ms ease;
+		transition: opacity 0.28s ease;
 	}
 
 	.tt-graph-edge.is-blocked {
@@ -2371,7 +2370,7 @@
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--background-primary) 72%, transparent), 0 8px 24px rgba(var(--mono-rgb-100), 0.08);
 		cursor: pointer;
 		text-align: left;
-		transition: opacity 160ms ease;
+		transition: opacity 0.28s ease;
 	}
 
 	.tt-graph-node::before {
