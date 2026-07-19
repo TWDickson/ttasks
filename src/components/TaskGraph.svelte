@@ -493,7 +493,10 @@
 		}
 		if (event.button !== 0) return;
 		const target = event.target as HTMLElement;
-		if (target.closest('button, a, input')) return;
+		// Lane header chips (incl. their bare padding between the focus/add buttons)
+		// are inert to pan and never clear the pin — the chip's own buttons drive
+		// focus/add. Everything else on the canvas is a pan/clear surface.
+		if (target.closest('button, a, input, .tt-dependency-lane-header')) return;
 		// Empty-canvas press clears the pinned chain highlight + held lane focus.
 		pinnedTracePath = null;
 		pinnedLaneKey = null;
@@ -741,6 +744,13 @@
 				priority: task.priority,
 			},
 		}).open();
+	}
+
+	// GP5: tapping a lane header pins/unpins focus on that lane (a toggle) rather
+	// than adding a task — add moved to the dedicated `+` subshape below. Pinning a
+	// new lane replaces any existing pin; tapping the pinned lane again clears it.
+	function toggleLaneFocus(laneKey: string): void {
+		pinnedLaneKey = pinnedLaneKey === laneKey ? null : laneKey;
 	}
 
 	// Clicking a project's lane header creates a new task already parented to it,
@@ -1074,19 +1084,37 @@
 						<div class="tt-dependency-lanes" style={`--tt-dependency-lane-width:${dependencyLaneWidth}px;transform:translateX(${dependencyLaneStickyOffset}px);`}>
 							{#each dependencyLaneHeaders as lane (lane.key)}
 								{#if isProjectLaneHeader(lane)}
-									<button
-										type="button"
+									{@const pinned = pinnedLaneKey === lane.key}
+									<!-- GP5: chip is now a container of two subshapes — the label body
+									     (tap → focus/pin the lane) and a `+` at the bottom (tap → add a
+									     task to the project). They share the chip's border/tint so they
+									     read as one shape. Grows to show the full title while pinned. -->
+									<div
 										class={`${getLaneHeaderClass(lane)} is-clickable ${laneStateClass(laneStates.get(lane.key) ?? '')}`}
+										class:is-lane-pinned={pinned}
 										style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
-										aria-label={`Add task to ${lane.label}`}
-										on:click={() => createTaskInProject(lane.key)}
 									>
-										<span class="tt-dependency-lane-add" use:icon={'plus'}></span>
-										<span class="tt-dependency-lane-label">
-											<span class="tt-dependency-lane-label-run" use:marqueeLabel={lane.label}>{lane.label}</span>
-										</span>
-										<span class="tt-dependency-lane-count">{lane.taskCount}</span>
-									</button>
+										<button
+											type="button"
+											class="tt-dependency-lane-focus"
+											aria-pressed={pinned}
+											aria-label={`Focus ${lane.label} lane`}
+											on:click={() => toggleLaneFocus(lane.key)}
+										>
+											<span class="tt-dependency-lane-label">
+												<span class="tt-dependency-lane-label-run" use:marqueeLabel={lane.label}>{lane.label}</span>
+											</span>
+											<span class="tt-dependency-lane-count">{lane.taskCount}</span>
+										</button>
+										<button
+											type="button"
+											class="tt-dependency-lane-add-btn"
+											aria-label={`Add task to ${lane.label}`}
+											on:click={() => createTaskInProject(lane.key)}
+										>
+											<span class="tt-dependency-lane-add" use:icon={'plus'}></span>
+										</button>
+									</div>
 								{:else}
 									<div
 										class={`${getLaneHeaderClass(lane)} ${laneStateClass(laneStates.get(lane.key) ?? '')}`}
@@ -2116,10 +2144,6 @@
 		gap: 4px;
 	}
 
-	.tt-dependency-lane-header.is-compact .tt-dependency-lane-add {
-		opacity: 0.35;
-	}
-
 	.tt-dependency-lane-header.is-rotated .tt-dependency-lane-label {
 		display: block;
 		/* Clip to the space the flex layout gives us (not to content), so a long
@@ -2153,8 +2177,8 @@
 		mask-image: linear-gradient(to bottom, #000 82%, transparent);
 	}
 
-	.tt-dependency-lane-header.is-clickable:hover .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run,
-	.tt-dependency-lane-header.is-clickable:focus-visible .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run {
+	.tt-dependency-lane-header.is-clickable:not(.is-lane-pinned):hover .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run,
+	.tt-dependency-lane-header.is-clickable:not(.is-lane-pinned):focus-within .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run {
 		animation: tt-lane-marquee var(--tt-marquee-dur, 3.5s) ease-in-out infinite;
 	}
 
@@ -2165,8 +2189,8 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.tt-dependency-lane-header.is-clickable:hover .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run,
-		.tt-dependency-lane-header.is-clickable:focus-visible .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run {
+		.tt-dependency-lane-header.is-clickable:not(.is-lane-pinned):hover .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run,
+		.tt-dependency-lane-header.is-clickable:not(.is-lane-pinned):focus-within .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run {
 			animation: none;
 		}
 	}
@@ -2222,15 +2246,15 @@
 		padding: 0;
 	}
 
-	/* Clickable project header — click to add a task already parented to it.
-	Overrides the app.css button defaults; height stays on the inline style. */
+	/* Clickable project chip (GP5) — a container of two subshapes: the label body
+	   (tap → focus/pin the lane) and a `+` footer (tap → add a task). Padding + gap
+	   move onto the inner buttons so the `+` can sit flush at the bottom edge. */
 	.tt-dependency-lane-header.is-clickable {
 		pointer-events: auto;
-		cursor: pointer;
-		font: inherit;
-		text-align: inherit;
-		color: inherit;
-		transition: border-color 120ms ease, background 120ms ease, opacity 0.28s ease;
+		padding: 0;
+		gap: 0;
+		transition: border-color 120ms ease, background 120ms ease, opacity 0.28s ease,
+			box-shadow 120ms ease;
 	}
 
 	.tt-dependency-lane-header.is-clickable:hover {
@@ -2242,9 +2266,65 @@
 		);
 	}
 
-	.tt-dependency-lane-header.is-clickable:focus-visible {
+	/* Label body — fills the chip above the `+` footer, laying out the label +
+	   count exactly as the old single-button chip did (inherits the header's
+	   cross-axis alignment so compact chips stay centred). */
+	.tt-dependency-lane-focus {
+		flex: 1 1 auto;
+		min-height: 0;
+		width: 100%;
+		display: flex;
+		flex-direction: column;
+		align-items: inherit;
+		justify-content: flex-start;
+		gap: 6px;
+		padding: 8px 5px 4px 8px;
+		margin: 0;
+		background: none;
+		border: none;
+		box-shadow: none;
+		font: inherit;
+		text-align: inherit;
+		color: inherit;
+		cursor: pointer;
+	}
+
+	.tt-dependency-lane-header.is-compact .tt-dependency-lane-focus {
+		padding: 6px 6px 2px 8px;
+		gap: 4px;
+	}
+
+	.tt-dependency-lane-focus:focus-visible {
 		outline: 2px solid var(--interactive-accent);
-		outline-offset: 1px;
+		outline-offset: -2px;
+		border-radius: var(--radius-s);
+	}
+
+	/* `+` footer subshape — full-width strip flush to the chip's bottom edge,
+	   divided from the body by a hairline so the two read as one card. */
+	.tt-dependency-lane-add-btn {
+		flex: 0 0 auto;
+		width: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 3px 0;
+		margin: 0;
+		background: none;
+		border: none;
+		border-top: 1px solid color-mix(in srgb, var(--text-faint) 20%, transparent);
+		color: var(--text-faint);
+		cursor: pointer;
+		opacity: 0.5;
+		transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+	}
+
+	.tt-dependency-lane-add-btn:hover,
+	.tt-dependency-lane-add-btn:focus-visible {
+		opacity: 1;
+		color: var(--interactive-accent);
+		background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+		outline: none;
 	}
 
 	.tt-dependency-lane-add {
@@ -2252,20 +2332,73 @@
 		align-items: center;
 		justify-content: center;
 		height: 14px;
-		color: var(--text-faint);
-		opacity: 0.45;
-		transition: opacity 120ms ease, color 120ms ease;
-	}
-
-	.tt-dependency-lane-header.is-clickable:hover .tt-dependency-lane-add,
-	.tt-dependency-lane-header.is-clickable:focus-visible .tt-dependency-lane-add {
-		opacity: 1;
-		color: var(--interactive-accent);
 	}
 
 	.tt-dependency-lane-add :global(svg) {
 		width: 14px;
 		height: 14px;
+	}
+
+	/* Touch: expand the `+` footer's hit area to the mobile ≥44px minimum without
+	   growing its visual strip (matches the node-add affordance). */
+	@media (pointer: coarse) {
+		.tt-dependency-lane-add-btn {
+			position: relative;
+			padding: 6px 0;
+		}
+
+		.tt-dependency-lane-add-btn::after {
+			content: '';
+			position: absolute;
+			inset: -6px 0;
+		}
+	}
+
+	/* GP5 grow-on-pin: a pinned lane grows in HEIGHT so its full (still-vertical)
+	   title is readable — the rotated label un-clamps to its natural length and the
+	   chip grows downward to contain it, floating over the canvas (raised z-index)
+	   while focus is held. Height overrides the fixed inline lane height, so
+	   `!important` is required. */
+	.tt-dependency-lane-header.is-clickable.is-lane-pinned {
+		height: auto !important;
+		/* Block flow (not flex) so the chip sizes to the full-length vertical label —
+		   a vertical writing-mode child isn't measured for its block-axis size inside
+		   a flex column, which capped the grow; normal block flow contains it. */
+		display: block;
+		z-index: 20;
+	}
+
+	.tt-dependency-lane-header.is-lane-pinned .tt-dependency-lane-focus {
+		display: block;
+		height: auto;
+		text-align: center;
+	}
+
+	/* Keep the vertical label centred in the slim chip while it grows downward. */
+	.tt-dependency-lane-header.is-rotated.is-lane-pinned .tt-dependency-lane-label {
+		margin: 0 auto;
+	}
+
+	/* Un-clamp the vertical label: drop the flex-bounded height + ellipsis so the
+	   full name lays out at its natural length and the auto-height chip grows to
+	   fit it. Stays vertical (writing-mode/rotation untouched). */
+	.tt-dependency-lane-header.is-rotated.is-lane-pinned .tt-dependency-lane-label {
+		flex: 0 0 auto;
+		overflow: visible;
+		text-overflow: clip;
+		max-height: none;
+		-webkit-mask-image: none;
+		mask-image: none;
+	}
+
+	/* Non-rotated (tall) pinned lanes: un-clamp the multi-line label instead. */
+	.tt-dependency-lane-header.is-lane-pinned:not(.is-rotated) .tt-dependency-lane-label {
+		-webkit-line-clamp: unset;
+		max-height: none;
+	}
+
+	.tt-dependency-lane-header.is-lane-pinned .tt-dependency-lane-label-run {
+		animation: none;
 	}
 
 	.tt-graph-edge {

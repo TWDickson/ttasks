@@ -122,9 +122,10 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 **The single live backlog is `BACKLOG.md`** (consolidated 2026-07-12). Open:
 
-1. **Graph polish thread** — GP5 header focus + `+` button, GP7 split
-   Dependency/Timeline views, GP1 mobile pop-out (🔎 research first).
-   *Done: GP4 lane tint, GP3 project filter.*
+1. **Graph polish thread** — GP7 split Dependency/Timeline views, GP1 mobile
+   pop-out (🔎 research first).
+   *Done: GP4 lane tint, GP3 project filter, GP8 lane focus, GP5 header
+   focus/grow + `+` add subshape.*
 2. **Colour-model workshop** ⚖ — status/area/label colours compete on cards;
    rig shots + 2–3 variants, Taylor picks
 3. **Gated on Taylor** — branch review/merge of `feat/ui-polish-autopilot`,
@@ -142,6 +143,20 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 notes.
 
 ## Recent Updates (2026-07-18)
+
+- **GP5 lane-header focus + add-restructure landed** — the dependency-graph lane
+  header is now two subshapes of one chip: a **label body** (tap → pin/unpin the
+  lane's focus, a toggle) and a **`+` footer** flush to the chip's bottom edge
+  (tap → add a task parented to the project), split by a hairline so they read as
+  one card. Header tap no longer creates a task (that moved wholly to the `+`),
+  freeing it for focus. A **pinned** lane **grows in height** to show its full
+  title while keeping the label **vertical** (Taylor rejected an earlier
+  horizontal-expand rev): the rotated label un-clamps to natural length and the
+  chip flips to block flow + `height:auto` — a flex column mis-measures a
+  vertical-writing-mode child's block size and capped the grow, block flow fixes
+  it. Grow is pin-only; hover keeps the transient GP8 spotlight. `+` footer has a
+  ≥44px coarse-pointer hit area. `TaskGraph.svelte` only; build green, 1261
+  tests, verified dark/light/mobile in the rig.
 
 - **GP8 lane focus landed** — swim-lane tints are now focus-gated (GP4's
   always-on tint became on-demand). A lane's tint shows only while it's active:

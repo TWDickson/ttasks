@@ -101,13 +101,24 @@ header-tap only). GP5's remaining scope below is now just: **grow** the focused
 lane to show its full title, and **move click-to-add** off the header tap onto a
 dedicated `+` subshape.
 
-### GP5 — Lane-header focus interaction + add-button restructure `[~]`
+### GP5 — Lane-header focus interaction + add-button restructure `[x]`
 
-**Note (2026-07-18).** The focus/dim half is covered by GP8 (hover spotlight +
-pin). What's left: grow the focused lane for the full untruncated title, and
-restructure add-task into a dedicated `+` button (subshape of the header chip)
-so the header tap is free for focus. Header tap currently still creates a task
-(and, post-GP8, also pins the lane).
+*Landed 2026-07-18.* The lane header is now two subshapes of one chip: a **label
+body** (tap → pin/unpin lane focus, a toggle) and a **`+` footer** flush to the
+chip's bottom edge (tap → add a task parented to the project), divided by a
+hairline so they read as a single card. Header tap no longer creates a task —
+that moved entirely to the `+`. A **pinned** lane **grows in height** so its full
+title is readable, keeping the label **vertical** (Taylor's call — an earlier
+horizontal-expand rev was rejected): the rotated label un-clamps to its natural
+length and the chip switches to block flow + `height:auto` so it contains the
+full vertical text (a flex column mis-measures a vertical-writing-mode child's
+block size, which capped the grow — block flow fixes it). Grow is pin-only; hover
+still gives the transient GP8 spotlight without growing. Empty-canvas press / Esc
+/ re-tap all clear the pin. The `+` footer gets a ≥44px coarse-pointer hit area.
+Verified dark/light/mobile in the rig. `TaskGraph.svelte` only.
+
+**Note (2026-07-18).** The focus/dim half was covered by GP8 (hover spotlight +
+pin); this closed the remaining grow + add-button-restructure scope.
 
 **Problem.** Two behaviours are currently fused onto the header: it's the
 add-task target (`TaskGraph.svelte:551` region) and there's no focus mode.
