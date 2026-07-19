@@ -714,6 +714,24 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 			target.statusBar.clickTarget = clickTarget;
 		}
 	}
+
+	const pomodoro = asRecord(root.pomodoro);
+	if (pomodoro !== null) {
+		const focusMinutes = asInteger(pomodoro.focusMinutes);
+		if (focusMinutes !== null) target.pomodoro.focusMinutes = focusMinutes;
+
+		const shortBreakMinutes = asInteger(pomodoro.shortBreakMinutes);
+		if (shortBreakMinutes !== null) target.pomodoro.shortBreakMinutes = shortBreakMinutes;
+
+		const longBreakMinutes = asInteger(pomodoro.longBreakMinutes);
+		if (longBreakMinutes !== null) target.pomodoro.longBreakMinutes = longBreakMinutes;
+
+		const longBreakInterval = asInteger(pomodoro.longBreakInterval);
+		if (longBreakInterval !== null) target.pomodoro.longBreakInterval = longBreakInterval;
+
+		const autoStartNext = asBoolean(pomodoro.autoStartNext);
+		if (autoStartNext !== null) target.pomodoro.autoStartNext = autoStartNext;
+	}
 }
 
 export function normalizeSettingsFromSources(sources: unknown[]): TTasksSettings {

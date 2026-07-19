@@ -57,6 +57,34 @@ describe('statusBar settings normalization', () => {
 	});
 });
 
+describe('pomodoro settings normalization', () => {
+	it('applies valid persisted pomodoro values', () => {
+		const merged = normalizeSettingsFromSources([
+			{ pomodoro: { focusMinutes: 50, shortBreakMinutes: 10, longBreakMinutes: 30, longBreakInterval: 3, autoStartNext: false } },
+		]);
+		expect(merged.pomodoro).toEqual({
+			focusMinutes: 50,
+			shortBreakMinutes: 10,
+			longBreakMinutes: 30,
+			longBreakInterval: 3,
+			autoStartNext: false,
+		});
+	});
+
+	it('ignores non-numeric fields and keeps the defaults', () => {
+		const merged = normalizeSettingsFromSources([
+			{ pomodoro: { focusMinutes: 'oops', autoStartNext: false } },
+		]);
+		expect(merged.pomodoro.focusMinutes).toBe(DEFAULT_SETTINGS.pomodoro.focusMinutes);
+		expect(merged.pomodoro.autoStartNext).toBe(false);
+	});
+
+	it('falls back to defaults when pomodoro is absent', () => {
+		const merged = normalizeSettingsFromSources([{}]);
+		expect(merged.pomodoro).toEqual(DEFAULT_SETTINGS.pomodoro);
+	});
+});
+
 describe('THEME_SWATCHES and getDefaultThemeColor', () => {
 	it('exports THEME_SWATCHES as non-empty array', () => {
 		expect(Array.isArray(THEME_SWATCHES)).toBe(true);
