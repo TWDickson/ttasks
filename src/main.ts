@@ -24,6 +24,7 @@ import type { Task } from './types';
 import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration/contextMenu';
 import { resolveQuickAction } from './integration/quickActions';
 import { ArchiveService } from './store/ArchiveService';
+import { PomodoroService } from './store/PomodoroService';
 import { dispatchProtocolAction, parseProtocolAction } from './integration/protocol';
 import { buildStatusSummary } from './integration/statusSummary';
 import { pathToLinktext } from './integration/hoverLink';
@@ -46,6 +47,7 @@ export default class TTasksPlugin extends Plugin {
 	taskStore!: TaskStore;
 	archiveService!: ArchiveService;
 	reminderService!: ReminderService;
+	pomodoroService!: PomodoroService;
 	scanEngine!: ScanEngine;
 	activeTaskPath: Writable<string | null> = writable(null);
 	focusedTaskPath: Writable<string | null> = writable(null);
@@ -74,6 +76,12 @@ export default class TTasksPlugin extends Plugin {
 		this.taskStore = new TaskStore(this);
 		this.taskStore.register();
 		this.archiveService = new ArchiveService(this);
+		this.pomodoroService = new PomodoroService({
+			getConfig: () => this.settings.pomodoro,
+			logFocus: (path, minutes) => this.logPomodoroFocus(path, minutes),
+			notify: (message) => { new Notice(message); },
+		});
+		this.register(() => this.pomodoroService.dispose());
 		this.scanEngine = new ScanEngine();
 		this.registerEditorSuggest(new TaskLinkEditorSuggest(this.app, this));
 
@@ -177,6 +185,52 @@ export default class TTasksPlugin extends Plugin {
 						new Notice(`TTasks: duplicated as "${task.name}"`);
 					}
 				});
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'start-pomodoro',
+			name: 'Start Pomodoro on active task',
+			checkCallback: (checking) => {
+				const path = get(this.activeTaskPath);
+				const task = path ? this.taskStore.getByPath(path) : undefined;
+				if (!task) return false;
+				if (checking) return true;
+				this.pomodoroService.start(task.path, task.name);
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'pomodoro-toggle',
+			name: 'Pomodoro: pause / resume',
+			checkCallback: (checking) => {
+				if (!this.pomodoroService.isActive()) return false;
+				if (checking) return true;
+				this.pomodoroService.toggle();
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'pomodoro-skip',
+			name: 'Pomodoro: skip to next phase',
+			checkCallback: (checking) => {
+				if (!this.pomodoroService.isActive()) return false;
+				if (checking) return true;
+				this.pomodoroService.skip();
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'pomodoro-stop',
+			name: 'Pomodoro: stop',
+			checkCallback: (checking) => {
+				if (!this.pomodoroService.isActive()) return false;
+				if (checking) return true;
+				this.pomodoroService.stop();
 				return true;
 			},
 		});
@@ -312,6 +366,20 @@ export default class TTasksPlugin extends Plugin {
 	/** Collapse the right sidebar drawer/dock that hosts the detail pane. */
 	closeDetailPane(): void {
 		this.app.workspace.rightSplit?.collapse();
+	}
+
+	/**
+	 * Persist a completed Pomodoro focus session onto its task: bump
+	 * `pomodoro_count` and add the focus minutes to `focused_minutes`. Wired into
+	 * PomodoroService via its `logFocus` dep. No-op if the task has since vanished.
+	 */
+	private async logPomodoroFocus(path: string, minutes: number): Promise<void> {
+		const task = this.taskStore.getByPath(path);
+		if (!task) return;
+		await this.taskStore.update(path, {
+			pomodoro_count: (task.pomodoro_count ?? 0) + 1,
+			focused_minutes: (task.focused_minutes ?? 0) + minutes,
+		});
 	}
 
 	async loadSettings() {
