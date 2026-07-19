@@ -23,7 +23,9 @@ import { CreateTaskModal } from './modals/CreateTaskModal';
 import { FocusUntilModal } from './modals/FocusUntilModal';
 import { ShareSyncModal } from './modals/ShareSyncModal';
 import { ReminderService } from './store/ReminderService';
-import type { Task } from './types';
+import type { Task, TaskCreateInput, TaskPriority, TaskStatus } from './types';
+import type { ParsedImportTask } from './integration/taskJsonImport';
+import { type ImportPlan, changesToPatch } from './integration/taskImportPlan';
 import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration/contextMenu';
 import { resolveQuickAction } from './integration/quickActions';
 import { ArchiveService } from './store/ArchiveService';
@@ -481,9 +483,70 @@ export default class TTasksPlugin extends Plugin {
 	 * 'ai' mode is clean + self-contained (names, no vault paths); 'full' is
 	 * round-trippable. Read-only over the vault apart from the one export file.
 	 */
-	/** Open the Share/Sync modal (filtered JSON export). */
+	/** Open the Share/Sync modal (filtered JSON export + paste-back import). */
 	openShareSync(): void {
 		new ShareSyncModal(this.app, this).open();
+	}
+
+	/**
+	 * Apply a planned import to the vault: update matched tasks with their changed
+	 * fields, then create the new ones. Relationships/notes are intentionally not
+	 * imported (see taskImportPlan.ts). Returns the counts actually applied.
+	 */
+	async applyImportPlan(plan: ImportPlan): Promise<{ created: number; updated: number }> {
+		let updated = 0;
+		let created = 0;
+		for (const update of plan.updates) {
+			try {
+				await this.taskStore.update(update.path, changesToPatch(update.changes));
+				updated++;
+			} catch (error) {
+				this.log(`import update failed for ${update.path}: ${String(error)}`);
+			}
+		}
+		for (const entry of plan.creates) {
+			try {
+				await this.taskStore.create(this.buildCreateInputFromParsed(entry.parsed));
+				created++;
+			} catch (error) {
+				this.log(`import create failed for ${entry.parsed.name}: ${String(error)}`);
+			}
+		}
+		return { created, updated };
+	}
+
+	/** Build a create input from a parsed import record; relationships are dropped. */
+	private buildCreateInputFromParsed(parsed: ParsedImportTask): TaskCreateInput {
+		const defaultStatus = this.settings.statuses[0] ?? 'Active';
+		const priorities: TaskPriority[] = ['High', 'Medium', 'Low', 'None'];
+		const priority = priorities.includes(parsed.priority as TaskPriority) ? (parsed.priority as TaskPriority) : 'None';
+		return {
+			type: parsed.type === 'project' ? 'project' : 'task',
+			name: parsed.name,
+			area: parsed.area,
+			status: (parsed.status ?? defaultStatus) as TaskStatus,
+			priority,
+			labels: [...parsed.labels],
+			parent_task: null,
+			depends_on: [],
+			blocked_reason: parsed.blocked_reason,
+			assigned_to: parsed.assigned_to,
+			source: parsed.source,
+			start_date: parsed.start_date,
+			due_date: parsed.due_date,
+			due_time: parsed.due_time,
+			estimated_days: parsed.estimated_days,
+			workweek_only: false,
+			holiday_dates: [],
+			created: parsed.created,
+			completed: parsed.completed,
+			recurrence: parsed.recurrence,
+			recurrence_type: parsed.recurrence_type,
+			notes: parsed.notes,
+			reminder_override: null,
+			pomodoro_count: parsed.pomodoro_count,
+			focused_minutes: parsed.focused_minutes,
+		};
 	}
 
 	async exportTasksToJson(mode: TaskJsonMode): Promise<void> {

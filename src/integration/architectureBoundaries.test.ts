@@ -73,6 +73,7 @@ describe('architecture boundaries', () => {
 			'src/integration/taskJsonExport.ts',
 			'src/integration/taskJsonImport.ts',
 			'src/integration/taskExportFilter.ts',
+			'src/integration/taskImportPlan.ts',
 			'src/store/PomodoroService.ts',
 			'src/store/reminderRules.ts',
 			'src/store/reminderStorage.ts',

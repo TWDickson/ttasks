@@ -1117,6 +1117,67 @@
 	font-size: var(--font-ui-small);
 }
 
+.tt-share-tabs {
+	display: flex;
+	gap: var(--tt-space-1, 4px);
+	border-bottom: 1px solid var(--background-modifier-border);
+	margin: var(--tt-space-2, 8px) 0 var(--tt-space-3, 12px);
+}
+
+.tt-share-tab {
+	padding: 6px 14px;
+	border: none;
+	border-bottom: 2px solid transparent;
+	border-radius: 0;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	cursor: pointer;
+	box-shadow: none;
+}
+
+.tt-share-tab:hover {
+	color: var(--text-normal);
+}
+
+.tt-share-tab.is-active {
+	color: var(--text-normal);
+	border-bottom-color: var(--interactive-accent);
+	font-weight: 600;
+}
+
+.tt-share-import-text {
+	width: 100%;
+	resize: vertical;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	min-height: 140px;
+}
+
+.tt-share-summary {
+	margin: var(--tt-space-3, 12px) 0;
+}
+
+.tt-share-summary-list {
+	margin: 0;
+	padding-left: 1.2em;
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+}
+
+.tt-share-summary-list li {
+	margin: 2px 0;
+}
+
+.tt-share-summary-list .tt-share-warn {
+	color: var(--text-muted);
+}
+
+.tt-share-errors {
+	color: var(--text-error, var(--color-red));
+	font-size: var(--font-ui-small);
+}
+
 .tt-query-editor-modal .modal-content {
 	padding: 16px 20px 20px;
 	max-height: 80vh;
