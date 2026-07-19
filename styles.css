@@ -47,6 +47,10 @@
 .tt-detail-view {
 	padding: 0;
 	overflow-y: auto;
+	/* The detail leaf never scrolls sideways — a stray wide child (a long link,
+	   an unshrunk control) should be contained, not push a horizontal scrollbar
+	   across the whole pane on mobile. */
+	overflow-x: hidden;
 }
 
 /* Detail leaf header actions hide when no native task is selected (P6/N1).

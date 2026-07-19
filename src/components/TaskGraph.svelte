@@ -464,6 +464,15 @@
 
 	let isPanning = false;
 	let panStart = { x: 0, y: 0, scrollX: 0, scrollY: 0 };
+	// A press starts as a *pending* pan, not a live one: we only begin panning (and
+	// capture the pointer) once the finger/mouse moves past this threshold. A
+	// stationary tap never captures, so a node's own `click` dispatches normally —
+	// on touch, capturing during a tap swallows that click (the double-tap-to-open
+	// bug). `panMoved` records whether the gesture became a drag so pointerup can
+	// tell a tap from a drag.
+	let panPending = false;
+	let panMoved = false;
+	const PAN_THRESHOLD_PX = 8;
 
 	// Two-finger pinch-to-zoom. Every live touch point is tracked; with two down
 	// we zoom by their distance ratio and anchor at the pinch midpoint (reusing
@@ -489,8 +498,9 @@
 		if (event.pointerType === 'touch') {
 			activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 			if (activePointers.size === 2) {
-				// Entering a pinch: cancel any in-progress pan.
+				// Entering a pinch: cancel any in-progress or pending pan.
 				isPanning = false;
+				panPending = false;
 				pinchLastDist = pinchDistance();
 				return;
 			}
@@ -502,17 +512,18 @@
 		// are inert to pan and never clear the pin — the chip's own buttons drive
 		// focus/add. Everything else on the canvas is a pan/clear surface.
 		if (target.closest('button, a, input, .tt-dependency-lane-header')) return;
-		// Empty-canvas press clears the pinned chain highlight + held lane focus.
-		pinnedTracePath = null;
-		pinnedLaneKey = null;
-		isPanning = true;
+		// Arm a *pending* pan. We defer the actual pan-start, pointer capture, and
+		// pin-clear until the pointer moves past PAN_THRESHOLD_PX (see move handler),
+		// so a stationary tap stays a tap — its click reaches the node/canvas instead
+		// of being swallowed by pointer capture.
+		panPending = true;
+		panMoved = false;
 		panStart = {
 			x: event.clientX,
 			y: event.clientY,
 			scrollX: dependencyScrollEl.scrollLeft,
 			scrollY: dependencyScrollEl.scrollTop,
 		};
-		dependencyScrollEl.setPointerCapture(event.pointerId);
 	}
 
 	function onDependencyPointerMove(event: PointerEvent): void {
@@ -527,6 +538,20 @@
 			pinchLastDist = dist;
 			return;
 		}
+		// Promote a pending press to a live pan once it clearly moves — only now do
+		// we capture the pointer and clear the pinned highlight (matching the old
+		// press-to-clear, but on a genuine drag rather than every tap).
+		if (panPending && !isPanning && dependencyScrollEl) {
+			const dx = event.clientX - panStart.x;
+			const dy = event.clientY - panStart.y;
+			if (Math.hypot(dx, dy) > PAN_THRESHOLD_PX) {
+				isPanning = true;
+				panMoved = true;
+				pinnedTracePath = null;
+				pinnedLaneKey = null;
+				dependencyScrollEl.setPointerCapture(event.pointerId);
+			}
+		}
 		if (!isPanning || !dependencyScrollEl) return;
 		dependencyScrollEl.scrollLeft = panStart.scrollX - (event.clientX - panStart.x);
 		dependencyScrollEl.scrollTop = panStart.scrollY - (event.clientY - panStart.y);
@@ -534,6 +559,17 @@
 	}
 
 	function onDependencyPointerUp(event: PointerEvent): void {
+		// A stationary press that never became a drag is a tap. On empty canvas that
+		// clears the pinned chain/lane (the old empty-canvas deselect); on a node it
+		// is left alone so the node's own click opens the task.
+		if (panPending && !panMoved) {
+			const target = event.target as HTMLElement;
+			if (!target.closest('.tt-graph-node, button, a, input, .tt-dependency-lane-header')) {
+				pinnedTracePath = null;
+				pinnedLaneKey = null;
+			}
+		}
+		panPending = false;
 		activePointers.delete(event.pointerId);
 		if (activePointers.size < 2) {
 			pinchLastDist = 0;
@@ -725,6 +761,29 @@
 		pinnedTracePath = path;
 		pinnedLaneKey = laneKeyForPath(path);
 		onOpen(path);
+	}
+
+	// Touch needs its own open path. The node carries hover behaviour (preview +
+	// the hover `+`), so iOS/WKWebView spends the first tap applying the emulated
+	// hover state and withholds the synthesized `click` until a second tap — the
+	// "double-tap to open" bug. Pointer events fire on the first tap regardless, so
+	// on touch we open from pointerup and let desktop keep using click. `panMoved`
+	// guards against a drag that merely ended over the node.
+	//
+	// Cross-platform: iOS withholds the first-tap click, but Android *does* fire a
+	// real click right after touch pointerup — so opening from both would double-
+	// fire. `lastTouchOpenAt` lets the click handler swallow that trailing ghost.
+	let lastTouchOpenAt = 0;
+	function onNodePointerUp(event: PointerEvent, path: string): void {
+		if (event.pointerType !== 'touch') return;
+		if (panMoved) return;
+		lastTouchOpenAt = Date.now();
+		onNodeClick(path);
+	}
+	function onNodeClickEvent(path: string): void {
+		// Ignore the synthesized click Android emits right after a handled touch tap.
+		if (Date.now() - lastTouchOpenAt < 700) return;
+		onNodeClick(path);
 	}
 
 	function onGraphKeydown(event: KeyboardEvent): void {
@@ -1153,7 +1212,8 @@
 							class:is-ready={highlightReady && isReadyNode(node)}
 							class:is-dim={laneFocus && !laneFocus.nodes.has(node.path)}
 							style={nodeStyle(node)}
-							on:click={() => onNodeClick(node.path)}
+							on:click={() => onNodeClickEvent(node.path)}
+							on:pointerup={(event) => onNodePointerUp(event, node.path)}
 							on:keydown={onGraphKeydown}
 							on:mouseenter={(event) => onNodeHover(event, node)}
 							on:mouseleave={(event) => onNodeHoverLeave(event, node)}

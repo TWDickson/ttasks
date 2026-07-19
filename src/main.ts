@@ -285,7 +285,14 @@ export default class TTasksPlugin extends Plugin {
 	 */
 	async openDetailPane(): Promise<void> {
 		const hadLeaf = this.app.workspace.getLeavesOfType(TASK_DETAIL_VIEW_TYPE).length > 0;
-		await this.app.workspace.ensureSideLeaf(TASK_DETAIL_VIEW_TYPE, 'right', { reveal: true, active: false });
+		// On mobile the right sidebar is a slide-over drawer: unless the detail leaf
+		// is made the active leaf it can reveal *underneath* the board and never
+		// surface (GP1-follow). On desktop we keep `active: false` so opening a task
+		// doesn't steal keyboard focus from the board list/kanban.
+		await this.app.workspace.ensureSideLeaf(TASK_DETAIL_VIEW_TYPE, 'right', {
+			reveal: true,
+			active: Platform.isMobile,
+		});
 		if (!hadLeaf) this.applyDefaultDetailPaneWidth();
 	}
 

@@ -828,5 +828,24 @@
 		align-items: center;
 	}
 
+	/* On a narrow mobile drawer the label column steals width and squeezes the
+	   control until it overflows. Collapse to one column so each label sits on its
+	   own row *above* its control (the two-level layout), and let controls stretch
+	   full width. Extra top-margin on labels re-groups each label/control pair now
+	   that the row gap is gone. */
+	@media (max-width: 768px) {
+		.tt-fields {
+			grid-template-columns: 1fr;
+			gap: 0;
+			align-items: stretch;
+		}
+		.tt-fields > .tt-label {
+			margin-top: 12px;
+		}
+		.tt-fields > .tt-label:first-child {
+			margin-top: 0;
+		}
+	}
+
 	/* Relationship, notes, and action CSS live in their own sub-components. */
 </style>

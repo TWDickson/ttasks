@@ -51,10 +51,14 @@ export class GraphExpandModal extends Modal {
 				...this.graphProps,
 				// Opening a task slides the detail drawer in; on mobile it would sit
 				// behind this modal, so close first, then hand off to the board's
-				// open handler.
+				// open handler. The hand-off is deferred to the next frame *after*
+				// close: closing a Modal pops Obsidian's history/focus stack, and if
+				// we revealed the detail drawer synchronously that focus-restore could
+				// land afterwards and leave the board on top (the "drawer opens behind"
+				// symptom on mobile). rAF lets the close settle first.
 				onOpen: (path: string) => {
 					this.close();
-					this.graphProps.onOpen(path);
+					window.requestAnimationFrame(() => this.graphProps.onOpen(path));
 				},
 				// This instance IS the fullscreen surface: its toggle collapses back
 				// to the board rather than opening another modal.
