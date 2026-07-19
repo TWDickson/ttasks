@@ -24,14 +24,51 @@ taste/UX call from Taylor · 🔎 needs research first.
 
 ---
 
-## Top priority — JSON import / export `[ ]`
+## Top priority — JSON import / export `[~]`
 
 *Requested 2026-07-19 (Taylor): "share my tasks (or a subset) with the work AI."*
-Prioritised for the next session.
 
-**Goal.** Export tasks to a portable JSON document (all, or a filtered subset)
-that can be pasted into / shared with an external AI, and import JSON back into
-the vault as task notes.
+**Shipped 2026-07-19 (export half + import parser):**
+- `[x]` **Pure serializer** `src/integration/taskJsonExport.ts` — versioned doc
+  (`schemaVersion`/`generatedAt`/`mode`/`taskCount`/`tasks`); `full` mode
+  (ids/paths/reverse-index, links as paths — round-trippable) and `ai` mode
+  (links flattened to human names; id/path/blocks + empty fields dropped —
+  clean for pasting into an AI). Boundary-tested.
+- `[x]` **Export commands** — "Export tasks to JSON (AI-friendly)" and "(full)":
+  write a timestamped `.json` at the vault root + copy to clipboard when
+  available. **Device/live-Obsidian verification owed** (built + unit-tested,
+  not yet run in the app).
+- `[x]` **Pure import parser** `src/integration/taskJsonImport.ts` — validates +
+  normalizes a document *or* bare array; forgiving (skips bad entries with
+  warnings, warns-but-imports on newer `schemaVersion`, accepts
+  `parent`/`parent_task`). 12 tests incl. a full-mode round-trip. **Ready to
+  wire.**
+
+**Remaining (next session):**
+- `[ ]` **Import → vault creation** — wire the parser to `TaskStore.create`
+  behind an **ImportConfirmModal** preview (reuse the I5 bulk-import pattern):
+  dedupe, ID-collision-safe, and **relationship remap** (parent/`depends_on`
+  given as names or paths → resolve against existing + newly-created tasks by
+  name). *Held tonight on purpose — it mutates the live vault and needs runtime
+  verification, not a blind autonomous run.*
+- `[ ]` **Subset export** — right now export is all-tasks. Add subset via the
+  shared query engine (export the current view's / a Smart List's filtered set),
+  so "export just these" is one action. Serializer already takes any `Task[]`.
+- `[ ]` **Import command surface** — from clipboard and/or a picked `.json`.
+
+**Grounding.** Reuse: shared query engine (`src/query/`), `TaskStore.create`
+(collision-safe, relationship-safe), `promoteTaskToTTasks`/ImportConfirmModal
+(I5 bulk import), the frontmatter schema in CLAUDE.md. Pure serializer + parser
+stay Obsidian-free (boundary-tested); only the command/modal/file-IO wrapper
+touches Obsidian.
+
+**Acceptance.**
+- Export all tasks, and export a filtered subset, to valid JSON. *(all-tasks ✓;
+  subset remaining)*
+- A "for-AI" mode produces clean, path-free, human-readable JSON. *(✓)*
+- Import validates and previews before creating; round-trips the core schema
+  losslessly; is ID-collision- and relationship-safe. *(parser ✓; create wiring
+  remaining)*
 
 **Direction (proposed — confirm shape with Taylor).**
 - **Export.** A pure serializer `tasks → JSON` (stable, documented shape:
