@@ -1,7 +1,7 @@
 /* Visual test rig entry. Mounts the real TaskBoard against an in-memory plugin
    mock, with the vault's actual Obsidian app.css + theme so renders match the
    app. URL params (used by shots.mjs and shareable by hand):
-     ?theme=light|dark   ?view=list|kanban|agenda|graph|logbook|today|inbox
+     ?theme=light|dark   ?view=list|kanban|agenda|graph|timeline|logbook|today|inbox
      ?detail=1 (open first task's detail)   ?modal=1 (open Create Task modal) */
 
 import './vendor/obsidian-app.css';
@@ -58,7 +58,7 @@ themeBtn.addEventListener('click', () => {
 	themeBtn.setText(nowDark ? 'Dark theme' : 'Light theme');
 });
 
-for (const id of ['list', 'kanban', 'agenda', 'graph', 'today', 'inbox', 'logbook']) {
+for (const id of ['list', 'kanban', 'agenda', 'graph', 'timeline', 'today', 'inbox', 'logbook']) {
 	const btn = bar.createEl('button', { text: id });
 	if (id === viewId) btn.addClass('is-active');
 	btn.addEventListener('click', () => {

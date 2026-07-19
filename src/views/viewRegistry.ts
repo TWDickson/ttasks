@@ -142,7 +142,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 	},
 	{
 		id: 'graph',
-		name: 'Graph',
+		name: 'Dependencies',
 		icon: 'git-branch-plus',
 		renderer: RENDERER_GRAPH,
 		query: {
@@ -151,6 +151,19 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 			group: { kind: 'none' },
 		},
 		presentation: { hierarchy: 'flat', graphMode: 'dependency' },
+		source: 'builtin',
+	},
+	{
+		id: 'timeline',
+		name: 'Timeline',
+		icon: 'gantt-chart',
+		renderer: RENDERER_GRAPH,
+		query: {
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			group: { kind: 'none' },
+		},
+		presentation: { hierarchy: 'flat', graphMode: 'overview' },
 		source: 'builtin',
 	},
 	{

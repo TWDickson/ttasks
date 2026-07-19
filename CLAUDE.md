@@ -123,9 +123,9 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 **The single live backlog is `BACKLOG.md`** (consolidated 2026-07-12). Open:
 
 1. **Graph polish thread** — GP5 header-focus interaction re-tune (`+` add
-   subshape shipped; click-to-focus/grow backed out), GP7 split
-   Dependency/Timeline views, GP1 mobile pop-out (🔎 research first).
-   *Done: GP4 lane tint, GP3 project filter, GP8 lane focus.*
+   subshape shipped; click-to-focus/grow backed out), GP1 mobile pop-out
+   (🔎 research first). *Done: GP4 lane tint, GP3 project filter, GP8 lane
+   focus, GP7 split Dependency/Timeline views.*
 2. **Colour-model workshop** ⚖ — status/area/label colours compete on cards;
    rig shots + 2–3 variants, Taylor picks
 3. **Gated on Taylor** — branch review/merge of `feat/ui-polish-autopilot`,
@@ -143,6 +143,23 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 notes.
 
 ## Recent Updates (2026-07-18)
+
+- **GP7 landed — Dependency and Timeline are now two separate rail views** — the
+  single **Graph** entry split into **Dependencies** (`id: graph`, dependency
+  mode, `git-branch-plus`) and **Timeline** (`id: timeline`, overview/Gantt mode,
+  `gantt-chart`), both on `RENDERER_GRAPH`. The in-view Dependency/Overview
+  toggle is gone; each view is locked to the `graphMode` fixed in its
+  `presentation` and rendered via `TaskGraph.svelte`'s `defaultGraphMode` prop.
+  Because both use the same renderer, switching rail entries keeps the same
+  `<TaskGraph>` instance and just updates the mode through the existing reactive
+  prop sync (verified in the rig on both direct-nav and runtime switch). Per-view
+  persistence is free — the active view id already rides on N2's `currentViewId`
+  `getState`/`setState`, so a reload reopens whichever was last active; `graph`
+  kept its id so persisted state + custom graph views resolve unchanged. Touched
+  `viewRegistry.ts` (+ test id-order), `TaskGraph.svelte` (toggle markup +
+  `.tt-mode-btn`/`.tt-graph-toolbar-row` CSS removed), rig `main.ts`/`shots.mjs`
+  (new `timeline` scene + shots). No PROTOCOL change (the URI opens the board, not
+  a specific view). Build green, **1261 tests**, verified dark desktop in the rig.
 
 - **GP5 partly landed — `+` add-subshape shipped; header click-to-focus backed
   out** — the dependency-graph lane header is now one chip with the label body on

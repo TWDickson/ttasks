@@ -37,10 +37,10 @@ describe('getRegisteredTaskViews', () => {
 			customViews: [makeCustomView()],
 		});
 
-		expect(views.map((view) => view.id)).toEqual(['list', 'inbox', 'today', 'blocked', 'kanban', 'agenda', 'graph', 'logbook', 'archive', 'custom-focus']);
+		expect(views.map((view) => view.id)).toEqual(['list', 'inbox', 'today', 'blocked', 'kanban', 'agenda', 'graph', 'timeline', 'logbook', 'archive', 'custom-focus']);
 		expect(views[0]).toMatchObject({ source: 'builtin', renderer: 'list', name: 'Active' });
-		expect(views[9]).toMatchObject({ source: 'custom', renderer: 'list', name: 'Focus' });
-		expect(views[9].query.group).toEqual({ kind: 'field', field: 'status' });
+		expect(views[10]).toMatchObject({ source: 'custom', renderer: 'list', name: 'Focus' });
+		expect(views[10].query.group).toEqual({ kind: 'field', field: 'status' });
 	});
 });
 

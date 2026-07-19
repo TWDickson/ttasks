@@ -4,6 +4,24 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
+## GP7 checkpoint — split Dependency / Timeline views (2026-07-18)
+
+**GP7 landed.** The single **Graph** rail entry is now two built-in views —
+**Dependencies** (`id: graph`, `graphMode: 'dependency'`) and **Timeline**
+(`id: timeline`, `graphMode: 'overview'`) — both on `RENDERER_GRAPH`. The in-view
+Dependency/Overview toggle is removed; each view is fixed to the `graphMode` in
+its `presentation`, rendered through `TaskGraph.svelte`'s `defaultGraphMode` prop.
+Switching between the two keeps the same `<TaskGraph>` component (shared
+renderer) and updates the mode via the existing reactive prop sync — verified in
+the rig for both direct navigation and runtime switch. Per-view state persists
+via N2's existing `currentViewId` layout persistence; `graph` kept its id for
+back-compat. Touched `viewRegistry.ts` (+ test), `TaskGraph.svelte`, and the rig
+(`main.ts`/`shots.mjs`, new `timeline` scene). No PROTOCOL/deep-link change.
+Graph-polish thread now: GP3/GP4/GP7/GP8 landed; GP5 partly; GP1 open (research).
+Validation: production build clean; **1261 tests** passing; verified in the rig.
+
+---
+
 ## Graph polish checkpoint (2026-07-18)
 
 Graph-polish thread progress: **GP3** (project filter), **GP4** (swim-lane

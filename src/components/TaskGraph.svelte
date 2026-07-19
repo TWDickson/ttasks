@@ -909,13 +909,6 @@
 
 <div class="tt-graph-shell">
 	<div class="tt-graph-toolbar">
-		<div class="tt-graph-toolbar-row">
-			<div class="tt-graph-mode-toggle" role="group" aria-label="Graph mode">
-				<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'dependency'} aria-pressed={graphMode === 'dependency'} on:click={() => graphMode = 'dependency'}>Dependency</button>
-				<button type="button" class="tt-mode-btn" class:is-active={graphMode === 'overview'} aria-pressed={graphMode === 'overview'} on:click={() => graphMode = 'overview'}>Overview</button>
-			</div>
-		</div>
-
 		<div class="tt-graph-summary">
 			{#if graphMode === 'dependency'}
 				{#if layout.blockedEdgeCount > 0}
@@ -1352,14 +1345,6 @@
 		padding: 12px 14px 4px;
 	}
 
-	.tt-graph-toolbar-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 10px;
-		flex-wrap: wrap;
-	}
-
 	.tt-graph-zoom {
 		display: inline-flex;
 		align-items: center;
@@ -1417,29 +1402,6 @@
 	.tt-zoom-icon :global(svg) {
 		width: 13px;
 		height: 13px;
-	}
-
-	.tt-graph-mode-toggle {
-		display: inline-flex;
-		gap: 6px;
-		flex-wrap: wrap;
-	}
-
-	.tt-mode-btn {
-		border: 1px solid var(--background-modifier-border);
-		background: var(--background-secondary);
-		color: var(--text-muted);
-		border-radius: 999px;
-		padding: 5px 11px;
-		font-size: 0.78rem;
-		font-weight: 700;
-		cursor: pointer;
-	}
-
-	.tt-mode-btn.is-active {
-		background: color-mix(in srgb, var(--interactive-accent) 22%, var(--background-primary));
-		border-color: color-mix(in srgb, var(--interactive-accent) 48%, var(--background-modifier-border));
-		color: var(--interactive-accent);
 	}
 
 	.tt-graph-summary {

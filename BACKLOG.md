@@ -148,11 +148,29 @@ add-task target (`TaskGraph.svelte:551` region) and there's no focus mode.
   shape with the chip.
 - Works on touch (coarse-pointer targets ≥ the P4 minimum) and desktop.
 
-### GP7 — Split Dependency and Timeline (Gantt) into separate views `[ ]`
+### GP7 — Split Dependency and Timeline (Gantt) into separate views `[x]`
 
-**Problem.** Both live in one graph leaf behind a Dependency/Overview mode toggle
-at the top of the toolbar (`graphMode` toggle, `TaskGraph.svelte:692-693`).
-Taylor wants them as **two distinct views**, not a toggle inside one.
+*Landed 2026-07-18.* The single **Graph** rail entry is now **two** built-in
+views — **Dependencies** (`id: graph`, `graphMode: 'dependency'`,
+`git-branch-plus`) and **Timeline** (`id: timeline`, `graphMode: 'overview'`,
+`gantt-chart`) — both on `RENDERER_GRAPH`. The in-view Dependency/Overview
+toggle is gone; `TaskGraph.svelte` renders whichever mode its view's
+`presentation.graphMode` fixes (`defaultGraphMode` prop). Switching rail entries
+keeps the same `<TaskGraph>` instance (same renderer) and updates the mode via
+the existing reactive prop sync — verified in the rig (direct-nav + runtime
+switch both flip modes). Per-view state persists for free: the active view id
+already rides on N2's `currentViewId` `getState`/`setState`, so a reload reopens
+whichever of the two was last active. `graph` kept its id so persisted
+active-view + any custom graph views resolve unchanged. Touched
+`viewRegistry.ts` (+ its test id-order assertion), `TaskGraph.svelte` (toggle
+markup + `.tt-mode-btn`/`.tt-graph-toolbar-row` CSS removed), rig
+`main.ts`/`shots.mjs` (new `timeline` scene + shots). Build green, 1261 tests.
+No PROTOCOL/deep-link change — the URI scheme opens the board/tasks, never a
+specific view.
+
+**Problem.** Both lived in one graph leaf behind a Dependency/Overview mode
+toggle at the top of the toolbar. Taylor wanted them as **two distinct views**,
+not a toggle inside one.
 
 **Direction.** Register the dependency graph and the timeline/Gantt (currently
 `graphMode === 'overview'`) as separate Obsidian views / rail entries.
