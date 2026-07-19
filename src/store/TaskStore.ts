@@ -332,6 +332,8 @@ export class TaskStore {
 			created:         fm.created         ?? null,
 			completed:       fm.completed       ?? null,
 			status_changed:  typeof fm.status_changed === 'string' ? fm.status_changed : null,
+			pomodoro_count:  typeof fm.pomodoro_count === 'number' ? fm.pomodoro_count : null,
+			focused_minutes: typeof fm.focused_minutes === 'number' ? fm.focused_minutes : null,
 			notes,
 			recurrence:      typeof fm.recurrence === 'string' ? fm.recurrence : null,
 			recurrence_type: typeof fm.recurrence_type === 'string' ? fm.recurrence_type : null,

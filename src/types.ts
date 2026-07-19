@@ -42,6 +42,11 @@ export interface Task {
 	// Set whenever status changes; used by stale-in-progress reminder (more reliable than start_date proxy)
 	status_changed: string | null;
 
+	// Pomodoro time tracking, accumulated across focus sessions. Optional/absent
+	// until the first session is logged; the reader defaults missing values to null.
+	pomodoro_count?: number | null;   // completed focus sessions
+	focused_minutes?: number | null;  // total focused minutes
+
 	// Recurrence (stored in frontmatter; null = no recurrence)
 	recurrence: string | null;
 	// 'fixed' = advance from due_date (default); 'from_completion' = advance from completion date

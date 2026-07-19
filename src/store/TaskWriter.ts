@@ -110,6 +110,7 @@ export class TaskWriter {
 			'start_date', 'due_date', 'estimated_days', 'completed',
 			'workweek_only', 'holiday_dates',
 			'recurrence', 'recurrence_type', 'reminder_override',
+			'pomodoro_count', 'focused_minutes',
 		];
 		// Captured inside processFrontMatter so the optimistic store patch below
 		// can reproduce exactly what was persisted without re-reading the file.

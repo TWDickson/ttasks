@@ -95,6 +95,13 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		hideWhenZero: false,
 		clickTarget: 'agenda',
 	},
+	pomodoro: {
+		focusMinutes: 25,
+		shortBreakMinutes: 5,
+		longBreakMinutes: 15,
+		longBreakInterval: 4,
+		autoStartNext: true,
+	},
 	kanbanCardFields: ['area', 'dueDate', 'labels', 'depCount'] as KanbanCardField[],
 	kanbanCollapsedColumns: [],
 	showCompletedByViewId: {},
@@ -253,6 +260,13 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		statusBar: {
 			hideWhenZero: settings.statusBar?.hideWhenZero ?? DEFAULT_SETTINGS.statusBar.hideWhenZero,
 			clickTarget: settings.statusBar?.clickTarget ?? DEFAULT_SETTINGS.statusBar.clickTarget,
+		},
+		pomodoro: {
+			focusMinutes: settings.pomodoro?.focusMinutes ?? DEFAULT_SETTINGS.pomodoro.focusMinutes,
+			shortBreakMinutes: settings.pomodoro?.shortBreakMinutes ?? DEFAULT_SETTINGS.pomodoro.shortBreakMinutes,
+			longBreakMinutes: settings.pomodoro?.longBreakMinutes ?? DEFAULT_SETTINGS.pomodoro.longBreakMinutes,
+			longBreakInterval: settings.pomodoro?.longBreakInterval ?? DEFAULT_SETTINGS.pomodoro.longBreakInterval,
+			autoStartNext: settings.pomodoro?.autoStartNext ?? DEFAULT_SETTINGS.pomodoro.autoStartNext,
 		},
 		kanbanCardFields: settings.kanbanCardFields ?? [...DEFAULT_SETTINGS.kanbanCardFields],
 		kanbanCollapsedColumns: settings.kanbanCollapsedColumns ?? [...DEFAULT_SETTINGS.kanbanCollapsedColumns],

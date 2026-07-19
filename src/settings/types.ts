@@ -102,6 +102,16 @@ export interface StatusBarSettings {
 	clickTarget: StatusBarClickTarget;
 }
 
+export interface PomodoroSettings {
+	focusMinutes: number;
+	shortBreakMinutes: number;
+	longBreakMinutes: number;
+	/** Take a long break after this many completed focus phases. */
+	longBreakInterval: number;
+	/** Auto-start the next phase when one completes, vs. waiting for the user. */
+	autoStartNext: boolean;
+}
+
 export interface TTasksSettings {
 	tasksFolder: string;
 	editorSuggestTrigger: string;
@@ -140,6 +150,7 @@ export interface TTasksSettings {
 	reminders: RemindersSettings;
 	archive: ArchiveSettings;
 	statusBar: StatusBarSettings;
+	pomodoro: PomodoroSettings;
 	kanbanCardFields: KanbanCardField[];
 	kanbanCollapsedColumns: string[];
 	/** Per-view "Show completed" choice, keyed by view id. Unset views fall back
