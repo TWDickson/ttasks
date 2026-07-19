@@ -127,9 +127,15 @@ features (`Later`, migrated from ROADMAP Phase 5–8 + Deferred). `ROADMAP.md` i
 now a **dated journal + historical phase notes only** — not a live registry;
 don't treat an unchecked box in its phase sections as open work. Open:
 
-1. **Pomodoro (native)** — *in progress.* Phase 8 feature, built native
-   (dependency-free, mobile). Slice 1 (pure state machine + data model +
-   settings) landed 2026-07-19; Slices 2 (service + command) and 3 (UI) open.
+0. **JSON import/export** — *top priority (Taylor: share tasks with the work
+   AI).* Export shipped 2026-07-19 (pure serializer full/ai modes + two commands,
+   file + clipboard) and the import parser is done + tested; **import→vault
+   creation, subset export, and an import command surface remain** (see BACKLOG).
+1. **Pomodoro (native)** — *in progress (Slices 1–2 done, Slice 3 mostly).*
+   Phase 8 feature, built native (dependency-free, mobile). Functional via
+   commands + a detail-pane control (live MM:SS, pause/skip/stop) with a settings
+   group; logs count + minutes to frontmatter on focus completion. Remaining: the
+   desktop status-bar countdown.
 2. **Graph polish thread** — GP5 header-focus interaction re-tune (`+` add
    subshape shipped; click-to-focus/grow backed out). *Done: GP4 lane tint,
    GP3 project filter, GP8 lane focus, GP7 split Dependency/Timeline views,
@@ -156,6 +162,19 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 notes.
 
 ## Recent Updates (2026-07-19)
+
+- **Autonomous session (feat/pomodoro branch, merged to main).** Landed, all
+  build-green + tests (1298): (1) **Docs reconcile** — removed the backlog/roadmap
+  coverage seam; BACKLOG is now the single all-horizons registry (new `Later`
+  tier), ROADMAP demoted to a dated journal. (2) **Pomodoro (native)** — Slices
+  1–2 (pure state machine + data model + settings + `PomodoroService` + commands,
+  25 tests) and most of Slice 3 (detail-pane control, rig-verified; settings
+  group); logs count+minutes to frontmatter. Only the status-bar countdown
+  remains. (3) **JSON export** shipped (pure serializer full/ai + commands) +
+  **import parser** done/tested (18 tests); import→vault creation held for
+  runtime verification. (4) **Mobile fixes** (tap-to-open, drawer surfacing,
+  detail-pane fit) — rig-verified, **device-unverified** (phone not loading fresh
+  builds — a deploy-pipeline blocker, now a backlog item).
 
 - **P2-8 overdue-red softening closed — badge-only.** The colour-spine work had
   already softened the overdue *badge* from a solid slab to a red tint; this

@@ -371,10 +371,15 @@ tick, a reactive session store, frontmatter writes on focus completion
 end-of-phase `Notice`s. Plus a "Start Pomodoro on task" command, a quick action,
 and a mobile hold-menu entry (Phase 3 quick-action pattern).
 
-**Slice 3 — UI `[ ]`.** Detail-pane control (start/pause/stop, live `MM:SS`, and
-the accumulated count/minutes), a desktop status-bar countdown (N6 surface), and
-a settings section for the durations. Rig-verify list/detail; live-Obsidian and
-on-device sign-off fold into the Visual regression pass.
+**Slice 3 — UI `[~]`.** *Detail-pane control + settings section landed
+2026-07-19.* The detail pane shows a "Start focus timer" button, and — when the
+task owns the running session — a live `MM:SS` + phase with Pause/Resume, Skip,
+Stop, plus the accumulated `Nx · Nm logged`. Rig-verified idle + active
+(accent-tinted running surface, muted on break). A **Pomodoro settings group**
+(focus/short/long minutes, long-break interval, auto-start toggle) is wired.
+**Remaining:** the desktop **status-bar countdown** (N6 surface) so the timer is
+visible while working elsewhere; live-Obsidian sign-off folds into the Visual
+regression pass.
 
 ---
 
