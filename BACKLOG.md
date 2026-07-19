@@ -1,9 +1,18 @@
 # TTasks — Backlog
 
-The single live backlog (consolidated 2026-07-12). Everything open lives here;
-closed sweeps and their full histories are under `Scripts/archive/` (see
-Cross-refs at the bottom). When an item lands, mark it `[x]` with a dated
-one-line note; when this file empties, add a checkpoint to `ROADMAP.md`.
+The single live backlog for **all open work, every horizon** (consolidated
+2026-07-12; all-horizons reconcile 2026-07-19). Everything open lives here —
+near-term threads up top (`Now` / `Next` / `Gated`) and longer-range roadmap
+features under `Later`. Closed sweeps and their full histories are under
+`Scripts/archive/` (see Cross-refs at the bottom). When an item lands, mark it
+`[x]` with a dated one-line note; when a whole thread empties, add a checkpoint
+to `ROADMAP.md`.
+
+`ROADMAP.md` is now a **dated journal + historical phase notes only** — it
+records what shipped, not what's open. Its Phase 5–8 spec sections are kept for
+their detail but are historical: the live open-work registry is *this* file.
+Don't treat an unchecked box in ROADMAP's phase sections as live work — it's
+tracked here under `Later` if it's still wanted.
 
 Dev workflow: completed, verified work is merged into local `main` as we go (no
 review gate while in dev). `main` holds the full Autopilot A–I run + graph polish
@@ -262,6 +271,36 @@ never hardcoded hex/white on user colours) held for the shipped model.
 
 ---
 
+## In progress — Pomodoro (native) `[~]`
+
+*Opened 2026-07-19.* Native focus-timer, chosen over integrating the community
+Pomodoro Timer plugin (Taylor's call) so it's dependency-free and works on
+mobile + desktop. Satisfies the ROADMAP Phase 8 "Pomodoro integration" spec
+(was: link an external plugin's session → log duration → show time-spent) with
+a self-contained implementation. Data model: **count + minutes** in frontmatter.
+
+**Slice 1 — foundation `[x]` (2026-07-19).** Pure state machine
+`src/integration/pomodoro.ts` (focus→short/long-break cadence, tick/remaining,
+pause/resume, phase advance, `MM:SS` format) — Obsidian-free, in the boundary
+test, **16 unit tests**. `pomodoro_count?` + `focused_minutes?` added to the
+`Task` type (optional; reader defaults missing→null), wired through the
+TaskStore reader and `TaskWriter` update field-list. New `PomodoroSettings`
+(focus/short/long minutes, long-break interval, auto-start-next) on
+`TTasksSettings` with defaults + normalize. Build green.
+
+**Slice 2 — service + wiring `[ ]`.** A `PomodoroService` owning the interval
+tick, a reactive session store, frontmatter writes on focus completion
+(`count += 1`, `focused_minutes += focusMinutes` via `TaskWriter.update`), and
+end-of-phase `Notice`s. Plus a "Start Pomodoro on task" command, a quick action,
+and a mobile hold-menu entry (Phase 3 quick-action pattern).
+
+**Slice 3 — UI `[ ]`.** Detail-pane control (start/pause/stop, live `MM:SS`, and
+the accumulated count/minutes), a desktop status-bar countdown (N6 surface), and
+a settings section for the durations. Rig-verify list/detail; live-Obsidian and
+on-device sign-off fold into the Visual regression pass.
+
+---
+
 ## Gated on Taylor (not headless-workable)
 
 - `[x]` **Branch review + merge** — merged `feat/ui-polish-autopilot` (32
@@ -295,24 +334,111 @@ never hardcoded hex/white on user colours) held for the shipped model.
 - `[x]` **GP1 live-mobile sign-off** — *done 2026-07-19.* Taylor ran the
   on-device pass: the graph pops out to fullscreen great. GP1 fully closed.
   (Follow-up: the **detail-drawer issue** below remains, deferred by Taylor.)
-- `[ ]` **GP1-follow: detail drawer opens behind/hidden on mobile** 🔎 —
+- `[~]` **GP1-follow: detail drawer opens behind/hidden on mobile** 🔎 —
   on-device, tapping a node in the popped-out fullscreen graph closes the modal
   but the **detail drawer ends up behind something / off-screen** instead of
-  surfacing (rig can't reproduce — no Obsidian mobile shell). The GP1 design
-  already closes the modal *before* opening the task
-  (`GraphExpandModal` → `onOpenTask` closes then opens) specifically to avoid
-  detail sitting behind the modal, so the current symptom is a *different*
-  failure: likely the detail leaf lands in a collapsed/backgrounded mobile
-  sidebar, or a close→open timing race leaves the board leaf focused. Start:
-  `GraphExpandModal.ts` open-task path + how the detail leaf is revealed on
-  mobile (`app.workspace.revealLeaf` / right-sidebar expand). Deferred by Taylor
-  — solve later.
+  surfacing (rig can't reproduce — no Obsidian mobile shell). **Fix attempted
+  2026-07-19 (device-unverified):** (1) `GraphExpandModal` now defers the
+  open-task hand-off to a `requestAnimationFrame` *after* `close()`, so the
+  modal's history/focus-restore can't land after the drawer reveal; (2)
+  `openDetailPane()` reveals the right leaf with `active: Platform.isMobile` so
+  the mobile drawer surfaces instead of revealing under the board. Both build
+  green; **could not be confirmed on-device** — Taylor's phone was not loading
+  fresh plugin builds this session (a separate deploy/sync-reload problem, see
+  note below). Verify once builds reach the device. `GraphExpandModal.ts`,
+  `main.ts`.
+- `[~]` **Graph node: double-tap-to-open on mobile** 🔎 — *found + fix attempted
+  2026-07-19 (device-unverified).* Tapping a task node in the graph needed two
+  taps to open on iOS. Root cause: the node's hover behaviour (preview + hover
+  `+`) makes WKWebView spend the first tap applying the emulated hover and
+  withhold the `click`. Fix: on **touch**, open from `pointerup` (fires on the
+  first tap regardless), desktop stays on `click`; Android-safe via a 700ms
+  ghost-click guard. Also added an 8px press-vs-drag threshold so a stationary
+  tap no longer starts a pan / captures the pointer. Same device-load blocker as
+  above — verify on-device. `TaskGraph.svelte`.
+- `[~]` **Detail pane doesn't fit the mobile drawer** 🔎 — *fix landed in rig
+  2026-07-19 (device-unverified).* The detail field grid was `label │ control`
+  (two columns), squeezing controls on the narrow drawer. Below 768px it now
+  collapses to one column (label stacked above a full-width control), plus
+  `overflow-x: hidden` on the detail leaf. **Rig-verified** dark + light at phone
+  width; on-device blocked by the same build-load issue. `TaskDetail.svelte`,
+  `styles.css`.
+- `[ ]` **Deploy pipeline: phone not loading fresh plugin builds** 🔎 —
+  *surfaced 2026-07-19.* During the mobile-fix session, verified-correct builds
+  (confirmed in the compiled `main.js` + rig) did **not** take effect on Taylor's
+  phone even after reload attempts — the old bundle kept rendering. This blocks
+  *all* on-device verification. Likely Obsidian Sync not delivering the symlinked
+  plugin's `main.js`/`styles.css`, or the mobile app caching the old JS/CSS past
+  a plugin toggle. Investigate: confirm Sync is set to sync installed plugins,
+  whether it follows the repo symlink, and whether a full app-kill (not just a
+  plugin toggle) is required to reload. Until fixed, mobile items above stay
+  `[~]` unverifiable.
 - `[ ]` **Visual regression pass** — dark/light × desktop/phone sweep per the
   `Scripts/STYLING_NOTES.md` checklist; includes the settings-tab before/after
   from the P7 overhaul (the rig doesn't cover the settings tab — live Obsidian
   check).
 - `[ ]` **GP2 residue** (minor ⚖) — Blocked/Cycle count pills now hide at zero;
   if Taylor prefers them always visible it's a two-line revert.
+
+---
+
+## Later — roadmap features (all horizons)
+
+Longer-range features migrated here from `ROADMAP.md`'s Phase 5–8 + Deferred
+sections (all-horizons reconcile 2026-07-19), so nothing lives *only* in the
+roadmap where a backlog pass can't see it. ROADMAP keeps the detailed specs as
+historical notes; this is the live list. Roughly priority-ordered within each
+group, not committed.
+
+**Phase 8 — Power features**
+
+- `[~]` **Pomodoro** — in progress; see the *In progress* thread above.
+- `[ ]` **Natural language quick capture** — parse `Fix bug #high due:tomorrow
+  @Project blocking:abc123` from palette / status bar / mobile FAB. (Gated on a
+  stable filter engine — Phase 6, now done — so unblocked.)
+- `[ ]` **Capacity-aware Today planner** — "for today" flag independent of due
+  date; suggest top tasks by `estimated_days` vs. available hours; overload
+  warning. Uses `status_changed` (present). May overlap Cycles — design together.
+- `[ ]` **Cycles / Sprints (investigate)** — time-boxed windows; pull tasks into
+  a cycle, track velocity. Evaluate with the Capacity planner.
+- `[ ]` **Obsidian ecosystem compatibility** — daily-note integration (surface
+  today's due/started), Tasks-plugin `- [ ]` render, Dataview/Datacore schema
+  compat, Templater hooks. **Note:** the Templater-hooks / "expose API" piece is
+  the same work as the gated **N3 public API** item above — dedupe when N3 lands.
+- `[ ]` **Markdown code-block processor** — ```` ```ttasks filter:… ```` embeds
+  a live task list in any note. High value if the plugin is ever published.
+
+**Phase 7 — Data-model expansion**
+
+- `[ ]` **Activity log on tasks** — timestamped append-only log in the note body;
+  auto-entries for status/creation/completion/recurrence; manual comments;
+  renders as a detail-panel timeline. (Pomodoro session logging is a first
+  consumer — consider building the shared log here.)
+- `[ ]` **Milestones within projects** — zero-effort dated task that gates
+  downstream deps; diamond node in the graph; markers on the timeline.
+- `[ ]` **Icon/emoji field** for statuses/areas/labels — separate `icon` from
+  `label` so compact views can be icon-only (interim: emoji in the name works).
+- `[ ]` **Eisenhower Matrix view** — 2×2 Important × Urgent; urgent from
+  due-proximity, important from priority.
+- `[ ]` **Sections within projects** — sub-grouping (`Design`/`Dev`/`QA`);
+  investigate a `section` field vs. lightweight `parent_task` grouping.
+
+**Phase 5 residue — small, still-open**
+
+- `[ ]` **Kanban drag-to-reorder within a column** (priority ordering) — no code
+  for it yet; the rest of the Phase 5 kanban overhaul shipped.
+- `[ ]` **Card density toggle** (compact vs. detailed) — the per-card *field* set
+  shipped (`kanbanCardFields`); a density toggle did not.
+
+**Deferred / investigate later** (parked, needs a design or a precondition)
+
+- `[ ]` **Evening review modal** (GTD clarify) — needs the Capacity planner first.
+- `[ ]` **Workload view** — needs a real multi-user `assigned_to` story.
+- `[ ]` **Habit tracking** — arguably its own plugin; revisit post-core.
+- `[ ]` **CodeMirror embed / true Live Preview in detail** — deferred (mobile
+  keyboard risk).
+- `[ ]` **Mobile authoring toolbar** — floating row above the keyboard; deferred
+  (WKWebView complexity).
 
 ---
 

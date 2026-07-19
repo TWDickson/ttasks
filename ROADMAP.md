@@ -1,8 +1,38 @@
 # TTasks Roadmap
 
-This file is the implementation backlog checkpoint for the current phase plan.
+This file is a **dated journal of what shipped** plus historical phase notes.
+It is *not* the live open-work registry — that is `BACKLOG.md` (all horizons:
+`Now` / `Next` / `Gated` / `Later`). The Phase 5–8 spec sections below are kept
+for their detail but are historical; an unchecked box there is **not** live work
+(it lives in BACKLOG's `Later` if still wanted). See the reconcile note dated
+2026-07-19 below.
 
 ---
+
+## Docs reconcile — BACKLOG is now all-horizons (2026-07-19)
+
+**Removed the backlog/roadmap coverage seam.** BACKLOG.md previously held only
+near-term threads (graph polish, colour, gated items) while the longer-range
+Phase 5–8 + Deferred features lived only here — invisible to a "work the
+backlog" pass (which is how the Pomodoro ask went unpicked-up). Fix: migrated
+every still-open forward-looking feature into a new **`Later`** section of
+BACKLOG.md (Phase 7/8, Phase 5 residue, Deferred), so nothing lives only in the
+roadmap. This file is demoted to a dated journal + historical phase notes; its
+Phase 5–8 sections carry a banner and keep their specs but no longer act as a
+competing live list. CLAUDE.md's "single live backlog" description updated to
+match. No code change.
+
+## Pomodoro — native, Slice 1 (2026-07-19)
+
+**Opened the Phase 8 Pomodoro feature as a native build** (Taylor's call, over
+integrating the community Pomodoro Timer plugin — dependency-free + mobile).
+Slice 1 (foundation) landed: pure state machine `src/integration/pomodoro.ts`
+(focus→short/long-break cadence, tick, pause/resume, phase advance, `MM:SS`;
+Obsidian-free, in the boundary test, 16 tests), `pomodoro_count?` +
+`focused_minutes?` on the `Task` type wired through reader + `TaskWriter`, and
+`PomodoroSettings` (durations, long-break interval, auto-start) with defaults +
+normalize. Slices 2 (service + command wiring) and 3 (detail/status-bar UI +
+settings section) tracked in BACKLOG. Build green.
 
 ## P2-8 checkpoint — overdue-red softening, badge-only (2026-07-19)
 
@@ -530,6 +560,24 @@ Phase 4B complete. TDD throughout — all features built red→green. 244 passin
 - TDD: duplication logic isolated and tested before wiring UI
 
 ---
+
+## Phase 5–8 + Deferred — historical planning specs
+
+> ⚠️ **These sections are historical planning notes, not a live list.** The
+> live open-work registry is `BACKLOG.md`. Most of Phase 5/6/7 has **shipped**
+> (see the dated checkpoints above and CLAUDE.md's phase list); the genuinely
+> still-open items were migrated to BACKLOG's `Later` section on 2026-07-19.
+> Kept here for the detailed specs only — cross-check BACKLOG before treating
+> any unchecked box below as open work.
+>
+> **Shipped since these were written:** Phase 5 (kanban overhaul, customizable
+> card fields, style overhaul, context menu, convert-to-project, hierarchical
+> list, open-in-editor title, logbook + auto-archive, settings reorg — *except*
+> kanban drag-to-reorder and a card-density toggle, now in BACKLOG `Later`);
+> Phase 6 (data model + query/views + Smart Lists) in full; Phase 7 (archive
+> infra, `area` field). Still open → BACKLOG `Later`: Phase 7 activity log /
+> milestones / icon field / Eisenhower / sections; all of Phase 8; the Deferred
+> list.
 
 ## Phase 5 — UX Hardening
 

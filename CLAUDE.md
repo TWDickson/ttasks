@@ -120,20 +120,31 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 
 ## Current Priorities
 
-**The single live backlog is `BACKLOG.md`** (consolidated 2026-07-12). Open:
+**The single live backlog is `BACKLOG.md`** — now **all-horizons** (all-horizons
+reconcile 2026-07-19; originally consolidated 2026-07-12). It holds every open
+item: near-term threads (`Now` / `Next` / `Gated`) *and* longer-range roadmap
+features (`Later`, migrated from ROADMAP Phase 5–8 + Deferred). `ROADMAP.md` is
+now a **dated journal + historical phase notes only** — not a live registry;
+don't treat an unchecked box in its phase sections as open work. Open:
 
-1. **Graph polish thread** — GP5 header-focus interaction re-tune (`+` add
+1. **Pomodoro (native)** — *in progress.* Phase 8 feature, built native
+   (dependency-free, mobile). Slice 1 (pure state machine + data model +
+   settings) landed 2026-07-19; Slices 2 (service + command) and 3 (UI) open.
+2. **Graph polish thread** — GP5 header-focus interaction re-tune (`+` add
    subshape shipped; click-to-focus/grow backed out). *Done: GP4 lane tint,
    GP3 project filter, GP8 lane focus, GP7 split Dependency/Timeline views,
-   GP1 fullscreen expand modal (rig-verified; live-iOS sign-off pending).*
-2. ~~**Colour-model workshop**~~ — **done 2026-07-19**: Taylor picked the
+   GP1 fullscreen expand modal.*
+3. ~~**Colour-model workshop**~~ — **done 2026-07-19**: Taylor picked the
    **V2 colour-spine** model (area colour → card/row left edge, monochrome
    badges, softened date tints). Live-Obsidian sign-off folds into the visual
    regression pass.
-3. **Gated on Taylor** — branch review/merge of `feat/ui-polish-autopilot`,
-   N3 API review (then implement), C2-F2 whitespace call, N7 Bases (live
-   vault), dark/light × desktop/phone visual regression pass. *Done: P2-8
-   overdue-red softening (badge-only, 2026-07-19).*
+4. **Mobile fixes (device-unverified)** — tap-to-open double-tap, detail-drawer
+   surfacing, and detail-pane-fit fixes landed rig-side 2026-07-19 but **could
+   not be confirmed on-device**: Taylor's phone stopped loading fresh plugin
+   builds (a deploy/sync-reload blocker, now its own backlog item).
+5. **Gated on Taylor** — N3 API review (then implement), C2-F2 whitespace call,
+   N7 Bases (live vault), dark/light × desktop/phone visual regression pass.
+   *Done: P2-8 overdue softening; branch merge of `feat/ui-polish-autopilot`.*
 
 All prior sweeps are closed (AUDIT Sweep 2, DESIGN_AUDIT P0–P2, BUGFIX #1–13,
 NATIVE N1–N6, UI_POLISH P1–P7 + C1 + C2, Autopilot batches A–I, graph GP2/GP6).
