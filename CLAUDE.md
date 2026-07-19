@@ -127,10 +127,16 @@ features (`Later`, migrated from ROADMAP Phase 5–8 + Deferred). `ROADMAP.md` i
 now a **dated journal + historical phase notes only** — not a live registry;
 don't treat an unchecked box in its phase sections as open work. Open:
 
-0. **JSON import/export** — *top priority (Taylor: share tasks with the work
-   AI).* Export shipped 2026-07-19 (pure serializer full/ai modes + two commands,
-   file + clipboard) and the import parser is done + tested; **import→vault
-   creation, subset export, and an import command surface remain** (see BACKLOG).
+0. ~~**JSON import/export**~~ — **done 2026-07-19.** Full round-trip for the
+   work-AI workflow: a **Share / Sync** rail entry + command opens a modal with an
+   **Export** tab (mode AI/full + filter by area/project/status/label + include-
+   completed, live count, copy/save) and an **Import** tab (paste → preview
+   **bulk-edit summary** → apply: matched tasks updated field-by-field, new tasks
+   created). Pure modules `taskExportFilter.ts` + `taskImportPlan.ts` (+ existing
+   export serializer / import parser). Limits: import doesn't touch relationships
+   or note bodies, and only sets/changes fields (never clears from an omitted
+   value). Live-Obsidian sign-off owed for the Apply write path (rig can't write
+   the vault). Commits `dd28d52` (C1 export) + `c025309` (C2 import).
 1. **Pomodoro (native)** — *in progress; expanded 2026-07-19.* Phase 8 feature,
    built native (dependency-free, mobile). Now: untethered sessions (no task);
    **CSV session log** (`ttasks-pomodoro-log.csv`, append-only) alongside the
@@ -166,6 +172,22 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 notes.
 
 ## Recent Updates (2026-07-19)
+
+- **JSON import/export shipped — Share/Sync (2 slices, on `main`).** From Taylor's
+  note (feed work-isolated AIs, paste back a bulk-edit summary): a **Share / Sync**
+  rail entry + `share-sync` command opens `ShareSyncModal` (Export/Import tabs).
+  **Export** — mode toggle (AI/full) + toggle-chip filters (area/project/status/
+  label) + include-completed, live "N of M" count, copy-to-clipboard or save-file;
+  pure `taskExportFilter.ts` (`filterTasksForExport`/`collectProjectFacets`/
+  `linkTargetPath`, 10 tests); `main.exportTasksToJson` refactored to shared
+  `exportTasksToJsonFrom(tasks, mode)`. **Import** — paste → preview → apply; pure
+  `taskImportPlan.ts` (`planImport`/`changesToPatch`/`summarizeImportPlan`, 9
+  tests) matches by (type, ci-name): new→create, matched-changed→update,
+  identical→unchanged, dup-name→ambiguous/skip; only set/change (never clear),
+  relationships + note body untouched; `main.applyImportPlan` +
+  `buildCreateInputFromParsed`. Rig gained `?share=1`; export filters + import
+  summary rig-verified. Commits `dd28d52` (C1), `c025309` (C2). Apply write-path
+  needs live-Obsidian sign-off.
 
 - **Pomodoro expansion (3 slices, on `main`).** From Taylor's notes: (A) Pomodoro
   runs **untethered** — `taskPath`/`taskName` now nullable through the pure timer

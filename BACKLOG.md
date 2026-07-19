@@ -24,9 +24,31 @@ taste/UX call from Taylor · 🔎 needs research first.
 
 ---
 
-## Top priority — JSON import / export `[~]`
+## Done — JSON import / export (Share / Sync) `[x]`
 
-*Requested 2026-07-19 (Taylor): "share my tasks (or a subset) with the work AI."*
+*Requested 2026-07-19 (Taylor): "share my tasks (or a subset) with the work AI,
+paste the response back and see a bulk-edit summary." **Delivered 2026-07-19.***
+
+**Share / Sync (C1 export `dd28d52`, C2 import `c025309`).** A rail entry +
+`share-sync` command opens `ShareSyncModal` with **Export** and **Import** tabs.
+- `[x]` **Filtered export (subset)** — mode toggle (AI/full) + toggle-chip
+  filters (area / project / status / label) + include-completed, live "N of M
+  selected" count, Copy-to-clipboard or Save-.json-file. Pure
+  `taskExportFilter.ts` (`filterTasksForExport`/`collectProjectFacets`/
+  `linkTargetPath`, 10 tests). `main.exportTasksToJson` refactored to shared
+  `exportTasksToJsonFrom(tasks, mode)`.
+- `[x]` **Import → vault + bulk-edit summary** — paste an exported/AI-edited doc,
+  Preview the summary, Apply. Pure `taskImportPlan.ts` (`planImport`/
+  `changesToPatch`/`summarizeImportPlan`, 9 tests) matches by (type, ci-name):
+  new→create, matched-changed→update (field-by-field), identical→unchanged,
+  dup-name→ambiguous/skip. `main.applyImportPlan` + `buildCreateInputFromParsed`.
+  **Limits (by design):** only set/change (never clear from an omitted value);
+  relationships (parent/`depends_on`) + note body are not diffed/imported.
+- **Owed:** live-Obsidian sign-off for the Apply write path (rig can't write the
+  vault). Future (deferred, not blocking): relationship remap on import-create;
+  an import-from-clipboard command surface.
+
+**Historical detail (superseded by the above):**
 
 **Shipped 2026-07-19 (export half + import parser):**
 - `[x]` **Pure serializer** `src/integration/taskJsonExport.ts` — versioned doc
@@ -44,17 +66,14 @@ taste/UX call from Taylor · 🔎 needs research first.
   `parent`/`parent_task`). 12 tests incl. a full-mode round-trip. **Ready to
   wire.**
 
-**Remaining (next session):**
-- `[ ]` **Import → vault creation** — wire the parser to `TaskStore.create`
-  behind an **ImportConfirmModal** preview (reuse the I5 bulk-import pattern):
-  dedupe, ID-collision-safe, and **relationship remap** (parent/`depends_on`
-  given as names or paths → resolve against existing + newly-created tasks by
-  name). *Held tonight on purpose — it mutates the live vault and needs runtime
-  verification, not a blind autonomous run.*
-- `[ ]` **Subset export** — right now export is all-tasks. Add subset via the
-  shared query engine (export the current view's / a Smart List's filtered set),
-  so "export just these" is one action. Serializer already takes any `Task[]`.
-- `[ ]` **Import command surface** — from clipboard and/or a picked `.json`.
+**Remaining (from that session) — now resolved by C1/C2 above:**
+- `[x]` **Import → vault creation** — done via the Share/Sync Import tab
+  (`planImport` + `applyImportPlan`). Landed *without* relationship remap
+  (parent/`depends_on` not imported — deferred, see limits above).
+- `[x]` **Subset export** — done via the Export tab's area/project/status/label
+  filters (`filterTasksForExport`).
+- `[ ]` **Import command surface** *(deferred)* — a direct import-from-clipboard
+  command (today import is the modal's Import tab).
 
 **Grounding.** Reuse: shared query engine (`src/query/`), `TaskStore.create`
 (collision-safe, relationship-safe), `promoteTaskToTTasks`/ImportConfirmModal
