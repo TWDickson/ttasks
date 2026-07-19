@@ -143,9 +143,10 @@ don't treat an unchecked box in its phase sections as open work. Open:
    per-task count/minutes rollup; **"focus until X:XX"** (pure planner fills whole
    cycles + a shortened final focus so nothing runs past the target) via a modal +
    command + detail-pane button; a **dedicated Pomodoro pane** (own right-sidebar
-   leaf, big dial). Remaining: desktop **status-bar countdown**; optional
-   log-partial-on-stop. Live-Obsidian sign-off owed for the CSV write + the two
-   Obsidian modals + the pane leaf (rig can't host Obsidian modals/leaves).
+   leaf, big dial); a desktop **status-bar countdown** (timer icon + live MM:SS,
+   click-to-toggle, hidden when idle). Remaining: optional log-partial-on-stop.
+   Live-Obsidian sign-off owed for the CSV write + the two Obsidian modals + the
+   pane leaf + the status-bar item (rig can't host Obsidian modals/leaves/bar).
 2. **Graph polish thread** — GP5 header-focus interaction re-tune (`+` add
    subshape shipped; click-to-focus/grow backed out). *Done: GP4 lane tint,
    GP3 project filter, GP8 lane focus, GP7 split Dependency/Timeline views,
@@ -172,6 +173,18 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 notes.
 
 ## Recent Updates (2026-07-19)
+
+- **Pomodoro status-bar countdown shipped (on `main`).** Closes the last core
+  Pomodoro slice: a desktop-only status-bar item (`Platform.isMobile` guard, like
+  N6) shows a `timer` icon + live `MM:SS` while a session runs, hidden when idle.
+  Driven by subscribing to `pomodoroService.session` (already ticks 1/s — no
+  second interval); break phases tint green, paused dims to 0.6 (matches the pane
+  dial). Click toggles pause/resume; tooltip carries phase · remaining · task ·
+  hint. Pure `pomodoroStatusBar.ts` (`pomodoroStatusBarView`, 8 tests, boundary-
+  listed); `main.initializePomodoroStatusBar`/`updatePomodoroStatusBar`; CSS
+  `.ttasks-pomo-statusbar` (+`.is-break`/`.is-paused`). Rig `?pomostatus=1` scene
+  renders all five states — verified dark + light. Build green. Remaining Pomodoro
+  work: optional log-partial-on-stop + the live-Obsidian sign-off bundle.
 
 - **JSON import/export shipped — Share/Sync (2 slices, on `main`).** From Taylor's
   note (feed work-isolated AIs, paste back a bulk-edit summary): a **Share / Sync**

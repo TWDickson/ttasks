@@ -1,4 +1,4 @@
-import { Menu, Notice, Platform, Plugin, setTooltip, TFile } from 'obsidian';
+import { Menu, Notice, Platform, Plugin, setIcon, setTooltip, TFile } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import {
 	type QuickActionId,
@@ -31,6 +31,7 @@ import { resolveQuickAction } from './integration/quickActions';
 import { ArchiveService } from './store/ArchiveService';
 import { type CompletedFocus, PomodoroService } from './store/PomodoroService';
 import { type PomodoroLogEntry, formatLogRow, formatNewLogFile } from './integration/pomodoroLog';
+import { pomodoroStatusBarView } from './integration/pomodoroStatusBar';
 import { type TaskJsonMode, serializeTasksToJson } from './integration/taskJsonExport';
 import { dispatchProtocolAction, parseProtocolAction } from './integration/protocol';
 import { buildStatusSummary } from './integration/statusSummary';
@@ -64,6 +65,8 @@ export default class TTasksPlugin extends Plugin {
 	/** Shared UI state for the board, rail, and detail leaves. */
 	boardState!: BoardStateStores;
 	private statusBarEl: HTMLElement | null = null;
+	private pomodoroStatusBarEl: HTMLElement | null = null;
+	private pomodoroStatusBarTextEl: HTMLElement | null = null;
 	private isApplyingExternalSettings = false;
 	private reminderStartTimeoutId: number | null = null;
 
@@ -298,6 +301,7 @@ export default class TTasksPlugin extends Plugin {
 		this.registerProtocolHandler();
 		this.registerNativeContextMenus();
 		this.initializeStatusBar();
+		this.initializePomodoroStatusBar();
 
 		this.reminderService = new ReminderService(this);
 		this.scanEngine.onload(this, this.app);
@@ -868,6 +872,38 @@ export default class TTasksPlugin extends Plugin {
 		this.statusBarEl.toggleClass('ttasks-statusbar-warning', summary.overdue > 0);
 		this.statusBarEl.setText(summary.label);
 		setTooltip(this.statusBarEl, summary.tooltip, { placement: 'top' });
+	}
+
+	/**
+	 * Desktop-only Pomodoro countdown in the status bar so the running timer stays
+	 * visible while working elsewhere. Hidden when idle; click toggles pause/resume.
+	 * The session store already ticks once a second, so subscribing keeps the
+	 * readout live without a second interval.
+	 */
+	private initializePomodoroStatusBar(): void {
+		if (Platform.isMobile) return;
+		this.pomodoroStatusBarEl = this.addStatusBarItem();
+		this.pomodoroStatusBarEl.addClass('ttasks-pomo-statusbar');
+		const iconEl = this.pomodoroStatusBarEl.createSpan({ cls: 'ttasks-pomo-statusbar-icon' });
+		setIcon(iconEl, 'timer');
+		this.pomodoroStatusBarTextEl = this.pomodoroStatusBarEl.createSpan({ cls: 'ttasks-pomo-statusbar-text' });
+		this.pomodoroStatusBarEl.addEventListener('click', () => {
+			if (this.pomodoroService.isActive()) this.pomodoroService.toggle();
+		});
+
+		const unsubscribe = this.pomodoroService.session.subscribe(() => this.updatePomodoroStatusBar());
+		this.register(() => unsubscribe());
+	}
+
+	private updatePomodoroStatusBar(): void {
+		if (!this.pomodoroStatusBarEl || !this.pomodoroStatusBarTextEl) return;
+		const view = pomodoroStatusBarView(get(this.pomodoroService.session));
+		this.pomodoroStatusBarEl.toggleClass('ttasks-statusbar-hidden', view === null);
+		if (!view) return;
+		this.pomodoroStatusBarTextEl.setText(view.text);
+		this.pomodoroStatusBarEl.toggleClass('is-break', view.mode !== 'focus');
+		this.pomodoroStatusBarEl.toggleClass('is-paused', !view.running);
+		setTooltip(this.pomodoroStatusBarEl, view.tooltip, { placement: 'top' });
 	}
 
 	async runQuickAction(action: QuickActionId, path?: string, options?: { showNotice?: boolean }): Promise<boolean> {

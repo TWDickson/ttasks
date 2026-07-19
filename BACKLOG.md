@@ -423,10 +423,20 @@ component-tested) in `PomodoroView.ts` (`ttasks-pomodoro`, right sidebar, icon
 `timer`); "Open Pomodoro pane" command. Untethered from here; a task's detail
 pane still starts a tethered session. Rig `?pomo=idle|active` scene verified.
 
-**Remaining:** the desktop **status-bar countdown** (N6 surface) so the timer is
-visible while working elsewhere; optional log-partial-on-stop; live-Obsidian
-sign-off for the CSV write + the two Obsidian modals + the pane leaf (rig can't
-host Obsidian modals/leaves) — folds into the Visual regression pass.
+**Slice C — desktop status-bar countdown `[x]` (2026-07-19).** A second
+status-bar item (desktop only — `Platform.isMobile` guard, like N6) shows a
+`timer` icon + live `MM:SS` while a session runs, hidden when idle. Driven by
+subscribing to `pomodoroService.session` (already ticks 1/s — no second
+interval); break phases tint green and paused dims (0.6), matching the pane
+dial. Click toggles pause/resume; the tooltip carries phase · remaining · task ·
+the click hint. Pure `pomodoroStatusBar.ts` (`pomodoroStatusBarView`, 8 tests,
+in the boundary list); main.ts adds `initializePomodoroStatusBar` +
+`updatePomodoroStatusBar`. Rig `?pomostatus=1` scene renders all five states
+(focus/break/paused/final/untethered) — verified dark + light. Build green.
+
+**Remaining:** optional log-partial-on-stop; live-Obsidian sign-off for the CSV
+write + the two Obsidian modals + the pane leaf + this status-bar item (rig can't
+host the real Obsidian status bar) — folds into the Visual regression pass.
 
 ---
 

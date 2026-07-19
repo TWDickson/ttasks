@@ -1872,3 +1872,30 @@
 .ttasks-statusbar-hidden {
 	display: none;
 }
+
+/* ── Pomodoro countdown status-bar item ──────────────────────────────────── */
+
+.ttasks-pomo-statusbar {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-1, 4px);
+	cursor: pointer;
+}
+
+.ttasks-pomo-statusbar .ttasks-pomo-statusbar-icon {
+	display: inline-flex;
+	align-items: center;
+}
+
+.ttasks-pomo-statusbar .ttasks-pomo-statusbar-text {
+	font-variant-numeric: tabular-nums;
+}
+
+/* Break phases read green (matches the pane dial); paused dims. Tokens only. */
+.ttasks-pomo-statusbar.is-break {
+	color: var(--color-green, var(--text-accent));
+}
+
+.ttasks-pomo-statusbar.is-paused {
+	opacity: 0.6;
+}

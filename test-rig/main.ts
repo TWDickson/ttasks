@@ -14,6 +14,9 @@ import TaskBoard from '../src/components/TaskBoard.svelte';
 import TaskRail from '../src/components/TaskRail.svelte';
 import TaskDetail from '../src/components/TaskDetail.svelte';
 import PomodoroPane from '../src/components/PomodoroPane.svelte';
+import { setIcon } from './obsidian-shim';
+import { pomodoroStatusBarView } from '../src/integration/pomodoroStatusBar';
+import type { PomodoroSession } from '../src/integration/pomodoro';
 import { CreateTaskModal } from '../src/modals/CreateTaskModal';
 import { FocusUntilModal } from '../src/modals/FocusUntilModal';
 import { ShareSyncModal } from '../src/modals/ShareSyncModal';
@@ -115,6 +118,52 @@ if (pomoScene) {
 			onOpenTask: (p: string) => console.info('[rig] openTask', p),
 		},
 	});
+	document.body.dataset.rigReady = '1';
+} else if (params.get('pomostatus')) {
+	// ── Pomodoro status-bar scene ────────────────────────────────────────────
+	// ?pomostatus=1 renders the desktop status-bar countdown across its states
+	// (focus / break / paused / untethered) so the CSS can be eyeballed — the
+	// real Obsidian status bar can't be hosted in the rig.
+	const bar = root.createDiv({ cls: 'rig-stage' });
+	bar.style.padding = '24px';
+	bar.style.display = 'flex';
+	bar.style.flexDirection = 'column';
+	bar.style.gap = '16px';
+
+	const base: PomodoroSession = {
+		taskPath: 'tasks/a.md', taskName: 'Draft the Q3 report', mode: 'focus',
+		durationSec: 1500, remainingSec: 754, running: true, completedFocus: 0,
+		targetEndMs: null, isFill: false,
+	};
+	const states: Array<[string, PomodoroSession]> = [
+		['focus (running)', base],
+		['short break', { ...base, mode: 'short-break', remainingSec: 296 }],
+		['paused', { ...base, running: false, remainingSec: 61 }],
+		['final fill', { ...base, isFill: true, remainingSec: 128 }],
+		['untethered', { ...base, taskPath: null, taskName: null, remainingSec: 45 }],
+	];
+	for (const [caption, session] of states) {
+		const view = pomodoroStatusBarView(session);
+		if (!view) continue;
+		const row = bar.createDiv();
+		row.style.display = 'flex';
+		row.style.alignItems = 'center';
+		row.style.gap = '16px';
+		const label = row.createSpan({ text: caption });
+		label.style.width = '140px';
+		label.style.color = 'var(--text-muted)';
+		// Mimic the status-bar container so themed status-bar styling applies.
+		const statusBar = row.createDiv({ cls: 'status-bar' });
+		statusBar.style.position = 'static';
+		const item = statusBar.createDiv({ cls: 'status-bar-item ttasks-pomo-statusbar' });
+		item.toggleClass('is-break', view.mode !== 'focus');
+		item.toggleClass('is-paused', !view.running);
+		setIcon(item.createSpan({ cls: 'ttasks-pomo-statusbar-icon' }), 'timer');
+		item.createSpan({ cls: 'ttasks-pomo-statusbar-text', text: view.text });
+		const tip = row.createSpan({ text: view.tooltip.replace(/\n/g, '  ·  ') });
+		tip.style.color = 'var(--text-faint)';
+		tip.style.fontSize = 'var(--font-ui-smaller)';
+	}
 	document.body.dataset.rigReady = '1';
 } else {
 
