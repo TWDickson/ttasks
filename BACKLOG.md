@@ -101,24 +101,32 @@ header-tap only). GP5's remaining scope below is now just: **grow** the focused
 lane to show its full title, and **move click-to-add** off the header tap onto a
 dedicated `+` subshape.
 
-### GP5 — Lane-header focus interaction + add-button restructure `[x]`
+### GP5 — Lane-header focus interaction + add-button restructure `[~]`
 
-*Landed 2026-07-18.* The lane header is now two subshapes of one chip: a **label
-body** (tap → pin/unpin lane focus, a toggle) and a **`+` footer** flush to the
-chip's bottom edge (tap → add a task parented to the project), divided by a
-hairline so they read as a single card. Header tap no longer creates a task —
-that moved entirely to the `+`. A **pinned** lane **grows in height** so its full
-title is readable, keeping the label **vertical** (Taylor's call — an earlier
-horizontal-expand rev was rejected): the rotated label un-clamps to its natural
-length and the chip switches to block flow + `height:auto` so it contains the
-full vertical text (a flex column mis-measures a vertical-writing-mode child's
-block size, which capped the grow — block flow fixes it). Grow is pin-only; hover
-still gives the transient GP8 spotlight without growing. Empty-canvas press / Esc
-/ re-tap all clear the pin. The `+` footer gets a ≥44px coarse-pointer hit area.
-Verified dark/light/mobile in the rig. `TaskGraph.svelte` only.
+*Partly landed 2026-07-18.* The **`+` add-button restructure shipped** and is
+kept: the lane header is now one chip with the label body on top and a **`+`
+footer** flush to the chip's bottom edge (tap → add a task parented to the
+project), divided by a hairline so they read as a single card. Add-task moved
+entirely off the header body onto that `+`. The `+` footer has a ≥44px
+coarse-pointer hit area.
 
-**Note (2026-07-18).** The focus/dim half was covered by GP8 (hover spotlight +
-pin); this closed the remaining grow + add-button-restructure scope.
+**Click-to-focus on the header body is disabled for now** (Taylor: "not that
+nice feeling right now… come back and tune later"). A first rev made the header
+body a pin toggle and grew the pinned lane in height to reveal its full vertical
+title (block-flow + `height:auto`, since a flex column mis-measures a
+vertical-writing-mode child's block size). Both the header pin-toggle and the
+grow were **backed out**; the header body is a plain, non-interactive label
+again. Lane focus still comes from **hover** (GP8 spotlight) and **clicking a
+task** (pins the lane's tint/dim); only the `+` is clickable on the chip.
+
+**Still open (deferred):** a nicer header-focus interaction + the
+grow-to-full-title reveal — to be re-tuned later. The full-title reveal on hover
+is currently the pre-GP5 marquee. `TaskGraph.svelte` only; build green, 1261
+tests, verified dark/light/mobile in the rig.
+
+**Note (2026-07-18).** The focus/dim half is covered by GP8 (hover spotlight +
+task-click pin). Remaining GP5: a header-focus affordance that feels good + the
+full-title grow reveal.
 
 **Problem.** Two behaviours are currently fused onto the header: it's the
 add-task target (`TaskGraph.svelte:551` region) and there's no focus mode.

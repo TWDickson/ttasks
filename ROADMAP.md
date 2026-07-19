@@ -7,14 +7,16 @@ This file is the implementation backlog checkpoint for the current phase plan.
 ## Graph polish checkpoint (2026-07-18)
 
 Graph-polish thread progress: **GP3** (project filter), **GP4** (swim-lane
-tint), **GP8** (lane focus: hover spotlight + pin), and **GP5** (lane-header
-focus/dim via GP8 + grow-in-height-on-pin + `+` add-subshape restructure) are
-landed. The header is now one chip with two subshapes — label body (tap → pin
-focus) and a `+` footer (tap → add task); a pinned lane grows taller to reveal
-its full vertical title. Remaining in the thread: **GP7** (split Dependency /
-Timeline into separate views) and **GP1** (mobile pop-out, research-first).
-Validation: production build clean; **1261 tests** passing; dark/light/mobile
-verified in the rig.
+tint), and **GP8** (lane focus: hover spotlight + task-click pin) are landed.
+**GP5** is **partly** landed: the `+` add-subshape restructure shipped — the lane
+header is one chip with the label body on top and a `+` footer (tap → add a task
+to the project). The header **click-to-focus + grow-in-height-on-pin** rev was
+tried and **backed out** (Taylor: header click "not that nice… tune later"), so
+the header body is a plain label again; lane focus stays on hover + task-click.
+Remaining GP5: a nicer header-focus affordance + the full-title grow reveal.
+Also open in the thread: **GP7** (split Dependency / Timeline into separate
+views) and **GP1** (mobile pop-out, research-first). Validation: production build
+clean; **1261 tests** passing; dark/light/mobile verified in the rig.
 
 ---
 

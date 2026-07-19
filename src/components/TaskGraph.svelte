@@ -746,13 +746,6 @@
 		}).open();
 	}
 
-	// GP5: tapping a lane header pins/unpins focus on that lane (a toggle) rather
-	// than adding a task — add moved to the dedicated `+` subshape below. Pinning a
-	// new lane replaces any existing pin; tapping the pinned lane again clears it.
-	function toggleLaneFocus(laneKey: string): void {
-		pinnedLaneKey = pinnedLaneKey === laneKey ? null : laneKey;
-	}
-
 	// Clicking a project's lane header creates a new task already parented to it,
 	// and holds focus on that lane so the new card lands in a focused lane.
 	function createTaskInProject(projectPath: string): void {
@@ -1084,28 +1077,20 @@
 						<div class="tt-dependency-lanes" style={`--tt-dependency-lane-width:${dependencyLaneWidth}px;transform:translateX(${dependencyLaneStickyOffset}px);`}>
 							{#each dependencyLaneHeaders as lane (lane.key)}
 								{#if isProjectLaneHeader(lane)}
-									{@const pinned = pinnedLaneKey === lane.key}
-									<!-- GP5: chip is now a container of two subshapes — the label body
-									     (tap → focus/pin the lane) and a `+` at the bottom (tap → add a
-									     task to the project). They share the chip's border/tint so they
-									     read as one shape. Grows to show the full title while pinned. -->
+									<!-- GP5: the chip's label body is a plain (non-interactive) label —
+									     the click-to-focus-the-lane interaction was disabled for now; only
+									     the `+` footer below is clickable (adds a task to the project).
+									     Lane focus still comes from hover (GP8) and clicking a task. -->
 									<div
 										class={`${getLaneHeaderClass(lane)} is-clickable ${laneStateClass(laneStates.get(lane.key) ?? '')}`}
-										class:is-lane-pinned={pinned}
 										style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
 									>
-										<button
-											type="button"
-											class="tt-dependency-lane-focus"
-											aria-pressed={pinned}
-											aria-label={`Focus ${lane.label} lane`}
-											on:click={() => toggleLaneFocus(lane.key)}
-										>
+										<div class="tt-dependency-lane-focus">
 											<span class="tt-dependency-lane-label">
 												<span class="tt-dependency-lane-label-run" use:marqueeLabel={lane.label}>{lane.label}</span>
 											</span>
 											<span class="tt-dependency-lane-count">{lane.taskCount}</span>
-										</button>
+										</div>
 										<button
 											type="button"
 											class="tt-dependency-lane-add-btn"
@@ -2177,8 +2162,7 @@
 		mask-image: linear-gradient(to bottom, #000 82%, transparent);
 	}
 
-	.tt-dependency-lane-header.is-clickable:not(.is-lane-pinned):hover .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run,
-	.tt-dependency-lane-header.is-clickable:not(.is-lane-pinned):focus-within .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run {
+	.tt-dependency-lane-header.is-clickable:hover .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run {
 		animation: tt-lane-marquee var(--tt-marquee-dur, 3.5s) ease-in-out infinite;
 	}
 
@@ -2189,8 +2173,7 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.tt-dependency-lane-header.is-clickable:not(.is-lane-pinned):hover .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run,
-		.tt-dependency-lane-header.is-clickable:not(.is-lane-pinned):focus-within .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run {
+		.tt-dependency-lane-header.is-clickable:hover .tt-dependency-lane-label.is-truncated .tt-dependency-lane-label-run {
 			animation: none;
 		}
 	}
@@ -2268,7 +2251,8 @@
 
 	/* Label body — fills the chip above the `+` footer, laying out the label +
 	   count exactly as the old single-button chip did (inherits the header's
-	   cross-axis alignment so compact chips stay centred). */
+	   cross-axis alignment so compact chips stay centred). Non-interactive: the
+	   click-to-focus interaction is disabled for now; only the `+` footer clicks. */
 	.tt-dependency-lane-focus {
 		flex: 1 1 auto;
 		min-height: 0;
@@ -2279,25 +2263,11 @@
 		justify-content: flex-start;
 		gap: 6px;
 		padding: 8px 5px 4px 8px;
-		margin: 0;
-		background: none;
-		border: none;
-		box-shadow: none;
-		font: inherit;
-		text-align: inherit;
-		color: inherit;
-		cursor: pointer;
 	}
 
 	.tt-dependency-lane-header.is-compact .tt-dependency-lane-focus {
 		padding: 6px 6px 2px 8px;
 		gap: 4px;
-	}
-
-	.tt-dependency-lane-focus:focus-visible {
-		outline: 2px solid var(--interactive-accent);
-		outline-offset: -2px;
-		border-radius: var(--radius-s);
 	}
 
 	/* `+` footer subshape — full-width strip flush to the chip's bottom edge,
@@ -2352,53 +2322,6 @@
 			position: absolute;
 			inset: -6px 0;
 		}
-	}
-
-	/* GP5 grow-on-pin: a pinned lane grows in HEIGHT so its full (still-vertical)
-	   title is readable — the rotated label un-clamps to its natural length and the
-	   chip grows downward to contain it, floating over the canvas (raised z-index)
-	   while focus is held. Height overrides the fixed inline lane height, so
-	   `!important` is required. */
-	.tt-dependency-lane-header.is-clickable.is-lane-pinned {
-		height: auto !important;
-		/* Block flow (not flex) so the chip sizes to the full-length vertical label —
-		   a vertical writing-mode child isn't measured for its block-axis size inside
-		   a flex column, which capped the grow; normal block flow contains it. */
-		display: block;
-		z-index: 20;
-	}
-
-	.tt-dependency-lane-header.is-lane-pinned .tt-dependency-lane-focus {
-		display: block;
-		height: auto;
-		text-align: center;
-	}
-
-	/* Keep the vertical label centred in the slim chip while it grows downward. */
-	.tt-dependency-lane-header.is-rotated.is-lane-pinned .tt-dependency-lane-label {
-		margin: 0 auto;
-	}
-
-	/* Un-clamp the vertical label: drop the flex-bounded height + ellipsis so the
-	   full name lays out at its natural length and the auto-height chip grows to
-	   fit it. Stays vertical (writing-mode/rotation untouched). */
-	.tt-dependency-lane-header.is-rotated.is-lane-pinned .tt-dependency-lane-label {
-		flex: 0 0 auto;
-		overflow: visible;
-		text-overflow: clip;
-		max-height: none;
-		-webkit-mask-image: none;
-		mask-image: none;
-	}
-
-	/* Non-rotated (tall) pinned lanes: un-clamp the multi-line label instead. */
-	.tt-dependency-lane-header.is-lane-pinned:not(.is-rotated) .tt-dependency-lane-label {
-		-webkit-line-clamp: unset;
-		max-height: none;
-	}
-
-	.tt-dependency-lane-header.is-lane-pinned .tt-dependency-lane-label-run {
-		animation: none;
 	}
 
 	.tt-graph-edge {
