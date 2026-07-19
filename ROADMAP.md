@@ -4,6 +4,25 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
+## P2-8 checkpoint — overdue-red softening, badge-only (2026-07-19)
+
+**Closed the last loud overdue offender.** The colour-spine pass had already
+softened the overdue *badge* from a solid red slab to a tint; overdue still
+painted the **whole task name** `var(--color-red)`, which shouted when several
+piled into one column. Chose **badge-only**: dropped the full-name red on both
+`.tt-task` (list) and `.tt-kanban-card` (kanban), so the red-tint `Nd overdue`
+date badge is the sole overdue signal. The alternative — a red left edge like
+kanban's active accent — was rejected because the area-colour spine now owns the
+card/row left edge and a red bar would fight it. Removed the now-dead
+`is-overdue` class + `overdue`/`isOverdue` computations from both components
+(`isTaskOverdue` kept as an exported, tested helper). `TaskRow.svelte` +
+`TaskKanban.svelte`. Validation: production build clean; **1261 tests** passing;
+verified list + kanban × dark/light in the rig — overdue names now neutral, the
+badge carries urgency, the area spine undisturbed. Live-Obsidian sign-off folds
+into the visual regression pass.
+
+---
+
 ## Colour-model workshop checkpoint — V2 "colour spine" (2026-07-19)
 
 **Colour-model workshop → shipped.** The BACKLOG "Next" thread (status/area/label

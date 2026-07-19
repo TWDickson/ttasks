@@ -279,10 +279,19 @@ never hardcoded hex/white on user colours) held for the shipped model.
   By area, project rollup), verify aliased wiki-links / `labels` list / quoted
   date fields resolve in Bases, document in README. **No schema changes**
   without a written proposal first.
-- `[ ]` **P2-8 overdue-red softening** ⚖ — overdue currently paints the whole
-  task name red *and* a solid red badge; with several overdue tasks the views
-  shout. Options: keep the badge as the only signal, or a red left edge like
-  kanban's active accent. (From `Scripts/archive/DESIGN_AUDIT.md`.)
+- `[x]` **P2-8 overdue-red softening** — *done 2026-07-19.* The badge half was
+  already softened to a red tint in the colour-spine work; this closes the other
+  offender — the **whole task name painted `var(--color-red)`**. Chose
+  **badge-only**: dropped the full-name red on both `.tt-task` (list) and
+  `.tt-kanban-card` (kanban); the red-tint `Nd overdue` date badge is now the
+  sole overdue signal, so a column of overdue rows no longer shouts. The other
+  option (a red left edge) was rejected — the area-colour spine now owns that
+  edge and a red bar would fight it. Removed the now-dead `is-overdue` class +
+  `overdue`/`isOverdue` computations from both components (`isTaskOverdue` stays
+  as an exported, tested helper). `TaskRow.svelte` + `TaskKanban.svelte`. Build
+  green, 1261 tests, verified list + kanban × dark/light in the rig; live sign-off
+  folds into the **Visual regression pass** below. (From
+  `Scripts/archive/DESIGN_AUDIT.md`.)
 - `[x]` **GP1 live-mobile sign-off** — *done 2026-07-19.* Taylor ran the
   on-device pass: the graph pops out to fullscreen great. GP1 fully closed.
   (Follow-up: the **detail-drawer issue** below remains, deferred by Taylor.)

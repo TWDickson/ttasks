@@ -132,8 +132,8 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
    regression pass.
 3. **Gated on Taylor** — branch review/merge of `feat/ui-polish-autopilot`,
    N3 API review (then implement), C2-F2 whitespace call, N7 Bases (live
-   vault), P2-8 overdue-red softening, dark/light × desktop/phone visual
-   regression pass
+   vault), dark/light × desktop/phone visual regression pass. *Done: P2-8
+   overdue-red softening (badge-only, 2026-07-19).*
 
 All prior sweeps are closed (AUDIT Sweep 2, DESIGN_AUDIT P0–P2, BUGFIX #1–13,
 NATIVE N1–N6, UI_POLISH P1–P7 + C1 + C2, Autopilot batches A–I, graph GP2/GP6).
@@ -145,6 +145,20 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 notes.
 
 ## Recent Updates (2026-07-19)
+
+- **P2-8 overdue-red softening closed — badge-only.** The colour-spine work had
+  already softened the overdue *badge* from a solid slab to a red tint; this
+  closes the other half — overdue also painted the **whole task name**
+  `var(--color-red)`, which shouted when several piled up in a column. Chose
+  **badge-only**: dropped the full-name red on both `.tt-task` (list) and
+  `.tt-kanban-card` (kanban), so the red-tint `Nd overdue` date badge is now the
+  sole overdue signal. The alternative (a red left edge like kanban's active
+  accent) was rejected — the area-colour spine now owns the card/row left edge
+  and a red bar would fight it. Removed the now-dead `is-overdue` class +
+  `overdue`/`isOverdue` computations from both components (`isTaskOverdue` kept as
+  an exported, tested helper). `TaskRow.svelte` + `TaskKanban.svelte`. Build
+  green, **1261 tests**, verified list + kanban × dark/light in the rig;
+  live-Obsidian sign-off folds into the visual regression pass.
 
 - **GP1 fully closed — live-mobile sign-off passed.** Taylor ran the on-device
   pass: the graph pops out to fullscreen great (pan/zoom/collapse all good). One

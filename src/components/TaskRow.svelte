@@ -4,7 +4,7 @@
 	import type { Task } from '../types';
 	import type { ExternalTask } from '../integration/types';
 	import { PRIORITY_COLORS } from '../constants';
-	import { getTaskDateBadge, isTaskOverdue, formatHumanDate } from './taskDateMeta';
+	import { getTaskDateBadge, formatHumanDate } from './taskDateMeta';
 	import { canShowInlineReopen } from './taskRowActions';
 	import { resolveInferredDueDate, type ResolvedTaskDate } from '../store/taskSchedule';
 	import { icon } from '../utils/icon';
@@ -39,7 +39,6 @@
 	/** Resolved dependency-chain schedule, used for the projected-date badge. */
 	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
 
-	$: overdue = isTaskOverdue(task, $today);
 	$: dateBadge = getTaskDateBadge(task, $today);
 	$: inferredDue = schedule ? resolveInferredDueDate(task, schedule.get(task.path)) : null;
 
@@ -91,7 +90,6 @@
 
 <li
 	class="tt-task"
-	class:is-overdue={overdue}
 	class:is-active={active}
 	class:is-keyboard-focused={keyboardFocused}
 	data-task-path={task.path}
@@ -357,14 +355,10 @@
 		outline-offset: -2px;
 	}
 
-	.tt-task.is-overdue .tt-task-name {
-		color: var(--color-red);
-	}
-
-	/* Overdue red outranks the selected accent even if rule order changes. */
-	.tt-task.is-overdue .tt-task-btn.is-active .tt-task-name {
-		color: var(--color-red);
-	}
+	/* Overdue is signalled by the red-tinted date badge only (P2-8). The task
+	   name stays in normal text so a column of overdue rows doesn't shout —
+	   consistent with the colour-spine model (loud signals live on the badge,
+	   not the whole row). */
 
 	.tt-task-main {
 		display: flex;

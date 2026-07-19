@@ -7,7 +7,7 @@
 	import type TTasksPlugin from '../main';
 	import { PRIORITY_COLORS } from '../constants';
 	import { labelForGroup } from './viewAdapters';
-	import { getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
+	import { getTaskDateBadge } from './taskDateMeta';
 	import { buildDepCountBadge, isFieldEnabled, type KanbanCardField } from './kanbanCardFields';
 	import { deserializeCollapsed, isColumnCollapsed, serializeCollapsed, toggleColumnCollapse } from './kanbanCollapse';
 	import { icon } from '../utils/icon';
@@ -54,10 +54,6 @@
 
 	$: if (!COLUMNS.some(col => col.id === activeColumn)) {
 		activeColumn = COLUMNS[0]?.id ?? 'Active';
-	}
-
-	function isOverdue(task: Task, todayDate: string): boolean {
-		return isTaskOverdue(task, todayDate);
 	}
 
 	function getDateBadge(task: Task, todayDate: string) {
@@ -213,7 +209,6 @@
 							<div
 								class="tt-kanban-card"
 								class:is-active={$activeTaskPath === task.path}
-								class:is-overdue={isOverdue(task, $today)}
 								class:is-dragging={draggingPath === task.path}
 								style:--tt-area-color={task.area && areaColors?.[task.area] ? areaColors[task.area] : undefined}
 								draggable="true"
@@ -556,9 +551,8 @@
 		color: var(--interactive-accent);
 	}
 
-	.tt-kanban-card.is-overdue .tt-card-name {
-		color: var(--color-red);
-	}
+	/* Overdue is signalled by the red-tinted date badge only (P2-8) — the card
+	   name stays neutral so a column of overdue cards doesn't shout. */
 
 	.tt-card-blocked-reason {
 		font-size: 0.76rem;
