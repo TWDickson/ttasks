@@ -215,6 +215,7 @@
 								class:is-active={$activeTaskPath === task.path}
 								class:is-overdue={isOverdue(task, $today)}
 								class:is-dragging={draggingPath === task.path}
+								style:--tt-area-color={task.area && areaColors?.[task.area] ? areaColors[task.area] : undefined}
 								draggable="true"
 								role="button"
 								tabindex="0"
@@ -499,7 +500,10 @@
 		text-align: left;
 		width: 100%;
 		box-shadow: 0 1px 3px rgba(var(--mono-rgb-100), 0.08);
-		border-left: 3px solid transparent;
+		/* Colour-spine model: the card's identity colour is its left edge, keyed
+		   to the project area. Frees the badge row to stay monochrome. Active
+		   state overrides this to the accent below. */
+		border-left: 3px solid var(--tt-area-color, transparent);
 		transition: background 0.1s, box-shadow 0.1s, border-left-color 0.1s;
 	}
 

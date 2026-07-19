@@ -96,6 +96,7 @@
 	class:is-keyboard-focused={keyboardFocused}
 	data-task-path={task.path}
 	style:padding-left={indent > 0 ? `${indent * 20}px` : undefined}
+	style:--tt-area-color={task.area && areaColors?.[task.area] ? areaColors[task.area] : undefined}
 >
 	{#if selectable}
 		{#if !isCaptured}
@@ -182,7 +183,17 @@
 		overflow: hidden;
 		border-radius: var(--radius-m, 8px);
 		min-height: 36px;
+		/* Colour-spine model: identity colour is a left edge keyed to the task's
+		   area. Painted as an inset shadow (not a border) so row content stays
+		   aligned with the group headings above it. */
+		box-shadow: inset 3px 0 0 var(--tt-area-color, transparent);
 		transition: background 0.1s ease;
+	}
+
+	/* Active/keyboard-focused rows use the accent inset overlay (::before /
+	   outline) as their signal, so drop the area spine to avoid two left bars. */
+	.tt-task.is-active {
+		box-shadow: none;
 	}
 
 	.tt-task:hover {

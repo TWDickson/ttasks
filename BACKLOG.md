@@ -234,18 +234,31 @@ screen.
 
 ---
 
-## Next — colour-model workshop `[ ]` ⚖
+## Next — colour-model workshop `[x]`
 
-Opened from Taylor's P7 round-2 review (2026-07-06). Status, area, and label
-colours **compete on cards** despite the documented channel hierarchy
-(`Scripts/STYLING_NOTES.md`). Wants an in-depth pass, workshop-style like the
-C2 layout one (`Scripts/archive/GRAPH_LAYOUT_C2.md`): rig screenshots of the
-current state, then **2–3 coherent colour-model variants** for Taylor to pick
-from. Present options — don't land a model without the pick.
+*Landed 2026-07-19 — Taylor picked **V2 Colour spine**.* Workshopped like the C2
+layout one: baseline + 3 rig-rendered variants (V1 single-channel, V2 spine, V3
+tuned hierarchy) shipped as an Artifact
+(`Scripts/graph-c2/colour-workshop.html`, untracked); Taylor picked the spine.
+
+**Shipped model.** Identity colour moved off the badges onto the **card/row left
+edge**, keyed to the task's project **area** — so the badge row itself stays
+monochrome. `--tt-area-color` is set on `.tt-kanban-card` (real `border-left`)
+and `.tt-task` (inset `box-shadow`, so row content stays aligned with group
+headings). Area badge → neutral text (`.tt-badge-cat.tt-badge-tinted`); labels →
+neutral pills (dot dropped); **overdue/completed date slabs softened from solid
+fills to tints** (the loudest offender). Active state still wins: the card's
+accent `border-left` and the row's accent inset overlay override the spine (row
+spine suppressed on `.is-active` to avoid a double bar). Touched `styles.css`,
+`TaskKanban.svelte`, `TaskRow.svelte`. Build green, 1261 tests, verified
+dark/light × desktop/mobile + active states in the rig.
+
+**Still owed:** live-Obsidian / on-device sign-off (rig-verified only), folded
+into the **Visual regression pass** below.
 
 Grounding: the three colour settings sections (statuses / areas / labels) stay
 functionally intact; the CLAUDE.md colour rule (`color-mix` surface tinting,
-never hardcoded hex/white on user colours) applies to every variant.
+never hardcoded hex/white on user colours) held for the shipped model.
 
 ---
 

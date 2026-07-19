@@ -126,8 +126,10 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
    subshape shipped; click-to-focus/grow backed out). *Done: GP4 lane tint,
    GP3 project filter, GP8 lane focus, GP7 split Dependency/Timeline views,
    GP1 fullscreen expand modal (rig-verified; live-iOS sign-off pending).*
-2. **Colour-model workshop** ⚖ — status/area/label colours compete on cards;
-   rig shots + 2–3 variants, Taylor picks
+2. ~~**Colour-model workshop**~~ — **done 2026-07-19**: Taylor picked the
+   **V2 colour-spine** model (area colour → card/row left edge, monochrome
+   badges, softened date tints). Live-Obsidian sign-off folds into the visual
+   regression pass.
 3. **Gated on Taylor** — branch review/merge of `feat/ui-polish-autopilot`,
    N3 API review (then implement), C2-F2 whitespace call, N7 Bases (live
    vault), P2-8 overdue-red softening, dark/light × desktop/phone visual
@@ -141,6 +143,29 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 `GRAPH_LAYOUT_C2.md`, `CODEBASE_MODAL_DETAIL_EXPLORATION.md`,
 `run-autopilot.fish`. Older PRDs (TASK_H*/I*/J*/K*) are vault-side synced
 notes.
+
+## Recent Updates (2026-07-19)
+
+- **Colour-model workshop → V2 "colour spine" landed** — the "Next" backlog
+  thread (status/area/label colours competing on cards) was worked up as a
+  workshop: baseline + 3 rig-rendered variants (V1 single-channel, V2 spine, V3
+  tuned-hierarchy) shipped as a self-contained Artifact
+  (`Scripts/graph-c2/colour-workshop.html`, ~2.3MB embedded shots, left
+  untracked). Taylor picked **V2**. Shipped model: **identity colour moves off
+  the badges onto the card/row left edge**, keyed to the task's project `area`,
+  so the badge row stays monochrome. `--tt-area-color` is set inline on
+  `.tt-kanban-card` (real `border-left`) and `.tt-task` (inset `box-shadow`, so
+  row content stays aligned with the group headings rather than shifting 3px).
+  Area badge demoted to neutral text (`.tt-badge-cat.tt-badge-tinted`); label
+  badges lose their colour dot (neutral pills); **the solid-red overdue slab and
+  solid-green completed slab soften to tints** — that date slab was the single
+  loudest offender, out-shouting the area it was supposed to sit under. Active
+  state still wins: the card's accent `border-left` overrides the area spine, and
+  the row suppresses its spine on `.is-active` so the existing accent inset
+  overlay is the only left bar. Touched `styles.css`, `TaskKanban.svelte`,
+  `TaskRow.svelte`. Build green, **1261 tests**, verified dark/light ×
+  desktop/mobile + active row/card states in the rig; live-Obsidian sign-off
+  folds into the visual regression pass.
 
 ## Recent Updates (2026-07-18)
 

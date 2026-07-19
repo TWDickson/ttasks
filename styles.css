@@ -132,11 +132,13 @@
 }
 
 /* Metadata badges on rows and cards.
-   Color hierarchy (keeps rows from turning into a rainbow):
+   Colour-spine model (2026-07-19): identity colour lives on the card/row left
+   edge (keyed to project area), so the badge row itself stays monochrome.
    - status    → kanban columns / chips only, never list badges
-   - area      → tinted badge (colored surface + text) — the loudest badge
-   - labels    → neutral badge with a small color dot — quieter channel
-   - dates     → semantic only (red overdue, green completed, dashed inferred) */
+   - area      → carried by the card/row spine; its badge is neutral text
+   - labels    → neutral text pills (no colour)
+   - dates     → the one semantic exception, softened to a tint (red overdue,
+                 green completed, dashed inferred) */
 .tt-badge {
 	display: inline-flex;
 	align-items: center;
@@ -149,20 +151,34 @@
 	white-space: nowrap;
 }
 
+/* Shared tinted primitive (still used for the label dot mix below and kept for
+   any future tinted badge). Area badges override this to neutral — their colour
+   is carried by the card/row spine. */
 .tt-badge-tinted {
 	background: color-mix(in srgb, var(--tt-badge-color) 18%, var(--background-primary));
 	border-color: color-mix(in srgb, var(--tt-badge-color) 42%, var(--background-modifier-border));
 	color: var(--tt-badge-color);
 }
 
+/* Area badge: neutral text — the area's colour lives on the spine, not here. */
+.tt-badge-cat.tt-badge-tinted {
+	background: var(--background-secondary);
+	border-color: var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+/* Dates are the one semantic exception. Softened from solid slabs to tints so
+   they read urgent/done without out-shouting the spine. */
 .tt-badge-overdue {
-	background: var(--color-red);
-	color: var(--text-on-accent);
+	background: color-mix(in srgb, var(--color-red) 16%, var(--background-primary));
+	border-color: color-mix(in srgb, var(--color-red) 55%, var(--background-modifier-border));
+	color: var(--color-red);
 }
 
 .tt-badge-completed {
-	background: color-mix(in srgb, var(--color-green) 88%, var(--background-primary));
-	color: var(--text-on-accent);
+	background: color-mix(in srgb, var(--color-green) 14%, var(--background-primary));
+	border-color: color-mix(in srgb, var(--color-green) 50%, var(--background-modifier-border));
+	color: var(--color-green);
 }
 
 /* Inferred projected finish — weaker than a real due badge (dashed, no fill). */
@@ -177,7 +193,7 @@
 	background: var(--background-secondary);
 }
 
-/* Labels demote their color to a dot so area badges own the tinted look */
+/* Labels are neutral text pills — no colour in the spine model. */
 .tt-badge-type.tt-badge-tinted {
 	background: var(--background-secondary);
 	border-color: var(--background-modifier-border);
@@ -185,13 +201,7 @@
 }
 
 .tt-badge-type.tt-badge-tinted::before {
-	content: '';
-	width: 7px;
-	height: 7px;
-	border-radius: 999px;
-	background: var(--tt-badge-color);
-	margin-right: 4px;
-	flex-shrink: 0;
+	content: none;
 }
 
 .tt-badge-dep {

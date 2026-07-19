@@ -4,6 +4,29 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
+## Colour-model workshop checkpoint — V2 "colour spine" (2026-07-19)
+
+**Colour-model workshop → shipped.** The BACKLOG "Next" thread (status/area/label
+colours competing on cards) was run as a pick-one workshop: baseline + three
+coherent, rig-rendered variants (V1 single-channel, V2 spine, V3 tuned
+hierarchy) presented as a self-contained Artifact
+(`Scripts/graph-c2/colour-workshop.html`, left untracked — ~2.3MB of embedded
+shots). **Taylor picked V2, the colour spine.** Shipped model: the card/row's
+identity colour moves to its **left edge**, keyed to the task's project `area`,
+freeing the badge row to stay monochrome. `--tt-area-color` set inline on
+`.tt-kanban-card` (real `border-left`) and `.tt-task` (inset `box-shadow`, so row
+content stays aligned with the group headings). Area badge → neutral text;
+labels → neutral pills (colour dot dropped); **solid overdue/completed date slabs
+softened to tints** (the loudest offender — it out-shouted the area it sat
+under). Active state wins: card accent `border-left` overrides the spine; the row
+suppresses its spine on `.is-active` so the accent inset overlay is the only left
+bar. Touched `styles.css`, `TaskKanban.svelte`, `TaskRow.svelte`. Live-Obsidian
+sign-off folds into the visual regression pass. Validation: production build
+clean; **1261 tests** passing; verified dark/light × desktop/mobile + active
+states in the rig.
+
+---
+
 ## GP1 checkpoint — fullscreen graph expand modal (2026-07-18)
 
 **GP1 landed (rig-verified; live-iOS sign-off pending).** Research-first task:
