@@ -14,7 +14,8 @@ function makeService(overrides: Partial<PomodoroServiceDeps> = {}) {
 	const logFocus = vi.fn();
 	const notify = vi.fn();
 	const getConfig = vi.fn(() => ({ ...config }));
-	const service = new PomodoroService({ getConfig, logFocus, notify, ...overrides });
+	const now = () => Date.now(); // fake timers drive Date.now via advanceTimersByTime
+	const service = new PomodoroService({ getConfig, logFocus, notify, now, ...overrides });
 	return { service, logFocus, notify, getConfig };
 }
 
@@ -52,13 +53,66 @@ describe('PomodoroService', () => {
 		const { service, logFocus, notify } = makeService();
 		service.start('a.md', 'A');
 		advanceSeconds(1500); // full focus phase
-		expect(logFocus).toHaveBeenCalledWith('a.md', 25);
+		expect(logFocus).toHaveBeenCalledWith({ taskPath: 'a.md', taskName: 'A', minutes: 25, mode: 'focus' });
 		const s = get(service.session);
 		expect(s?.mode).toBe('short-break');
 		expect(s?.completedFocus).toBe(1);
 		expect(s?.remainingSec).toBe(300);
 		expect(s?.running).toBe(true);
 		expect(notify).toHaveBeenCalledWith(expect.stringContaining('logged 25m'));
+		service.dispose();
+	});
+
+	it('runs an untethered session and logs it with null task fields', () => {
+		const { service, logFocus, notify } = makeService();
+		service.start(null, null);
+		expect(get(service.session)).toMatchObject({ taskPath: null, taskName: null, mode: 'focus' });
+		expect(notify).toHaveBeenCalledWith(expect.stringContaining('Focus'));
+		advanceSeconds(1500);
+		expect(logFocus).toHaveBeenCalledWith({ taskPath: null, taskName: null, minutes: 25, mode: 'focus' });
+		expect(notify).toHaveBeenCalledWith('Focus complete — logged 25m');
+		service.dispose();
+	});
+
+	it('startUntil refuses when no focus fits and does not start', () => {
+		const { service, notify } = makeService();
+		const started = service.startUntil('a.md', 'A', 0);
+		expect(started).toBe(false);
+		expect(get(service.session)).toBeNull();
+		expect(notify).toHaveBeenCalledWith(expect.stringContaining('Not enough time'));
+		service.dispose();
+	});
+
+	it('focus-until runs whole cycles then stops cleanly at the target', () => {
+		const { service, logFocus } = makeService();
+		// 55 min = focus 25 + break 5 + focus 25, ending exactly at the target.
+		expect(service.startUntil('a.md', 'A', 55)).toBe(true);
+		expect(get(service.session)?.targetEndMs).not.toBeNull();
+		advanceSeconds(1500); // focus 1 done
+		expect(get(service.session)?.mode).toBe('short-break');
+		advanceSeconds(300); // break done
+		expect(get(service.session)?.mode).toBe('focus');
+		advanceSeconds(1500); // focus 2 done → target reached, no room for another phase
+		expect(get(service.session)).toBeNull();
+		expect(logFocus).toHaveBeenCalledTimes(2);
+		expect(logFocus).toHaveBeenLastCalledWith({ taskPath: 'a.md', taskName: 'A', minutes: 25, mode: 'focus' });
+		service.dispose();
+	});
+
+	it('focus-until fills the leftover gap with a shortened final focus', () => {
+		const { service, logFocus } = makeService();
+		// 33 min = focus 25 + break 5, then only 3 min left → a 3-min fill focus.
+		expect(service.startUntil(null, null, 33)).toBe(true);
+		advanceSeconds(1500); // focus done
+		advanceSeconds(300); // break done → fill focus armed
+		const fill = get(service.session);
+		expect(fill?.mode).toBe('focus');
+		expect(fill?.isFill).toBe(true);
+		expect(fill?.remainingSec).toBe(180);
+		advanceSeconds(180); // fill done → target reached
+		expect(get(service.session)).toBeNull();
+		expect(logFocus).toHaveBeenCalledTimes(2);
+		expect(logFocus).toHaveBeenLastCalledWith({ taskPath: null, taskName: null, minutes: 3, mode: 'focus' });
 		service.dispose();
 	});
 

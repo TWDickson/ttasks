@@ -323,7 +323,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		},
 		pomodoroService: new PomodoroService({
 			getConfig: () => ({ ...DEFAULT_POMODORO_CONFIG, autoStartNext: true }),
-			logFocus: (path: string, minutes: number) => console.info('[rig] pomodoro log', path, minutes),
+			logFocus: (focus) => console.info('[rig] pomodoro log', focus),
 			notify: (message: string) => console.info('[rig] pomodoro', message),
 		}),
 		activeTaskPath,

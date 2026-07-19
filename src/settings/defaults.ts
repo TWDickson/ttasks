@@ -101,6 +101,8 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		longBreakMinutes: 15,
 		longBreakInterval: 4,
 		autoStartNext: true,
+		logEnabled: true,
+		logPath: 'ttasks-pomodoro-log.csv',
 	},
 	kanbanCardFields: ['area', 'dueDate', 'labels', 'depCount'] as KanbanCardField[],
 	kanbanCollapsedColumns: [],
@@ -267,6 +269,8 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 			longBreakMinutes: settings.pomodoro?.longBreakMinutes ?? DEFAULT_SETTINGS.pomodoro.longBreakMinutes,
 			longBreakInterval: settings.pomodoro?.longBreakInterval ?? DEFAULT_SETTINGS.pomodoro.longBreakInterval,
 			autoStartNext: settings.pomodoro?.autoStartNext ?? DEFAULT_SETTINGS.pomodoro.autoStartNext,
+			logEnabled: settings.pomodoro?.logEnabled ?? DEFAULT_SETTINGS.pomodoro.logEnabled,
+			logPath: settings.pomodoro?.logPath ?? DEFAULT_SETTINGS.pomodoro.logPath,
 		},
 		kanbanCardFields: settings.kanbanCardFields ?? [...DEFAULT_SETTINGS.kanbanCardFields],
 		kanbanCollapsedColumns: settings.kanbanCollapsedColumns ?? [...DEFAULT_SETTINGS.kanbanCollapsedColumns],
@@ -731,6 +735,12 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 
 		const autoStartNext = asBoolean(pomodoro.autoStartNext);
 		if (autoStartNext !== null) target.pomodoro.autoStartNext = autoStartNext;
+
+		const logEnabled = asBoolean(pomodoro.logEnabled);
+		if (logEnabled !== null) target.pomodoro.logEnabled = logEnabled;
+
+		const logPath = asString(pomodoro.logPath);
+		if (logPath !== null && logPath.trim() !== '') target.pomodoro.logPath = logPath.trim();
 	}
 }
 

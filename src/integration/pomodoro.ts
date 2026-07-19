@@ -14,8 +14,10 @@ export interface PomodoroConfig {
 }
 
 export interface PomodoroSession {
-	taskPath: string;
-	taskName: string;
+	/** The task this session is focused on, or null for an untethered session. */
+	taskPath: string | null;
+	/** Display name of the task, or null when untethered. */
+	taskName: string | null;
 	mode: PomodoroMode;
 	/** Full length of the current phase, in seconds. */
 	durationSec: number;
@@ -25,6 +27,14 @@ export interface PomodoroSession {
 	running: boolean;
 	/** Completed focus phases so far this session (drives long-break cadence). */
 	completedFocus: number;
+	/**
+	 * Wall-clock target (epoch ms) for a "focus until X" session, or null for an
+	 * open-ended session. When set, the service stops the cycle at the target so
+	 * nothing runs past it. Wall-clock, not budget: pausing eats into the time.
+	 */
+	targetEndMs: number | null;
+	/** True for a shortened trailing focus that fills the gap up to the target. */
+	isFill: boolean;
 }
 
 export const DEFAULT_POMODORO_CONFIG: PomodoroConfig = {
@@ -49,8 +59,8 @@ export function phaseDurationSec(mode: PomodoroMode, config: PomodoroConfig): nu
 	return Math.round(minutes * 60);
 }
 
-/** Begin a fresh focus session on a task, running. */
-export function startSession(taskPath: string, taskName: string, config: PomodoroConfig): PomodoroSession {
+/** Begin a fresh focus session on a task (or untethered when path/name are null), running. */
+export function startSession(taskPath: string | null, taskName: string | null, config: PomodoroConfig): PomodoroSession {
 	const durationSec = phaseDurationSec('focus', config);
 	return {
 		taskPath,
@@ -60,6 +70,8 @@ export function startSession(taskPath: string, taskName: string, config: Pomodor
 		remainingSec: durationSec,
 		running: true,
 		completedFocus: 0,
+		targetEndMs: null,
+		isFill: false,
 	};
 }
 
@@ -101,7 +113,8 @@ export function advancePhase(session: PomodoroSession, config: PomodoroConfig): 
 	const mode = nextMode(session, config);
 	const completedFocus = session.mode === 'focus' ? session.completedFocus + 1 : session.completedFocus;
 	const durationSec = phaseDurationSec(mode, config);
-	return { ...session, mode, completedFocus, durationSec, remainingSec: durationSec, running: true };
+	// An auto-advanced phase is never a fill; targetEndMs carries via the spread.
+	return { ...session, mode, completedFocus, durationSec, remainingSec: durationSec, running: true, isFill: false };
 }
 
 /** True when the current phase is a *completed* focus phase (time to log it). */

@@ -16,7 +16,7 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 	const { containerEl, plugin } = params;
 
 	containerEl.createEl('p', {
-		text: 'Native focus timer. Start a Pomodoro from a task\'s detail pane or the command palette; completed focus sessions are logged to the task (count + minutes).',
+		text: 'Native focus timer. Start a Pomodoro from a task\'s detail pane or the command palette — including untethered sessions with no task. Completed focus sessions bump the task\'s count + minutes (when attached) and can be appended to a CSV session log.',
 		cls: 'setting-item-description',
 	});
 
@@ -74,5 +74,26 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 			.onChange(async (value) => {
 				plugin.settings.pomodoro.autoStartNext = value;
 				await plugin.saveSettings();
+			}));
+
+	new Setting(containerEl)
+		.setName('Log sessions to CSV')
+		.setDesc('Append every completed focus session (time, minutes, task) to a CSV log file. Append-only, git- and sync-friendly.')
+		.addToggle(toggle => toggle
+			.setValue(p.logEnabled)
+			.onChange(async (value) => {
+				plugin.settings.pomodoro.logEnabled = value;
+				await plugin.saveSettings();
+			}));
+
+	new Setting(containerEl)
+		.setName('Session log path')
+		.setDesc('Vault-relative path of the CSV log. Created on the first logged session.')
+		.addText(text => text
+			.setPlaceholder('ttasks-pomodoro-log.csv')
+			.setValue(p.logPath)
+			.onChange(async (value) => {
+				const trimmed = value.trim();
+				if (trimmed !== '') { plugin.settings.pomodoro.logPath = trimmed; await plugin.saveSettings(); }
 			}));
 }

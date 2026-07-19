@@ -110,6 +110,10 @@ export interface PomodoroSettings {
 	longBreakInterval: number;
 	/** Auto-start the next phase when one completes, vs. waiting for the user. */
 	autoStartNext: boolean;
+	/** Append each completed focus session to a CSV log file. */
+	logEnabled: boolean;
+	/** Vault-relative path of the CSV session log. */
+	logPath: string;
 }
 
 export interface TTasksSettings {

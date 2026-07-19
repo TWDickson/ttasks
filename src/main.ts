@@ -19,12 +19,14 @@ import { TaskDetailView, TASK_DETAIL_VIEW_TYPE } from './views/TaskDetailView';
 import { createBoardStateService, type BoardStateStores } from './store/BoardStateService';
 import { resolveTaskViewId } from './views/viewRegistry';
 import { CreateTaskModal } from './modals/CreateTaskModal';
+import { FocusUntilModal } from './modals/FocusUntilModal';
 import { ReminderService } from './store/ReminderService';
 import type { Task } from './types';
 import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration/contextMenu';
 import { resolveQuickAction } from './integration/quickActions';
 import { ArchiveService } from './store/ArchiveService';
-import { PomodoroService } from './store/PomodoroService';
+import { type CompletedFocus, PomodoroService } from './store/PomodoroService';
+import { type PomodoroLogEntry, formatLogRow, formatNewLogFile } from './integration/pomodoroLog';
 import { type TaskJsonMode, serializeTasksToJson } from './integration/taskJsonExport';
 import { dispatchProtocolAction, parseProtocolAction } from './integration/protocol';
 import { buildStatusSummary } from './integration/statusSummary';
@@ -79,7 +81,7 @@ export default class TTasksPlugin extends Plugin {
 		this.archiveService = new ArchiveService(this);
 		this.pomodoroService = new PomodoroService({
 			getConfig: () => this.settings.pomodoro,
-			logFocus: (path, minutes) => this.logPomodoroFocus(path, minutes),
+			logFocus: (focus) => this.logPomodoroFocus(focus),
 			notify: (message) => { new Notice(message); },
 		});
 		this.register(() => this.pomodoroService.dispose());
@@ -200,6 +202,22 @@ export default class TTasksPlugin extends Plugin {
 				if (checking) return true;
 				this.pomodoroService.start(task.path, task.name);
 				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'start-pomodoro-untethered',
+			name: 'Start Pomodoro (no task)',
+			callback: () => this.pomodoroService.start(null, null),
+		});
+
+		this.addCommand({
+			id: 'focus-until',
+			name: 'Focus until a time…',
+			callback: () => {
+				const path = get(this.activeTaskPath);
+				const task = path ? this.taskStore.getByPath(path) : undefined;
+				new FocusUntilModal(this.app, this, task?.path ?? null, task?.name ?? null).open();
 			},
 		});
 
@@ -382,17 +400,49 @@ export default class TTasksPlugin extends Plugin {
 	}
 
 	/**
-	 * Persist a completed Pomodoro focus session onto its task: bump
-	 * `pomodoro_count` and add the focus minutes to `focused_minutes`. Wired into
-	 * PomodoroService via its `logFocus` dep. No-op if the task has since vanished.
+	 * Persist a completed Pomodoro focus session. Always appends to the CSV session
+	 * log (when logging is enabled); additionally, when a task is attached, bumps
+	 * that task's `pomodoro_count` and adds the focus minutes to `focused_minutes`.
+	 * Wired into PomodoroService via its `logFocus` dep.
 	 */
-	private async logPomodoroFocus(path: string, minutes: number): Promise<void> {
-		const task = this.taskStore.getByPath(path);
-		if (!task) return;
-		await this.taskStore.update(path, {
-			pomodoro_count: (task.pomodoro_count ?? 0) + 1,
-			focused_minutes: (task.focused_minutes ?? 0) + minutes,
+	private async logPomodoroFocus(focus: CompletedFocus): Promise<void> {
+		await this.appendPomodoroLog({
+			endedAt: new Date().toISOString(),
+			mode: focus.mode,
+			minutes: focus.minutes,
+			taskPath: focus.taskPath,
+			taskName: focus.taskName,
 		});
+
+		if (!focus.taskPath) return;
+		const task = this.taskStore.getByPath(focus.taskPath);
+		if (!task) return; // task deleted mid-session — CSV row already captured it
+		await this.taskStore.update(focus.taskPath, {
+			pomodoro_count: (task.pomodoro_count ?? 0) + 1,
+			focused_minutes: (task.focused_minutes ?? 0) + focus.minutes,
+		});
+	}
+
+	/**
+	 * Append one session row to the CSV log, creating the file (with header) on
+	 * first use. No-op when logging is disabled. Failures surface a Notice but
+	 * never throw — a log-write hiccup must not break the timer.
+	 */
+	private async appendPomodoroLog(entry: PomodoroLogEntry): Promise<void> {
+		if (!this.settings.pomodoro.logEnabled) return;
+		const path = this.settings.pomodoro.logPath;
+		try {
+			const existing = this.app.vault.getAbstractFileByPath(path);
+			if (existing instanceof TFile) {
+				await this.app.vault.append(existing, `${formatLogRow(entry)}\n`);
+			} else if (existing) {
+				new Notice(`TTasks: Pomodoro log path "${path}" is a folder — session not logged.`);
+			} else {
+				await this.app.vault.create(path, formatNewLogFile(entry));
+			}
+		} catch (error) {
+			new Notice(`TTasks: could not write Pomodoro log: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	/**

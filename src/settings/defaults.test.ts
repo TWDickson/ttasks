@@ -68,7 +68,17 @@ describe('pomodoro settings normalization', () => {
 			longBreakMinutes: 30,
 			longBreakInterval: 3,
 			autoStartNext: false,
+			logEnabled: DEFAULT_SETTINGS.pomodoro.logEnabled,
+			logPath: DEFAULT_SETTINGS.pomodoro.logPath,
 		});
+	});
+
+	it('applies persisted log settings', () => {
+		const merged = normalizeSettingsFromSources([
+			{ pomodoro: { logEnabled: false, logPath: 'logs/pomo.csv' } },
+		]);
+		expect(merged.pomodoro.logEnabled).toBe(false);
+		expect(merged.pomodoro.logPath).toBe('logs/pomo.csv');
 	});
 
 	it('ignores non-numeric fields and keeps the defaults', () => {

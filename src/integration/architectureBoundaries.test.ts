@@ -68,6 +68,8 @@ describe('architecture boundaries', () => {
 			'src/integration/captureSourceFiles.ts',
 			'src/integration/protocol.ts',
 			'src/integration/pomodoro.ts',
+			'src/integration/pomodoroLog.ts',
+			'src/integration/pomodoroPlan.ts',
 			'src/integration/taskJsonExport.ts',
 			'src/integration/taskJsonImport.ts',
 			'src/store/PomodoroService.ts',

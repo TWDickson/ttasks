@@ -18,6 +18,7 @@
 	import { deriveTaskDetailOptionState } from './taskDetailOptions';
 	import { createTaskDetailSaveController, normalizeDateValue } from './taskDetailSaveController';
 	import { confirmModal } from '../modals/confirmModal';
+	import { FocusUntilModal } from '../modals/FocusUntilModal';
 	import { runArchiveFlow, runDeleteFlow, runMarkCompleteFlow } from './taskDetailActions';
 	import { formatRemaining } from '../integration/pomodoro';
 	import TextField from './fields/TextField.svelte';
@@ -54,6 +55,7 @@
 		? (activePomodoro.mode === 'focus' ? 'Focus' : activePomodoro.mode === 'short-break' ? 'Short break' : 'Long break')
 		: '';
 	function startPomodoro() { if (task) plugin.pomodoroService.start(task.path, task.name); }
+	function focusUntil() { if (task) new FocusUntilModal(plugin.app, plugin, task.path, task.name).open(); }
 	function togglePomodoro() { plugin.pomodoroService.toggle(); }
 	function skipPomodoro() { plugin.pomodoroService.skip(); }
 	function stopPomodoro() { plugin.pomodoroService.stop(); }
@@ -718,9 +720,14 @@
 					</div>
 				</div>
 			{:else}
-				<button type="button" class="tt-btn tt-btn-sm tt-pomodoro-start" on:click={startPomodoro}>
-					Start focus timer
-				</button>
+				<div class="tt-pomodoro-start-row">
+					<button type="button" class="tt-btn tt-btn-sm tt-pomodoro-start" on:click={startPomodoro}>
+						Start focus timer
+					</button>
+					<button type="button" class="tt-btn tt-btn-sm" on:click={focusUntil}>
+						Focus until…
+					</button>
+				</div>
 			{/if}
 		</div>
 
@@ -912,6 +919,12 @@
 
 	.tt-pomodoro-start {
 		align-self: flex-start;
+	}
+
+	.tt-pomodoro-start-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
 	}
 
 	.tt-pomodoro-active {

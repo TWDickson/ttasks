@@ -1,15 +1,19 @@
 import { type Writable, get, writable } from 'svelte/store';
 import {
 	type PomodoroConfig,
+	type PomodoroMode,
 	type PomodoroSession,
 	advancePhase,
 	isPhaseComplete,
+	nextMode,
 	pauseSession,
+	phaseDurationSec,
 	resumeSession,
 	shouldLogFocus,
 	startSession,
 	tickSession,
 } from '../integration/pomodoro';
+import { fillFocusMinutes, planFocusUntil } from '../integration/pomodoroPlan';
 
 /**
  * Everything the service needs from the outside, injected so this file stays
@@ -17,12 +21,27 @@ import {
  * unit-testable with fake timers. `getConfig` reads live settings each call so
  * a mid-session settings change applies on the next phase.
  */
+export interface CompletedFocus {
+	/** Task the session was focused on, or null when untethered. */
+	taskPath: string | null;
+	taskName: string | null;
+	/** Whole minutes of focus to log. */
+	minutes: number;
+	mode: PomodoroMode;
+}
+
 export interface PomodoroServiceDeps {
 	getConfig: () => PomodoroConfig & { autoStartNext: boolean };
-	/** Persist a completed focus session against the task (count += 1, minutes += n). */
-	logFocus: (taskPath: string, minutes: number) => void | Promise<void>;
+	/**
+	 * Persist a completed focus session: append it to the session log, and (when a
+	 * task is attached) bump the task's count + minutes. Called once per finished
+	 * focus phase.
+	 */
+	logFocus: (focus: CompletedFocus) => void | Promise<void>;
 	/** Surface a short message (wired to Obsidian's Notice in main). */
 	notify: (message: string) => void;
+	/** Wall-clock source (epoch ms); injectable for tests. Defaults to Date.now. */
+	now?: () => number;
 }
 
 function phaseLabel(mode: PomodoroSession['mode']): string {
@@ -43,12 +62,40 @@ export class PomodoroService {
 
 	constructor(private readonly deps: PomodoroServiceDeps) {}
 
-	/** Start (or restart) a focus session on a task. */
-	start(taskPath: string, taskName: string): void {
+	private now(): number {
+		return this.deps.now ? this.deps.now() : Date.now();
+	}
+
+	/** Start (or restart) a focus session on a task, or untethered when path/name are null. */
+	start(taskPath: string | null, taskName: string | null): void {
 		const config = this.deps.getConfig();
 		this.session.set(startSession(taskPath, taskName, config));
-		this.deps.notify(`Pomodoro started — ${taskName}`);
+		this.deps.notify(`Pomodoro started — ${taskName ?? 'Focus'}`);
 		this.ensureTicking();
+	}
+
+	/**
+	 * Start a "focus until X" session: fill `availableMinutes` with Pomodoro phases
+	 * that end cleanly before the target, so nothing runs past it. Returns false
+	 * (without starting) when not even a one-minute focus fits. Optionally tied to a
+	 * task, or untethered when path/name are null.
+	 */
+	startUntil(taskPath: string | null, taskName: string | null, availableMinutes: number): boolean {
+		const config = this.deps.getConfig();
+		const plan = planFocusUntil(availableMinutes, config);
+		if (plan.phases.length === 0) {
+			this.deps.notify('Not enough time before the target for a focus session.');
+			return false;
+		}
+		const targetEndMs = this.now() + Math.floor(availableMinutes) * 60_000;
+		const base = startSession(taskPath, taskName, config);
+		const first = plan.phases[0];
+		const durationSec = first.minutes * 60;
+		this.session.set({ ...base, durationSec, remainingSec: durationSec, isFill: first.isFill, targetEndMs });
+		const n = plan.focusCount;
+		this.deps.notify(`Focus until target — ${n} focus session${n === 1 ? '' : 's'} planned (${taskName ?? 'Focus'})`);
+		this.ensureTicking();
+		return true;
 	}
 
 	pause(): void {
@@ -124,19 +171,79 @@ export class PomodoroService {
 		const config = this.deps.getConfig();
 
 		if (shouldLogFocus(completed)) {
-			const minutes = config.focusMinutes;
-			void this.deps.logFocus(completed.taskPath, minutes);
-			this.deps.notify(`Focus complete — logged ${minutes}m to ${completed.taskName}`);
+			// Log the phase's actual length — a trailing fill focus is shorter than focusMinutes.
+			const minutes = Math.round(completed.durationSec / 60);
+			void this.deps.logFocus({
+				taskPath: completed.taskPath,
+				taskName: completed.taskName,
+				minutes,
+				mode: completed.mode,
+			});
+			const target = completed.taskName ? ` to ${completed.taskName}` : '';
+			this.deps.notify(`Focus complete — logged ${minutes}m${target}`);
 		}
 
-		let next = advancePhase(completed, config);
+		if (completed.targetEndMs !== null) {
+			this.handleUntilBoundary(completed, config);
+			return;
+		}
+
+		this.announcePhase(advancePhase(completed, config), config);
+	}
+
+	/** Start or arm `next`, honoring the auto-start setting, then publish it. */
+	private announcePhase(next: PomodoroSession, config: PomodoroConfig & { autoStartNext: boolean }): void {
 		const label = phaseLabel(next.mode);
 		if (config.autoStartNext) {
 			this.deps.notify(`${label} started`);
+			this.session.set(next);
 		} else {
-			next = pauseSession(next);
 			this.deps.notify(`${label} ready — resume when you are`);
+			this.session.set(pauseSession(next));
 		}
-		this.session.set(next);
+	}
+
+	private finishAtTarget(): void {
+		this.deps.notify('Reached your target time — nice work.');
+		this.session.set(null);
+		this.clearTicking();
+	}
+
+	/**
+	 * Decide what runs next in a "focus until X" session. Runs the next full phase
+	 * if it completes before the target; otherwise fills a leftover focus gap with a
+	 * shortened final focus, or stops. A completed fill focus ends the session.
+	 */
+	private handleUntilBoundary(completed: PomodoroSession, config: PomodoroConfig & { autoStartNext: boolean }): void {
+		if (completed.isFill) {
+			this.finishAtTarget();
+			return;
+		}
+		const remainingMs = Math.max(0, (completed.targetEndMs ?? 0) - this.now());
+		const upcoming = nextMode(completed, config);
+		const fullSec = phaseDurationSec(upcoming, config);
+
+		if (remainingMs >= fullSec * 1000) {
+			this.announcePhase(advancePhase(completed, config), config);
+			return;
+		}
+
+		const fillMin = upcoming === 'focus' ? fillFocusMinutes(remainingMs / 60_000) : 0;
+		if (fillMin >= 1) {
+			const durationSec = fillMin * 60;
+			const fill: PomodoroSession = {
+				...completed,
+				mode: 'focus',
+				durationSec,
+				remainingSec: durationSec,
+				running: config.autoStartNext,
+				isFill: true,
+			};
+			this.session.set(fill);
+			this.deps.notify(`${fillMin}m until target — final focus ${config.autoStartNext ? 'started' : 'ready'}.`);
+			return;
+		}
+
+		this.finishAtTarget();
 	}
 }
