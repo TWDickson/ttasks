@@ -12,6 +12,7 @@ import { renderCaptureSourcesSettingsSection } from './captureSourcesSettingsSec
 import { renderKanbanSettingsSection } from './kanbanSettingsSection';
 import { renderManagedListSettingSection } from './managedListSettingsSection';
 import { renderMigrationSettingsSection } from './migrationSettingsSection';
+import { renderPomodoroSettingsSection } from './pomodoroSettingsSection';
 import { renderQuickActionsSettingsSection } from './quickActionsSettingsSection';
 import { renderRemindersSettingsSection } from './remindersSettingsSection';
 import { renderViewsSettingsSection } from './viewsSettingsSection';
@@ -260,6 +261,13 @@ export class TTasksSettingTab extends PluginSettingTab {
 			containerEl: archiveEl,
 			plugin: this.plugin,
 			rerender: () => this.display(),
+		});
+
+		// --- Pomodoro --------------------------------------------------------
+		const pomodoroEl = this.group(nav, 'pomodoro', 'Pomodoro');
+		renderPomodoroSettingsSection({
+			containerEl: pomodoroEl,
+			plugin: this.plugin,
 		});
 
 		// --- Advanced --------------------------------------------------------
