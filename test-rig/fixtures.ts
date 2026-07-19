@@ -306,6 +306,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			graphDiagnosticsEnabled: false,
 			overviewGraphShowCompleted: false,
 			overviewGraphGrouping: 'none',
+			pomodoro: { ...DEFAULT_POMODORO_CONFIG, autoStartNext: true, logEnabled: true, logPath: 'ttasks-pomodoro-log.csv' },
 	};
 
 	return {

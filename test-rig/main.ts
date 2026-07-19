@@ -13,7 +13,9 @@ import { writable } from 'svelte/store';
 import TaskBoard from '../src/components/TaskBoard.svelte';
 import TaskRail from '../src/components/TaskRail.svelte';
 import TaskDetail from '../src/components/TaskDetail.svelte';
+import PomodoroPane from '../src/components/PomodoroPane.svelte';
 import { CreateTaskModal } from '../src/modals/CreateTaskModal';
+import { FocusUntilModal } from '../src/modals/FocusUntilModal';
 import { combineBoardTasks, createBoardStateService } from '../src/store/BoardStateService';
 import { getRegisteredTaskViews } from '../src/views/viewRegistry';
 import { buildRigPlugin } from './fixtures';
@@ -88,6 +90,33 @@ dataBtn.addEventListener('click', () => {
 	window.location.href = next.toString();
 });
 
+// ── Pomodoro pane scene ──────────────────────────────────────────────────────
+// ?pomo=idle | active mounts just the dedicated Pomodoro pane for visual checks.
+const pomoScene = params.get('pomo');
+if (pomoScene) {
+	const pomoStage = root.createDiv({ cls: 'rig-stage' });
+	const pomoPane = pomoStage.createDiv({ cls: 'rig-detail tt-pomodoro-view' });
+	pomoStage.classList.add('detail-open');
+	if (pomoScene === 'active') {
+		// A focus-until session so the "final"/target affordances show too.
+		plugin.pomodoroService.startUntil(null, null, 33);
+	}
+	new PomodoroPane({
+		target: pomoPane,
+		props: {
+			session: plugin.pomodoroService.session,
+			focusMinutes: plugin.settings.pomodoro.focusMinutes,
+			onStart: () => plugin.pomodoroService.start(null, null),
+			onFocusUntil: () => new FocusUntilModal(plugin.app as never, plugin as never, null, null).open(),
+			onToggle: () => plugin.pomodoroService.toggle(),
+			onSkip: () => plugin.pomodoroService.skip(),
+			onStop: () => plugin.pomodoroService.stop(),
+			onOpenTask: (p: string) => console.info('[rig] openTask', p),
+		},
+	});
+	document.body.dataset.rigReady = '1';
+} else {
+
 // ── Mount the three workspace panes ──────────────────────────────────────────
 // Mirrors the real layout: rail = left sidebar leaf, board = main leaf,
 // detail = right sidebar leaf (drawer overlay on mobile viewports).
@@ -152,3 +181,5 @@ if (params.get('modal') === '1') {
 
 // Signal readiness for the screenshot script
 document.body.dataset.rigReady = '1';
+
+}

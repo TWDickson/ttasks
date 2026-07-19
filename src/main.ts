@@ -16,6 +16,7 @@ import { TaskStore } from './store/TaskStore';
 import { TaskBoardView, TASK_BOARD_VIEW_TYPE } from './views/TaskBoardView';
 import { TaskRailView, TASK_RAIL_VIEW_TYPE } from './views/TaskRailView';
 import { TaskDetailView, TASK_DETAIL_VIEW_TYPE } from './views/TaskDetailView';
+import { PomodoroView, TASK_POMODORO_VIEW_TYPE } from './views/PomodoroView';
 import { createBoardStateService, type BoardStateStores } from './store/BoardStateService';
 import { resolveTaskViewId } from './views/viewRegistry';
 import { CreateTaskModal } from './modals/CreateTaskModal';
@@ -99,6 +100,10 @@ export default class TTasksPlugin extends Plugin {
 		this.registerView(
 			TASK_DETAIL_VIEW_TYPE,
 			leaf => new TaskDetailView(leaf, this)
+		);
+		this.registerView(
+			TASK_POMODORO_VIEW_TYPE,
+			leaf => new PomodoroView(leaf, this)
 		);
         this.registerHoverLinkSource('ttasks-board', { display: 'TTasks Board', defaultMod: true });
 
@@ -203,6 +208,12 @@ export default class TTasksPlugin extends Plugin {
 				this.pomodoroService.start(task.path, task.name);
 				return true;
 			},
+		});
+
+		this.addCommand({
+			id: 'open-pomodoro-pane',
+			name: 'Open Pomodoro pane',
+			callback: () => this.openPomodoroPane(),
 		});
 
 		this.addCommand({
@@ -379,6 +390,18 @@ export default class TTasksPlugin extends Plugin {
 			active: Platform.isMobile,
 		});
 		if (!hadLeaf) this.applyDefaultDetailPaneWidth();
+	}
+
+	/**
+	 * Open (or reveal) the dedicated Pomodoro pane in the right sidebar. Like the
+	 * detail pane, on mobile it must be the active leaf to surface over the board
+	 * rather than reveal underneath the drawer.
+	 */
+	async openPomodoroPane(): Promise<void> {
+		await this.app.workspace.ensureSideLeaf(TASK_POMODORO_VIEW_TYPE, 'right', {
+			reveal: true,
+			active: true,
+		});
 	}
 
 	/**
