@@ -19,6 +19,7 @@
 	import { createTaskDetailSaveController, normalizeDateValue } from './taskDetailSaveController';
 	import { confirmModal } from '../modals/confirmModal';
 	import { runArchiveFlow, runDeleteFlow, runMarkCompleteFlow } from './taskDetailActions';
+	import { formatRemaining } from '../integration/pomodoro';
 	import TextField from './fields/TextField.svelte';
 	import SelectField from './fields/SelectField.svelte';
 	import DateField from './fields/DateField.svelte';
@@ -42,6 +43,20 @@
 	$: task = $activeTaskPath
 		? ($tasks.find((t) => t.path === $activeTaskPath) ?? store.getByPath($activeTaskPath) ?? null)
 		: null;
+
+	// ── Pomodoro (native focus timer) ───────────────────────────────────────────
+	// TaskDetail already receives `plugin`, so we read the shared session store
+	// directly (same pattern as the rest of this component). The control shows a
+	// live timer only when *this* task owns the running session.
+	const pomodoroSession = plugin.pomodoroService.session;
+	$: activePomodoro = $pomodoroSession && task && $pomodoroSession.taskPath === task.path ? $pomodoroSession : null;
+	$: pomodoroPhase = activePomodoro
+		? (activePomodoro.mode === 'focus' ? 'Focus' : activePomodoro.mode === 'short-break' ? 'Short break' : 'Long break')
+		: '';
+	function startPomodoro() { if (task) plugin.pomodoroService.start(task.path, task.name); }
+	function togglePomodoro() { plugin.pomodoroService.toggle(); }
+	function skipPomodoro() { plugin.pomodoroService.skip(); }
+	function stopPomodoro() { plugin.pomodoroService.stop(); }
 
 	// ── Local editable state (mirrors task, reset when task changes) ─────────
 	let name = '';
@@ -681,6 +696,34 @@
 			{/if}
 		</div>
 
+		<div class="tt-pomodoro">
+			<div class="tt-pomodoro-head">
+				<span class="tt-label">Focus</span>
+				{#if (task.pomodoro_count ?? 0) > 0 || (task.focused_minutes ?? 0) > 0}
+					<span class="tt-pomodoro-stats">{task.pomodoro_count ?? 0}× · {task.focused_minutes ?? 0}m logged</span>
+				{/if}
+			</div>
+			{#if activePomodoro}
+				<div class="tt-pomodoro-active" class:is-break={activePomodoro.mode !== 'focus'}>
+					<div class="tt-pomodoro-readout">
+						<span class="tt-pomodoro-time">{formatRemaining(activePomodoro)}</span>
+						<span class="tt-pomodoro-phase">{pomodoroPhase}{activePomodoro.running ? '' : ' · paused'}</span>
+					</div>
+					<div class="tt-pomodoro-controls">
+						<button type="button" class="tt-btn tt-btn-sm" on:click={togglePomodoro}>
+							{activePomodoro.running ? 'Pause' : 'Resume'}
+						</button>
+						<button type="button" class="tt-btn tt-btn-sm" on:click={skipPomodoro}>Skip</button>
+						<button type="button" class="tt-btn tt-btn-sm tt-btn-danger" on:click={stopPomodoro}>Stop</button>
+					</div>
+				</div>
+			{:else}
+				<button type="button" class="tt-btn tt-btn-sm tt-pomodoro-start" on:click={startPomodoro}>
+					Start focus timer
+				</button>
+			{/if}
+		</div>
+
 	{#if task.type === 'task'}
 		<TaskDetailRelationships
 				{task}
@@ -845,6 +888,73 @@
 		.tt-fields > .tt-label:first-child {
 			margin-top: 0;
 		}
+	}
+
+	/* Pomodoro focus-timer control. Uses the shared .tt-btn primitives; only
+	   layout + the running-timer surface live here. */
+	.tt-pomodoro {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.tt-pomodoro-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 8px;
+	}
+
+	.tt-pomodoro-stats {
+		font-size: 0.78rem;
+		color: var(--text-muted);
+	}
+
+	.tt-pomodoro-start {
+		align-self: flex-start;
+	}
+
+	.tt-pomodoro-active {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px 12px;
+		padding: 10px 12px;
+		border-radius: var(--tt-control-radius, 8px);
+		/* Tint the surface with the accent (focus) or muted (break) — never a
+		   hardcoded colour, per the CLAUDE.md colour rule. */
+		background: color-mix(in srgb, var(--interactive-accent) 14%, var(--background-primary));
+		border: 1px solid color-mix(in srgb, var(--interactive-accent) 40%, var(--background-primary));
+	}
+
+	.tt-pomodoro-active.is-break {
+		background: color-mix(in srgb, var(--text-muted) 12%, var(--background-primary));
+		border-color: color-mix(in srgb, var(--text-muted) 32%, var(--background-primary));
+	}
+
+	.tt-pomodoro-readout {
+		display: flex;
+		flex-direction: column;
+		line-height: 1.15;
+	}
+
+	.tt-pomodoro-time {
+		font-size: 1.5rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.tt-pomodoro-phase {
+		font-size: 0.74rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-muted);
+	}
+
+	.tt-pomodoro-controls {
+		display: flex;
+		gap: 6px;
 	}
 
 	/* Relationship, notes, and action CSS live in their own sub-components. */

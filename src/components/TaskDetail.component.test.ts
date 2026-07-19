@@ -70,6 +70,13 @@ function renderDetail(options: {
 		archiveService: {
 			archiveTask: vi.fn(async () => {}),
 		},
+		pomodoroService: {
+			session: writable(null),
+			start: vi.fn(),
+			toggle: vi.fn(),
+			skip: vi.fn(),
+			stop: vi.fn(),
+		},
 		triggerTaskHoverPreview: vi.fn(),
 	} as any;
 	const store = {

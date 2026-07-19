@@ -4,6 +4,8 @@
 
 import { get, writable, type Writable } from 'svelte/store';
 import type { Task, TaskPriority, TaskStatus } from '../src/types';
+import { PomodoroService } from '../src/store/PomodoroService';
+import { DEFAULT_POMODORO_CONFIG } from '../src/integration/pomodoro';
 
 const COMPLETION_STATUS = 'Done';
 
@@ -199,6 +201,7 @@ export interface RigPlugin {
 	taskStore: Record<string, unknown> & { tasks: Writable<Task[]> };
 	scanEngine: { tasks: Writable<Task[]> };
 	archiveService: { archiveTask: (path: string) => Promise<void> };
+	pomodoroService: PomodoroService;
 	activeTaskPath: Writable<string | null>;
 	focusedTaskPath: Writable<string | null>;
 	activeViewMode: Writable<string | null>;
@@ -318,6 +321,11 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 				tasks.update((all) => all.filter((t) => stripMd(t.path) !== stripMd(path)));
 			},
 		},
+		pomodoroService: new PomodoroService({
+			getConfig: () => ({ ...DEFAULT_POMODORO_CONFIG, autoStartNext: true }),
+			logFocus: (path: string, minutes: number) => console.info('[rig] pomodoro log', path, minutes),
+			notify: (message: string) => console.info('[rig] pomodoro', message),
+		}),
 		activeTaskPath,
 		focusedTaskPath,
 		activeViewMode,
