@@ -6,6 +6,7 @@
 	import type { Task } from '../types';
 	import type { ExternalTask } from '../integration/types';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
+	import { GraphExpandModal } from '../modals/GraphExpandModal';
 	import TaskList from './TaskList.svelte';
 	import TaskKanban from './TaskKanban.svelte';
 	import TaskAgenda from './TaskAgenda.svelte';
@@ -235,6 +236,22 @@
 		plugin.showTaskContextMenu(task, event);
 	}
 
+	function openGraphFullscreen(mode: 'dependency' | 'overview') {
+		new GraphExpandModal(plugin.app, {
+			plugin,
+			groups: groupedTasks,
+			statusColors: configuredStatusColors,
+			areaColors: configuredCategoryColors,
+			activeTaskPath,
+			defaultGraphMode: mode,
+			onOpen: (path) => {
+				focusedTaskPath.set(path);
+				plugin.taskStore.openDetail(path);
+			},
+			onContextMenu: openContextMenu,
+		}).open();
+	}
+
 	async function promoteCapturedTask(external: ExternalTask): Promise<void> {
 		try {
 			const created = await promoteTaskToTTasks(external, plugin);
@@ -386,6 +403,7 @@
 							plugin.taskStore.openDetail(path);
 						}}
 						onContextMenu={openContextMenu}
+						onToggleFullscreen={() => openGraphFullscreen(currentView.presentation.graphMode)}
 					/>
 				{:else if currentRenderer === RENDERER_ARCHIVE}
 					<TaskArchiveView {plugin} />

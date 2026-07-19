@@ -34,6 +34,11 @@
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
+	// GP1: fullscreen expand. When `onToggleFullscreen` is set the graph shows a
+	// maximize/collapse button. `isFullscreen` flips it to a collapse affordance
+	// (set true by GraphExpandModal, which hosts a second instance edge-to-edge).
+	export let onToggleFullscreen: (() => void) | undefined = undefined;
+	export let isFullscreen = false;
 
 	type GraphMode = 'dependency' | 'overview';
 	export let defaultGraphMode: GraphMode = 'dependency';
@@ -908,6 +913,16 @@
 </script>
 
 <div class="tt-graph-shell">
+	{#if onToggleFullscreen}
+		<button
+			type="button"
+			class="tt-graph-expand"
+			aria-label={isFullscreen ? 'Collapse graph' : 'Expand graph to full screen'}
+			on:click={() => onToggleFullscreen?.()}
+		>
+			<span class="tt-graph-expand-icon" use:icon={isFullscreen ? 'minimize-2' : 'maximize-2'}></span>
+		</button>
+	{/if}
 	<div class="tt-graph-toolbar">
 		<div class="tt-graph-summary">
 			{#if graphMode === 'dependency'}
@@ -1332,17 +1347,67 @@
 
 <style>
 	.tt-graph-shell {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		height: 100%;
 		min-height: 0;
 	}
 
+	/* GP1: expand/collapse toggle, pinned top-right (clear of the toolbar pills),
+		present in both dependency and timeline modes. */
+	.tt-graph-expand {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		z-index: 5;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 30px;
+		height: 30px;
+		padding: 0;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 8px;
+		background: var(--background-secondary);
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+	}
+
+	.tt-graph-expand:hover {
+		color: var(--text-normal);
+		background: var(--background-modifier-hover);
+		border-color: var(--background-modifier-border-hover);
+	}
+
+	.tt-graph-expand-icon {
+		display: inline-flex;
+		width: 16px;
+		height: 16px;
+	}
+
+	/* Coarse-pointer (touch) gets the P4 minimum hit area. */
+	@media (pointer: coarse) {
+		.tt-graph-expand {
+			width: 44px;
+			height: 44px;
+			border-radius: 10px;
+		}
+	}
+
 	.tt-graph-toolbar {
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-		padding: 12px 14px 4px;
+		/* Right padding reserves room for the absolutely-positioned expand button. */
+		padding: 12px 52px 4px 14px;
+	}
+
+	@media (pointer: coarse) {
+		.tt-graph-toolbar {
+			padding-right: 64px;
+		}
 	}
 
 	.tt-graph-zoom {

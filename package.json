@@ -31,7 +31,7 @@
     "js-yaml": "^5.2.1",
     "jsdom": "^29.1.1",
     "lucide": "^1.23.0",
-    "obsidian": "latest",
+    "obsidian": "^1.13.1",
     "obsidian-daily-notes-interface": "^0.9.5",
     "puppeteer-core": "^25.3.0",
     "svelte": "^4.2.19",

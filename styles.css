@@ -1033,6 +1033,37 @@
 	overflow-x: hidden;
 }
 
+/* GP1: fullscreen graph modal. A large centred surface on desktop, edge-to-edge
+   on phones (where the in-board graph is too cramped). The graph's own
+   collapse button is the exit, so hide Obsidian's native close X — it would sit
+   on top of our top-right toggle. */
+.tt-graph-fullscreen-modal.modal {
+	width: min(96vw, 1400px);
+	max-width: 96vw;
+	height: 90vh;
+	max-height: 90vh;
+	padding: 0;
+}
+
+.tt-graph-fullscreen-content.modal-content {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+}
+
+.tt-graph-fullscreen-modal .modal-close-button {
+	display: none;
+}
+
+.is-phone .tt-graph-fullscreen-modal.modal {
+	width: 100vw;
+	max-width: 100vw;
+	height: 100vh;
+	max-height: 100vh;
+	border-radius: 0;
+}
+
 .tt-qe-tabs {
 	display: flex;
 	gap: 4px;
