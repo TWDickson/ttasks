@@ -21,6 +21,7 @@ import { createBoardStateService, type BoardStateStores } from './store/BoardSta
 import { resolveTaskViewId } from './views/viewRegistry';
 import { CreateTaskModal } from './modals/CreateTaskModal';
 import { FocusUntilModal } from './modals/FocusUntilModal';
+import { ShareSyncModal } from './modals/ShareSyncModal';
 import { ReminderService } from './store/ReminderService';
 import type { Task } from './types';
 import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration/contextMenu';
@@ -266,6 +267,12 @@ export default class TTasksPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'share-sync',
+			name: 'Share / Sync (filtered export)…',
+			callback: () => this.openShareSync(),
+		});
+
+		this.addCommand({
 			id: 'export-tasks-json-ai',
 			name: 'Export tasks to JSON (AI-friendly, for sharing)',
 			callback: () => this.exportTasksToJson('ai'),
@@ -474,8 +481,21 @@ export default class TTasksPlugin extends Plugin {
 	 * 'ai' mode is clean + self-contained (names, no vault paths); 'full' is
 	 * round-trippable. Read-only over the vault apart from the one export file.
 	 */
+	/** Open the Share/Sync modal (filtered JSON export). */
+	openShareSync(): void {
+		new ShareSyncModal(this.app, this).open();
+	}
+
 	async exportTasksToJson(mode: TaskJsonMode): Promise<void> {
-		const tasks = get(this.taskStore.tasks);
+		await this.exportTasksToJsonFrom(get(this.taskStore.tasks), mode);
+	}
+
+	/**
+	 * Write a JSON export of the given tasks to a vault file (and copy to the
+	 * clipboard when available). Shared by the two whole-set export commands and
+	 * the Share/Sync modal's filtered "Save file" action.
+	 */
+	async exportTasksToJsonFrom(tasks: Task[], mode: TaskJsonMode): Promise<void> {
 		const json = serializeTasksToJson(tasks, mode, new Date().toISOString());
 		const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 		const path = `ttasks-export-${mode}-${stamp}.json`;

@@ -16,6 +16,7 @@ import TaskDetail from '../src/components/TaskDetail.svelte';
 import PomodoroPane from '../src/components/PomodoroPane.svelte';
 import { CreateTaskModal } from '../src/modals/CreateTaskModal';
 import { FocusUntilModal } from '../src/modals/FocusUntilModal';
+import { ShareSyncModal } from '../src/modals/ShareSyncModal';
 import { combineBoardTasks, createBoardStateService } from '../src/store/BoardStateService';
 import { getRegisteredTaskViews } from '../src/views/viewRegistry';
 import { buildRigPlugin } from './fixtures';
@@ -138,6 +139,7 @@ new TaskRail({
 		onSmartListContextMenu: (id: string) => console.info(`[rig] smartListMenu:${id}`),
 		onNewTask: () => new CreateTaskModal(plugin.app as never, plugin as never).open(),
 		onNewProject: () => new CreateTaskModal(plugin.app as never, plugin as never, 'project').open(),
+		onShareSync: () => console.info('[rig] shareSync'),
 		onOpenSettings: () => console.info('[rig] openSettings'),
 	},
 });
@@ -177,6 +179,9 @@ function openFirstDetail(): void {
 if (params.get('detail') === '1') openFirstDetail();
 if (params.get('modal') === '1') {
 	new CreateTaskModal(plugin.app as never, plugin as never).open();
+}
+if (params.get('share') === '1') {
+	new ShareSyncModal(plugin.app as never, plugin as never).open();
 }
 
 // Signal readiness for the screenshot script

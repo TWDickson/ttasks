@@ -35,6 +35,7 @@ function buildProps(overrides: Partial<Record<string, unknown>> = {}) {
 		onSmartListContextMenu: vi.fn(),
 		onNewTask: vi.fn(),
 		onNewProject: vi.fn(),
+		onShareSync: vi.fn(),
 		onOpenSettings: vi.fn(),
 		...overrides,
 	};

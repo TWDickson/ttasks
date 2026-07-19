@@ -11,6 +11,7 @@
 	export let onSmartListContextMenu: (viewId: string, event: MouseEvent) => void;
 	export let onNewTask: () => void;
 	export let onNewProject: () => void;
+	export let onShareSync: () => void;
 	export let onOpenSettings: () => void;
 
 	$: builtinViews = $views.filter((view) => view.source === 'builtin');
@@ -64,6 +65,10 @@
 		<button class="tt-rail-item" on:click={onNewProject} aria-label="New project">
 			<span class="tt-rail-icon" use:icon={'folder-plus'}></span>
 			<span class="tt-rail-label">New project</span>
+		</button>
+		<button class="tt-rail-item" on:click={onShareSync} aria-label="Share / Sync">
+			<span class="tt-rail-icon" use:icon={'share-2'}></span>
+			<span class="tt-rail-label">Share / Sync</span>
 		</button>
 		<div class="tt-rail-divider"></div>
 		<button class="tt-rail-item" on:click={onOpenSettings} aria-label="Settings">

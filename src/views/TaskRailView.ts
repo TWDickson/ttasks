@@ -53,6 +53,7 @@ export class TaskRailView extends ItemView {
 				onSmartListContextMenu: (viewId: string, event: MouseEvent) => openSmartListMenu(this.plugin, viewId, event),
 				onNewTask: () => new CreateTaskModal(this.app, this.plugin).open(),
 				onNewProject: () => new CreateTaskModal(this.app, this.plugin, 'project').open(),
+				onShareSync: () => this.plugin.openShareSync(),
 				onOpenSettings: () => this.plugin.openPluginSettings(),
 			},
 		});
