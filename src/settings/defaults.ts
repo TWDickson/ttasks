@@ -103,6 +103,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		autoStartNext: true,
 		logEnabled: true,
 		logPath: 'ttasks-pomodoro-log.csv',
+		logPartialOnStop: true,
 	},
 	kanbanCardFields: ['area', 'dueDate', 'labels', 'depCount'] as KanbanCardField[],
 	kanbanCollapsedColumns: [],
@@ -271,6 +272,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 			autoStartNext: settings.pomodoro?.autoStartNext ?? DEFAULT_SETTINGS.pomodoro.autoStartNext,
 			logEnabled: settings.pomodoro?.logEnabled ?? DEFAULT_SETTINGS.pomodoro.logEnabled,
 			logPath: settings.pomodoro?.logPath ?? DEFAULT_SETTINGS.pomodoro.logPath,
+			logPartialOnStop: settings.pomodoro?.logPartialOnStop ?? DEFAULT_SETTINGS.pomodoro.logPartialOnStop,
 		},
 		kanbanCardFields: settings.kanbanCardFields ?? [...DEFAULT_SETTINGS.kanbanCardFields],
 		kanbanCollapsedColumns: settings.kanbanCollapsedColumns ?? [...DEFAULT_SETTINGS.kanbanCollapsedColumns],
@@ -741,6 +743,9 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 
 		const logPath = asString(pomodoro.logPath);
 		if (logPath !== null && logPath.trim() !== '') target.pomodoro.logPath = logPath.trim();
+
+		const logPartialOnStop = asBoolean(pomodoro.logPartialOnStop);
+		if (logPartialOnStop !== null) target.pomodoro.logPartialOnStop = logPartialOnStop;
 	}
 }
 

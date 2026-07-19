@@ -448,13 +448,16 @@ export default class TTasksPlugin extends Plugin {
 			minutes: focus.minutes,
 			taskPath: focus.taskPath,
 			taskName: focus.taskName,
+			note: focus.partial ? 'partial (stopped)' : null,
 		});
 
 		if (!focus.taskPath) return;
 		const task = this.taskStore.getByPath(focus.taskPath);
 		if (!task) return; // task deleted mid-session — CSV row already captured it
+		// A partial (stopped mid-focus) session logs its minutes but is not a
+		// completed pomodoro, so it doesn't bump the count.
 		await this.taskStore.update(focus.taskPath, {
-			pomodoro_count: (task.pomodoro_count ?? 0) + 1,
+			pomodoro_count: (task.pomodoro_count ?? 0) + (focus.partial ? 0 : 1),
 			focused_minutes: (task.focused_minutes ?? 0) + focus.minutes,
 		});
 	}

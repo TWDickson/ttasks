@@ -77,6 +77,16 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 			}));
 
 	new Setting(containerEl)
+		.setName('Log partial session on stop')
+		.setDesc('When you Stop mid-focus, log the elapsed minutes instead of discarding them. Partial sessions add to the task\'s minutes but do not count as a completed pomodoro.')
+		.addToggle(toggle => toggle
+			.setValue(p.logPartialOnStop)
+			.onChange(async (value) => {
+				plugin.settings.pomodoro.logPartialOnStop = value;
+				await plugin.saveSettings();
+			}));
+
+	new Setting(containerEl)
 		.setName('Log sessions to CSV')
 		.setDesc('Append every completed focus session (time, minutes, task) to a CSV log file. Append-only, git- and sync-friendly.')
 		.addToggle(toggle => toggle

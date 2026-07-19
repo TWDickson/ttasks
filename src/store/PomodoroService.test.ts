@@ -8,6 +8,7 @@ const config = {
 	longBreakMinutes: 15,
 	longBreakInterval: 4,
 	autoStartNext: true,
+	logPartialOnStop: true,
 };
 
 function makeService(overrides: Partial<PomodoroServiceDeps> = {}) {
@@ -53,7 +54,7 @@ describe('PomodoroService', () => {
 		const { service, logFocus, notify } = makeService();
 		service.start('a.md', 'A');
 		advanceSeconds(1500); // full focus phase
-		expect(logFocus).toHaveBeenCalledWith({ taskPath: 'a.md', taskName: 'A', minutes: 25, mode: 'focus' });
+		expect(logFocus).toHaveBeenCalledWith({ taskPath: 'a.md', taskName: 'A', minutes: 25, mode: 'focus', partial: false });
 		const s = get(service.session);
 		expect(s?.mode).toBe('short-break');
 		expect(s?.completedFocus).toBe(1);
@@ -69,7 +70,7 @@ describe('PomodoroService', () => {
 		expect(get(service.session)).toMatchObject({ taskPath: null, taskName: null, mode: 'focus' });
 		expect(notify).toHaveBeenCalledWith(expect.stringContaining('Focus'));
 		advanceSeconds(1500);
-		expect(logFocus).toHaveBeenCalledWith({ taskPath: null, taskName: null, minutes: 25, mode: 'focus' });
+		expect(logFocus).toHaveBeenCalledWith({ taskPath: null, taskName: null, minutes: 25, mode: 'focus', partial: false });
 		expect(notify).toHaveBeenCalledWith('Focus complete — logged 25m');
 		service.dispose();
 	});
@@ -95,7 +96,7 @@ describe('PomodoroService', () => {
 		advanceSeconds(1500); // focus 2 done → target reached, no room for another phase
 		expect(get(service.session)).toBeNull();
 		expect(logFocus).toHaveBeenCalledTimes(2);
-		expect(logFocus).toHaveBeenLastCalledWith({ taskPath: 'a.md', taskName: 'A', minutes: 25, mode: 'focus' });
+		expect(logFocus).toHaveBeenLastCalledWith({ taskPath: 'a.md', taskName: 'A', minutes: 25, mode: 'focus', partial: false });
 		service.dispose();
 	});
 
@@ -112,7 +113,7 @@ describe('PomodoroService', () => {
 		advanceSeconds(180); // fill done → target reached
 		expect(get(service.session)).toBeNull();
 		expect(logFocus).toHaveBeenCalledTimes(2);
-		expect(logFocus).toHaveBeenLastCalledWith({ taskPath: null, taskName: null, minutes: 3, mode: 'focus' });
+		expect(logFocus).toHaveBeenLastCalledWith({ taskPath: null, taskName: null, minutes: 3, mode: 'focus', partial: false });
 		service.dispose();
 	});
 
@@ -167,6 +168,55 @@ describe('PomodoroService', () => {
 		service.stop();
 		expect(get(service.session)).toBeNull();
 		expect(notify).toHaveBeenCalledWith('Pomodoro stopped');
+		service.dispose();
+	});
+
+	it('stop logs elapsed focus minutes as a partial session', () => {
+		const { service, logFocus } = makeService();
+		service.start('a.md', 'A');
+		advanceSeconds(630); // 10.5 min elapsed → floors to 10
+		service.stop();
+		expect(logFocus).toHaveBeenCalledTimes(1);
+		expect(logFocus).toHaveBeenCalledWith({ taskPath: 'a.md', taskName: 'A', minutes: 10, mode: 'focus', partial: true });
+		service.dispose();
+	});
+
+	it('stop logs the partial even while paused', () => {
+		const { service, logFocus } = makeService();
+		service.start('a.md', 'A');
+		advanceSeconds(120); // 2 min elapsed
+		service.pause();
+		service.stop();
+		expect(logFocus).toHaveBeenCalledWith({ taskPath: 'a.md', taskName: 'A', minutes: 2, mode: 'focus', partial: true });
+		service.dispose();
+	});
+
+	it('stop does not log a sub-minute focus', () => {
+		const { service, logFocus } = makeService();
+		service.start('a.md', 'A');
+		advanceSeconds(45); // under a minute
+		service.stop();
+		expect(logFocus).not.toHaveBeenCalled();
+		service.dispose();
+	});
+
+	it('stop does not log a partial during a break phase', () => {
+		const { service, logFocus } = makeService();
+		service.start('a.md', 'A');
+		advanceSeconds(1500); // focus complete → short break (logs the full focus)
+		logFocus.mockClear();
+		advanceSeconds(60); // 1 min into the break
+		service.stop();
+		expect(logFocus).not.toHaveBeenCalled();
+		service.dispose();
+	});
+
+	it('stop does not log a partial when the setting is off', () => {
+		const { service, logFocus } = makeService({ getConfig: () => ({ ...config, logPartialOnStop: false }) });
+		service.start('a.md', 'A');
+		advanceSeconds(300); // 5 min elapsed
+		service.stop();
+		expect(logFocus).not.toHaveBeenCalled();
 		service.dispose();
 	});
 

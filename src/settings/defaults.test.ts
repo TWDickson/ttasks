@@ -70,15 +70,17 @@ describe('pomodoro settings normalization', () => {
 			autoStartNext: false,
 			logEnabled: DEFAULT_SETTINGS.pomodoro.logEnabled,
 			logPath: DEFAULT_SETTINGS.pomodoro.logPath,
+			logPartialOnStop: DEFAULT_SETTINGS.pomodoro.logPartialOnStop,
 		});
 	});
 
 	it('applies persisted log settings', () => {
 		const merged = normalizeSettingsFromSources([
-			{ pomodoro: { logEnabled: false, logPath: 'logs/pomo.csv' } },
+			{ pomodoro: { logEnabled: false, logPath: 'logs/pomo.csv', logPartialOnStop: false } },
 		]);
 		expect(merged.pomodoro.logEnabled).toBe(false);
 		expect(merged.pomodoro.logPath).toBe('logs/pomo.csv');
+		expect(merged.pomodoro.logPartialOnStop).toBe(false);
 	});
 
 	it('ignores non-numeric fields and keeps the defaults', () => {

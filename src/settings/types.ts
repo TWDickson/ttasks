@@ -114,6 +114,12 @@ export interface PomodoroSettings {
 	logEnabled: boolean;
 	/** Vault-relative path of the CSV session log. */
 	logPath: string;
+	/**
+	 * When you Stop mid-focus, log the elapsed minutes (as a partial session)
+	 * instead of discarding them. Partial sessions add to `focused_minutes` but do
+	 * not increment `pomodoro_count`.
+	 */
+	logPartialOnStop: boolean;
 }
 
 export interface TTasksSettings {

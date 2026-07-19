@@ -144,7 +144,9 @@ don't treat an unchecked box in its phase sections as open work. Open:
    cycles + a shortened final focus so nothing runs past the target) via a modal +
    command + detail-pane button; a **dedicated Pomodoro pane** (own right-sidebar
    leaf, big dial); a desktop **status-bar countdown** (timer icon + live MM:SS,
-   click-to-toggle, hidden when idle). Remaining: optional log-partial-on-stop.
+   click-to-toggle, hidden when idle); **log-partial-on-stop** (stopping mid-focus
+   logs the elapsed minutes as a partial — adds `focused_minutes` + a CSV row, no
+   count bump — gated by a default-on setting). Core Pomodoro slices are complete.
    Live-Obsidian sign-off owed for the CSV write + the two Obsidian modals + the
    pane leaf + the status-bar item (rig can't host Obsidian modals/leaves/bar).
 2. **Graph polish thread** — GP5 header-focus interaction re-tune (`+` add
@@ -173,6 +175,20 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 notes.
 
 ## Recent Updates (2026-07-19)
+
+- **Pomodoro log-partial-on-stop shipped (on `main`).** Closes the last optional
+  Pomodoro slice. `PomodoroService.stop()` now logs the whole elapsed focus
+  minutes as a **partial** session (new `partial` flag on `CompletedFocus`) before
+  clearing, instead of discarding them. Partials add to the task's
+  `focused_minutes` and write a CSV row (`note: "partial (stopped)"`) but do
+  **not** bump `pomodoro_count` — a stopped session isn't a completed pomodoro.
+  Fires only for a focus phase with ≥1 whole minute elapsed (breaks + sub-minute
+  focus ignored); gated by a new `logPartialOnStop` setting (default on) with its
+  own toggle in the Pomodoro settings group. Reuses the already-present, tested
+  pure `elapsedMinutes`. Touched `PomodoroService.ts`, `main.logPomodoroFocus`,
+  settings (`types`/`defaults`/`pomodoroSettingsSection`), +5 service tests.
+  Build green; all core + optional Pomodoro slices now complete (only the
+  live-Obsidian sign-off bundle remains).
 
 - **Pomodoro status-bar countdown shipped (on `main`).** Closes the last core
   Pomodoro slice: a desktop-only status-bar item (`Platform.isMobile` guard, like

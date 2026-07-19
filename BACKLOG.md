@@ -434,9 +434,21 @@ in the boundary list); main.ts adds `initializePomodoroStatusBar` +
 `updatePomodoroStatusBar`. Rig `?pomostatus=1` scene renders all five states
 (focus/break/paused/final/untethered) — verified dark + light. Build green.
 
-**Remaining:** optional log-partial-on-stop; live-Obsidian sign-off for the CSV
-write + the two Obsidian modals + the pane leaf + this status-bar item (rig can't
-host the real Obsidian status bar) — folds into the Visual regression pass.
+**Slice D — log partial session on stop `[x]` (2026-07-19).** Stopping mid-focus
+no longer discards the elapsed time: `PomodoroService.stop()` now logs the whole
+elapsed focus minutes as a **partial** session (new `partial` flag on
+`CompletedFocus`) before clearing. Partials add to the task's `focused_minutes`
+and get a CSV row (`note: "partial (stopped)"`) but do **not** bump
+`pomodoro_count` — a stopped session isn't a completed pomodoro. Only fires for a
+focus phase with ≥1 whole minute elapsed (breaks + sub-minute focus ignored),
+gated by a new `logPartialOnStop` setting (default on) with its own toggle in the
+Pomodoro settings group. Pure `elapsedMinutes` (already present + tested) does the
+math; `PomodoroService.ts` + `main.logPomodoroFocus` + settings
+(types/defaults/section) + 5 new service tests. Build green.
+
+**Remaining:** live-Obsidian sign-off for the CSV write + the two Obsidian modals
++ the pane leaf + the status-bar item (rig can't host the real Obsidian status
+bar) — folds into the Visual regression pass.
 
 ---
 

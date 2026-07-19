@@ -6,6 +6,7 @@ import {
 	advancePhase,
 	isPhaseComplete,
 	nextMode,
+	elapsedMinutes,
 	pauseSession,
 	phaseDurationSec,
 	resumeSession,
@@ -28,10 +29,16 @@ export interface CompletedFocus {
 	/** Whole minutes of focus to log. */
 	minutes: number;
 	mode: PomodoroMode;
+	/**
+	 * True when this is a partial session logged because the user Stopped mid-focus
+	 * (rather than a phase running to completion). Partial sessions add to
+	 * `focused_minutes` but do not count as a completed pomodoro.
+	 */
+	partial: boolean;
 }
 
 export interface PomodoroServiceDeps {
-	getConfig: () => PomodoroConfig & { autoStartNext: boolean };
+	getConfig: () => PomodoroConfig & { autoStartNext: boolean; logPartialOnStop: boolean };
 	/**
 	 * Persist a completed focus session: append it to the session log, and (when a
 	 * task is attached) bump the task's count + minutes. Called once per finished
@@ -117,9 +124,32 @@ export class PomodoroService {
 
 	/** End the session entirely and clear the display. */
 	stop(): void {
-		if (get(this.session)) this.deps.notify('Pomodoro stopped');
+		const current = get(this.session);
+		if (current) {
+			this.logPartialOnStop(current);
+			this.deps.notify('Pomodoro stopped');
+		}
 		this.session.set(null);
 		this.clearTicking();
+	}
+
+	/**
+	 * When Stop lands mid-focus with whole minutes elapsed, log those minutes as a
+	 * partial session (if the setting allows) so the work isn't discarded. Breaks
+	 * and sub-minute focus are ignored; partials never count as a completed pomodoro.
+	 */
+	private logPartialOnStop(session: PomodoroSession): void {
+		if (session.mode !== 'focus') return;
+		if (!this.deps.getConfig().logPartialOnStop) return;
+		const minutes = elapsedMinutes(session);
+		if (minutes < 1) return;
+		void this.deps.logFocus({
+			taskPath: session.taskPath,
+			taskName: session.taskName,
+			minutes,
+			mode: session.mode,
+			partial: true,
+		});
 	}
 
 	/** Jump to the next phase now (no focus logging — a manual skip). */
@@ -178,6 +208,7 @@ export class PomodoroService {
 				taskName: completed.taskName,
 				minutes,
 				mode: completed.mode,
+				partial: false,
 			});
 			const target = completed.taskName ? ` to ${completed.taskName}` : '';
 			this.deps.notify(`Focus complete — logged ${minutes}m${target}`);
