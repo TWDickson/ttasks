@@ -123,9 +123,9 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 **The single live backlog is `BACKLOG.md`** (consolidated 2026-07-12). Open:
 
 1. **Graph polish thread** — GP5 header-focus interaction re-tune (`+` add
-   subshape shipped; click-to-focus/grow backed out), GP1 mobile pop-out
-   (🔎 research first). *Done: GP4 lane tint, GP3 project filter, GP8 lane
-   focus, GP7 split Dependency/Timeline views.*
+   subshape shipped; click-to-focus/grow backed out). *Done: GP4 lane tint,
+   GP3 project filter, GP8 lane focus, GP7 split Dependency/Timeline views,
+   GP1 fullscreen expand modal (rig-verified; live-iOS sign-off pending).*
 2. **Colour-model workshop** ⚖ — status/area/label colours compete on cards;
    rig shots + 2–3 variants, Taylor picks
 3. **Gated on Taylor** — branch review/merge of `feat/ui-polish-autopilot`,
@@ -143,6 +143,28 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 notes.
 
 ## Recent Updates (2026-07-18)
+
+- **GP1 landed (rig-verified; live-iOS sign-off pending) — fullscreen expand
+  modal** — the dependency/timeline graph is near-useless in its cramped in-board
+  leaf on phones. Research first: the native pop-out (`moveLeafToPopout`/
+  `openPopoutLeaf`) is **desktop-only and throws on mobile**, so it can't serve
+  the mobile goal; chosen mechanism is a **fullscreen `Modal`** (works on both
+  platforms). New `GraphExpandModal` hosts a second `TaskGraph` instance
+  edge-to-edge, reusing the board's live stores (`groups`, `activeTaskPath`);
+  opening a task closes the modal first so the detail drawer doesn't sit behind
+  it on mobile. `TaskGraph` gained `onToggleFullscreen`/`isFullscreen`: a
+  top-right maximize button in **both** dependency + timeline modes that flips to
+  a collapse button inside the modal (the single exit — Obsidian's native close X
+  is hidden to avoid overlap; Esc + the phone back gesture also close it now that
+  `Modal implements HistoryHandler` in obsidian 1.13). CSS: large centred surface
+  on desktop (`min(96vw,1400px)` × 90vh), true `100vw/100vh` on `.is-phone`;
+  coarse-pointer gets a 44px target. Also **bumped obsidian typings 1.12.3 →
+  1.13.1** (was resolving stale under `"latest"`; typecheck clean, no breaking
+  changes). Touched `GraphExpandModal.ts` (new), `TaskGraph.svelte`,
+  `TaskBoard.svelte`, `styles.css`. Build green, **1261 tests**. Rig-verified button placement
+  (both modes, desktop + mobile), open/collapse, and edge-to-edge at the full
+  390×844 viewport with `.is-phone` forced; the on-device iOS pass is the one
+  thing still owed (rig can't render Obsidian's mobile shell).
 
 - **GP7 landed — Dependency and Timeline are now two separate rail views** — the
   single **Graph** entry split into **Dependencies** (`id: graph`, dependency

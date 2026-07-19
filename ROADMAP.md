@@ -4,6 +4,28 @@ This file is the implementation backlog checkpoint for the current phase plan.
 
 ---
 
+## GP1 checkpoint — fullscreen graph expand modal (2026-07-18)
+
+**GP1 landed (rig-verified; live-iOS sign-off pending).** Research-first task:
+the native pop-out API (`moveLeafToPopout`/`openPopoutLeaf`) is desktop-only and
+throws on mobile, so the chosen mechanism is a **fullscreen `Modal`** — the one
+surface that works on both platforms. New `GraphExpandModal` hosts a second
+`TaskGraph` instance edge-to-edge, reusing the board's live stores; opening a
+task closes the modal first (the detail drawer would otherwise sit behind it on
+mobile). `TaskGraph` gained `onToggleFullscreen`/`isFullscreen`: a top-right
+maximize button in both dependency and timeline modes, flipping to a collapse
+button inside the modal (single exit; native close X hidden; Esc + phone
+back-gesture also close it via `Modal implements HistoryHandler`, new in obsidian
+1.13). CSS: centred `min(96vw,1400px)`×90vh on desktop, `100vw/100vh` on
+`.is-phone`; 44px coarse-pointer target. Bumped obsidian typings 1.12.3 → 1.13.1.
+Touched `GraphExpandModal.ts` (new), `TaskGraph.svelte`, `TaskBoard.svelte`,
+`styles.css`. Graph-polish thread now: GP1/GP3/GP4/GP7/GP8 landed; GP5 partly.
+Still owed: on-device iOS pass (rig can't render Obsidian's mobile shell).
+Validation: production build clean; **1261 tests** passing; rig-verified
+edge-to-edge at the full 390×844 viewport.
+
+---
+
 ## GP7 checkpoint — split Dependency / Timeline views (2026-07-18)
 
 **GP7 landed.** The single **Graph** rail entry is now two built-in views —

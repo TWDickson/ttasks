@@ -194,25 +194,43 @@ not a toggle inside one.
 **Notes.** Bigger structural change than GP1–GP6; worth its own PRD-ish pass.
 Sequence after the cheap visual items (GP4) unless Taylor wants it prioritised.
 
-### GP1 — Mobile: pop-out / full-screen graph `[ ]` 🔎
+### GP1 — Mobile: pop-out / full-screen graph `[x]` (live-mobile sign-off pending)
+
+*Landed 2026-07-18 (rig-verified; live iOS pass still owed).* Research first:
+the native pop-out (`moveLeafToPopout`/`openPopoutLeaf`) is **desktop-only and
+throws on mobile** ([obsidian.d.ts:6931](node_modules/obsidian/obsidian.d.ts)),
+so it can't serve the mobile goal; an in-place `position:fixed` fullscreen fights
+Obsidian's header z-index/scroll. Chosen mechanism: a **fullscreen `Modal`** —
+the one surface that works on both platforms. New `GraphExpandModal` hosts a
+second `TaskGraph` instance edge-to-edge, reusing the board's live stores
+(`groups`, `activeTaskPath`); opening a task closes the modal first so the detail
+drawer doesn't end up behind it on mobile. `TaskGraph` gained
+`onToggleFullscreen`/`isFullscreen`: a top-right maximize button in **both**
+dependency and timeline modes that flips to a collapse button inside the modal
+(the single exit — Obsidian's native close X is hidden to avoid overlap; Esc +
+the phone back gesture also close it now that `Modal implements HistoryHandler`
+in obsidian 1.13). CSS: large centred surface on desktop (`min(96vw,1400px)` ×
+90vh), true `100vw/100vh` on `.is-phone`; coarse-pointer gets a 44px target.
+Also bumped obsidian typings 1.12.3 → 1.13.1 (was resolving stale under
+`"latest"`). `GraphExpandModal.ts` (new) + `TaskGraph.svelte` +
+`TaskBoard.svelte` + `styles.css`. Build green, 1261 tests.
+
+**Still owed:** the live iOS / real-`.is-phone` pass (the rig can't render
+Obsidian's mobile shell — verified edge-to-edge by forcing `.is-phone`, which
+measured the modal at the full 390×844 viewport, but final sign-off is on-device
+per the CLAUDE.md mobile rule). Tracked in **Gated on Taylor** below.
 
 **Problem.** In its current leaf form the graph is close to useless on mobile —
 too little screen. Want a way to "pop out" the graph so it takes (most of) the
 screen.
 
-**Direction.** Check the Obsidian docs/API for the right mechanism before
-building — options to weigh:
-- Open the graph in its own dedicated full-width leaf / workspace tab.
-- A full-screen modal ("expand" affordance) that hosts the same component.
-- Native "pop-out window" (desktop only — likely N/A on mobile).
-
 **Acceptance.**
 - On a narrow viewport there is an obvious control to expand the graph to
-  (near) full screen, and to return.
-- Pan/zoom/pinch still work in the expanded surface.
+  (near) full screen, and to return. ✓ (maximize/collapse toggle)
+- Pan/zoom/pinch still work in the expanded surface. ✓ (fresh instance
+  re-inits its gesture handlers; rig-verified, on-device pinch pending)
 - Verify on iOS / narrow-viewport browser per the CLAUDE.md mobile rule.
-
-**Notes.** Research task first; report the chosen mechanism before implementing.
+  ⏳ live-mobile sign-off pending.
 
 ---
 
@@ -252,6 +270,11 @@ never hardcoded hex/white on user colours) applies to every variant.
   task name red *and* a solid red badge; with several overdue tasks the views
   shout. Options: keep the badge as the only signal, or a red left edge like
   kanban's active accent. (From `Scripts/archive/DESIGN_AUDIT.md`.)
+- `[ ]` **GP1 live-mobile sign-off** — the fullscreen graph modal shipped and is
+  rig-verified (edge-to-edge at 390×844 with `.is-phone` forced), but the real
+  on-device pass is owed: open Dependencies/Timeline on iOS, tap **maximize**,
+  confirm the modal is truly edge-to-edge, pinch-zoom + pan work, and
+  collapse/back-gesture/Esc all return. Note any safe-area-inset gotchas.
 - `[ ]` **Visual regression pass** — dark/light × desktop/phone sweep per the
   `Scripts/STYLING_NOTES.md` checklist; includes the settings-tab before/after
   from the P7 overhaul (the rig doesn't cover the settings tab — live Obsidian
