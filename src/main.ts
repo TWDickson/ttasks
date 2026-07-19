@@ -25,6 +25,7 @@ import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration
 import { resolveQuickAction } from './integration/quickActions';
 import { ArchiveService } from './store/ArchiveService';
 import { PomodoroService } from './store/PomodoroService';
+import { type TaskJsonMode, serializeTasksToJson } from './integration/taskJsonExport';
 import { dispatchProtocolAction, parseProtocolAction } from './integration/protocol';
 import { buildStatusSummary } from './integration/statusSummary';
 import { pathToLinktext } from './integration/hoverLink';
@@ -235,6 +236,18 @@ export default class TTasksPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: 'export-tasks-json-ai',
+			name: 'Export tasks to JSON (AI-friendly, for sharing)',
+			callback: () => this.exportTasksToJson('ai'),
+		});
+
+		this.addCommand({
+			id: 'export-tasks-json-full',
+			name: 'Export tasks to JSON (full, round-trippable)',
+			callback: () => this.exportTasksToJson('full'),
+		});
+
 		if (process.env.NODE_ENV !== 'production') {
 			this.addCommand({
 				id: 'seed-graph-test-data',
@@ -380,6 +393,33 @@ export default class TTasksPlugin extends Plugin {
 			pomodoro_count: (task.pomodoro_count ?? 0) + 1,
 			focused_minutes: (task.focused_minutes ?? 0) + minutes,
 		});
+	}
+
+	/**
+	 * Serialize the current task set to a JSON file at the vault root (and copy to
+	 * the clipboard when available) so it can be shared with an external tool. The
+	 * 'ai' mode is clean + self-contained (names, no vault paths); 'full' is
+	 * round-trippable. Read-only over the vault apart from the one export file.
+	 */
+	async exportTasksToJson(mode: TaskJsonMode): Promise<void> {
+		const tasks = get(this.taskStore.tasks);
+		const json = serializeTasksToJson(tasks, mode, new Date().toISOString());
+		const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+		const path = `ttasks-export-${mode}-${stamp}.json`;
+		try {
+			await this.app.vault.create(path, json);
+		} catch (error) {
+			new Notice(`TTasks: could not write export file: ${error instanceof Error ? error.message : String(error)}`);
+			return;
+		}
+		let copied = false;
+		try {
+			await navigator.clipboard.writeText(json);
+			copied = true;
+		} catch {
+			// Clipboard can be unavailable (mobile / permissions); the file is the fallback.
+		}
+		new Notice(`TTasks: exported ${tasks.length} task(s) → ${path}${copied ? ' (also copied to clipboard)' : ''}.`);
 	}
 
 	async loadSettings() {

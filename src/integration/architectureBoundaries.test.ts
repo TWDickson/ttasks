@@ -68,6 +68,8 @@ describe('architecture boundaries', () => {
 			'src/integration/captureSourceFiles.ts',
 			'src/integration/protocol.ts',
 			'src/integration/pomodoro.ts',
+			'src/integration/taskJsonExport.ts',
+			'src/integration/taskJsonImport.ts',
 			'src/store/PomodoroService.ts',
 			'src/store/reminderRules.ts',
 			'src/store/reminderStorage.ts',
