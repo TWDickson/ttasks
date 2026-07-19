@@ -131,11 +131,15 @@ don't treat an unchecked box in its phase sections as open work. Open:
    AI).* Export shipped 2026-07-19 (pure serializer full/ai modes + two commands,
    file + clipboard) and the import parser is done + tested; **import→vault
    creation, subset export, and an import command surface remain** (see BACKLOG).
-1. **Pomodoro (native)** — *in progress (Slices 1–2 done, Slice 3 mostly).*
-   Phase 8 feature, built native (dependency-free, mobile). Functional via
-   commands + a detail-pane control (live MM:SS, pause/skip/stop) with a settings
-   group; logs count + minutes to frontmatter on focus completion. Remaining: the
-   desktop status-bar countdown.
+1. **Pomodoro (native)** — *in progress; expanded 2026-07-19.* Phase 8 feature,
+   built native (dependency-free, mobile). Now: untethered sessions (no task);
+   **CSV session log** (`ttasks-pomodoro-log.csv`, append-only) alongside the
+   per-task count/minutes rollup; **"focus until X:XX"** (pure planner fills whole
+   cycles + a shortened final focus so nothing runs past the target) via a modal +
+   command + detail-pane button; a **dedicated Pomodoro pane** (own right-sidebar
+   leaf, big dial). Remaining: desktop **status-bar countdown**; optional
+   log-partial-on-stop. Live-Obsidian sign-off owed for the CSV write + the two
+   Obsidian modals + the pane leaf (rig can't host Obsidian modals/leaves).
 2. **Graph polish thread** — GP5 header-focus interaction re-tune (`+` add
    subshape shipped; click-to-focus/grow backed out). *Done: GP4 lane tint,
    GP3 project filter, GP8 lane focus, GP7 split Dependency/Timeline views,
@@ -162,6 +166,25 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 notes.
 
 ## Recent Updates (2026-07-19)
+
+- **Pomodoro expansion (3 slices, on `main`).** From Taylor's notes: (A) Pomodoro
+  runs **untethered** — `taskPath`/`taskName` now nullable through the pure timer
+  + service; new "Start Pomodoro (no task)" command. Completed focus sessions
+  append to a **CSV log** (new pure `pomodoroLog.ts`, RFC-4180; `appendPomodoroLog`
+  in main; settings `logEnabled`/`logPath`), and the per-task count/minutes rollup
+  is kept. (B-core) **"Focus until a time"** — new pure `pomodoroPlan.ts`
+  (`planFocusUntil` + `parseUntilInput`) fills the gap before a target with whole
+  Pomodoro cycles; a too-short remainder becomes a shortened final "fill" focus
+  landing exactly on the target. Session gained `targetEndMs`/`isFill`; service
+  `startUntil` + wall-clock gating (injectable `now()`). `FocusUntilModal` (live
+  plan preview) + "Focus until a time…" command + detail-pane button. (B-pane) a
+  **dedicated Pomodoro pane** — `PomodoroPane.svelte` (pure: service refs/callbacks
+  as props, no plugin import; component-tested) in `PomodoroView.ts`
+  (`ttasks-pomodoro`, right sidebar); "Open Pomodoro pane" command. Rig gained a
+  `?pomo=idle|active` scene (both states verified). Build green; planner/service/
+  log/settings + component tests all pass. Commits `b0110db` (A+B-core), `6f81ab0`
+  (B-pane). **Next: JSON import/export (item 0) — Share/Sync sidebar entry +
+  filtered export dialog + import→vault + paste-back bulk-edit summary.**
 
 - **Autonomous session (feat/pomodoro branch, merged to main).** Landed, all
   build-green + tests (1298): (1) **Docs reconcile** — removed the backlog/roadmap

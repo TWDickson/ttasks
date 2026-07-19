@@ -377,9 +377,37 @@ task owns the running session — a live `MM:SS` + phase with Pause/Resume, Skip
 Stop, plus the accumulated `Nx · Nm logged`. Rig-verified idle + active
 (accent-tinted running surface, muted on break). A **Pomodoro settings group**
 (focus/short/long minutes, long-break interval, auto-start toggle) is wired.
+A **Pomodoro settings group** is wired.
+
+**Slice 2 (service) + Slice 3 (detail UI + settings) `[x]` (2026-07-19).**
+Both landed; see history above.
+
+**Slice A — untethered + CSV log `[x]` (2026-07-19, `b0110db`).** `taskPath`/
+`taskName` now nullable through the pure timer + service; "Start Pomodoro (no
+task)" command. New pure `pomodoroLog.ts` (RFC-4180 CSV) + `appendPomodoroLog`
+in main: each completed focus appends `ended_at,mode,minutes,task_name,task_path,
+note` to `ttasks-pomodoro-log.csv` (header on first use; failures Notice-but-
+never-throw). Per-task rollup kept. Settings `logEnabled`/`logPath`. `logFocus`
+dep now takes a `CompletedFocus` object and logs the phase's *actual* minutes.
+
+**Slice B-core — focus until a time `[x]` (2026-07-19, `b0110db`).** New pure
+`pomodoroPlan.ts` (`planFocusUntil` + `parseUntilInput` "10:30"|"90" +
+`fillFocusMinutes`): fills the gap before a target with whole cycles; too-short
+remainder → a shortened final "fill" focus landing exactly on target. Session
+gained `targetEndMs`/`isFill`; service `startUntil` + `handleUntilBoundary` gate
+on wall-clock (injectable `now()`). `FocusUntilModal` (live plan preview),
+"Focus until a time…" command, detail-pane "Focus until…" button.
+
+**Slice B-pane — dedicated Pomodoro pane `[x]` (2026-07-19, `6f81ab0`).**
+`PomodoroPane.svelte` (pure — service refs/callbacks as props, no plugin import;
+component-tested) in `PomodoroView.ts` (`ttasks-pomodoro`, right sidebar, icon
+`timer`); "Open Pomodoro pane" command. Untethered from here; a task's detail
+pane still starts a tethered session. Rig `?pomo=idle|active` scene verified.
+
 **Remaining:** the desktop **status-bar countdown** (N6 surface) so the timer is
-visible while working elsewhere; live-Obsidian sign-off folds into the Visual
-regression pass.
+visible while working elsewhere; optional log-partial-on-stop; live-Obsidian
+sign-off for the CSV write + the two Obsidian modals + the pane leaf (rig can't
+host Obsidian modals/leaves) — folds into the Visual regression pass.
 
 ---
 
