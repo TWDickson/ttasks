@@ -24,6 +24,46 @@ taste/UX call from Taylor · 🔎 needs research first.
 
 ---
 
+## Top priority — JSON import / export `[ ]`
+
+*Requested 2026-07-19 (Taylor): "share my tasks (or a subset) with the work AI."*
+Prioritised for the next session.
+
+**Goal.** Export tasks to a portable JSON document (all, or a filtered subset)
+that can be pasted into / shared with an external AI, and import JSON back into
+the vault as task notes.
+
+**Direction (proposed — confirm shape with Taylor).**
+- **Export.** A pure serializer `tasks → JSON` (stable, documented shape:
+  the frontmatter fields + `notes`, relationships as vault paths or names).
+  Subset via the existing shared **query engine** (`filter`/`search`) — reuse a
+  Smart List / the current view's query so "export this filtered set" is free.
+  Surface: a command ("Export tasks to JSON") + a button that copies to
+  clipboard and/or writes a `.json` file. Include a compact/`for-AI` mode that
+  drops vault-internal noise (paths, `blocks` reverse index) and flattens links
+  to human names, so the work AI gets clean, self-contained context.
+- **Import.** A pure parser `JSON → TaskCreateInput[]` with validation
+  (dedupe, schema-guard, relationship remap), then create via the existing
+  `TaskStore.create` path (ID-collision-safe). Confirm-modal preview of what
+  will be created (reuse the ImportConfirmModal pattern from I5 bulk import).
+- **Round-trip.** Export→import should be lossless for the core schema; make the
+  shape stable + versioned (`schemaVersion`) so external tools can rely on it.
+
+**Grounding.** Reuse: shared query engine (`src/query/`), `TaskStore.create`
+(collision-safe, relationship-safe), `promoteTaskToTTasks`/ImportConfirmModal
+(I5 bulk import), the frontmatter schema in CLAUDE.md. Keep the serializer +
+parser as **pure modules** in `src/integration/` (Obsidian-free, boundary-tested)
+so they're unit-testable; the command/modal/file-IO wrapper is the only
+Obsidian-touching part.
+
+**Acceptance.**
+- Export all tasks, and export a filtered subset, to valid JSON.
+- A "for-AI" mode produces clean, path-free, human-readable JSON.
+- Import validates and previews before creating; round-trips the core schema
+  losslessly; is ID-collision- and relationship-safe.
+
+---
+
 ## Now — graph polish thread
 
 Source: Taylor feedback 2026-07-10 (GP numbering kept from the archived
