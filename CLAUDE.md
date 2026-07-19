@@ -146,6 +146,15 @@ notes.
 
 ## Recent Updates (2026-07-19)
 
+- **GP1 fully closed — live-mobile sign-off passed.** Taylor ran the on-device
+  pass: the graph pops out to fullscreen great (pan/zoom/collapse all good). One
+  follow-up remains, deferred: on mobile, tapping a node in the popped-out graph
+  closes the modal but the **detail drawer opens behind/hidden** instead of
+  surfacing. GP1 already closes the modal *before* opening the task, so this is a
+  separate failure (likely the detail leaf landing in a collapsed/backgrounded
+  mobile sidebar, or a close→open focus race). Tracked in `BACKLOG.md` as
+  **GP1-follow: detail drawer opens behind/hidden on mobile**.
+
 - **Colour-model workshop → V2 "colour spine" landed** — the "Next" backlog
   thread (status/area/label colours competing on cards) was worked up as a
   workshop: baseline + 3 rig-rendered variants (V1 single-channel, V2 spine, V3

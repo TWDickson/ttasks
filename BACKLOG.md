@@ -283,11 +283,21 @@ never hardcoded hex/white on user colours) held for the shipped model.
   task name red *and* a solid red badge; with several overdue tasks the views
   shout. Options: keep the badge as the only signal, or a red left edge like
   kanban's active accent. (From `Scripts/archive/DESIGN_AUDIT.md`.)
-- `[ ]` **GP1 live-mobile sign-off** — the fullscreen graph modal shipped and is
-  rig-verified (edge-to-edge at 390×844 with `.is-phone` forced), but the real
-  on-device pass is owed: open Dependencies/Timeline on iOS, tap **maximize**,
-  confirm the modal is truly edge-to-edge, pinch-zoom + pan work, and
-  collapse/back-gesture/Esc all return. Note any safe-area-inset gotchas.
+- `[x]` **GP1 live-mobile sign-off** — *done 2026-07-19.* Taylor ran the
+  on-device pass: the graph pops out to fullscreen great. GP1 fully closed.
+  (Follow-up: the **detail-drawer issue** below remains, deferred by Taylor.)
+- `[ ]` **GP1-follow: detail drawer opens behind/hidden on mobile** 🔎 —
+  on-device, tapping a node in the popped-out fullscreen graph closes the modal
+  but the **detail drawer ends up behind something / off-screen** instead of
+  surfacing (rig can't reproduce — no Obsidian mobile shell). The GP1 design
+  already closes the modal *before* opening the task
+  (`GraphExpandModal` → `onOpenTask` closes then opens) specifically to avoid
+  detail sitting behind the modal, so the current symptom is a *different*
+  failure: likely the detail leaf lands in a collapsed/backgrounded mobile
+  sidebar, or a close→open timing race leaves the board leaf focused. Start:
+  `GraphExpandModal.ts` open-task path + how the detail leaf is revealed on
+  mobile (`app.workspace.revealLeaf` / right-sidebar expand). Deferred by Taylor
+  — solve later.
 - `[ ]` **Visual regression pass** — dark/light × desktop/phone sweep per the
   `Scripts/STYLING_NOTES.md` checklist; includes the settings-tab before/after
   from the P7 overhaul (the rig doesn't cover the settings tab — live Obsidian
