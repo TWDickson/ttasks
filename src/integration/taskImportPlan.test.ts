@@ -183,6 +183,21 @@ describe('planImport', () => {
 		expect(plan.updates[0].path).toBe(existing.path);
 	});
 
+	it('matches and updates by ref alone, with no name (the AI meta promises this is enough)', () => {
+		const existing = task({ id: 'ref123', name: 'Existing name', status: 'Active' });
+		const plan = planImport([parsed({ ref: 'ref123', name: '', status: 'Done' })], [existing]);
+		expect(plan.creates).toHaveLength(0);
+		expect(plan.updates).toHaveLength(1);
+		expect(plan.updates[0].path).toBe(existing.path);
+	});
+
+	it('skips a create-fallback record with neither a matching ref nor a name', () => {
+		const plan = planImport([parsed({ ref: 'unknown-ref', name: '', status: 'Done' })], [task({ name: 'Other' })]);
+		expect(plan.creates).toHaveLength(0);
+		expect(plan.updates).toHaveLength(0);
+		expect(plan.missingNames).toEqual(['unknown-ref']);
+	});
+
 	it('ref disambiguates what a duplicate name cannot', () => {
 		const a = task({ id: 'aaa', name: 'Dup', path: 'Tasks/a.md', status: 'Active' });
 		const b = task({ id: 'bbb', name: 'Dup', path: 'Tasks/b.md', status: 'Active' });

@@ -5,6 +5,7 @@
 	import { icon } from '../utils/icon';
 
 	export let views: Readable<RegisteredTaskViewDefinition[]>;
+	export let inboxCount: Readable<number> | undefined = undefined;
 	export let currentViewId: Readable<string>;
 	export let onSelectView: (viewId: string) => void;
 	export let onAddSmartList: () => void;
@@ -12,6 +13,7 @@
 	export let onNewTask: () => void;
 	export let onNewProject: () => void;
 	export let onShareSync: () => void;
+	export let onOpenPomodoro: () => void;
 	export let onOpenSettings: () => void;
 
 	$: builtinViews = $views.filter((view) => view.source === 'builtin');
@@ -30,6 +32,9 @@
 			>
 				<span class="tt-rail-icon" use:icon={resolveTaskViewIcon(view)}></span>
 				<span class="tt-rail-label">{view.name}</span>
+				{#if view.id === 'inbox' && inboxCount && $inboxCount > 0}
+					<span class="tt-count tt-rail-item-count">{$inboxCount}</span>
+				{/if}
 			</button>
 		{/each}
 
@@ -69,6 +74,10 @@
 		<button class="tt-rail-item" on:click={onShareSync} aria-label="Share / Sync">
 			<span class="tt-rail-icon" use:icon={'share-2'}></span>
 			<span class="tt-rail-label">Share / Sync</span>
+		</button>
+		<button class="tt-rail-item" on:click={onOpenPomodoro} aria-label="Pomodoro">
+			<span class="tt-rail-icon" use:icon={'timer'}></span>
+			<span class="tt-rail-label">Pomodoro</span>
 		</button>
 		<div class="tt-rail-divider"></div>
 		<button class="tt-rail-item" on:click={onOpenSettings} aria-label="Settings">
@@ -169,6 +178,11 @@
 		height: 1px;
 		background: var(--background-modifier-border);
 		margin: 4px 0;
+	}
+
+	.tt-rail-item-count {
+		margin-left: auto;
+		flex-shrink: 0;
 	}
 
 	.tt-rail-icon {

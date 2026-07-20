@@ -1,4 +1,4 @@
-﻿import type { QuerySpec } from '../query/types';
+﻿import type { GroupField, QuerySpec, SortField } from '../query/types';
 import type { Task } from '../types';
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
@@ -102,12 +102,22 @@ export interface StatusBarSettings {
 	clickTarget: StatusBarClickTarget;
 }
 
+/**
+ * `digital` — plain MM:SS text (original behaviour).
+ * `ring` — a radial progress ring around the MM:SS text.
+ * `ring-plain` — the ring with no numbers at all, just the sweep ticking down
+ * (ADHD-friendly: nothing to fixate on counting down second by second).
+ */
+export type PomodoroDialStyle = 'digital' | 'ring' | 'ring-plain';
+
 export interface PomodoroSettings {
 	focusMinutes: number;
 	shortBreakMinutes: number;
 	longBreakMinutes: number;
 	/** Take a long break after this many completed focus phases. */
 	longBreakInterval: number;
+	/** How the running timer is drawn in the Pomodoro pane. */
+	dialStyle: PomodoroDialStyle;
 	/** Auto-start the next phase when one completes, vs. waiting for the user. */
 	autoStartNext: boolean;
 	/** Append each completed focus session to a CSV log file. */
@@ -166,4 +176,10 @@ export interface TTasksSettings {
 	/** Per-view "Show completed" choice, keyed by view id. Unset views fall back
 	 *  to defaultCompletedVisibility. */
 	showCompletedByViewId: Record<string, boolean>;
+	/** Per-view "Group by" override for list-rendered views, keyed by view id.
+	 *  Unset views use the view's own default grouping. */
+	listGroupOverrideByViewId: Record<string, GroupField | 'none'>;
+	/** Per-view "Sort by" override for list-rendered views, keyed by view id.
+	 *  Unset views use the view's own default sort. */
+	listSortOverrideByViewId: Record<string, { field: SortField; direction: 'asc' | 'desc' }>;
 }

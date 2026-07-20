@@ -9,7 +9,7 @@ import './vendor/theme-underwater.css';
 import '../styles.css';
 import './rig.css';
 
-import { writable } from 'svelte/store';
+import { derived, writable } from 'svelte/store';
 import TaskBoard from '../src/components/TaskBoard.svelte';
 import TaskRail from '../src/components/TaskRail.svelte';
 import TaskDetail from '../src/components/TaskDetail.svelte';
@@ -96,6 +96,7 @@ dataBtn.addEventListener('click', () => {
 
 // ── Pomodoro pane scene ──────────────────────────────────────────────────────
 // ?pomo=idle | active mounts just the dedicated Pomodoro pane for visual checks.
+// ?dial=digital | ring | ring-plain picks the dial style (defaults to settings).
 const pomoScene = params.get('pomo');
 if (pomoScene) {
 	const pomoStage = root.createDiv({ cls: 'rig-stage' });
@@ -105,17 +106,29 @@ if (pomoScene) {
 		// A focus-until session so the "final"/target affordances show too.
 		plugin.pomodoroService.startUntil(null, null, 33);
 	}
+	const dialParam = params.get('dial');
+	if (dialParam === 'digital' || dialParam === 'ring' || dialParam === 'ring-plain') {
+		plugin.settings.pomodoro.dialStyle = dialParam;
+	}
+	const pickedTask = writable<{ path: string; name: string } | null>(
+		params.get('picked') ? { path: 'Tasks/rig-picked.md', name: 'Rig picked task' } : null,
+	);
 	new PomodoroPane({
 		target: pomoPane,
 		props: {
 			session: plugin.pomodoroService.session,
 			focusMinutes: plugin.settings.pomodoro.focusMinutes,
+			dialStyle: writable(plugin.settings.pomodoro.dialStyle),
+			pickedTask,
 			onStart: () => plugin.pomodoroService.start(null, null),
 			onFocusUntil: () => new FocusUntilModal(plugin.app as never, plugin as never, null, null).open(),
 			onToggle: () => plugin.pomodoroService.toggle(),
 			onSkip: () => plugin.pomodoroService.skip(),
 			onStop: () => plugin.pomodoroService.stop(),
 			onOpenTask: (p: string) => console.info('[rig] openTask', p),
+			onOpenSettings: () => console.info('[rig] openSettings pomodoro'),
+			onPickTask: () => console.info('[rig] pickTask'),
+			onClearPickedTask: () => pickedTask.set(null),
 		},
 	});
 	document.body.dataset.rigReady = '1';
@@ -177,11 +190,16 @@ const boardPane = stage.createDiv({ cls: 'rig-board' });
 const detailPane = stage.createDiv({ cls: 'rig-detail tt-detail-view' });
 
 const railViews = writable(getRegisteredTaskViews(plugin.settings as never));
+const railInboxCount = derived(
+	plugin.taskStore.tasks,
+	(tasks) => tasks.filter((task) => task.is_inbox && !task.is_complete).length,
+);
 
 new TaskRail({
 	target: railPane,
 	props: {
 		views: railViews,
+		inboxCount: railInboxCount,
 		currentViewId: boardState.currentViewId,
 		onSelectView: (id: string) => boardState.currentViewId.set(id),
 		onAddSmartList: () => console.info('[rig] addSmartList'),

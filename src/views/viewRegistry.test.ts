@@ -65,6 +65,33 @@ describe('blocked builtin view', () => {
 	});
 });
 
+describe('today/agenda builtin views — active status substitution', () => {
+	function todayStatusCondition(settings: Parameters<typeof getRegisteredTaskViews>[0]) {
+		const today = getRegisteredTaskViews(settings).find((v) => v.id === 'today');
+		const orGroup = today?.query.filter.conditions.find(
+			(c): c is Extract<typeof c, { logic: string }> => 'logic' in c,
+		);
+		return orGroup?.conditions.find(
+			(c): c is Extract<typeof c, { field: string }> => 'field' in c && c.field === 'status',
+		);
+	}
+
+	it('filters Today on the default start status with default settings', () => {
+		expect(todayStatusCondition(DEFAULT_SETTINGS)).toMatchObject({ field: 'status', operator: 'is', value: 'In Progress' });
+	});
+
+	it('substitutes a user-configured start status into Today and Agenda', () => {
+		const settings = {
+			...DEFAULT_SETTINGS,
+			quickActions: { ...DEFAULT_SETTINGS.quickActions, startStatus: 'Doing' },
+		};
+		expect(todayStatusCondition(settings)).toMatchObject({ field: 'status', operator: 'is', value: 'Doing' });
+
+		const agenda = getRegisteredTaskViews(settings).find((v) => v.id === 'agenda');
+		expect(agenda?.query.activeStatusBucket).toBe('Doing');
+	});
+});
+
 describe('logbook builtin view', () => {
 	it('is registered as a builtin with is_complete:true filter and completed:desc sort', () => {
 		const views = getRegisteredTaskViews(DEFAULT_SETTINGS);

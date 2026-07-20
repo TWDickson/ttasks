@@ -31,13 +31,34 @@ export interface TaskJsonMeta {
 	updatableFields: string[];
 	/** Fields present in the export but ignored on import. */
 	ignoredOnImport: string[];
+	/**
+	 * This vault's configured enum values — pick from these rather than
+	 * inventing new statuses/areas/labels the plugin doesn't recognize.
+	 * Present only when the caller supplies them (settings-aware exports).
+	 */
+	validValues?: {
+		statuses: string[];
+		priorities: string[];
+		areas: string[];
+		labels: string[];
+	};
 }
 
-export const AI_IMPORT_META: TaskJsonMeta = {
+/** Settings-derived enum lists to embed in an 'ai'-mode export's meta. */
+export interface TaskJsonValidValues {
+	statuses: string[];
+	priorities: string[];
+	areas: string[];
+	labels: string[];
+}
+
+const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 	instructions:
 		'To send changes back, reply with this same shape — a JSON object with a "tasks" array. ' +
 		'Omit any task you are not changing. On each task you do change, add an "action" key and ' +
-		'include only "ref"/"name" (the match key) plus the fields you are setting — keep it light.',
+		'include only "ref"/"name" (the match key) plus the fields you are setting — keep it light. ' +
+		'For "status", "priority", "area", and "labels", pick only from validValues below — do not ' +
+		'invent new values.',
 	ref:
 		'Stable unique id. Echo it back to target that exact task; omit it to create a new task. ' +
 		'You can also point a dependency at a task by its ref.',
@@ -65,6 +86,15 @@ export const AI_IMPORT_META: TaskJsonMeta = {
 	],
 	ignoredOnImport: ['blocks', 'notes'],
 };
+
+/** Static meta with no `validValues` — the shape used when the caller doesn't supply settings. */
+export const AI_IMPORT_META: TaskJsonMeta = AI_IMPORT_META_BASE;
+
+/** Meta for an 'ai'-mode export, embedding this vault's enum lists when supplied. */
+function buildAiImportMeta(validValues?: TaskJsonValidValues): TaskJsonMeta {
+	if (!validValues) return AI_IMPORT_META;
+	return { ...AI_IMPORT_META_BASE, validValues };
+}
 
 /** One task in the exported document. Optional fields are omitted in 'ai' mode. */
 export interface ExportedTask {
@@ -190,7 +220,12 @@ function exportOne(task: Task, mode: TaskJsonMode, resolveLink: (path: string) =
 }
 
 /** Build the export document (pure; caller supplies the ISO timestamp). */
-export function buildTaskJsonDocument(tasks: Task[], mode: TaskJsonMode, generatedAt: string): TaskJsonDocument {
+export function buildTaskJsonDocument(
+	tasks: Task[],
+	mode: TaskJsonMode,
+	generatedAt: string,
+	validValues?: TaskJsonValidValues,
+): TaskJsonDocument {
 	const nameByPath = new Map(tasks.map((task) => [task.path, task.name]));
 	const resolveLink = (path: string): string => nameByPath.get(path) ?? basename(path);
 	const exported = tasks.map((task) => exportOne(task, mode, resolveLink));
@@ -198,13 +233,18 @@ export function buildTaskJsonDocument(tasks: Task[], mode: TaskJsonMode, generat
 		schemaVersion: TASK_JSON_SCHEMA_VERSION,
 		generatedAt,
 		mode,
-		...(mode === 'ai' ? { meta: AI_IMPORT_META } : {}),
+		...(mode === 'ai' ? { meta: buildAiImportMeta(validValues) } : {}),
 		taskCount: exported.length,
 		tasks: exported,
 	};
 }
 
 /** Convenience: the document as a pretty-printed JSON string. */
-export function serializeTasksToJson(tasks: Task[], mode: TaskJsonMode, generatedAt: string): string {
-	return JSON.stringify(buildTaskJsonDocument(tasks, mode, generatedAt), null, 2);
+export function serializeTasksToJson(
+	tasks: Task[],
+	mode: TaskJsonMode,
+	generatedAt: string,
+	validValues?: TaskJsonValidValues,
+): string {
+	return JSON.stringify(buildTaskJsonDocument(tasks, mode, generatedAt, validValues), null, 2);
 }

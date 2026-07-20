@@ -4,7 +4,16 @@
       "mcp__claude_ai_Obsidian_MCP__read_note",
       "Read(//c/Users/DICKSOTAYL/Projects/Obsidian/Taylor/Planner/Tasks/**)",
       "PowerShell(npx vitest run 2>&1)",
-      "PowerShell(npm run build 2>&1)"
+      "PowerShell(npm run build 2>&1)",
+      "Bash(node .claude/skills/run-ttasks/driver.mjs '/?view=today&data=fixtures' eval \"document.querySelectorAll\\('select.tt-filter-select'\\)[3].value = 'name'; document.querySelectorAll\\('select.tt-filter-select'\\)[3].dispatchEvent\\(new Event\\('change', {bubbles:true}\\)\\)\" wait 200 shot today-sortfield-applied.png)",
+      "Bash(node .claude/skills/run-ttasks/driver.mjs '/?view=graph&data=fixtures' eval \"const real=document.querySelector\\('.tt-graph-edge'\\); const cls=real.getAttribute\\('class'\\); const svg=document.querySelector\\('.tt-graph-svg'\\); const p=document.createElementNS\\('http://www.w3.org/2000/svg','path'\\); p.setAttribute\\('class', cls.split\\(' '\\)[0] + ' ' + cls.split\\(' '\\).slice\\(1\\).filter\\(c=>c.startsWith\\('svelte-'\\)\\).join\\(' '\\) + ' is-complete'\\); p.setAttribute\\('d','M0 0 L10 10'\\); svg.appendChild\\(p\\); const cs=getComputedStyle\\(p\\); JSON.stringify\\({stroke: cs.stroke, appliedClass: p.getAttribute\\('class'\\)}\\)\")",
+      "Bash(node .claude/skills/run-ttasks/driver.mjs '/?view=graph&data=fixtures' eval \"document.querySelector\\('.tt-graph-edge'\\).getAttribute\\('class'\\)\")",
+      "Bash(node .claude/skills/run-ttasks/driver.mjs '/?view=graph&data=fixtures' eval \"const svg=document.querySelector\\('.tt-graph-svg'\\); const p=document.createElementNS\\('http://www.w3.org/2000/svg','path'\\); p.setAttribute\\('class','tt-graph-edge s-SDKDmAdnPRVw is-complete'\\); p.setAttribute\\('d','M0 0 L10 10'\\); svg.appendChild\\(p\\); const cs=getComputedStyle\\(p\\); JSON.stringify\\({stroke: cs.stroke}\\)\")",
+      "Bash(node .claude/skills/run-ttasks/driver.mjs '/?view=graph&data=fixtures' click '.tt-graph-project-filter .tt-graph-pill-toggle' wait 200 eval \"!!document.querySelector\\('.tt-graph-project-filter-menu'\\)\" shot popover-open.png click '.tt-board-content' wait 200 eval \"!!document.querySelector\\('.tt-graph-project-filter-menu'\\)\" shot popover-closed.png)",
+      "Bash(node .claude/skills/run-ttasks/driver.mjs '/?pomo=active&dial=digital' wait 500 shot pomo-digital.png)",
+      "Bash(node .claude/skills/run-ttasks/driver.mjs '/?pomo=active&dial=ring' wait 500 shot pomo-ring.png)",
+      "Bash(node .claude/skills/run-ttasks/driver.mjs '/?pomo=active&dial=ring-plain' wait 500 shot pomo-ring-plain.png)",
+      "Read(//y/Data Engineering/Git Backups/**)"
     ]
   }
 }

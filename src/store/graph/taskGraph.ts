@@ -30,6 +30,8 @@ export interface TaskGraphEdge {
 	isCycle: boolean;
 	isBlockedChain: boolean;
 	isParentEdge: boolean;
+	/** True when the dependency (`from`) task is complete — an edge that's "done", not blocking. */
+	isSourceComplete: boolean;
 }
 
 export interface GraphLane {
@@ -334,6 +336,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 				isCycle: false,
 				isBlockedChain: false,
 				isParentEdge: false,
+				isSourceComplete: taskByPath.get(dependencyPath)?.is_complete ?? false,
 			});
 		}
 
@@ -350,6 +353,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 					isCycle: false,
 					isBlockedChain: false,
 					isParentEdge: true,
+					isSourceComplete: false,
 				});
 			}
 		}

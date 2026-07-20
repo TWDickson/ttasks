@@ -473,6 +473,24 @@ describe('applyGroup', () => {
 		]);
 	});
 
+	it('promotes an active-status task into the "today" bucket regardless of due date', () => {
+		vi.setSystemTime(new Date('2026-04-29T12:00:00'));
+		const tasks = [
+			makeTask({ path: 'Tasks/started-later.md', due_date: '2026-05-20', status: 'In Progress' }),
+			makeTask({ path: 'Tasks/started-no-date.md', due_date: null, status: 'In Progress' }),
+			makeTask({ path: 'Tasks/started-overdue.md', due_date: '2026-04-28', status: 'In Progress' }),
+			makeTask({ path: 'Tasks/not-started.md', due_date: '2026-05-20', status: 'Active' }),
+		];
+
+		const groups = applyGroup(tasks, { kind: 'date_buckets', field: 'due_date', preset: 'agenda' }, 'In Progress');
+		const byKey = (key: string) => groups.find(g => g.key === key)?.tasks.map(t => t.path) ?? [];
+
+		expect(byKey('today')).toEqual(['Tasks/started-later.md', 'Tasks/started-no-date.md']);
+		// Overdue stays overdue — a more urgent signal than "today", not demoted.
+		expect(byKey('overdue')).toEqual(['Tasks/started-overdue.md']);
+		expect(byKey('later')).toEqual(['Tasks/not-started.md']);
+	});
+
 	it('sorts tasks within agenda buckets by due_date then priority', () => {
 		vi.setSystemTime(new Date('2026-04-29T12:00:00'));
 		const tasks = [
@@ -542,6 +560,24 @@ describe('applyQuery', () => {
 		const total = groups.reduce((n, g) => n + g.tasks.length, 0);
 		expect(total).toBe(2);
 		expect(groups.map(g => g.key).sort()).toEqual(['Active', 'Blocked']);
+	});
+
+	it('readyFirst floats unblocked tasks above ones with an unfinished dependency', () => {
+		const blocker = makeTask({ path: 'Tasks/blocker.md', name: 'Blocker', area: 'meta', is_complete: false });
+		const finishedBlocker = makeTask({ path: 'Tasks/finished.md', name: 'Finished', area: 'meta', is_complete: true });
+		const blockedTask = makeTask({ path: 'Tasks/blocked.md', name: 'Blocked', area: 'work', priority: 'High', depends_on: ['Tasks/blocker.md'] });
+		const readyTask = makeTask({ path: 'Tasks/ready.md', name: 'Ready', area: 'work', priority: 'Low', depends_on: ['Tasks/finished.md'] });
+		const tasks = [blockedTask, readyTask, blocker, finishedBlocker];
+
+		const query: QuerySpec = {
+			filter: { logic: 'and', conditions: [{ field: 'area', operator: 'is', value: 'work' }] },
+			sort: [{ field: 'priority', direction: 'asc' }],
+			group: { kind: 'none' },
+			readyFirst: true,
+		};
+		const groups = applyQuery(tasks, query);
+		// Priority sort alone would put Blocked (High) before Ready (Low); readyFirst overrides that.
+		expect(groups[0].tasks.map((t) => t.name)).toEqual(['Ready', 'Blocked']);
 	});
 
 	it('respects limit — caps total results', () => {

@@ -114,6 +114,19 @@ describe('buildTaskJsonDocument — ai mode', () => {
 	it('keeps the meta field list in sync with the real updatable fields', () => {
 		expect(AI_IMPORT_META.updatableFields).toEqual([...IMPORT_UPDATABLE_FIELDS]);
 	});
+
+	it('embeds this vault\'s configured enum values when supplied', () => {
+		const validValues = {
+			statuses: ['Active', 'Done'],
+			priorities: ['High', 'Low'],
+			areas: ['Work', 'Home'],
+			labels: ['bug', 'feature'],
+		};
+		const doc = buildTaskJsonDocument([makeTask()], 'ai', AT, validValues);
+		expect(doc.meta?.validValues).toEqual(validValues);
+		// Doesn't mutate the shared static meta used when no valid values are given.
+		expect(AI_IMPORT_META.validValues).toBeUndefined();
+	});
 });
 
 describe('serializeTasksToJson', () => {
@@ -158,6 +171,15 @@ describe('parseTasksJson', () => {
 		expect(result.ok).toBe(true);
 		expect(result.tasks).toHaveLength(1);
 		expect(result.warnings).toHaveLength(2);
+	});
+
+	it('keeps a ref-only entry with no name — the AI meta promises this is enough to target a task', () => {
+		const result = parseTasksJson(JSON.stringify({ tasks: [{ ref: '0a1b2c', status: 'Done' }] }));
+		expect(result.ok).toBe(true);
+		expect(result.tasks).toHaveLength(1);
+		expect(result.tasks[0].ref).toBe('0a1b2c');
+		expect(result.tasks[0].name).toBe('');
+		expect(result.warnings).toHaveLength(0);
 	});
 
 	it('warns on a newer schemaVersion but still imports', () => {

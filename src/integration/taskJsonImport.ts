@@ -157,8 +157,8 @@ export function parseTasksJson(text: string): ParsedTasksJson {
 			return;
 		}
 		const normalized = normalizeOne(entry as Record<string, unknown>);
-		if (!normalized.name) {
-			result.warnings.push(`Skipped entry ${index}: missing a name.`);
+		if (!normalized.name && !normalized.ref) {
+			result.warnings.push(`Skipped entry ${index}: missing both a name and a ref — nothing to match or create.`);
 			return;
 		}
 		result.tasks.push(normalized);

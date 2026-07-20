@@ -66,7 +66,7 @@
 	let graphMode: GraphMode = defaultGraphMode;
 	let appliedGraphMode: GraphMode = defaultGraphMode;
 	let lastGraphMode: GraphMode = defaultGraphMode;
-	let showIndependentInDependency = false;
+	let showIndependentInDependency = true;
 	// Highlight "ready" work: open (incomplete) tasks with no unfinished upstream
 	// dependency — i.e. the things that can actually be started right now.
 	let highlightReady = false;
@@ -95,6 +95,7 @@
 	let hiddenProjectPaths = new Set<string>();
 	let projectFilterHydrated = false;
 	let projectFilterOpen = false;
+	let projectFilterEl: HTMLDivElement | null = null;
 
 	$: if (defaultGraphMode !== appliedGraphMode) {
 		graphMode = defaultGraphMode;
@@ -310,13 +311,29 @@
 		}
 
 		window.addEventListener('resize', updateViewport);
+		// Capture phase so this fires even if a click target inside the graph
+		// canvas stops propagation before it would otherwise bubble to document.
+		document.addEventListener('pointerdown', onDocumentPointerDown, true);
 		return () => {
 			window.removeEventListener('resize', updateViewport);
+			document.removeEventListener('pointerdown', onDocumentPointerDown, true);
 			resizeObserver?.disconnect();
 			resizeObserver = null;
 			cancelHoverClear();
 		};
 	});
+
+	// Belt-and-suspenders close for the Projects filter popover: the fixed
+	// backdrop button below normally handles click-off, but a click landing on
+	// an element inside a nested stacking context (e.g. a scaled/transformed
+	// graph node) can win the hit-test over the backdrop. Checking the actual
+	// event target's ancestry is robust to that.
+	function onDocumentPointerDown(event: PointerEvent): void {
+		if (!projectFilterOpen) return;
+		const target = event.target as Node | null;
+		if (projectFilterEl && target && projectFilterEl.contains(target)) return;
+		projectFilterOpen = false;
+	}
 
 	// Mode switches destroy and recreate the scroll containers, so re-observe
 	// whichever element is currently bound (ResizeObserver dedupes repeats).
@@ -760,6 +777,7 @@
 	function onNodeClick(path: string): void {
 		pinnedTracePath = path;
 		pinnedLaneKey = laneKeyForPath(path);
+		highlightReady = false;
 		onOpen(path);
 	}
 
@@ -1016,7 +1034,7 @@
 					</button>
 				{/if}
 				{#if graphProjects.length > 1}
-					<div class="tt-graph-project-filter">
+					<div class="tt-graph-project-filter" bind:this={projectFilterEl}>
 						<button
 							type="button"
 							class="tt-graph-pill tt-graph-pill-toggle"
@@ -1193,6 +1211,7 @@
 									class:is-cycle={edge.isCycle}
 									class:is-blocked={edge.isBlockedChain}
 									class:is-parent={edge.isParentEdge}
+									class:is-complete={edge.isSourceComplete}
 									class:is-traced={traceSets?.edges.has(edge.id)}
 									class:is-dim={laneFocus && !laneFocus.edges.has(edge.id)}
 									d={edgePath(edge)}
@@ -2424,6 +2443,12 @@
 		stroke: var(--color-orange);
 		color: var(--color-orange);
 		stroke-dasharray: 8 6;
+	}
+
+	/* A dependency that's already finished — done, not blocking. */
+	.tt-graph-edge.is-complete {
+		stroke: color-mix(in srgb, var(--color-green) 65%, transparent);
+		color: color-mix(in srgb, var(--color-green) 65%, transparent);
 	}
 
 	.tt-graph-edge.is-parent {

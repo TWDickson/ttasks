@@ -8,6 +8,7 @@ import {
 	nextMode,
 	pauseSession,
 	phaseDurationSec,
+	remainingFraction,
 	resumeSession,
 	shouldLogFocus,
 	startSession,
@@ -146,5 +147,24 @@ describe('isPhaseComplete', () => {
 		const s = startSession('a.md', 'A', cfg);
 		expect(isPhaseComplete({ ...s, remainingSec: 0 })).toBe(true);
 		expect(isPhaseComplete({ ...s, remainingSec: 1 })).toBe(false);
+	});
+});
+
+describe('remainingFraction', () => {
+	it('is 1 at full duration and 0 at zero remaining', () => {
+		const s = startSession('a.md', 'A', cfg);
+		expect(remainingFraction(s)).toBe(1);
+		expect(remainingFraction({ ...s, remainingSec: 0 })).toBe(0);
+	});
+
+	it('is the proportion of remaining/duration mid-phase', () => {
+		const s = startSession('a.md', 'A', cfg);
+		expect(remainingFraction({ ...s, remainingSec: 750 })).toBeCloseTo(0.5);
+	});
+
+	it('clamps and guards against a zero/negative duration', () => {
+		const s = startSession('a.md', 'A', cfg);
+		expect(remainingFraction({ ...s, durationSec: 0, remainingSec: 0 })).toBe(0);
+		expect(remainingFraction({ ...s, remainingSec: -10 })).toBe(0);
 	});
 });

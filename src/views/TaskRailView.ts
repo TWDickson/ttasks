@@ -39,10 +39,15 @@ export class TaskRailView extends ItemView {
 			this.plugin.settingsRevision,
 			() => getVisibleTaskViews(this.plugin.settings),
 		);
+		const inboxCount = derived(
+			this.plugin.taskStore.tasks,
+			(tasks) => tasks.filter((task) => task.is_inbox && !task.is_complete).length,
+		);
 		this.component = new TaskRail({
 			target: this.contentEl,
 			props: {
 				views,
+				inboxCount,
 				currentViewId: this.plugin.boardState.currentViewId,
 				onSelectView: (viewId: string) => {
 					this.plugin.boardState.currentViewId.set(viewId);
@@ -54,6 +59,7 @@ export class TaskRailView extends ItemView {
 				onNewTask: () => new CreateTaskModal(this.app, this.plugin).open(),
 				onNewProject: () => new CreateTaskModal(this.app, this.plugin, 'project').open(),
 				onShareSync: () => this.plugin.openShareSync(),
+				onOpenPomodoro: () => { void this.plugin.openPomodoroPane(); },
 				onOpenSettings: () => this.plugin.openPluginSettings(),
 			},
 		});

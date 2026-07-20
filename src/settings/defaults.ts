@@ -100,6 +100,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		shortBreakMinutes: 5,
 		longBreakMinutes: 15,
 		longBreakInterval: 4,
+		dialStyle: 'digital',
 		autoStartNext: true,
 		logEnabled: true,
 		logPath: 'ttasks-pomodoro-log.csv',
@@ -108,6 +109,8 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	kanbanCardFields: ['area', 'dueDate', 'labels', 'depCount'] as KanbanCardField[],
 	kanbanCollapsedColumns: [],
 	showCompletedByViewId: {},
+	listGroupOverrideByViewId: {},
+	listSortOverrideByViewId: {},
 };
 
 const FILTER_OPERATORS = new Set<FilterOperator>([
@@ -269,6 +272,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 			shortBreakMinutes: settings.pomodoro?.shortBreakMinutes ?? DEFAULT_SETTINGS.pomodoro.shortBreakMinutes,
 			longBreakMinutes: settings.pomodoro?.longBreakMinutes ?? DEFAULT_SETTINGS.pomodoro.longBreakMinutes,
 			longBreakInterval: settings.pomodoro?.longBreakInterval ?? DEFAULT_SETTINGS.pomodoro.longBreakInterval,
+			dialStyle: settings.pomodoro?.dialStyle ?? DEFAULT_SETTINGS.pomodoro.dialStyle,
 			autoStartNext: settings.pomodoro?.autoStartNext ?? DEFAULT_SETTINGS.pomodoro.autoStartNext,
 			logEnabled: settings.pomodoro?.logEnabled ?? DEFAULT_SETTINGS.pomodoro.logEnabled,
 			logPath: settings.pomodoro?.logPath ?? DEFAULT_SETTINGS.pomodoro.logPath,
@@ -277,6 +281,8 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		kanbanCardFields: settings.kanbanCardFields ?? [...DEFAULT_SETTINGS.kanbanCardFields],
 		kanbanCollapsedColumns: settings.kanbanCollapsedColumns ?? [...DEFAULT_SETTINGS.kanbanCollapsedColumns],
 		showCompletedByViewId: settings.showCompletedByViewId ?? { ...DEFAULT_SETTINGS.showCompletedByViewId },
+		listGroupOverrideByViewId: settings.listGroupOverrideByViewId ?? { ...DEFAULT_SETTINGS.listGroupOverrideByViewId },
+		listSortOverrideByViewId: settings.listSortOverrideByViewId ?? { ...DEFAULT_SETTINGS.listSortOverrideByViewId },
 	};
 }
 
@@ -695,6 +701,31 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		target.showCompletedByViewId = cleaned;
 	}
 
+	const listGroupOverrideByViewId = asRecord(root.listGroupOverrideByViewId);
+	if (listGroupOverrideByViewId !== null) {
+		const cleaned: Record<string, GroupField | 'none'> = {};
+		for (const [key, value] of Object.entries(listGroupOverrideByViewId)) {
+			if (value === 'none' || (typeof value === 'string' && GROUP_FIELDS.has(value as GroupField))) {
+				cleaned[key] = value as GroupField | 'none';
+			}
+		}
+		target.listGroupOverrideByViewId = cleaned;
+	}
+
+	const listSortOverrideByViewId = asRecord(root.listSortOverrideByViewId);
+	if (listSortOverrideByViewId !== null) {
+		const cleaned: Record<string, { field: SortField; direction: 'asc' | 'desc' }> = {};
+		for (const [key, value] of Object.entries(listSortOverrideByViewId)) {
+			if (!value || typeof value !== 'object') continue;
+			const entry = value as Record<string, unknown>;
+			if (typeof entry.field === 'string' && SORT_FIELDS.has(entry.field as SortField)
+				&& (entry.direction === 'asc' || entry.direction === 'desc')) {
+				cleaned[key] = { field: entry.field as SortField, direction: entry.direction };
+			}
+		}
+		target.listSortOverrideByViewId = cleaned;
+	}
+
 	const hiddenBuiltinViews = asStringArray(root.hiddenBuiltinViews);
 	if (hiddenBuiltinViews !== null) target.hiddenBuiltinViews = hiddenBuiltinViews;
 
@@ -734,6 +765,11 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 
 		const longBreakInterval = asInteger(pomodoro.longBreakInterval);
 		if (longBreakInterval !== null) target.pomodoro.longBreakInterval = longBreakInterval;
+
+		const dialStyle = asString(pomodoro.dialStyle);
+		if (dialStyle === 'digital' || dialStyle === 'ring' || dialStyle === 'ring-plain') {
+			target.pomodoro.dialStyle = dialStyle;
+		}
 
 		const autoStartNext = asBoolean(pomodoro.autoStartNext);
 		if (autoStartNext !== null) target.pomodoro.autoStartNext = autoStartNext;

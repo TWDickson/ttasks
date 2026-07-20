@@ -32,7 +32,7 @@ import { ArchiveService } from './store/ArchiveService';
 import { type CompletedFocus, PomodoroService } from './store/PomodoroService';
 import { type PomodoroLogEntry, formatLogRow, formatNewLogFile } from './integration/pomodoroLog';
 import { pomodoroStatusBarView } from './integration/pomodoroStatusBar';
-import { type TaskJsonMode, serializeTasksToJson } from './integration/taskJsonExport';
+import { type TaskJsonMode, type TaskJsonValidValues, serializeTasksToJson } from './integration/taskJsonExport';
 import { dispatchProtocolAction, parseProtocolAction } from './integration/protocol';
 import { buildStatusSummary } from './integration/statusSummary';
 import { pathToLinktext } from './integration/hoverLink';
@@ -44,7 +44,7 @@ import { localDateString } from './utils/dateUtils';
 import { createTaskContextMenuDeps } from './integration/taskActionPorts';
 import { ScanEngine } from './integration/ScanEngine';
 import type { ExternalTask } from './integration/types';
-import { AUTO_ARCHIVE_CHECK_INTERVAL_MS, METADATA_CACHE_TIMEOUT_MS } from './constants';
+import { AUTO_ARCHIVE_CHECK_INTERVAL_MS, METADATA_CACHE_TIMEOUT_MS, PRIORITIES } from './constants';
 import type { ExtendedWorkspace, HoverLinkPayload, SidedockWithSize } from './types/obsidianExtended';
 import type { SettingsHost } from './types/settingsHost';
 
@@ -57,6 +57,7 @@ export default class TTasksPlugin extends Plugin {
 	reminderService!: ReminderService;
 	pomodoroService!: PomodoroService;
 	scanEngine!: ScanEngine;
+	settingTab!: TTasksSettingTab;
 	activeTaskPath: Writable<string | null> = writable(null);
 	focusedTaskPath: Writable<string | null> = writable(null);
 	activeViewMode: Writable<BoardViewMode | null> = writable(null);
@@ -297,7 +298,8 @@ export default class TTasksPlugin extends Plugin {
 			});
 		}
 
-		this.addSettingTab(new TTasksSettingTab(this.app, this));
+		this.settingTab = new TTasksSettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
 		this.registerProtocolHandler();
 		this.registerNativeContextMenus();
 		this.initializeStatusBar();
@@ -320,6 +322,10 @@ export default class TTasksPlugin extends Plugin {
 			this.startReminderServiceWhenReady();
 			// Scheduled auto-archive: check once on load, then hourly.
 			this.startAutoArchive();
+			// Ensure the Pomodoro pane has a tab (and thus a right-sidebar icon)
+			// on every launch — not just after openBoard() runs — so it's
+			// discoverable without first finding the command palette entry (#15).
+			void this.app.workspace.ensureSideLeaf(TASK_POMODORO_VIEW_TYPE, 'right', { reveal: false });
 		});
 	}
 
@@ -658,8 +664,18 @@ export default class TTasksPlugin extends Plugin {
 	 * clipboard when available). Shared by the two whole-set export commands and
 	 * the Share/Sync modal's filtered "Save file" action.
 	 */
+	/** This vault's configured enum values, embedded in 'ai'-mode export meta. */
+	taskJsonValidValues(): TaskJsonValidValues {
+		return {
+			statuses: [...this.settings.statuses],
+			priorities: [...PRIORITIES],
+			areas: [...this.settings.areas],
+			labels: [...this.settings.labelValues],
+		};
+	}
+
 	async exportTasksToJsonFrom(tasks: Task[], mode: TaskJsonMode): Promise<void> {
-		const json = serializeTasksToJson(tasks, mode, new Date().toISOString());
+		const json = serializeTasksToJson(tasks, mode, new Date().toISOString(), this.taskJsonValidValues());
 		const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 		const path = `ttasks-export-${mode}-${stamp}.json`;
 		try {
@@ -791,11 +807,15 @@ export default class TTasksPlugin extends Plugin {
 		this.extendedWorkspace.trigger('hover-link', payload);
 	}
 
-	openPluginSettings(): void {
+	/** Open the plugin's settings tab, optionally jumping straight to one group (e.g. 'pomodoro'). */
+	openPluginSettings(groupId?: string): void {
 		const host = this.app as SettingsHost;
 		if (host.setting?.open && host.setting.openTabById) {
 			host.setting.open();
 			host.setting.openTabById(this.manifest.id);
+			// `display()` (re)populates containerEl as part of openTabById; defer a
+			// tick so the group elements exist before we try to scroll to one.
+			if (groupId) window.setTimeout(() => this.settingTab.openGroup(groupId), 0);
 			return;
 		}
 		host.commands?.executeCommandById?.('app:open-settings');

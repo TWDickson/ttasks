@@ -36,6 +36,7 @@ export class TTasksSettingTab extends PluginSettingTab {
 	 */
 	private group(nav: HTMLElement, id: string, title: string): HTMLElement {
 		const details = this.containerEl.createEl('details', { cls: 'tt-settings-group' });
+		details.dataset.groupId = id;
 		if (!this.collapsedGroups.has(id)) details.setAttribute('open', '');
 		details.addEventListener('toggle', () => {
 			if (details.open) this.collapsedGroups.delete(id);
@@ -45,13 +46,22 @@ export class TTasksSettingTab extends PluginSettingTab {
 		const body = details.createDiv({ cls: 'tt-settings-group-body' });
 
 		const jump = nav.createEl('button', { cls: 'tt-settings-jump-btn', text: title });
-		jump.addEventListener('click', () => {
-			this.collapsedGroups.delete(id);
-			details.open = true;
-			details.scrollIntoView({ behavior: 'smooth', block: 'start' });
-		});
+		jump.addEventListener('click', () => this.openGroup(id));
 
 		return body;
+	}
+
+	/**
+	 * Expand a settings group and scroll it into view — used both by the sticky
+	 * nav's own jump buttons and by external "open settings here" entry points
+	 * (e.g. the Pomodoro pane's settings button) via `plugin.openPluginSettings(id)`.
+	 */
+	openGroup(id: string): void {
+		const details = this.containerEl.querySelector<HTMLDetailsElement>(`details[data-group-id="${id}"]`);
+		if (!details) return;
+		this.collapsedGroups.delete(id);
+		details.open = true;
+		details.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
 
 	display(): void {

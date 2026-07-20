@@ -190,7 +190,7 @@ export class ShareSyncModal extends Modal {
 			new Notice('TTasks: no tasks match the current filters.');
 			return;
 		}
-		const json = serializeTasksToJson(tasks, this.mode, new Date().toISOString());
+		const json = serializeTasksToJson(tasks, this.mode, new Date().toISOString(), this.plugin.taskJsonValidValues());
 		try {
 			await navigator.clipboard.writeText(json);
 			new Notice(`TTasks: copied ${tasks.length} task(s) to the clipboard.`);

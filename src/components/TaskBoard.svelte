@@ -29,8 +29,9 @@
 	import { localDateString } from '../utils/dateUtils';
 	import { runBatchArchive, runBatchComplete, runBatchDelete } from './taskBoardBatchActions';
 	import { confirmModal } from '../modals/confirmModal';
-	import { buildBoardQuery } from './boardQuery';
-	import type { FilterCondition } from '../query/types';
+	import { buildBoardQuery, type ListGroupOverride, type ListSortOverride } from './boardQuery';
+	import type { FilterCondition, GroupField, SortField } from '../query/types';
+	import { GROUP_FIELDS, SORT_FIELDS } from '../query/queryEditor';
 	import {
 		getRegisteredTaskViews,
 		resolveTaskViewDefinition,
@@ -47,6 +48,16 @@
 		RENDERER_LIST,
 		type RendererType,
 	} from '../constants';
+
+	// "Project" reads better than the underlying field name for a task's parent.
+	const GROUP_OVERRIDE_LABELS: Record<GroupField, string> = {
+		status: 'Status', area: 'Area', priority: 'Priority', type: 'Type',
+		due_date: 'Due date', parent_task: 'Project',
+	};
+	const SORT_OVERRIDE_LABELS: Record<SortField, string> = {
+		name: 'Name', due_date: 'Due date', due_time: 'Due time', start_date: 'Start date',
+		created: 'Created', completed: 'Completed date', priority: 'Priority', status: 'Status', area: 'Area', type: 'Type',
+	};
 
 	export let plugin: TTasksPlugin;
 	export let boardState: BoardStateStores | undefined = undefined;
@@ -133,6 +144,8 @@
 	let logbookRendererModeByViewId: Record<string, 'list' | 'kanban'> = {
 		logbook: plugin.settings.logbookRendererMode,
 	};
+	let listGroupOverrideByViewId: Record<string, ListGroupOverride> = { ...(plugin.settings.listGroupOverrideByViewId ?? {}) };
+	let listSortOverrideByViewId: Record<string, ListSortOverride> = { ...(plugin.settings.listSortOverrideByViewId ?? {}) };
 
 	$: observedAreas = [...new Set(
 		$tasks.map(t => t.area).filter((a): a is string => !!a)
@@ -146,17 +159,54 @@
 	$: canToggleCompletedForCurrentView = canToggleBuiltinCompleted(currentView);
 	$: showCompleted = showCompletedByViewId[currentView.id] ?? defaultCompletedVisibility(currentView);
 	$: currentRenderer = resolveViewRenderer(currentView.id, currentView.renderer, logbookRendererModeByViewId) as RendererType;
+	$: currentGroupOverride = listGroupOverrideByViewId[currentView.id] ?? null;
+	$: currentSortOverride = listSortOverrideByViewId[currentView.id] ?? null;
 
 	function effectiveQuery(
 		view: typeof currentView,
 		renderer: typeof currentRenderer,
 		showCompletedForView: boolean,
+		groupOverride: ListGroupOverride | null,
+		sortOverride: ListSortOverride | null,
 	) {
-		return buildBoardQuery(view, renderer, showCompletedForView);
+		return buildBoardQuery(view, renderer, showCompletedForView, groupOverride, sortOverride);
 	}
 
-	let currentBoardQuery = effectiveQuery(currentView, currentRenderer, showCompleted);
-	$: currentBoardQuery = effectiveQuery(currentView, currentRenderer, showCompleted);
+	async function setGroupOverride(viewId: string, next: ListGroupOverride | ''): Promise<void> {
+		listGroupOverrideByViewId = { ...listGroupOverrideByViewId };
+		if (next === '') delete listGroupOverrideByViewId[viewId];
+		else listGroupOverrideByViewId[viewId] = next;
+		plugin.settings.listGroupOverrideByViewId = listGroupOverrideByViewId;
+		await plugin.saveSettings();
+	}
+
+	async function setSortOverride(viewId: string, field: SortField | '', direction: 'asc' | 'desc'): Promise<void> {
+		listSortOverrideByViewId = { ...listSortOverrideByViewId };
+		if (field === '') delete listSortOverrideByViewId[viewId];
+		else listSortOverrideByViewId[viewId] = { field, direction };
+		plugin.settings.listSortOverrideByViewId = listSortOverrideByViewId;
+		await plugin.saveSettings();
+	}
+
+	// Kept as plain functions (not inline template casts) — Svelte's template
+	// expression parser chokes on TS union-type "as" casts written inline.
+	function onGroupOverrideSelectChange(event: Event): void {
+		const value = (event.currentTarget as HTMLSelectElement).value;
+		void setGroupOverride(currentView.id, value === '' ? '' : (value as ListGroupOverride));
+	}
+
+	function onSortOverrideFieldSelectChange(event: Event): void {
+		const value = (event.currentTarget as HTMLSelectElement).value;
+		void setSortOverride(currentView.id, value === '' ? '' : (value as SortField), currentSortOverride?.direction ?? 'asc');
+	}
+
+	function onSortOverrideDirectionToggle(): void {
+		if (!currentSortOverride) return;
+		void setSortOverride(currentView.id, currentSortOverride.field, currentSortOverride.direction === 'asc' ? 'desc' : 'asc');
+	}
+
+	let currentBoardQuery = effectiveQuery(currentView, currentRenderer, showCompleted, currentGroupOverride, currentSortOverride);
+	$: currentBoardQuery = effectiveQuery(currentView, currentRenderer, showCompleted, currentGroupOverride, currentSortOverride);
 
 	// Resolve dependency-chain schedules once for the whole board; passed to list
 	// rows so tasks whose finish is implied by their chain show a projected badge.
@@ -175,6 +225,8 @@
 		limit: currentBoardQuery.limit,
 		limitPerGroup: currentBoardQuery.limitPerGroup,
 		search: currentBoardQuery.search,
+		activeStatusBucket: currentBoardQuery.activeStatusBucket,
+		readyFirst: currentBoardQuery.readyFirst,
 	});
 
 	// Rebuild the filter spec whenever any filter control changes
@@ -190,6 +242,8 @@
 			group: currentBoardQuery.group,
 			limit: currentBoardQuery.limit,
 			limitPerGroup: currentBoardQuery.limitPerGroup,
+			activeStatusBucket: currentBoardQuery.activeStatusBucket,
+			readyFirst: currentBoardQuery.readyFirst,
 		}));
 	}
 
@@ -306,6 +360,44 @@
 							{/each}
 						{/if}
 					</select>
+				{/if}
+
+				{#if currentRenderer === RENDERER_LIST}
+					<select
+						class="tt-filter-select"
+						value={currentGroupOverride ?? ''}
+						on:change={onGroupOverrideSelectChange}
+						aria-label="Group by"
+					>
+						<option value="">Group: Default</option>
+						<option value="none">Group: None</option>
+						{#each GROUP_FIELDS as f}
+							<option value={f}>Group: {GROUP_OVERRIDE_LABELS[f] ?? f}</option>
+						{/each}
+					</select>
+
+					<select
+						class="tt-filter-select"
+						value={currentSortOverride?.field ?? ''}
+						on:change={onSortOverrideFieldSelectChange}
+						aria-label="Sort by"
+					>
+						<option value="">Sort: Default</option>
+						{#each SORT_FIELDS as f}
+							<option value={f}>Sort: {SORT_OVERRIDE_LABELS[f] ?? f}</option>
+						{/each}
+					</select>
+
+					{#if currentSortOverride}
+						<button
+							type="button"
+							class="tt-filter-select tt-filter-sort-direction"
+							on:click={onSortOverrideDirectionToggle}
+							aria-label={currentSortOverride.direction === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
+						>
+							<span use:icon={currentSortOverride.direction === 'asc' ? 'arrow-up' : 'arrow-down'}></span>
+						</button>
+					{/if}
 				{/if}
 
 				{#if hasActiveFilters}
@@ -539,6 +631,13 @@
 		color: var(--text-normal);
 		cursor: pointer;
 		flex-shrink: 0;
+	}
+
+	.tt-filter-sort-direction {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 4px 6px;
 	}
 
 	.tt-filter-clear {

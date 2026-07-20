@@ -36,6 +36,7 @@ function buildProps(overrides: Partial<Record<string, unknown>> = {}) {
 		onNewTask: vi.fn(),
 		onNewProject: vi.fn(),
 		onShareSync: vi.fn(),
+		onOpenPomodoro: vi.fn(),
 		onOpenSettings: vi.fn(),
 		...overrides,
 	};
@@ -69,6 +70,28 @@ describe('TaskRail.svelte', () => {
 		expect(screen.getByText('No smart lists yet')).toBeTruthy();
 	});
 
+	it('shows an Inbox count badge only when there are inbox tasks', () => {
+		const props = buildProps({
+			views: readable([buildView(), buildView({ id: 'inbox', name: 'Inbox', icon: 'inbox' })]),
+			inboxCount: readable(3),
+		});
+		render(TaskRail, { props });
+
+		const inboxButton = screen.getByRole('button', { name: 'Inbox' });
+		expect(inboxButton.textContent).toContain('3');
+	});
+
+	it('hides the Inbox badge at zero', () => {
+		const props = buildProps({
+			views: readable([buildView(), buildView({ id: 'inbox', name: 'Inbox', icon: 'inbox' })]),
+			inboxCount: readable(0),
+		});
+		render(TaskRail, { props });
+
+		const inboxButton = screen.getByRole('button', { name: 'Inbox' });
+		expect(inboxButton.querySelector('.tt-count')).toBeNull();
+	});
+
 	it('routes Smart List context menus with the view id', async () => {
 		const props = buildProps();
 		render(TaskRail, { props });
@@ -84,11 +107,13 @@ describe('TaskRail.svelte', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Add smart list' }));
 		await fireEvent.click(screen.getByRole('button', { name: 'New task' }));
 		await fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Pomodoro' }));
 		await fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
 
 		expect(props.onAddSmartList).toHaveBeenCalledTimes(1);
 		expect(props.onNewTask).toHaveBeenCalledTimes(1);
 		expect(props.onNewProject).toHaveBeenCalledTimes(1);
+		expect(props.onOpenPomodoro).toHaveBeenCalledTimes(1);
 		expect(props.onOpenSettings).toHaveBeenCalledTimes(1);
 	});
 });

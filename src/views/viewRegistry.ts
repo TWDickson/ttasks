@@ -70,7 +70,14 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 			filter: {
 				logic: 'and',
 				conditions: [
-					{ field: 'due_date', operator: 'is', value: 'today' },
+					{
+						logic: 'or',
+						conditions: [
+							{ field: 'due_date', operator: 'is', value: 'today' },
+							// Value substituted to the configured start status by applyStartStatus.
+							{ field: 'status', operator: 'is', value: 'In Progress' },
+						],
+					},
 					{ field: 'is_complete', operator: 'is', value: false },
 				],
 			},
@@ -79,6 +86,7 @@ const BUILTIN_TASK_VIEWS: RegisteredTaskViewDefinition[] = [
 				{ field: 'due_time', direction: 'asc' },
 			],
 			group: { kind: 'none' },
+			readyFirst: true,
 		},
 		presentation: { hierarchy: 'flat', graphMode: 'dependency' },
 		source: 'builtin',
@@ -222,6 +230,8 @@ function cloneQuerySpec(query: QuerySpec): QuerySpec {
 		limit: query.limit,
 		limitPerGroup: query.limitPerGroup,
 		search: query.search,
+		activeStatusBucket: query.activeStatusBucket,
+		readyFirst: query.readyFirst,
 	};
 }
 
@@ -323,11 +333,38 @@ function applyBlockStatus(view: RegisteredTaskViewDefinition, blockStatus: strin
 	return view;
 }
 
+/**
+ * Substitutes the user-configured start ("in progress") status into the
+ * built-in Today/Agenda views, so work underway surfaces there regardless of
+ * due date — not just tasks due exactly today. Today's condition is authored
+ * against the default `'In Progress'` name inside a nested OR group; Agenda
+ * uses the same status to promote a task into the "Today" date bucket.
+ */
+function applyStartStatus(view: RegisteredTaskViewDefinition, startStatus: string): RegisteredTaskViewDefinition {
+	if (view.id === 'today') {
+		for (const condition of view.query.filter.conditions) {
+			if (!('logic' in condition)) continue;
+			for (const inner of condition.conditions) {
+				if ('field' in inner && inner.field === 'status' && inner.operator === 'is') {
+					inner.value = startStatus;
+				}
+			}
+		}
+	}
+	if (view.id === 'agenda') {
+		view.query.activeStatusBucket = startStatus;
+	}
+	return view;
+}
+
 export function getRegisteredTaskViews(settings: ViewRegistrySettings): RegisteredTaskViewDefinition[] {
 	const builtinIds = new Set(BUILTIN_TASK_VIEWS.map((view) => view.id));
 	const blockStatus = settings.quickActions.blockStatus;
+	const startStatus = settings.quickActions.startStatus;
 	return [
-		...BUILTIN_TASK_VIEWS.map(cloneRegisteredView).map((view) => applyBlockStatus(view, blockStatus)),
+		...BUILTIN_TASK_VIEWS.map(cloneRegisteredView)
+			.map((view) => applyBlockStatus(view, blockStatus))
+			.map((view) => applyStartStatus(view, startStatus)),
 		...settings.customViews
 			.filter((view) => !builtinIds.has(view.id))
 			.map((view) => ({

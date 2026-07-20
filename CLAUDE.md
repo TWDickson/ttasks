@@ -174,6 +174,54 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 `run-autopilot.fish`. Older PRDs (TASK_H*/I*/J*/K*) are vault-side synced
 notes.
 
+## Recent Updates (2026-07-20)
+
+- **Taylor's 2026-07-20 feedback batch — 10 of 22 items triaged and shipped.**
+  Worked through the fresh, unscoped batch in `BACKLOG.md`; picked off the
+  clearly headless-workable bugs/features, left taste-call (⚖) and
+  research-needed (🔎) items open, and flagged one (#14, dependency-picker
+  sort) as already implemented pending Taylor's repro.
+  - **List views:** Group-by/Sort-by toolbar controls for any list-rendered
+    view (new `listGroupOverrideByViewId`/`listSortOverrideByViewId`
+    settings + `boardQuery.ts` plumbing) — covers #1 (group by Project), #2
+    (more sort fields), and #5 (Today group-by-Status) in one general
+    mechanism rather than three special cases. Today's filter gained an OR
+    branch for the configured start status (#4), and Agenda's date-bucket
+    grouping gained a new `QuerySpec.activeStatusBucket` so an in-progress
+    task reads as "today" regardless of due date unless already overdue (#7).
+    New pure `src/query/taskReadiness.ts` + `QuerySpec.readyFirst` stable-
+    partitions Today so ready-to-work tasks float above blocked ones (#22).
+    Rail's Inbox entry gained a `.tt-count` badge, hidden at zero (#3).
+  - **Dependency graph:** Independent lane now shown by default (#18); the
+    "Ready now" highlight clears when you open the highlighted task (#17); a
+    completed dependency's edge now renders in a muted green instead of plain
+    gray (#10); the Projects filter popover gained a capture-phase
+    document-level click-outside listener as a belt-and-suspenders fix for a
+    stacking-context edge case that let it stay open (#9).
+  - **Share/Sync (AI import/export):** the importer required a `name` on
+    every entry even when a `ref` alone should have been enough to target a
+    task — a real bug vs. the AI meta's own instructions — now accepts
+    ref-only entries (#20). The AI-mode export's meta now embeds this vault's
+    configured statuses/priorities/areas/labels so a replying AI picks from
+    real values instead of inventing its own (#21). Also discovered
+    `BACKLOG.md`'s "relationships not imported" limit note was stale —
+    `depends_on`/`parent` import already shipped in C3 (`b7f0e78`); corrected
+    the doc.
+  - **Left open:** #6/#8 (Blocked vs Hold semantics + cascade — needs
+    Taylor's taste call), #11/#13 (add-parent-from-node), #12 (drag
+    connectors — needs interaction research), #16 (completed-sort-lower —
+    taste call), #15 (Pomodoro discoverability), #19 (frontmatter type-
+    handling audit).
+  - Touched: `TaskGraph.svelte`, `taskGraph.ts` (+edge/edge-test fixtures),
+    `engine.ts`, `query/types.ts`, `query/taskReadiness.ts` (new),
+    `viewRegistry.ts`, `boardQuery.ts`, `TaskBoard.svelte`, `TaskRail.svelte`,
+    `TaskRailView.ts`, `taskJsonExport.ts`, `taskJsonImport.ts`,
+    `taskImportPlan.ts`, `main.ts`, `ShareSyncModal.ts`, settings
+    `types`/`defaults`, `test-rig/main.ts`. Build green, **1436 tests**
+    (up from 1261). Rig-verified: toolbar controls, Inbox badge, Independent-
+    shown-by-default, completed-edge colour (via computed style), and the
+    Projects popover click-off fix (open → click elsewhere → closes).
+
 ## Recent Updates (2026-07-19)
 
 - **Pomodoro log-partial-on-stop shipped (on `main`).** Closes the last optional

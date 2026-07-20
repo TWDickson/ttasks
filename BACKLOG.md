@@ -43,10 +43,13 @@ paste the response back and see a bulk-edit summary." **Delivered 2026-07-19.***
   new→create, matched-changed→update (field-by-field), identical→unchanged,
   dup-name→ambiguous/skip. `main.applyImportPlan` + `buildCreateInputFromParsed`.
   **Limits (by design):** only set/change (never clear from an omitted value);
-  relationships (parent/`depends_on`) + note body are not diffed/imported.
+  note body is not diffed/imported. ~~relationships (parent/`depends_on`) are
+  not diffed/imported~~ — **superseded 2026-07-20 by C3 (`b7f0e78`)**: relationship
+  import (add/remove `depends_on`, set/detach `parent`) shipped; see the Now
+  batch's AI Import/Export note below.
 - **Owed:** live-Obsidian sign-off for the Apply write path (rig can't write the
-  vault). Future (deferred, not blocking): relationship remap on import-create;
-  an import-from-clipboard command surface.
+  vault). Future (deferred, not blocking): an import-from-clipboard command
+  surface.
 
 **Historical detail (superseded by the above):**
 
@@ -128,23 +131,46 @@ original list for traceability.*
 
 ### List views — Active / Today / Agenda
 
-- `[ ]` **(1) Active List: group by Project** — add/default "Project" as a
-  group-by option (the shared query engine's `group` likely already supports
-  it — probably just needs exposing/defaulting here).
-- `[ ]` **(2) Active List: more sort options** — date, overdue-first, etc.;
-  extend whatever sort set `src/query/` currently offers.
-- `[ ]` **(3) Inbox count badge** — the left-pane **Inbox** rail entry should
-  show a count badge when >0, hidden at 0 (same "hide at zero" pattern as the
-  Blocked/Cycle pills — see GP2 residue below).
-- `[ ]` **(4) Today List: surface In Progress items** — tasks with status "In
-  Progress" should show in Today, not just due/started-today items.
-- `[ ]` **(5) Today List: group by Status** — add a group-by-status option.
-- `[ ]` **(22) Today List: order by dependency** — sort so tasks that are
-  ready-to-work (no open blockers) surface before/above ones still blocked,
-  rather than pure date/priority order; likely wants the same "ready now"
-  dependency-resolution logic the graph already uses (item 17 above).
-- `[ ]` **(7) Agenda List: Today bucket needs In Progress too** — same
-  underlying gap as (4); confirm one fix covers both surfaces.
+- `[x]` **(1, 2, 5) Group-by / Sort-by toolbar controls for list views** —
+  *done 2026-07-20.* Any list-rendered view (Active, Today, Inbox, Blocked)
+  now has **Group** and **Sort** dropdowns in the filter toolbar, plus a
+  direction-toggle button once a sort is chosen. Group options are the full
+  `GroupField` set incl. **Project** (`parent_task`, labeled "Project" —
+  covers item 1); Sort options are the full `SortField` set (covers item 2 —
+  date, name, status, area, priority, etc.), which also gives Today a
+  group-by-Status option "for free" (item 5) without a Today-specific
+  special case. Per-view override persists in new settings
+  `listGroupOverrideByViewId` / `listSortOverrideByViewId`; only applied for
+  `renderer === 'list'` so it can't fight Kanban/Agenda's required grouping.
+  Pure plumbing in `boardQuery.ts` (`applyListOverrides`), wired in
+  `TaskBoard.svelte`. Rig-verified (Group: Due date, Sort: Name + direction
+  toggle all render/apply correctly); build green, 1436 tests.
+- `[x]` **(3) Inbox count badge** — *done 2026-07-20.* The rail's **Inbox**
+  entry shows a `.tt-count` pill (open, non-complete inbox tasks), hidden at
+  0. `TaskRailView.ts` derives the count from `taskStore.tasks`;
+  `TaskRail.svelte` renders it right-aligned in the button. Rig-verified
+  (badge shows "2").
+- `[x]` **(4, 7) Today List + Agenda "Today" bucket surface In Progress** —
+  *done 2026-07-20.* Today's filter gained a nested OR (`due_date is today` OR
+  `status is <configured start status>`), substituted the same way Blocked
+  substitutes its status (`applyStartStatus` in `viewRegistry.ts`, mirrors
+  `applyBlockStatus`). Agenda's date-bucket grouping gained a new
+  `QuerySpec.activeStatusBucket` field: an in-progress task always reads as
+  "today" regardless of due date, *unless* it's already overdue (that stays
+  the more urgent signal). Pure engine change in `engine.ts`
+  (`classifyAgendaBucket`), threaded through `applyGroup`/`applyQuery`;
+  `TaskBoard.svelte` carries the field through both the initial query build
+  and the reactive filter-rebuild block. New tests in `engine.test.ts` +
+  `viewRegistry.test.ts`.
+- `[x]` **(22) Today List: order by dependency** — *done 2026-07-20.* New pure
+  `src/query/taskReadiness.ts` (`isTaskReady`/`sortReadyFirst`, boundary-listed)
+  reuses the graph's "ready now" definition (open + no incomplete `depends_on`,
+  resolving wiki-link syntax, unresolved/dangling links don't block). New
+  `QuerySpec.readyFirst` flag stable-partitions the final sorted list (ready
+  tasks float above blocked ones, existing sort order preserved within each
+  side); set on the Today builtin view. Engine change computes readiness
+  against the *full* unfiltered task list so an off-screen blocker still
+  resolves correctly. Tests in `taskReadiness.test.ts` + `engine.test.ts`.
 
 ### Status semantics — Blocked vs Hold
 
@@ -159,11 +185,21 @@ original list for traceability.*
 
 ### Dependency graph
 
-- `[ ]` **(9) Project-filter dropdown doesn't close on click-off** — bug: the
-  GP3 Projects popover stays open when clicking outside it.
-- `[ ]` **(10) Completed-item arrows should be green, not priority-coloured** —
-  edge colour for completed dependency nodes should reflect completion state
-  rather than the source task's priority colour.
+- `[x]` **(9) Project-filter dropdown doesn't close on click-off** — *done
+  2026-07-20.* The fixed full-viewport backdrop button was already there but
+  apparently loses the hit-test in some stacking-context edge case; added a
+  belt-and-suspenders `document.addEventListener('pointerdown', …, true)`
+  (capture phase) in `TaskGraph.svelte` that closes the popover whenever the
+  click target isn't inside `.tt-graph-project-filter`, regardless of DOM
+  stacking. Rig-verified: open → click elsewhere → closes.
+- `[x]` **(10) Completed-item arrows should be green, not priority-coloured** —
+  *done 2026-07-20.* Investigated first: edges weren't actually
+  priority-coloured in the current code (only `--tt-priority-accent` on the
+  node's small dot); a completed source's edge just fell through to plain
+  gray. Added the missing signal explicitly: new `TaskGraphEdge.isSourceComplete`
+  (`taskGraph.ts`), a `.tt-graph-edge.is-complete` class
+  (`color-mix(in srgb, var(--color-green) 65%, transparent)`). Rig-verified via
+  computed style.
 - `[ ]` **(11, 13) Add a parent task from a selected task** — create a new
   task that the selected task will `depend_on` (spawn a blocker/parent),
   including an entry point via a left-side `+` on the node (mirrors the
@@ -176,18 +212,30 @@ original list for traceability.*
   reads as priority-based; Taylor's instinct is completed items should just
   sink to the bottom regardless of priority — needs a taste call on the exact
   rule.
-- `[ ]` **(17) Opening a "Ready Now"-highlighted task should clear the
-  highlight** — navigating into the task should drop the Ready-Now spotlight
-  so it doesn't stay lit after being acted on.
-- `[ ]` **(18) Show the "Independent" (unassigned) lane by default** —
-  currently hidden/opt-in; flip the default to visible.
+- `[x]` **(17) Opening a "Ready Now"-highlighted task should clear the
+  highlight** — *done 2026-07-20.* `onNodeClick` (the single choke point for
+  both mouse-click and touch-tap opens) now clears `highlightReady` before
+  calling `onOpen`. `TaskGraph.svelte`.
+- `[x]` **(18) Show the "Independent" (unassigned) lane by default** — *done
+  2026-07-20.* Flipped `showIndependentInDependency` default `false → true`;
+  the "Independent" pill's hidden-count computation is toggle-independent, so
+  it still offers a working "N hidden" toggle back off. `TaskGraph.svelte`.
+  Rig-verified: pill reads "Shown" on load.
 
 ### Detail view
 
-- `[ ]` **(14) Dependency-selection dropdown needs better sorting** — the
-  depends-on/blocks picker in the task detail pane sorts poorly; likely wants
-  the same "same-project first" rule already used elsewhere (see the
-  dependency-sort fix in Recent Updates 2026-05-14).
+- `[~]` **(14) Dependency-selection dropdown needs better sorting** —
+  *investigated 2026-07-20: appears already fixed, unclear what Taylor is
+  still seeing.* The "add blocker" picker in the detail pane
+  (`TaskDetailRelationships.svelte`), the create-task modal
+  (`CreateTaskModal.ts`), and `WikiLinkField.svelte` all already sort via
+  `sortDependencyFirst` (same-project first, then alphabetical) — this looks
+  like the exact fix the item asks for, already shipped (2026-05-14 per
+  Recent Updates). Needs Taylor's repro steps (which specific picker, what
+  ordering was actually observed) before further work — may be a different
+  rule entirely (e.g. incomplete-first, or a picker this pass didn't find).
+- `[ ]` **(6) Blocked vs Hold verbiage confusion, (8) cascade** — unchanged,
+  see Status semantics above (kept here for cross-ref only).
 
 ### Pomodoro
 
@@ -205,15 +253,34 @@ original list for traceability.*
 
 ### AI Import/Export
 
-- `[ ]` **(20) Import guidance may be stricter than the tool** — the AI-facing
-  instructions say "include only ref/name plus the fields you're setting," but
-  the importer (`taskImportPlan.ts`) may actually require `name` on updates
-  even when a ref/id is present — audit `planImport`'s matching logic and
-  either loosen the importer or fix the guidance text to match real behavior.
-- `[ ]` **(21) Supply the AI with valid enums (e.g. actions/labels)** — the
-  export/import meta-instructions should include the actual configured valid
-  values (labels, statuses, etc.) so the AI picks from what's configured
-  instead of inventing its own.
+- `[x]` **(20) Import guidance was stricter than the tool** — *done
+  2026-07-20; confirmed real bug.* `parseTasksJson` required a non-empty
+  `name` on every entry, silently dropping (with only a warning) any reply
+  that targeted a task by `ref` alone — exactly what the AI meta's
+  instructions say is enough. Loosened to require **name OR ref**; added a
+  `planImport` guard so a create-fallback with no name (and no matching ref)
+  still gets skipped cleanly instead of creating a nameless task.
+  `taskJsonImport.ts` + `taskImportPlan.ts`, new tests in both.
+- `[x]` **(21) Supply the AI with valid enums** — *done 2026-07-20.*
+  `TaskJsonMeta` gained an optional `validValues` block (statuses, priorities,
+  areas, labels); `buildTaskJsonDocument`/`serializeTasksToJson` take an
+  optional `TaskJsonValidValues` and embed it only when supplied (the static
+  `AI_IMPORT_META` singleton is untouched when omitted, so the existing
+  reference-equality test still holds). `main.plugin.taskJsonValidValues()`
+  builds it from `settings.statuses`/`areas`/`labelValues` + the `PRIORITIES`
+  constant; wired into both the export-command path and the Share/Sync
+  modal's copy-to-clipboard path. Instructions text updated to tell the AI to
+  pick only from `validValues`. `taskJsonExport.ts` + `main.ts` +
+  `ShareSyncModal.ts`, new test in `taskJson.test.ts`.
+
+**Note on relationship import (docs correction):** the "Done — JSON
+import/export" section above still lists relationship/parent import as
+deferred — that's now **stale**. Commit `b7f0e78` ("feat(share): import
+relationships, deletes, and reparenting (C3)") already landed `depends_on`
+add/remove + `parent`/`remove_parent` round-tripping in `taskImportPlan.ts`
+(`linkAdds`/`linkRemovals`/`parentChanges`). Only the note body stays
+unimported. Left the historical section text alone (it's a dated log) but
+flagging here so nobody re-does this work.
 
 ---
 

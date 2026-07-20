@@ -13,6 +13,7 @@ import type {
 import { addDaysLocal, localDateString } from '../utils/dateUtils';
 import { AGENDA_BUCKET_ORDER, type AgendaBucketKey } from './agendaBuckets';
 import { PRIORITIES } from '../constants';
+import { sortReadyFirst } from './taskReadiness';
 
 // ── Date resolution ───────────────────────────────────────────────────────────
 
@@ -228,7 +229,7 @@ function applyFieldGroup(tasks: Task[], group: FieldGroupSpec): TaskGroup[] {
 	return [...map.entries()].map(([key, tasks]) => ({ key, tasks }));
 }
 
-function classifyAgendaBucket(dueDate: string | null): AgendaBucketKey {
+function classifyAgendaBucketByDate(dueDate: string | null): AgendaBucketKey {
 	if (!dueDate) return 'no-date';
 	const current = today();
 	if (dueDate < current) return 'overdue';
@@ -239,14 +240,27 @@ function classifyAgendaBucket(dueDate: string | null): AgendaBucketKey {
 	return 'later';
 }
 
-function applyAgendaDateBuckets(tasks: Task[]): TaskGroup[] {
+/**
+ * An active-status task (e.g. "In Progress") always reads as "today" — work
+ * underway belongs in today's view regardless of its due date — but an
+ * already-overdue task keeps that more urgent signal instead.
+ */
+function classifyAgendaBucket(task: Task, activeStatusBucket: string | null | undefined): AgendaBucketKey {
+	const dateBucket = classifyAgendaBucketByDate(task.due_date);
+	if (activeStatusBucket && task.status === activeStatusBucket && dateBucket !== 'overdue') {
+		return 'today';
+	}
+	return dateBucket;
+}
+
+function applyAgendaDateBuckets(tasks: Task[], activeStatusBucket: string | null | undefined): TaskGroup[] {
 	const map = new Map<AgendaBucketKey, Task[]>();
 	for (const key of AGENDA_BUCKET_ORDER) {
 		map.set(key, []);
 	}
 
 	for (const task of tasks) {
-		const key = classifyAgendaBucket(task.due_date);
+		const key = classifyAgendaBucket(task, activeStatusBucket);
 		map.get(key)!.push(task);
 	}
 
@@ -312,7 +326,7 @@ function applyLogbookDateBuckets(tasks: Task[]): TaskGroup[] {
  * Groups a task list according to the query grouping strategy.
  * Returns an array of TaskGroup objects in a stable, meaningful order.
  */
-export function applyGroup(tasks: Task[], group: GroupSpec): TaskGroup[] {
+export function applyGroup(tasks: Task[], group: GroupSpec, activeStatusBucket?: string | null): TaskGroup[] {
 	if (group.kind === 'none') {
 		return [{ key: 'all', tasks }];
 	}
@@ -325,10 +339,10 @@ export function applyGroup(tasks: Task[], group: GroupSpec): TaskGroup[] {
 		if (group.preset === 'logbook') {
 			return applyLogbookDateBuckets(tasks);
 		}
-		return applyAgendaDateBuckets(tasks);
+		return applyAgendaDateBuckets(tasks, activeStatusBucket);
 	}
 
-	return applyAgendaDateBuckets(tasks);
+	return applyAgendaDateBuckets(tasks, activeStatusBucket);
 }
 
 /**
@@ -368,16 +382,20 @@ export function applyQuery(tasks: Task[], query: QuerySpec): TaskGroup[] {
 	// total row limit, then group. Per-group capping happens after grouping;
 	// the total limit was already applied pre-group, so it is not re-applied.
 	if (query.group.kind === 'none' || sortScope === 'global') {
-		const sorted = applySort(filtered, query.sort);
+		const sorted0 = applySort(filtered, query.sort);
+		const sorted = query.readyFirst ? sortReadyFirst(sorted0, tasks) : sorted0;
 		const limited = query.limit != null ? sorted.slice(0, query.limit) : sorted;
-		const groups = applyGroup(limited, query.group);
+		const groups = applyGroup(limited, query.group, query.activeStatusBucket);
 		return capGroups(groups, query.limitPerGroup, undefined);
 	}
 
 	// Within-groups mode: group first, sort within each group, then cap.
-	const groups = applyGroup(filtered, query.group).map((group) => ({
-		key: group.key,
-		tasks: applySort(group.tasks, query.sort),
-	}));
+	const groups = applyGroup(filtered, query.group, query.activeStatusBucket).map((group) => {
+		const sorted = applySort(group.tasks, query.sort);
+		return {
+			key: group.key,
+			tasks: query.readyFirst ? sortReadyFirst(sorted, tasks) : sorted,
+		};
+	});
 	return capGroups(groups, query.limitPerGroup, query.limit);
 }

@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
-import { writable } from 'svelte/store';
+import { readable, writable } from 'svelte/store';
 import PomodoroPane from './PomodoroPane.svelte';
 import type { PomodoroSession } from '../integration/pomodoro';
+import type { PomodoroDialStyle } from '../settings/types';
 
 function activeSession(overrides: Partial<PomodoroSession> = {}): PomodoroSession {
 	return {
@@ -20,7 +21,11 @@ function activeSession(overrides: Partial<PomodoroSession> = {}): PomodoroSessio
 	};
 }
 
-function renderPane(session: PomodoroSession | null) {
+function renderPane(
+	session: PomodoroSession | null,
+	dialStyle: PomodoroDialStyle = 'digital',
+	pickedTask: { path: string; name: string } | null = null,
+) {
 	const handlers = {
 		onStart: vi.fn(),
 		onFocusUntil: vi.fn(),
@@ -28,9 +33,18 @@ function renderPane(session: PomodoroSession | null) {
 		onSkip: vi.fn(),
 		onStop: vi.fn(),
 		onOpenTask: vi.fn(),
+		onOpenSettings: vi.fn(),
+		onPickTask: vi.fn(),
+		onClearPickedTask: vi.fn(),
 	};
 	render(PomodoroPane, {
-		props: { session: writable(session), focusMinutes: 25, ...handlers },
+		props: {
+			session: writable(session),
+			focusMinutes: 25,
+			dialStyle: readable(dialStyle),
+			pickedTask: readable(pickedTask),
+			...handlers,
+		},
 	});
 	return handlers;
 }
@@ -71,5 +85,52 @@ describe('PomodoroPane', () => {
 		renderPane(activeSession({ targetEndMs: Date.now() + 60_000, isFill: true }));
 		expect(screen.getByText('Running until your target time')).toBeTruthy();
 		expect(screen.getByText(/final/)).toBeTruthy();
+	});
+
+	it('opens Pomodoro settings when the settings button is clicked', () => {
+		const h = renderPane(null);
+		fireEvent.click(screen.getByRole('button', { name: 'Pomodoro settings' }));
+		expect(h.onOpenSettings).toHaveBeenCalledOnce();
+	});
+
+	it('renders no ring in digital mode', () => {
+		const { container } = render(PomodoroPane, {
+			props: {
+				session: writable(activeSession()),
+				focusMinutes: 25,
+				dialStyle: readable('digital'),
+				pickedTask: readable(null),
+				onStart: vi.fn(), onFocusUntil: vi.fn(), onToggle: vi.fn(), onSkip: vi.fn(), onStop: vi.fn(),
+				onOpenTask: vi.fn(), onOpenSettings: vi.fn(), onPickTask: vi.fn(), onClearPickedTask: vi.fn(),
+			},
+		});
+		expect(container.querySelector('.tt-pomo-ring')).toBeNull();
+	});
+
+	it('renders the ring alongside MM:SS in ring mode', () => {
+		renderPane(activeSession({ remainingSec: 750 }), 'ring');
+		expect(screen.getByText('12:30')).toBeTruthy();
+		expect(document.querySelector('.tt-pomo-ring-progress')).toBeTruthy();
+	});
+
+	it('renders only the ring with no digits in ring-plain (ADHD-friendly) mode', () => {
+		renderPane(activeSession({ remainingSec: 750 }), 'ring-plain');
+		expect(screen.queryByText('12:30')).toBeNull();
+		expect(document.querySelector('.tt-pomo-ring-progress')).toBeTruthy();
+	});
+
+	it('opens the task picker from idle when no task is chosen', () => {
+		const h = renderPane(null);
+		expect(screen.queryByText('Untethered session')).toBeNull();
+		fireEvent.click(screen.getByText('Choose a task…'));
+		expect(h.onPickTask).toHaveBeenCalledOnce();
+	});
+
+	it('shows a chip for the chosen task with a clear control', () => {
+		const h = renderPane(null, 'digital', { path: 'Tasks/a.md', name: 'Write report' });
+		expect(screen.getByText('Write report')).toBeTruthy();
+		expect(screen.queryByText('Choose a task…')).toBeNull();
+		fireEvent.click(screen.getByRole('button', { name: 'Clear chosen task' }));
+		expect(h.onClearPickedTask).toHaveBeenCalledOnce();
 	});
 });

@@ -67,11 +67,20 @@ describe('pomodoro settings normalization', () => {
 			shortBreakMinutes: 10,
 			longBreakMinutes: 30,
 			longBreakInterval: 3,
+			dialStyle: DEFAULT_SETTINGS.pomodoro.dialStyle,
 			autoStartNext: false,
 			logEnabled: DEFAULT_SETTINGS.pomodoro.logEnabled,
 			logPath: DEFAULT_SETTINGS.pomodoro.logPath,
 			logPartialOnStop: DEFAULT_SETTINGS.pomodoro.logPartialOnStop,
 		});
+	});
+
+	it('applies a valid persisted dialStyle and ignores an invalid one', () => {
+		const ring = normalizeSettingsFromSources([{ pomodoro: { dialStyle: 'ring-plain' } }]);
+		expect(ring.pomodoro.dialStyle).toBe('ring-plain');
+
+		const invalid = normalizeSettingsFromSources([{ pomodoro: { dialStyle: 'sundial' } }]);
+		expect(invalid.pomodoro.dialStyle).toBe(DEFAULT_SETTINGS.pomodoro.dialStyle);
 	});
 
 	it('applies persisted log settings', () => {

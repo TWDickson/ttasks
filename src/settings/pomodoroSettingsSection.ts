@@ -67,6 +67,19 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 			}));
 
 	new Setting(containerEl)
+		.setName('Timer display')
+		.setDesc('How the running timer is drawn in the dedicated Pomodoro pane.')
+		.addDropdown(dd => dd
+			.addOption('digital', 'Digital (MM:SS)')
+			.addOption('ring', 'Ring + MM:SS')
+			.addOption('ring-plain', 'Ring only, no numbers (ADHD-friendly)')
+			.setValue(p.dialStyle)
+			.onChange(async (value) => {
+				plugin.settings.pomodoro.dialStyle = value as typeof p.dialStyle;
+				await plugin.saveSettings();
+			}));
+
+	new Setting(containerEl)
 		.setName('Auto-start next phase')
 		.setDesc('When a phase ends, start the next one automatically. Off waits for you to resume.')
 		.addToggle(toggle => toggle

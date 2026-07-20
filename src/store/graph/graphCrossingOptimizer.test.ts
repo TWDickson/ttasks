@@ -68,6 +68,7 @@ function makeEdge(id: string, from: string, to: string): TaskGraphEdge {
 		isCycle: false,
 		isBlockedChain: false,
 		isParentEdge: false,
+		isSourceComplete: false,
 	};
 }
 

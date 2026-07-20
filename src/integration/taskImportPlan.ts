@@ -181,8 +181,16 @@ export function planImport(parsed: ParsedImportTask[], existing: Task[]): Import
 	const linkSources: LinkSource[] = [];
 
 	for (const record of parsed) {
+		// A create needs a name regardless of what triggered it (explicit or the
+		// auto-fallback below) — a bare ref with no name has nothing to create.
+		const recordLabel = record.name || record.ref || '(unnamed)';
+
 		// Explicit create — always a new task, even if a same-name one exists.
 		if (record.action === 'create') {
+			if (!record.name) {
+				plan.missingNames.push(recordLabel);
+				continue;
+			}
 			plan.creates.push({ parsed: record });
 			linkSources.push({ record, from: { kind: 'new', type: record.type, name: record.name }, existingTask: null });
 			continue;
@@ -191,14 +199,15 @@ export function planImport(parsed: ParsedImportTask[], existing: Task[]): Import
 		// Explicit delete — only when it resolves to exactly one existing task.
 		if (record.action === 'delete') {
 			if (match) plan.deletes.push({ path: match.path, name: match.name });
-			else if (ambiguous) plan.ambiguousNames.push(record.name);
-			else plan.missingNames.push(record.name);
+			else if (ambiguous) plan.ambiguousNames.push(recordLabel);
+			else plan.missingNames.push(recordLabel);
 			continue;
 		}
 		// 'auto' / 'update' below.
 		if (!match) {
-			if (ambiguous) plan.ambiguousNames.push(record.name);
-			else if (record.action === 'update') plan.missingNames.push(record.name);
+			if (ambiguous) plan.ambiguousNames.push(recordLabel);
+			else if (record.action === 'update') plan.missingNames.push(recordLabel);
+			else if (!record.name) plan.missingNames.push(recordLabel);
 			else {
 				plan.creates.push({ parsed: record });
 				linkSources.push({ record, from: { kind: 'new', type: record.type, name: record.name }, existingTask: null });

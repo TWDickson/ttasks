@@ -80,6 +80,18 @@ export interface QuerySpec {
 	limitPerGroup?: number;
 	/** Pre-filter full-text match on task name + notes (case-insensitive). */
 	search?: string;
+	/**
+	 * For `date_buckets` grouping only: a status that always buckets as "today"
+	 * regardless of due date (an in-progress task with no/later due date still
+	 * belongs in today's view of the world). Never demotes an already-overdue
+	 * task out of the 'overdue' bucket.
+	 */
+	activeStatusBucket?: string | null;
+	/**
+	 * Stable-partitions the final result: tasks with no unfinished dependency
+	 * float above ones still blocked, within whatever sort already applies.
+	 */
+	readyFirst?: boolean;
 }
 
 // ── Output ────────────────────────────────────────────────────────────────────

@@ -14,12 +14,12 @@ export class TaskJumpSuggestModal extends FuzzySuggestModal<Task> {
 	private readonly onSelect: (task: Task) => void;
 	private readonly initialQuery: string;
 
-	constructor(app: App, tasks: Task[], onSelect: (task: Task) => void, initialQuery = '') {
+	constructor(app: App, tasks: Task[], onSelect: (task: Task) => void, initialQuery = '', placeholder = 'Jump to task...') {
 		super(app);
 		this.allTasks = [...tasks];
 		this.onSelect = onSelect;
 		this.initialQuery = initialQuery;
-		this.setPlaceholder('Jump to task...');
+		this.setPlaceholder(placeholder);
 	}
 
 	onOpen(): void {

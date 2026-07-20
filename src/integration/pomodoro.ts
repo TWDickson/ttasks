@@ -134,3 +134,9 @@ export function formatRemaining(session: PomodoroSession): string {
 	const seconds = total % 60;
 	return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
+
+/** Fraction of the current phase still remaining, clamped to [0, 1] — drives the ring dial's sweep. */
+export function remainingFraction(session: PomodoroSession): number {
+	if (session.durationSec <= 0) return 0;
+	return Math.min(1, Math.max(0, session.remainingSec / session.durationSec));
+}

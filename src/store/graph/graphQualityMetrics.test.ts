@@ -62,6 +62,7 @@ function makeEdge(id: string, from: string, to: string, isParentEdge = false): T
 		isCycle: false,
 		isBlockedChain: false,
 		isParentEdge,
+		isSourceComplete: false,
 	};
 }
 
