@@ -31,6 +31,14 @@ export class ShareSyncModal extends Modal {
 	// Import state
 	private importText = '';
 	private importPlan: ImportPlan | null = null;
+	// All categories are accepted by default; uncheck to deny. Destructive ones
+	// (deletions, link removals) are still flagged so they don't apply unnoticed.
+	private applyCreates = true;
+	private applyUpdates = true;
+	private applyDeletes = true;
+	private applyLinks = true;
+	private applyLinkRemovals = true;
+	private applyParents = true;
 
 	constructor(app: App, private readonly plugin: TTasksPlugin) {
 		super(app);
@@ -207,7 +215,7 @@ export class ShareSyncModal extends Modal {
 	private renderImport(parent: HTMLElement): void {
 		parent.createEl('p', {
 			cls: 'setting-item-description',
-			text: 'Paste an exported (or AI-edited) document. Preview the changes, then apply — matched by task name; new tasks are created. Relationships and note bodies are not imported.',
+			text: 'Paste an exported (or AI-edited) document. Preview the changes, then apply — all categories are applied by default; uncheck any to skip it. Matched by ref, else by task name. An entry can carry an "action" ("create" / "delete"); with none it updates the matched task, or creates it if new. Dependency links (depends_on) are added; list tasks under "remove_depends_on" to unlink. Set a project with "parent" or detach with "remove_parent". Note bodies are not imported.',
 		});
 
 		const textarea = parent.createEl('textarea', { cls: 'tt-share-import-text' });
@@ -245,7 +253,46 @@ export class ShareSyncModal extends Modal {
 			for (const line of summarizeImportPlan(plan)) list.createEl('li', { text: line });
 			for (const warn of parsed.warnings) list.createEl('li', { cls: 'tt-share-warn', text: `⚠ ${warn}` });
 
-			applyBtn.disabled = plan.creates.length === 0 && plan.updates.length === 0;
+			const refreshApply = () => {
+				applyBtn.disabled = !(
+					(this.applyUpdates && plan.updates.length > 0) ||
+					(this.applyCreates && plan.creates.length > 0) ||
+					(this.applyDeletes && plan.deletes.length > 0) ||
+					(this.applyLinks && plan.linkAdds.length > 0) ||
+					(this.applyLinkRemovals && plan.linkRemovals.length > 0) ||
+					(this.applyParents && plan.parentChanges.length > 0)
+				);
+			};
+
+			const toggles = summaryEl.createDiv({ cls: 'tt-share-apply-toggles' });
+			const addToggle = (
+				label: string,
+				count: number,
+				checked: boolean,
+				onChange: (value: boolean) => void,
+				destructive = false,
+			): void => {
+				if (count === 0) return;
+				const row = toggles.createDiv({ cls: 'tt-share-toggle-row' });
+				row.toggleClass('is-destructive', destructive);
+				const cb = row.createEl('input', { type: 'checkbox' });
+				cb.checked = checked;
+				const id = `tt-share-apply-${label.replace(/\s+/g, '-').toLowerCase()}`;
+				cb.id = id;
+				row.createEl('label', { text: `${label} (${count})`, attr: { for: id } });
+				cb.addEventListener('change', () => {
+					onChange(cb.checked);
+					refreshApply();
+				});
+			};
+			addToggle('Apply updates', plan.updates.length, this.applyUpdates, (v) => (this.applyUpdates = v));
+			addToggle('Apply new tasks', plan.creates.length, this.applyCreates, (v) => (this.applyCreates = v));
+			addToggle('Apply links', plan.linkAdds.length, this.applyLinks, (v) => (this.applyLinks = v));
+			addToggle('Apply link removals', plan.linkRemovals.length, this.applyLinkRemovals, (v) => (this.applyLinkRemovals = v), true);
+			addToggle('Apply parent changes', plan.parentChanges.length, this.applyParents, (v) => (this.applyParents = v));
+			addToggle('Apply deletions', plan.deletes.length, this.applyDeletes, (v) => (this.applyDeletes = v), true);
+
+			refreshApply();
 		};
 
 		textarea.addEventListener('input', () => {
@@ -260,8 +307,20 @@ export class ShareSyncModal extends Modal {
 	private async applyImport(): Promise<void> {
 		if (!this.importPlan) return;
 		const plan = this.importPlan;
-		const { created, updated } = await this.plugin.applyImportPlan(plan);
-		new Notice(`TTasks: imported — ${created} created, ${updated} updated.`);
+		const { created, updated, deleted, linked, unlinked, reparented } = await this.plugin.applyImportPlan(plan, {
+			creates: this.applyCreates,
+			updates: this.applyUpdates,
+			deletes: this.applyDeletes,
+			links: this.applyLinks,
+			linkRemovals: this.applyLinkRemovals,
+			parents: this.applyParents,
+		});
+		const parts = [`${created} created`, `${updated} updated`];
+		if (deleted > 0) parts.push(`${deleted} deleted`);
+		if (linked > 0) parts.push(`${linked} linked`);
+		if (unlinked > 0) parts.push(`${unlinked} unlinked`);
+		if (reparented > 0) parts.push(`${reparented} reparented`);
+		new Notice(`TTasks: imported — ${parts.join(', ')}.`);
 		this.close();
 	}
 }

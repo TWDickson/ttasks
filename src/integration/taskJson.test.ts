@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
 import {
+	AI_IMPORT_META,
 	TASK_JSON_SCHEMA_VERSION,
 	buildTaskJsonDocument,
 	serializeTasksToJson,
 } from './taskJsonExport';
 import { parseTasksJson } from './taskJsonImport';
+import { IMPORT_UPDATABLE_FIELDS } from './taskImportPlan';
 
 function makeTask(overrides: Partial<Task> = {}): Task {
 	return {
@@ -84,6 +86,8 @@ describe('buildTaskJsonDocument — ai mode', () => {
 
 		expect(exportedChild.parent).toBe('Big Project');
 		expect(exportedChild.depends_on).toEqual(['Big Project']);
+		// The compact `ref` (= id) is kept for exact round-trip matching; raw id/path dropped.
+		expect(exportedChild.ref).toBe(child.id);
 		expect('id' in exportedChild).toBe(false);
 		expect('path' in exportedChild).toBe(false);
 		expect('blocks' in exportedChild).toBe(false);
@@ -97,6 +101,18 @@ describe('buildTaskJsonDocument — ai mode', () => {
 		const child = makeTask({ depends_on: ['Planner/Tasks/zzz-external-task.md'] });
 		const doc = buildTaskJsonDocument([child], 'ai', AT);
 		expect(doc.tasks[0].depends_on).toEqual(['zzz-external-task']);
+	});
+
+	it('embeds the paste-back contract as meta (ai mode only)', () => {
+		const aiDoc = buildTaskJsonDocument([makeTask()], 'ai', AT);
+		expect(aiDoc.meta).toBe(AI_IMPORT_META);
+		expect(aiDoc.meta?.actions).toHaveProperty('delete');
+		const fullDoc = buildTaskJsonDocument([makeTask()], 'full', AT);
+		expect(fullDoc.meta).toBeUndefined();
+	});
+
+	it('keeps the meta field list in sync with the real updatable fields', () => {
+		expect(AI_IMPORT_META.updatableFields).toEqual([...IMPORT_UPDATABLE_FIELDS]);
 	});
 });
 
@@ -149,6 +165,37 @@ describe('parseTasksJson', () => {
 		expect(result.ok).toBe(true);
 		expect(result.tasks).toHaveLength(1);
 		expect(result.warnings.join(' ')).toMatch(/newer than supported/);
+	});
+
+	it('reads the action key, defaulting to auto', () => {
+		const result = parseTasksJson(JSON.stringify({ tasks: [
+			{ name: 'Del', action: 'delete' },
+			{ name: 'New', action: 'create' },
+			{ name: 'Plain' },
+			{ name: 'Bogus', action: 'nonsense' },
+		] }));
+		expect(result.tasks.map((t) => t.action)).toEqual(['delete', 'create', 'auto', 'auto']);
+	});
+
+	it('reads ref, falling back to the id field', () => {
+		const a = parseTasksJson(JSON.stringify({ tasks: [{ name: 'A', ref: 'r1' }] }));
+		const b = parseTasksJson(JSON.stringify({ tasks: [{ name: 'B', id: 'i2' }] }));
+		const c = parseTasksJson(JSON.stringify({ tasks: [{ name: 'C' }] }));
+		expect(a.tasks[0].ref).toBe('r1');
+		expect(b.tasks[0].ref).toBe('i2');
+		expect(c.tasks[0].ref).toBeNull();
+	});
+
+	it('reads remove_depends_on as a string array', () => {
+		const r = parseTasksJson(JSON.stringify({ tasks: [{ name: 'A', remove_depends_on: ['X', 'Y'] }] }));
+		expect(r.tasks[0].remove_depends_on).toEqual(['X', 'Y']);
+	});
+
+	it('reads remove_parent as a strict boolean', () => {
+		const yes = parseTasksJson(JSON.stringify({ tasks: [{ name: 'A', remove_parent: true }] }));
+		const no = parseTasksJson(JSON.stringify({ tasks: [{ name: 'B', remove_parent: 'yes' }] }));
+		expect(yes.tasks[0].remove_parent).toBe(true);
+		expect(no.tasks[0].remove_parent).toBe(false);
 	});
 
 	it('accepts both parent and parent_task spellings', () => {

@@ -12,9 +12,65 @@ export type TaskJsonMode = 'full' | 'ai';
 
 export const TASK_JSON_SCHEMA_VERSION = 1;
 
+/**
+ * Round-trip contract embedded in 'ai'-mode exports so a receiving AI knows how
+ * to reply: it may tag each task with an `action` and send back only the fields
+ * it is changing. Nothing it returns is written blindly — TTasks previews every
+ * change and the user chooses what to apply.
+ */
+export interface TaskJsonMeta {
+	instructions: string;
+	ref: string;
+	matchedBy: string;
+	actions: Record<'update' | 'create' | 'delete', string>;
+	/** How to express dependency order on the way back. */
+	sequences: string;
+	/** How to set/clear a task's project membership. */
+	parent: string;
+	/** Fields an import can set on a matched task (mirrors taskImportPlan). */
+	updatableFields: string[];
+	/** Fields present in the export but ignored on import. */
+	ignoredOnImport: string[];
+}
+
+export const AI_IMPORT_META: TaskJsonMeta = {
+	instructions:
+		'To send changes back, reply with this same shape — a JSON object with a "tasks" array. ' +
+		'Omit any task you are not changing. On each task you do change, add an "action" key and ' +
+		'include only "ref"/"name" (the match key) plus the fields you are setting — keep it light.',
+	ref:
+		'Stable unique id. Echo it back to target that exact task; omit it to create a new task. ' +
+		'You can also point a dependency at a task by its ref.',
+	matchedBy: 'ref when present, otherwise type + name (case-insensitive)',
+	actions: {
+		update:
+			'Default when "action" is omitted. Sets the fields you include on the matched task; ' +
+			'omitted fields are left unchanged (a field cannot be cleared by omitting it).',
+		create: 'Add a new task. Requires "name"; unset fields take TTasks defaults.',
+		delete: 'Remove the matched task. Only "ref" (or "name") is needed.',
+	},
+	sequences:
+		'Order tasks with "depends_on": a task lists the tasks that must finish before it, each by ' +
+		'ref or name. New tasks created in the same reply can be referenced by name, so you can define ' +
+		'a whole chain at once. Adding is additive — existing dependencies are kept. To break a link, ' +
+		'list the task(s) to unlink under "remove_depends_on".',
+	parent:
+		'Set a task\'s project with "parent" (a project ref or name — a project you create in the same ' +
+		'reply works too). Omit it to leave the current project unchanged; set "remove_parent": true to ' +
+		'detach the task from its project.',
+	updatableFields: [
+		'status', 'priority', 'area', 'labels', 'blocked_reason', 'assigned_to',
+		'source', 'start_date', 'due_date', 'due_time', 'estimated_days',
+		'completed', 'recurrence', 'recurrence_type', 'pomodoro_count', 'focused_minutes',
+	],
+	ignoredOnImport: ['blocks', 'notes'],
+};
+
 /** One task in the exported document. Optional fields are omitted in 'ai' mode. */
 export interface ExportedTask {
 	id?: string;
+	/** Compact stable id echoed in 'ai' mode so a paste-back can target this task exactly. */
+	ref?: string;
 	path?: string;
 	type: string;
 	name: string;
@@ -51,6 +107,8 @@ export interface TaskJsonDocument {
 	schemaVersion: number;
 	generatedAt: string;
 	mode: TaskJsonMode;
+	/** Present only in 'ai' mode — the paste-back contract for a receiving AI. */
+	meta?: TaskJsonMeta;
 	taskCount: number;
 	tasks: ExportedTask[];
 }
@@ -73,6 +131,7 @@ function pruneUndefined(record: ExportedTask): ExportedTask {
 function exportOne(task: Task, mode: TaskJsonMode, resolveLink: (path: string) => string): ExportedTask {
 	if (mode === 'ai') {
 		return pruneUndefined({
+			ref: task.id,
 			type: task.type,
 			name: task.name,
 			area: task.area,
@@ -139,6 +198,7 @@ export function buildTaskJsonDocument(tasks: Task[], mode: TaskJsonMode, generat
 		schemaVersion: TASK_JSON_SCHEMA_VERSION,
 		generatedAt,
 		mode,
+		...(mode === 'ai' ? { meta: AI_IMPORT_META } : {}),
 		taskCount: exported.length,
 		tasks: exported,
 	};

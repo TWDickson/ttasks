@@ -6,7 +6,17 @@
 
 import { TASK_JSON_SCHEMA_VERSION } from './taskJsonExport';
 
+/**
+ * What a paste-back entry asks TTasks to do. `'auto'` (the default when no
+ * `action` key is present) means "update if a task matches by name, else create"
+ * — the original round-trip behaviour. `create`/`delete` are explicit overrides.
+ */
+export type ImportAction = 'auto' | 'update' | 'create' | 'delete';
+
 export interface ParsedImportTask {
+	action: ImportAction;
+	/** Stable id to target an existing task exactly; null when matching falls back to name. */
+	ref: string | null;
 	type: string;
 	name: string;
 	area: string | null;
@@ -15,7 +25,11 @@ export interface ParsedImportTask {
 	labels: string[];
 	/** parent as written in the source (human name or vault path); remapped on create. */
 	parent: string | null;
+	/** Detach the task from its project. */
+	remove_parent: boolean;
 	depends_on: string[];
+	/** Tasks (by ref or name) to unlink from depends_on. */
+	remove_depends_on: string[];
 	blocked_reason: string;
 	assigned_to: string;
 	source: string;
@@ -59,11 +73,17 @@ function asStringArray(value: unknown): string[] {
 	return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
 }
 
+function asAction(value: unknown): ImportAction {
+	return value === 'create' || value === 'delete' || value === 'update' ? value : 'auto';
+}
+
 function normalizeOne(raw: Record<string, unknown>): ParsedImportTask {
 	// Accept both the export's `parent`/`parent_task` spellings.
 	const parent = asString(raw.parent) ?? asString(raw.parent_task);
 	const type = asStringOr(raw.type, 'task');
 	return {
+		action: asAction(raw.action),
+		ref: asString(raw.ref) ?? asString(raw.id),
 		type: type === 'project' ? 'project' : 'task',
 		name: asStringOr(raw.name, '').trim(),
 		area: asString(raw.area),
@@ -71,7 +91,9 @@ function normalizeOne(raw: Record<string, unknown>): ParsedImportTask {
 		priority: asString(raw.priority),
 		labels: asStringArray(raw.labels),
 		parent,
+		remove_parent: raw.remove_parent === true,
 		depends_on: asStringArray(raw.depends_on),
+		remove_depends_on: asStringArray(raw.remove_depends_on),
 		blocked_reason: asStringOr(raw.blocked_reason, ''),
 		assigned_to: asStringOr(raw.assigned_to, ''),
 		source: asStringOr(raw.source, ''),

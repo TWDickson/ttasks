@@ -1178,6 +1178,21 @@
 	font-size: var(--font-ui-small);
 }
 
+.tt-share-apply-toggles {
+	margin-top: var(--tt-space-3, 12px);
+	padding-top: var(--tt-space-3, 12px);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.tt-share-apply-toggles .tt-share-toggle-row {
+	margin: var(--tt-space-2, 8px) 0;
+	font-size: var(--font-ui-small);
+}
+
+.tt-share-apply-toggles .tt-share-toggle-row.is-destructive label {
+	color: var(--text-error, var(--color-red));
+}
+
 .tt-query-editor-modal .modal-content {
 	padding: 16px 20px 20px;
 	max-height: 80vh;

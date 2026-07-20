@@ -25,7 +25,7 @@ import { ShareSyncModal } from './modals/ShareSyncModal';
 import { ReminderService } from './store/ReminderService';
 import type { Task, TaskCreateInput, TaskPriority, TaskStatus } from './types';
 import type { ParsedImportTask } from './integration/taskJsonImport';
-import { type ImportPlan, changesToPatch } from './integration/taskImportPlan';
+import { type ImportPlan, type LinkEndpoint, changesToPatch } from './integration/taskImportPlan';
 import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration/contextMenu';
 import { resolveQuickAction } from './integration/quickActions';
 import { ArchiveService } from './store/ArchiveService';
@@ -496,30 +496,123 @@ export default class TTasksPlugin extends Plugin {
 	}
 
 	/**
-	 * Apply a planned import to the vault: update matched tasks with their changed
-	 * fields, then create the new ones. Relationships/notes are intentionally not
-	 * imported (see taskImportPlan.ts). Returns the counts actually applied.
+	 * Apply a planned import to the vault. Order matters: field updates, then create
+	 * the new tasks (recording their fresh paths), then wire dependency links (which
+	 * may point at tasks just created), then removals, then deletes last. Parent and
+	 * notes are intentionally not imported (see taskImportPlan.ts). Returns the counts
+	 * actually applied.
 	 */
-	async applyImportPlan(plan: ImportPlan): Promise<{ created: number; updated: number }> {
+	async applyImportPlan(
+		plan: ImportPlan,
+		selection: {
+			creates?: boolean;
+			updates?: boolean;
+			deletes?: boolean;
+			links?: boolean;
+			linkRemovals?: boolean;
+			parents?: boolean;
+		} = {},
+	): Promise<{ created: number; updated: number; deleted: number; linked: number; unlinked: number; reparented: number }> {
+		const doUpdates = selection.updates ?? true;
+		const doCreates = selection.creates ?? true;
+		const doDeletes = selection.deletes ?? true;
+		const doLinks = selection.links ?? true;
+		const doLinkRemovals = selection.linkRemovals ?? true;
+		const doParents = selection.parents ?? true;
 		let updated = 0;
 		let created = 0;
-		for (const update of plan.updates) {
-			try {
-				await this.taskStore.update(update.path, changesToPatch(update.changes));
-				updated++;
-			} catch (error) {
-				this.log(`import update failed for ${update.path}: ${String(error)}`);
+		let deleted = 0;
+		let linked = 0;
+		let unlinked = 0;
+		let reparented = 0;
+
+		if (doUpdates) {
+			for (const update of plan.updates) {
+				try {
+					await this.taskStore.update(update.path, changesToPatch(update.changes));
+					updated++;
+				} catch (error) {
+					this.log(`import update failed for ${update.path}: ${String(error)}`);
+				}
 			}
 		}
-		for (const entry of plan.creates) {
-			try {
-				await this.taskStore.create(this.buildCreateInputFromParsed(entry.parsed));
-				created++;
-			} catch (error) {
-				this.log(`import create failed for ${entry.parsed.name}: ${String(error)}`);
+
+		// Create new tasks first, mapping (type, name) → the fresh vault path so links
+		// resolving to a just-created task can find it below.
+		const createdPath = new Map<string, string>();
+		const key = (type: string, name: string): string => `${type} ${name.trim().toLowerCase()}`;
+		if (doCreates) {
+			for (const entry of plan.creates) {
+				try {
+					const task = await this.taskStore.create(this.buildCreateInputFromParsed(entry.parsed));
+					createdPath.set(key(entry.parsed.type, entry.parsed.name), task.path);
+					created++;
+				} catch (error) {
+					this.log(`import create failed for ${entry.parsed.name}: ${String(error)}`);
+				}
 			}
 		}
-		return { created, updated };
+
+		const resolveEndpoint = (ep: LinkEndpoint): string | null =>
+			ep.kind === 'existing' ? ep.path : createdPath.get(key(ep.type, ep.name)) ?? null;
+		const withoutExt = (path: string): string => path.replace(/\.md$/, '');
+
+		if (doLinks) {
+			for (const link of plan.linkAdds) {
+				const fromPath = resolveEndpoint(link.from);
+				const toPath = resolveEndpoint(link.to);
+				if (!fromPath || !toPath) continue; // a needed task wasn't created (its category was skipped)
+				try {
+					await this.taskStore.addDependency(fromPath, withoutExt(toPath));
+					linked++;
+				} catch (error) {
+					this.log(`import link failed ${fromPath} → ${toPath}: ${String(error)}`);
+				}
+			}
+		}
+
+		if (doLinkRemovals) {
+			for (const link of plan.linkRemovals) {
+				const fromPath = resolveEndpoint(link.from);
+				const toPath = resolveEndpoint(link.to);
+				if (!fromPath || !toPath) continue;
+				try {
+					await this.taskStore.removeDependency(fromPath, withoutExt(toPath));
+					unlinked++;
+				} catch (error) {
+					this.log(`import unlink failed ${fromPath} → ${toPath}: ${String(error)}`);
+				}
+			}
+		}
+
+		if (doParents) {
+			for (const change of plan.parentChanges) {
+				const fromPath = resolveEndpoint(change.from);
+				if (!fromPath) continue;
+				const toPath = change.to ? resolveEndpoint(change.to) : null;
+				if (change.to && !toPath) continue; // the target project wasn't created
+				try {
+					await this.taskStore.updateParentTask(fromPath, toPath ? withoutExt(toPath) : null);
+					reparented++;
+				} catch (error) {
+					this.log(`import reparent failed for ${fromPath}: ${String(error)}`);
+				}
+			}
+		}
+
+		if (doDeletes) {
+			// Already confirmed via the import preview, so skip the per-file prompt.
+			for (const del of plan.deletes) {
+				try {
+					await this.taskStore.delete(del.path, { prompt: false });
+					deleted++;
+				} catch (error) {
+					this.log(`import delete failed for ${del.path}: ${String(error)}`);
+				}
+			}
+		}
+
+		return { created, updated, deleted, linked, unlinked, reparented };
 	}
 
 	/** Build a create input from a parsed import record; relationships are dropped. */

@@ -41,6 +41,8 @@ function task(overrides: Partial<Task> = {}): Task {
 
 function parsed(overrides: Partial<ParsedImportTask> = {}): ParsedImportTask {
 	return {
+		action: 'auto',
+		ref: null,
 		type: 'task',
 		name: 'Task',
 		area: null,
@@ -48,7 +50,9 @@ function parsed(overrides: Partial<ParsedImportTask> = {}): ParsedImportTask {
 		priority: null,
 		labels: [],
 		parent: null,
+		remove_parent: false,
 		depends_on: [],
+		remove_depends_on: [],
 		blocked_reason: '',
 		assigned_to: '',
 		source: '',
@@ -126,6 +130,201 @@ describe('planImport', () => {
 			[task({ name: 'Website', type: 'task' })],
 		);
 		expect(plan.creates).toHaveLength(1);
+	});
+
+	it('plans a delete when action:delete matches exactly one task', () => {
+		const existing = task({ name: 'Drop me', path: 'Tasks/drop.md' });
+		const plan = planImport([parsed({ name: 'drop me', action: 'delete' })], [existing]);
+		expect(plan.deletes).toEqual([{ path: 'Tasks/drop.md', name: 'Drop me' }]);
+		expect(plan.creates).toHaveLength(0);
+		expect(plan.updates).toHaveLength(0);
+	});
+
+	it('does not create a matched task from an action:delete entry carrying fields', () => {
+		const existing = task({ name: 'Drop me', status: 'Active' });
+		const plan = planImport([parsed({ name: 'Drop me', status: 'Done', action: 'delete' })], [existing]);
+		expect(plan.deletes).toHaveLength(1);
+		expect(plan.updates).toHaveLength(0);
+	});
+
+	it('records a not-found name when action:delete matches nothing', () => {
+		const plan = planImport([parsed({ name: 'Ghost', action: 'delete' })], [task({ name: 'Other' })]);
+		expect(plan.deletes).toHaveLength(0);
+		expect(plan.missingNames).toEqual(['Ghost']);
+	});
+
+	it('treats an ambiguous action:delete as ambiguous, not a delete', () => {
+		const plan = planImport(
+			[parsed({ name: 'Dup', action: 'delete' })],
+			[task({ name: 'Dup', path: 'Tasks/1.md' }), task({ name: 'Dup', path: 'Tasks/2.md' })],
+		);
+		expect(plan.deletes).toHaveLength(0);
+		expect(plan.ambiguousNames).toEqual(['Dup']);
+	});
+
+	it('forces a new task for action:create even when a same-name task exists', () => {
+		const plan = planImport([parsed({ name: 'Task', action: 'create' })], [task({ name: 'Task' })]);
+		expect(plan.creates).toHaveLength(1);
+		expect(plan.updates).toHaveLength(0);
+		expect(plan.unchangedCount).toBe(0);
+	});
+
+	it('records a not-found name when action:update matches nothing', () => {
+		const plan = planImport([parsed({ name: 'Nope', status: 'Done', action: 'update' })], [task({ name: 'Other' })]);
+		expect(plan.creates).toHaveLength(0);
+		expect(plan.missingNames).toEqual(['Nope']);
+	});
+
+	it('matches by ref exactly, even when the name differs (a rename)', () => {
+		const existing = task({ id: 'ref123', name: 'Old name', status: 'Active' });
+		const plan = planImport([parsed({ ref: 'ref123', name: 'New name', status: 'Done' })], [existing]);
+		expect(plan.creates).toHaveLength(0);
+		expect(plan.updates).toHaveLength(1);
+		expect(plan.updates[0].path).toBe(existing.path);
+	});
+
+	it('ref disambiguates what a duplicate name cannot', () => {
+		const a = task({ id: 'aaa', name: 'Dup', path: 'Tasks/a.md', status: 'Active' });
+		const b = task({ id: 'bbb', name: 'Dup', path: 'Tasks/b.md', status: 'Active' });
+		const plan = planImport([parsed({ ref: 'bbb', name: 'Dup', status: 'Done' })], [a, b]);
+		expect(plan.ambiguousNames).toHaveLength(0);
+		expect(plan.updates).toHaveLength(1);
+		expect(plan.updates[0].path).toBe('Tasks/b.md');
+	});
+});
+
+describe('planImport — dependency links', () => {
+	it('adds a depends_on edge between two existing tasks, resolving by name', () => {
+		const a = task({ id: 'a', name: 'A', path: 'Tasks/a.md' });
+		const b = task({ id: 'b', name: 'B', path: 'Tasks/b.md' });
+		const plan = planImport([parsed({ name: 'B', depends_on: ['A'] })], [a, b]);
+		expect(plan.linkAdds).toHaveLength(1);
+		expect(plan.linkAdds[0].from).toEqual({ kind: 'existing', path: 'Tasks/b.md', name: 'B' });
+		expect(plan.linkAdds[0].to).toEqual({ kind: 'existing', path: 'Tasks/a.md', name: 'A' });
+	});
+
+	it('does not re-add an edge that already exists', () => {
+		const a = task({ id: 'a', name: 'A', path: 'Tasks/a.md' });
+		const b = task({ id: 'b', name: 'B', path: 'Tasks/b.md', depends_on: ['Tasks/a.md'] });
+		const plan = planImport([parsed({ name: 'B', depends_on: ['A'] })], [a, b]);
+		expect(plan.linkAdds).toHaveLength(0);
+	});
+
+	it('wires a chain of brand-new tasks by name (new → new)', () => {
+		const plan = planImport(
+			[
+				parsed({ name: 'Step 1' }),
+				parsed({ name: 'Step 2', depends_on: ['Step 1'] }),
+				parsed({ name: 'Step 3', depends_on: ['Step 2'] }),
+			],
+			[],
+		);
+		expect(plan.creates).toHaveLength(3);
+		expect(plan.linkAdds).toHaveLength(2);
+		expect(plan.linkAdds[0].from).toEqual({ kind: 'new', type: 'task', name: 'Step 2' });
+		expect(plan.linkAdds[0].to).toEqual({ kind: 'new', type: 'task', name: 'Step 1' });
+	});
+
+	it('resolves a link target by ref', () => {
+		const a = task({ id: 'target1', name: 'Anything', path: 'Tasks/a.md' });
+		const b = task({ id: 'b', name: 'B', path: 'Tasks/b.md' });
+		const plan = planImport([parsed({ name: 'B', depends_on: ['target1'] })], [a, b]);
+		expect(plan.linkAdds[0].to).toEqual({ kind: 'existing', path: 'Tasks/a.md', name: 'Anything' });
+	});
+
+	it('surfaces an unresolved link target rather than guessing', () => {
+		const b = task({ name: 'B', path: 'Tasks/b.md' });
+		const plan = planImport([parsed({ name: 'B', depends_on: ['Ghost'] })], [b]);
+		expect(plan.linkAdds).toHaveLength(0);
+		expect(plan.unresolvedLinks).toEqual(['B → Ghost']);
+	});
+
+	it('surfaces an ambiguous link target', () => {
+		const d1 = task({ id: '1', name: 'Dup', path: 'Tasks/1.md' });
+		const d2 = task({ id: '2', name: 'Dup', path: 'Tasks/2.md' });
+		const b = task({ id: 'b', name: 'B', path: 'Tasks/b.md' });
+		const plan = planImport([parsed({ name: 'B', depends_on: ['Dup'] })], [d1, d2, b]);
+		expect(plan.linkAdds).toHaveLength(0);
+		expect(plan.unresolvedLinks).toEqual(['B → Dup']);
+	});
+
+	it('never adds a self-dependency', () => {
+		const a = task({ id: 'a', name: 'A', path: 'Tasks/a.md' });
+		const plan = planImport([parsed({ name: 'A', depends_on: ['A'] })], [a]);
+		expect(plan.linkAdds).toHaveLength(0);
+	});
+
+	it('removes an existing edge listed under remove_depends_on', () => {
+		const a = task({ id: 'a', name: 'A', path: 'Tasks/a.md' });
+		const b = task({ id: 'b', name: 'B', path: 'Tasks/b.md', depends_on: ['Tasks/a.md'] });
+		const plan = planImport([parsed({ name: 'B', remove_depends_on: ['A'] })], [a, b]);
+		expect(plan.linkRemovals).toHaveLength(1);
+		expect(plan.linkRemovals[0].to).toEqual({ kind: 'existing', path: 'Tasks/a.md', name: 'A' });
+	});
+
+	it('ignores a remove for an edge that is not present', () => {
+		const a = task({ id: 'a', name: 'A', path: 'Tasks/a.md' });
+		const b = task({ id: 'b', name: 'B', path: 'Tasks/b.md' });
+		const plan = planImport([parsed({ name: 'B', remove_depends_on: ['A'] })], [a, b]);
+		expect(plan.linkRemovals).toHaveLength(0);
+	});
+
+	it('dedupes a repeated link target', () => {
+		const a = task({ id: 'a', name: 'A', path: 'Tasks/a.md' });
+		const b = task({ id: 'b', name: 'B', path: 'Tasks/b.md' });
+		const plan = planImport([parsed({ name: 'B', depends_on: ['A', 'a'] })], [a, b]);
+		expect(plan.linkAdds).toHaveLength(1);
+	});
+});
+
+describe('planImport — parent (project membership)', () => {
+	it('sets a task under an existing project resolved by name', () => {
+		const proj = task({ id: 'p', name: 'Website', type: 'project', path: 'Tasks/p.md' });
+		const t = task({ id: 't', name: 'T', path: 'Tasks/t.md', parent_task: null });
+		const plan = planImport([parsed({ name: 'T', parent: 'Website' })], [proj, t]);
+		expect(plan.parentChanges).toHaveLength(1);
+		expect(plan.parentChanges[0].from).toEqual({ kind: 'existing', path: 'Tasks/t.md', name: 'T' });
+		expect(plan.parentChanges[0].to).toEqual({ kind: 'existing', path: 'Tasks/p.md', name: 'Website' });
+	});
+
+	it('is a no-op when the task already belongs to that project', () => {
+		const proj = task({ id: 'p', name: 'Website', type: 'project', path: 'Tasks/p.md' });
+		const t = task({ id: 't', name: 'T', path: 'Tasks/t.md', parent_task: 'Tasks/p' });
+		const plan = planImport([parsed({ name: 'T', parent: 'Website' })], [proj, t]);
+		expect(plan.parentChanges).toHaveLength(0);
+	});
+
+	it('parents a new task under a project created in the same import', () => {
+		const plan = planImport(
+			[
+				parsed({ name: 'New Project', type: 'project' }),
+				parsed({ name: 'New Task', parent: 'New Project' }),
+			],
+			[],
+		);
+		expect(plan.creates).toHaveLength(2);
+		expect(plan.parentChanges).toHaveLength(1);
+		expect(plan.parentChanges[0].from).toEqual({ kind: 'new', type: 'task', name: 'New Task' });
+		expect(plan.parentChanges[0].to).toEqual({ kind: 'new', type: 'project', name: 'New Project' });
+	});
+
+	it('detaches a task from its project on remove_parent', () => {
+		const t = task({ id: 't', name: 'T', path: 'Tasks/t.md', parent_task: 'Tasks/p' });
+		const plan = planImport([parsed({ name: 'T', remove_parent: true })], [t]);
+		expect(plan.parentChanges).toEqual([{ from: { kind: 'existing', path: 'Tasks/t.md', name: 'T' }, to: null }]);
+	});
+
+	it('ignores remove_parent when the task has no project', () => {
+		const t = task({ id: 't', name: 'T', path: 'Tasks/t.md', parent_task: null });
+		const plan = planImport([parsed({ name: 'T', remove_parent: true })], [t]);
+		expect(plan.parentChanges).toHaveLength(0);
+	});
+
+	it('surfaces an unresolved parent rather than guessing', () => {
+		const t = task({ id: 't', name: 'T', path: 'Tasks/t.md' });
+		const plan = planImport([parsed({ name: 'T', parent: 'Ghost Project' })], [t]);
+		expect(plan.parentChanges).toHaveLength(0);
+		expect(plan.unresolvedLinks).toEqual(['T ⤴ Ghost Project']);
 	});
 });
 
