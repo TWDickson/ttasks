@@ -139,6 +139,10 @@ original list for traceability.*
 - `[ ]` **(4) Today List: surface In Progress items** — tasks with status "In
   Progress" should show in Today, not just due/started-today items.
 - `[ ]` **(5) Today List: group by Status** — add a group-by-status option.
+- `[ ]` **(22) Today List: order by dependency** — sort so tasks that are
+  ready-to-work (no open blockers) surface before/above ones still blocked,
+  rather than pure date/priority order; likely wants the same "ready now"
+  dependency-resolution logic the graph already uses (item 17 above).
 - `[ ]` **(7) Agenda List: Today bucket needs In Progress too** — same
   underlying gap as (4); confirm one fix covers both surfaces.
 
