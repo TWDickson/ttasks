@@ -120,6 +120,99 @@ Obsidian-touching part.
 
 ---
 
+## Now — Taylor feedback batch (2026-07-20)
+
+*Raw feedback from Taylor's pass through the app 2026-07-20 — not yet scoped or
+researched; triage/sequence as convenient. Numbers below map 1:1 to Taylor's
+original list for traceability.*
+
+### List views — Active / Today / Agenda
+
+- `[ ]` **(1) Active List: group by Project** — add/default "Project" as a
+  group-by option (the shared query engine's `group` likely already supports
+  it — probably just needs exposing/defaulting here).
+- `[ ]` **(2) Active List: more sort options** — date, overdue-first, etc.;
+  extend whatever sort set `src/query/` currently offers.
+- `[ ]` **(3) Inbox count badge** — the left-pane **Inbox** rail entry should
+  show a count badge when >0, hidden at 0 (same "hide at zero" pattern as the
+  Blocked/Cycle pills — see GP2 residue below).
+- `[ ]` **(4) Today List: surface In Progress items** — tasks with status "In
+  Progress" should show in Today, not just due/started-today items.
+- `[ ]` **(5) Today List: group by Status** — add a group-by-status option.
+- `[ ]` **(7) Agenda List: Today bucket needs In Progress too** — same
+  underlying gap as (4); confirm one fix covers both surfaces.
+
+### Status semantics — Blocked vs Hold
+
+- `[ ]` **(6) Blocked vs Hold verbiage confusion** ⚖ — unclear distinction
+  between the two statuses; needs a definition/taste call (what each means,
+  when to use which) before any wording changes.
+- `[ ]` **(8) Status changes should cascade to dependents** — setting a task to
+  Hold/Blocked should propagate to (or at least flag) its downstream
+  `depends_on` chain; completing/clearing that status should "reopen" them.
+  Design question: auto-change dependent statuses, or just surface a
+  warning/badge? Resolve (6)'s definitions first — this depends on them.
+
+### Dependency graph
+
+- `[ ]` **(9) Project-filter dropdown doesn't close on click-off** — bug: the
+  GP3 Projects popover stays open when clicking outside it.
+- `[ ]` **(10) Completed-item arrows should be green, not priority-coloured** —
+  edge colour for completed dependency nodes should reflect completion state
+  rather than the source task's priority colour.
+- `[ ]` **(11, 13) Add a parent task from a selected task** — create a new
+  task that the selected task will `depend_on` (spawn a blocker/parent),
+  including an entry point via a left-side `+` on the node (mirrors the
+  existing lane-header `+` for children from GP5).
+- `[ ]` **(12) Drag connectors to create dependency chains** 🔎 — click-and-drag
+  a node's connector (left = depends-on, right = blocks) to link it to another
+  node; needs interaction-design research (hit targets, drop targets, touch
+  equivalent).
+- `[ ]` **(16) Vertical sort: rank completed items lower** ⚖ — current order
+  reads as priority-based; Taylor's instinct is completed items should just
+  sink to the bottom regardless of priority — needs a taste call on the exact
+  rule.
+- `[ ]` **(17) Opening a "Ready Now"-highlighted task should clear the
+  highlight** — navigating into the task should drop the Ready-Now spotlight
+  so it doesn't stay lit after being acted on.
+- `[ ]` **(18) Show the "Independent" (unassigned) lane by default** —
+  currently hidden/opt-in; flip the default to visible.
+
+### Detail view
+
+- `[ ]` **(14) Dependency-selection dropdown needs better sorting** — the
+  depends-on/blocks picker in the task detail pane sorts poorly; likely wants
+  the same "same-project first" rule already used elsewhere (see the
+  dependency-sort fix in Recent Updates 2026-05-14).
+
+### Pomodoro
+
+- `[ ]` **(15) Pomodoro discoverability** — no obvious way to find the sidebar
+  icon or open the Pomodoro pane / ttasks views; needs a clearer entry point
+  (ribbon icon, command-palette hint, or onboarding nudge).
+
+### Data model / frontmatter
+
+- `[ ]` **(19) Obsidian native-frontmatter type handling** 🔎 — a bug surfaced
+  today suggests TTasks isn't fully respecting Obsidian's native frontmatter
+  property types (cf. the YAML-date-coercion fix, commit `498fdbc`); needs an
+  audit of how the plugin reads/writes typed frontmatter vs. what Obsidian
+  expects, beyond just dates.
+
+### AI Import/Export
+
+- `[ ]` **(20) Import guidance may be stricter than the tool** — the AI-facing
+  instructions say "include only ref/name plus the fields you're setting," but
+  the importer (`taskImportPlan.ts`) may actually require `name` on updates
+  even when a ref/id is present — audit `planImport`'s matching logic and
+  either loosen the importer or fix the guidance text to match real behavior.
+- `[ ]` **(21) Supply the AI with valid enums (e.g. actions/labels)** — the
+  export/import meta-instructions should include the actual configured valid
+  values (labels, statuses, etc.) so the AI picks from what's configured
+  instead of inventing its own.
+
+---
+
 ## Now — graph polish thread
 
 Source: Taylor feedback 2026-07-10 (GP numbering kept from the archived
