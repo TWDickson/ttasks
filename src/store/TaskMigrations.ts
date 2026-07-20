@@ -1,6 +1,6 @@
 import { TFile, normalizePath } from 'obsidian';
 import type TTasksPlugin from '../main';
-import { localDateString } from '../utils/dateUtils';
+import { localDateString, toCalendarDate } from '../utils/dateUtils';
 
 export type MigratableField = 'status' | 'area' | 'label';
 
@@ -24,14 +24,17 @@ export function resolveStatusChangedFallback(
 	fm: { status_changed?: unknown; start_date?: unknown; created?: unknown },
 	today: string
 ): string {
-	if (typeof fm.status_changed === 'string' && fm.status_changed) return fm.status_changed;
-	if (typeof fm.start_date === 'string' && fm.start_date) return fm.start_date;
-	if (typeof fm.created === 'string' && fm.created) return fm.created;
-	return today;
+	// Use toCalendarDate so a value that YAML decoded to a Date (an unquoted date
+	// scalar) is still recognised — a bare `typeof === 'string'` check would miss
+	// it and wrongly clobber a good status_changed with today.
+	return toCalendarDate(fm.status_changed)
+		?? toCalendarDate(fm.start_date)
+		?? toCalendarDate(fm.created)
+		?? today;
 }
 
 export function needsStatusChangedMigration(fm: { status_changed?: unknown }): boolean {
-	return !(typeof fm.status_changed === 'string' && fm.status_changed);
+	return toCalendarDate(fm.status_changed) === null;
 }
 
 export function needsPhase6Migration(fm: Record<string, unknown>): boolean {

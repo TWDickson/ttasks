@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localDateString, daysBetweenLocal, addDaysLocal } from './dateUtils';
+import { localDateString, daysBetweenLocal, addDaysLocal, toCalendarDate } from './dateUtils';
 
 // ── localDateString ───────────────────────────────────────────────────────────
 //
@@ -141,5 +141,67 @@ describe('addDaysLocal', () => {
 
 	it('stays stable across fall-back DST boundary', () => {
 		expect(addDaysLocal('2026-11-01', 1)).toBe('2026-11-02');
+	});
+});
+
+// ── toCalendarDate ───────────────────────────────────────────────────────────
+//
+// Contract: coerce whatever a frontmatter date field decodes to (a plain
+// YYYY-MM-DD string, an ISO datetime string, a Date object, or junk) into a
+// canonical YYYY-MM-DD calendar-date string, or null.
+//
+// This is the guard against the "unquoted YAML date" regression: an unquoted
+// `due_date: 2026-07-20` is a YAML *timestamp*, so the parser hands back UTC
+// midnight as a Date / ISO datetime instead of the bare string, and the naive
+// day arithmetic then renders a task due *today* as "Tomorrow". The recovered
+// day must be the UTC date portion (the day the user typed), never a
+// local-timezone conversion of it.
+
+describe('toCalendarDate', () => {
+	it('passes a canonical YYYY-MM-DD string straight through', () => {
+		expect(toCalendarDate('2026-07-20')).toBe('2026-07-20');
+	});
+
+	it('extracts the date portion of an ISO datetime string (UTC Z)', () => {
+		// This is exactly what Obsidian re-serializes an unquoted date to after a
+		// processFrontMatter mutation, read back through a YAML timestamp parse.
+		expect(toCalendarDate('2026-07-20T00:00:00.000Z')).toBe('2026-07-20');
+	});
+
+	it('keeps the literal written day for an ISO string with a timezone offset', () => {
+		// The date portion is the day the user wrote — do NOT shift it by the offset.
+		expect(toCalendarDate('2026-07-20T00:00:00.000-04:00')).toBe('2026-07-20');
+	});
+
+	it('recovers YYYY-MM-DD from a Date object at UTC midnight', () => {
+		// A bare YAML date decodes to a JS Date at UTC midnight.
+		expect(toCalendarDate(new Date('2026-07-20T00:00:00.000Z'))).toBe('2026-07-20');
+	});
+
+	it('uses the UTC date portion of a Date, not a local-shifted one', () => {
+		// Same instant regardless of the machine timezone: UTC midnight on Jul 20.
+		// A local-components conversion would return Jul 19 in any UTC-negative zone.
+		expect(toCalendarDate(new Date(Date.UTC(2026, 6, 20, 0, 0, 0)))).toBe('2026-07-20');
+	});
+
+	it('returns null for null / undefined / empty string', () => {
+		expect(toCalendarDate(null)).toBeNull();
+		expect(toCalendarDate(undefined)).toBeNull();
+		expect(toCalendarDate('')).toBeNull();
+	});
+
+	it('returns null for a non-date string', () => {
+		expect(toCalendarDate('not a date')).toBeNull();
+		expect(toCalendarDate('07/20/2026')).toBeNull();
+	});
+
+	it('returns null for an invalid Date', () => {
+		expect(toCalendarDate(new Date('nonsense'))).toBeNull();
+	});
+
+	it('returns null for non-string, non-Date values', () => {
+		expect(toCalendarDate(42)).toBeNull();
+		expect(toCalendarDate(true)).toBeNull();
+		expect(toCalendarDate({})).toBeNull();
 	});
 });

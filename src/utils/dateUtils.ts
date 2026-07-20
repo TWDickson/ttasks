@@ -67,6 +67,37 @@ export function addDaysLocal(date: string, days: number): string {
 	return localDateString(result);
 }
 
+/**
+ * Coerce a frontmatter date value into a canonical YYYY-MM-DD **calendar date**
+ * string, or null when it isn't a usable date.
+ *
+ * Why this exists: every date helper in the app assumes date-only fields are
+ * plain "YYYY-MM-DD" strings and splits them on "-". But an unquoted YAML date
+ * scalar (`due_date: 2026-07-20`) is a *timestamp* per the YAML spec, so the
+ * parser (Obsidian's metadata cache / js-yaml) hands us either a `Date` object
+ * or a full ISO datetime string at **UTC midnight** instead of the bare string.
+ * Obsidian's `processFrontMatter` re-dumps frontmatter unquoted, so even values
+ * we originally wrote as `'2026-07-20'` come back in this coerced form after any
+ * later frontmatter mutation. Left unnormalized, the day-arithmetic misfires
+ * (e.g. a task due today renders as "Tomorrow").
+ *
+ * The calendar date is recovered from the **UTC** date portion, never the local
+ * one: a bare YAML date is UTC midnight, so its UTC Y-M-D equals the day the user
+ * wrote — converting through local time would shift it a day for anyone in a
+ * negative-offset timezone.
+ */
+export function toCalendarDate(value: unknown): string | null {
+	if (value == null) return null;
+	if (value instanceof Date) {
+		return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+	}
+	if (typeof value === 'string') {
+		const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+		return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+	}
+	return null;
+}
+
 /** Shared month abbreviations for human-readable date labels. */
 export const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 

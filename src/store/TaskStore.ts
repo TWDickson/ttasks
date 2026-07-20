@@ -4,6 +4,8 @@ import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskPriority, TaskRecordType } from '../types';
 import { resolveCompletionStatus } from '../settings';
 import { ensureMdExt } from '../utils/pathUtils';
+import { toCalendarDate } from '../utils/dateUtils';
+import { toFrontmatterString, toFrontmatterNumber } from '../utils/frontmatterValue';
 import { parseWikiLink } from '../utils/wikiLink';
 import { ensureFolderPath } from '../utils/vaultSafe';
 import { seedGraphTestData } from './graphSandboxSeeder';
@@ -305,14 +307,16 @@ export class TaskStore {
 
 		const holidayDatesRaw = fm.holiday_dates;
 		const holiday_dates: string[] = Array.isArray(holidayDatesRaw)
-			? holidayDatesRaw.filter((v): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v))
+			? holidayDatesRaw
+				.map((v) => toCalendarDate(v))
+				.filter((v): v is string => v !== null)
 			: [];
 
 		return {
 			id, slug,
 			path: file.path,
 			type:           (fm.type as TaskRecordType)  ?? 'task',
-			name:           fm.name                       ?? '',
+			name:           toFrontmatterString(fm.name),
 			area,
 			status:         normalizedStatus,
 			priority:       (fm.priority as TaskPriority) ?? 'None',
@@ -320,18 +324,18 @@ export class TaskStore {
 			parent_task:    this.resolveWikiLinkPath(fm.parent_task, file.path),
 			depends_on:     this.resolveWikiLinkPaths(fm.depends_on, file.path),
 			blocks:         this.resolveWikiLinkPaths(fm.blocks, file.path),
-			blocked_reason: fm.blocked_reason ?? '',
-			assigned_to:    fm.assigned_to    ?? '',
-			source:         fm.source         ?? '',
-			start_date:     fm.start_date     ?? null,
-			due_date:       fm.due_date       ?? null,
+			blocked_reason: toFrontmatterString(fm.blocked_reason),
+			assigned_to:    toFrontmatterString(fm.assigned_to),
+			source:         toFrontmatterString(fm.source),
+			start_date:     toCalendarDate(fm.start_date),
+			due_date:       toCalendarDate(fm.due_date),
 			due_time:       typeof fm.due_time === 'string' ? fm.due_time : null,
-			estimated_days: fm.estimated_days ?? null,
+			estimated_days: toFrontmatterNumber(fm.estimated_days),
 			workweek_only: fm.workweek_only === true,
 			holiday_dates,
-			created:         fm.created         ?? null,
-			completed:       fm.completed       ?? null,
-			status_changed:  typeof fm.status_changed === 'string' ? fm.status_changed : null,
+			created:         toCalendarDate(fm.created),
+			completed:       toCalendarDate(fm.completed),
+			status_changed:  toCalendarDate(fm.status_changed),
 			pomodoro_count:  typeof fm.pomodoro_count === 'number' ? fm.pomodoro_count : null,
 			focused_minutes: typeof fm.focused_minutes === 'number' ? fm.focused_minutes : null,
 			notes,

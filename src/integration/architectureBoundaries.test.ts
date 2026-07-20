@@ -49,6 +49,18 @@ describe('architecture boundaries', () => {
 		expect(content).toContain('renderManagedListSettingSection({');
 	});
 
+	it('frontmatter-coercion utils stay pure and free of Obsidian imports', () => {
+		for (const relativePath of [
+			'src/utils/dateUtils.ts',
+			'src/utils/frontmatterValue.ts',
+		]) {
+			const content = readWorkspaceFile(relativePath);
+
+			expect(content).not.toContain("from 'obsidian'");
+			expect(content).not.toContain('from "obsidian"');
+		}
+	});
+
 	it('BoardStateService stays pure and free of Obsidian imports', () => {
 		const content = readWorkspaceFile('src/store/BoardStateService.ts');
 

@@ -61,6 +61,17 @@ describe('needsStatusChangedMigration', () => {
 	it('returns false when status_changed is already set', () => {
 		expect(needsStatusChangedMigration({ status_changed: '2024-01-01' })).toBe(false);
 	});
+
+	// Regression: an unquoted date scalar decodes to a Date, not a string. The
+	// old `typeof === 'string'` check treated it as missing and re-ran the
+	// migration, clobbering a good value with today.
+	it('returns false when status_changed decoded to a Date object', () => {
+		expect(needsStatusChangedMigration({ status_changed: new Date('2024-01-01T00:00:00.000Z') })).toBe(false);
+	});
+
+	it('returns false when status_changed decoded to an ISO datetime string', () => {
+		expect(needsStatusChangedMigration({ status_changed: '2024-01-01T00:00:00.000Z' })).toBe(false);
+	});
 });
 
 describe('resolveStatusChangedFallback', () => {
@@ -81,6 +92,18 @@ describe('resolveStatusChangedFallback', () => {
 	it('skips start_date if it is not a string', () => {
 		const fm = { start_date: null, created: '2024-01-01' };
 		expect(resolveStatusChangedFallback(fm, '2024-06-01')).toBe('2024-01-01');
+	});
+
+	// Regression: a Date-decoded status_changed must be preserved, not skipped
+	// (which would fall through to today and lose the real transition date).
+	it('preserves a status_changed that decoded to a Date object', () => {
+		const fm = { status_changed: new Date('2024-03-15T00:00:00.000Z'), created: '2024-01-01' };
+		expect(resolveStatusChangedFallback(fm, '2024-06-01')).toBe('2024-03-15');
+	});
+
+	it('falls back through a Date-decoded start_date', () => {
+		const fm = { start_date: new Date('2024-02-10T00:00:00.000Z') };
+		expect(resolveStatusChangedFallback(fm, '2024-06-01')).toBe('2024-02-10');
 	});
 });
 
