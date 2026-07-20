@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__claude_ai_Obsidian_MCP__read_note",
+      "Read(//c/Users/DICKSOTAYL/Projects/Obsidian/Taylor/Planner/Tasks/**)",
+      "PowerShell(npx vitest run 2>&1)",
+      "PowerShell(npm run build 2>&1)"
+    ]
+  }
+}

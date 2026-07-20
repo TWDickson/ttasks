@@ -8,3 +8,6 @@ data.json
 test-rig/shots/
 test-rig/vendor/
 test-rig/.browser/
+
+# Large self-contained workshop artifact (embedded screenshots — kept out of history)
+Scripts/graph-c2/colour-workshop.html
