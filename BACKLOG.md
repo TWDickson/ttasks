@@ -147,17 +147,25 @@ researched.*
 - `[ ]` **Agenda: date-range filter on selection** — Agenda view needs a way
   to filter/select by a date range, on top of the existing date-bucket
   grouping.
-- `[ ]` **Pomodoro: timer inconsistent when Obsidian is backgrounded**
-  (desktop-only so far; mobile untested) — root cause likely found:
-  `PomodoroService.tick()` (`src/store/PomodoroService.ts`) calls
-  `tickSession(current, 1)` on every `setInterval` firing, decrementing by a
-  fixed 1 second rather than recomputing from a wall-clock delta
-  (`tickSession` in `src/integration/pomodoro.ts` just subtracts a fixed
-  step). Browsers/Electron throttle `setInterval` in backgrounded windows,
-  so the countdown falls behind real elapsed time. Fix direction: derive
-  `remainingSec` from `Date.now()` vs. a stored phase-start/target-end
-  timestamp instead of accumulating fixed ticks (the session already tracks
-  `targetEndMs` for the focus-until feature — may be reusable here).
+- `[x]` **Pomodoro: timer inconsistent when Obsidian is backgrounded** —
+  *done 2026-07-21 (commit `0964f45`).* Root cause confirmed:
+  `PomodoroService.tick()` decremented `remainingSec` by a fixed 1s per
+  `setInterval` firing, but browsers/Electron throttle `setInterval` in
+  backgrounded windows, so the countdown fell behind real elapsed time. Fix:
+  every running phase is now anchored to a wall-clock instant (new
+  `phaseEndsAtMs` on the session) and each tick derives `remainingSec` from
+  `Date.now()` vs. that anchor — a starved or long-sleeping interval catches
+  up to true elapsed time. Pause freezes the remaining; resume re-anchors from
+  it (paused span doesn't count). New pure helpers
+  `anchorPhase`/`syncSession` in `src/integration/pomodoro.ts`; the service
+  routes every begin/advance/resume through `publishPhase` (anchors) while
+  `tick()` reads the anchor. +8 tests (throttle recovery, wake-past-phase-end,
+  paused no-accrual, pure helpers); suite 1454 green. **Live-Obsidian /
+  on-device sign-off still owed** (rig can't background the real app). Note:
+  if the machine sleeps through an entire focus phase, the phase is logged +
+  advanced on the first wake tick (wall-clock truth) rather than fast-forwarded
+  through multiple phases — acceptable, flagged here in case Taylor wants
+  different catch-up semantics.
 
 ---
 
