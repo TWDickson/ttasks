@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
 	DEFAULT_POMODORO_CONFIG,
 	advancePhase,
+	anchorPhase,
 	elapsedMinutes,
 	formatRemaining,
+	syncSession,
 	isPhaseComplete,
 	nextMode,
 	pauseSession,
@@ -57,6 +59,37 @@ describe('tickSession', () => {
 	it('is a no-op while paused', () => {
 		const s = pauseSession(startSession('a.md', 'A', cfg));
 		expect(tickSession(s, 5)).toBe(s);
+	});
+});
+
+describe('anchorPhase / syncSession (wall-clock derivation)', () => {
+	it('anchorPhase sets the phase end from the current instant + remaining', () => {
+		const s = startSession('a.md', 'A', cfg); // 1500s
+		const anchored = anchorPhase(s, 1_000_000);
+		expect(anchored.phaseEndsAtMs).toBe(1_000_000 + 1_500_000);
+	});
+
+	it('anchorPhase leaves a paused session untouched', () => {
+		const s = pauseSession(startSession('a.md', 'A', cfg));
+		expect(anchorPhase(s, 1_000_000)).toBe(s);
+	});
+
+	it('syncSession derives remaining from wall-clock elapsed, not fixed ticks', () => {
+		const s = anchorPhase(startSession('a.md', 'A', cfg), 0);
+		// 300s of wall-clock elapsed regardless of how many ticks actually fired.
+		expect(syncSession(s, 300_000).remainingSec).toBe(1200);
+	});
+
+	it('syncSession clamps at zero when woken past the phase end', () => {
+		const s = anchorPhase(startSession('a.md', 'A', cfg), 0);
+		expect(syncSession(s, 9_999_999).remainingSec).toBe(0);
+	});
+
+	it('syncSession is a no-op while paused or un-anchored', () => {
+		const paused = pauseSession(anchorPhase(startSession('a.md', 'A', cfg), 0));
+		expect(syncSession(paused, 300_000)).toBe(paused);
+		const unanchored = startSession('a.md', 'A', cfg); // phaseEndsAtMs null
+		expect(syncSession(unanchored, 300_000)).toBe(unanchored);
 	});
 });
 

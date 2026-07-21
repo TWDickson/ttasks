@@ -4,6 +4,7 @@ import {
 	type PomodoroMode,
 	type PomodoroSession,
 	advancePhase,
+	anchorPhase,
 	isPhaseComplete,
 	nextMode,
 	elapsedMinutes,
@@ -12,7 +13,7 @@ import {
 	resumeSession,
 	shouldLogFocus,
 	startSession,
-	tickSession,
+	syncSession,
 } from '../integration/pomodoro';
 import { fillFocusMinutes, planFocusUntil } from '../integration/pomodoroPlan';
 
@@ -73,10 +74,22 @@ export class PomodoroService {
 		return this.deps.now ? this.deps.now() : Date.now();
 	}
 
+	/**
+	 * Publish a session to the store, anchoring a running phase's end to the wall
+	 * clock so its countdown is derived from real elapsed time (survives
+	 * `setInterval` throttling — see `syncSession`). Every place that begins,
+	 * advances, or resumes a phase goes through here; `tick()` does not (it reads
+	 * the existing anchor instead of resetting it). A paused/idle session is
+	 * published unchanged.
+	 */
+	private publishPhase(session: PomodoroSession | null): void {
+		this.session.set(session ? anchorPhase(session, this.now()) : null);
+	}
+
 	/** Start (or restart) a focus session on a task, or untethered when path/name are null. */
 	start(taskPath: string | null, taskName: string | null): void {
 		const config = this.deps.getConfig();
-		this.session.set(startSession(taskPath, taskName, config));
+		this.publishPhase(startSession(taskPath, taskName, config));
 		this.deps.notify(`Pomodoro started — ${taskName ?? 'Focus'}`);
 		this.ensureTicking();
 	}
@@ -98,7 +111,7 @@ export class PomodoroService {
 		const base = startSession(taskPath, taskName, config);
 		const first = plan.phases[0];
 		const durationSec = first.minutes * 60;
-		this.session.set({ ...base, durationSec, remainingSec: durationSec, isFill: first.isFill, targetEndMs });
+		this.publishPhase({ ...base, durationSec, remainingSec: durationSec, isFill: first.isFill, targetEndMs });
 		const n = plan.focusCount;
 		this.deps.notify(`Focus until target — ${n} focus session${n === 1 ? '' : 's'} planned (${taskName ?? 'Focus'})`);
 		this.ensureTicking();
@@ -110,7 +123,10 @@ export class PomodoroService {
 	}
 
 	resume(): void {
-		this.session.update((s) => (s ? resumeSession(s) : s));
+		const s = get(this.session);
+		if (!s) return;
+		// Re-anchor from the frozen remaining time — the paused span doesn't count.
+		this.publishPhase(resumeSession(s));
 		this.ensureTicking();
 	}
 
@@ -159,7 +175,7 @@ export class PomodoroService {
 		const config = this.deps.getConfig();
 		let next = advancePhase({ ...s, remainingSec: 0 }, config);
 		if (!config.autoStartNext) next = pauseSession(next);
-		this.session.set(next);
+		this.publishPhase(next);
 		this.deps.notify(`Skipped to ${phaseLabel(next.mode).toLowerCase()}`);
 		this.ensureTicking();
 	}
@@ -192,7 +208,9 @@ export class PomodoroService {
 			return;
 		}
 		if (!current.running) return; // paused — keep the interval but idle
-		const ticked = tickSession(current, 1);
+		// Derive remaining from the wall clock, not a fixed decrement, so a throttled
+		// or long-starved interval catches up to true elapsed time instead of lagging.
+		const ticked = syncSession(current, this.now());
 		if (isPhaseComplete(ticked)) this.onPhaseComplete(ticked);
 		else this.session.set(ticked);
 	}
@@ -227,10 +245,10 @@ export class PomodoroService {
 		const label = phaseLabel(next.mode);
 		if (config.autoStartNext) {
 			this.deps.notify(`${label} started`);
-			this.session.set(next);
+			this.publishPhase(next);
 		} else {
 			this.deps.notify(`${label} ready — resume when you are`);
-			this.session.set(pauseSession(next));
+			this.publishPhase(pauseSession(next));
 		}
 	}
 
@@ -270,7 +288,7 @@ export class PomodoroService {
 				running: config.autoStartNext,
 				isFill: true,
 			};
-			this.session.set(fill);
+			this.publishPhase(fill);
 			this.deps.notify(`${fillMin}m until target — final focus ${config.autoStartNext ? 'started' : 'ready'}.`);
 			return;
 		}

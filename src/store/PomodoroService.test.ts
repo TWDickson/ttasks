@@ -50,6 +50,51 @@ describe('PomodoroService', () => {
 		service.dispose();
 	});
 
+	it('recovers from a throttled interval by deriving remaining from the wall clock', () => {
+		// A backgrounded window throttles setInterval: real wall-clock advances but
+		// the tick fires far less often. An injected clock decoupled from the fake
+		// timer models that — 300s of wall-clock but only one interval firing.
+		let clock = 0;
+		const { service } = makeService({ now: () => clock });
+		service.start('a.md', 'A');
+		clock = 300_000;
+		vi.advanceTimersByTime(1000); // one starved tick
+		// Fixed-decrement code would read 1499; wall-clock derivation catches up.
+		expect(get(service.session)?.remainingSec).toBe(1200);
+		service.dispose();
+	});
+
+	it('completes and advances the phase when a throttled tick wakes past the phase end', () => {
+		let clock = 0;
+		const { service, logFocus } = makeService({ now: () => clock });
+		service.start('a.md', 'A');
+		clock = 26 * 60_000; // slept past the entire 25-min focus phase
+		vi.advanceTimersByTime(1000);
+		expect(logFocus).toHaveBeenCalledWith({ taskPath: 'a.md', taskName: 'A', minutes: 25, mode: 'focus', partial: false });
+		const s = get(service.session);
+		expect(s?.mode).toBe('short-break');
+		expect(s?.remainingSec).toBe(300); // fresh break, re-anchored at wake time
+		service.dispose();
+	});
+
+	it('does not accrue time while paused even as the wall clock advances', () => {
+		let clock = 0;
+		const { service } = makeService({ now: () => clock });
+		service.start('a.md', 'A');
+		clock = 5_000;
+		vi.advanceTimersByTime(1000);
+		expect(get(service.session)?.remainingSec).toBe(1495);
+		service.pause();
+		clock = 120_000; // two minutes pass while paused
+		vi.advanceTimersByTime(1000);
+		expect(get(service.session)?.remainingSec).toBe(1495); // frozen
+		service.resume();
+		clock = 125_000; // five more seconds of running time
+		vi.advanceTimersByTime(1000);
+		expect(get(service.session)?.remainingSec).toBe(1490);
+		service.dispose();
+	});
+
 	it('logs the focus session and advances to a short break on completion', () => {
 		const { service, logFocus, notify } = makeService();
 		service.start('a.md', 'A');

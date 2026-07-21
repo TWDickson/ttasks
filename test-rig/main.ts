@@ -146,7 +146,7 @@ if (pomoScene) {
 	const base: PomodoroSession = {
 		taskPath: 'tasks/a.md', taskName: 'Draft the Q3 report', mode: 'focus',
 		durationSec: 1500, remainingSec: 754, running: true, completedFocus: 0,
-		targetEndMs: null, isFill: false,
+		targetEndMs: null, isFill: false, phaseEndsAtMs: null,
 	};
 	const states: Array<[string, PomodoroSession]> = [
 		['focus (running)', base],

@@ -35,6 +35,14 @@ export interface PomodoroSession {
 	targetEndMs: number | null;
 	/** True for a shortened trailing focus that fills the gap up to the target. */
 	isFill: boolean;
+	/**
+	 * Wall-clock instant (epoch ms) when the *current running phase* hits zero.
+	 * `remainingSec` is derived from this against `Date.now()` so the countdown
+	 * stays accurate even when `setInterval` is throttled in a backgrounded
+	 * window. Null while paused or before the phase has been anchored (the
+	 * service anchors every running phase the moment it publishes it).
+	 */
+	phaseEndsAtMs: number | null;
 }
 
 export const DEFAULT_POMODORO_CONFIG: PomodoroConfig = {
@@ -72,6 +80,7 @@ export function startSession(taskPath: string | null, taskName: string | null, c
 		completedFocus: 0,
 		targetEndMs: null,
 		isFill: false,
+		phaseEndsAtMs: null,
 	};
 }
 
@@ -81,6 +90,30 @@ export function tickSession(session: PomodoroSession, elapsedSec = 1): PomodoroS
 	const step = Math.max(0, Math.round(elapsedSec));
 	const remainingSec = Math.max(0, session.remainingSec - step);
 	return { ...session, remainingSec };
+}
+
+/**
+ * Anchor the current running phase's end to a wall-clock instant, so its
+ * remaining time can be recomputed from `Date.now()` (see `syncSession`) rather
+ * than accumulated tick-by-tick. Call this whenever a running phase is (re)started
+ * or resumed. A paused session is returned unchanged — there's nothing to anchor.
+ */
+export function anchorPhase(session: PomodoroSession, nowMs: number): PomodoroSession {
+	if (!session.running) return session;
+	return { ...session, phaseEndsAtMs: nowMs + session.remainingSec * 1000 };
+}
+
+/**
+ * Recompute `remainingSec` from the wall clock against the phase anchor. This is
+ * the throttle-proof replacement for accumulating fixed 1s ticks: however long
+ * the interval was actually starved (backgrounded window, sleeping machine), the
+ * remaining time reflects true elapsed wall-clock. No-op while paused or before
+ * the phase is anchored. Clamps at 0.
+ */
+export function syncSession(session: PomodoroSession, nowMs: number): PomodoroSession {
+	if (!session.running || session.phaseEndsAtMs === null) return session;
+	const remainingSec = Math.max(0, Math.ceil((session.phaseEndsAtMs - nowMs) / 1000));
+	return remainingSec === session.remainingSec ? session : { ...session, remainingSec };
 }
 
 export function isPhaseComplete(session: PomodoroSession): boolean {
@@ -114,7 +147,8 @@ export function advancePhase(session: PomodoroSession, config: PomodoroConfig): 
 	const completedFocus = session.mode === 'focus' ? session.completedFocus + 1 : session.completedFocus;
 	const durationSec = phaseDurationSec(mode, config);
 	// An auto-advanced phase is never a fill; targetEndMs carries via the spread.
-	return { ...session, mode, completedFocus, durationSec, remainingSec: durationSec, running: true, isFill: false };
+	// The anchor is cleared — the service re-anchors when it publishes the phase.
+	return { ...session, mode, completedFocus, durationSec, remainingSec: durationSec, running: true, isFill: false, phaseEndsAtMs: null };
 }
 
 /** True when the current phase is a *completed* focus phase (time to log it). */

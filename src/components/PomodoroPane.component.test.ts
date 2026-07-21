@@ -17,6 +17,7 @@ function activeSession(overrides: Partial<PomodoroSession> = {}): PomodoroSessio
 		completedFocus: 0,
 		targetEndMs: null,
 		isFill: false,
+		phaseEndsAtMs: null,
 		...overrides,
 	};
 }
