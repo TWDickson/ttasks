@@ -123,6 +123,44 @@ Obsidian-touching part.
 
 ---
 
+## Now — Taylor feedback batch (2026-07-21)
+
+*Raw feedback from Taylor's pass through the app 2026-07-21 — not yet scoped or
+researched.*
+
+- `[ ]` **Share/Sync import: allow importing from notes** 🔎 — the Import tab
+  currently only accepts a pasted JSON export doc; Taylor wants to import
+  from regular Obsidian notes too. Needs scoping before starting: is this
+  "paste/point at a note's raw text and parse tasks out of it" (distinct
+  from the existing I5 checkbox-scan/promote capture flow, which already
+  does something adjacent), or a different shape entirely — clarify with
+  Taylor.
+- `[ ]` **Status / Priority badges: selected vs. regular hard to distinguish,
+  worse in dark mode** ⚖ — likely a colour-spine follow-on (badges went
+  monochrome in the V2 colour-spine work, 2026-07-19); needs a taste call on
+  how much contrast the selected state should carry, especially in dark
+  mode.
+- `[ ]` **Detail sidebar: content clips inside the frame** — check whether
+  this is the same issue as the mobile detail-pane-fit fix (2026-07-19,
+  still device-unverified) or a distinct/desktop clipping bug before
+  starting.
+- `[ ]` **Agenda: date-range filter on selection** — Agenda view needs a way
+  to filter/select by a date range, on top of the existing date-bucket
+  grouping.
+- `[ ]` **Pomodoro: timer inconsistent when Obsidian is backgrounded**
+  (desktop-only so far; mobile untested) — root cause likely found:
+  `PomodoroService.tick()` (`src/store/PomodoroService.ts`) calls
+  `tickSession(current, 1)` on every `setInterval` firing, decrementing by a
+  fixed 1 second rather than recomputing from a wall-clock delta
+  (`tickSession` in `src/integration/pomodoro.ts` just subtracts a fixed
+  step). Browsers/Electron throttle `setInterval` in backgrounded windows,
+  so the countdown falls behind real elapsed time. Fix direction: derive
+  `remainingSec` from `Date.now()` vs. a stored phase-start/target-end
+  timestamp instead of accumulating fixed ticks (the session already tracks
+  `targetEndMs` for the focus-until feature — may be reusable here).
+
+---
+
 ## Now — Taylor feedback batch (2026-07-20)
 
 *Raw feedback from Taylor's pass through the app 2026-07-20 — not yet scoped or
