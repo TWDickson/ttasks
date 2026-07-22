@@ -41,6 +41,8 @@ export class CreateTaskModal extends Modal {
 	private notesRenderComponent: Component | null = null;
 	private notesRenderFrame: number | null = null;
 	private createBtnEl: HTMLButtonElement | null = null;
+	/** Existing tasks the newly-created task should block (they gain it as a `depends_on`). */
+	private initialBlocks: string[] = [];
 
 	constructor(
 		app: App,
@@ -48,6 +50,12 @@ export class CreateTaskModal extends Modal {
 		defaultType: TaskRecordType = 'task',
 		options?: {
 			initialDependsOn?: string[];
+			/**
+			 * Existing task paths the new task should block. After creation, each
+			 * gains the new task in its `depends_on` (the mirror of `initialDependsOn`).
+			 * Used by the graph's "add a blocker" affordance.
+			 */
+			initialBlocks?: string[];
 			/** Inherited context for "create dependent/sibling task" flows. */
 			prefill?: {
 				name?: string;
@@ -66,6 +74,11 @@ export class CreateTaskModal extends Modal {
 		this.formValues.status = resolveEmergencyStatus(this.plugin.settings.statuses);
 		if (options?.initialDependsOn?.length) {
 			this.formValues.depends_on = options.initialDependsOn.map(p => p.replace(/\.md$/, ''));
+		}
+		if (options?.initialBlocks?.length) {
+			// Keep the `.md` extension — addDependency resolves the target file by
+			// its full path (only the dependency arg is passed extension-less).
+			this.initialBlocks = [...options.initialBlocks];
 		}
 		const prefill = options?.prefill;
 		if (prefill) {
@@ -783,6 +796,14 @@ export class CreateTaskModal extends Modal {
 				recurrence:      this.formValues.recurrence,
 				recurrence_type: this.formValues.recurrence_type,
 			});
+			// "Add a blocker" flow: make each target task depend on the new one, so
+			// the new task blocks them (the reverse of the depends_on we set above).
+			if (this.initialBlocks.length > 0) {
+				const newClean = task.path.replace(/\.md$/, '');
+				for (const blockedPath of this.initialBlocks) {
+					await this.plugin.taskStore.addDependency(blockedPath, newClean);
+				}
+			}
 			this.close();
 			await this.plugin.taskStore.openDetail(task.path);
 		} catch (e) {

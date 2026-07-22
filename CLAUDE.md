@@ -174,6 +174,22 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 `run-autopilot.fish`. Older PRDs (TASK_H*/I*/J*/K*) are vault-side synced
 notes.
 
+## Recent Updates (2026-07-22)
+
+- **Graph: add a blocker/parent from a node (feedback #11/#13).** Each task
+  node now has a **left-side `+`** (mirror of the existing right-side
+  "add dependent" `+`) that spawns a new **blocker/parent** the selected task
+  will `depend_on`. Same visibility gate as the right `+` (hover on mouse,
+  tap-pin on touch); the new task inherits the node's
+  project/area/labels/priority. Implemented via a symmetric
+  `initialBlocks?: string[]` option on `CreateTaskModal` — after the blocker is
+  created it calls `taskStore.addDependency(target, newTask)` for each target,
+  so `blocks` syncs through the canonical write path (no manual `blocks`
+  mutation, honoring the "blocks is always derived" convention).
+  `TaskGraph.svelte` (`createBlockerTask` + left `+` button) +
+  `CreateTaskModal.ts` + 1 modal test. Build green; rig-verified both `+`s
+  render symmetric on hover.
+
 ## Recent Updates (2026-07-21)
 
 - **Pomodoro backgrounding-drift bug fixed.** See BACKLOG.md's 2026-07-21

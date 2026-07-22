@@ -828,6 +828,21 @@
 		}).open();
 	}
 
+	function createBlockerTask(task: Task): void {
+		// Adding a blocker (upstream/parent) from a node holds focus on its lane.
+		// The new task blocks this one — i.e. this task will depend_on the new task.
+		pinnedLaneKey = laneKeyForPath(task.path);
+		new CreateTaskModal(plugin.app, plugin, 'task', {
+			initialBlocks: [task.path],
+			prefill: {
+				parent_task: task.parent_task,
+				area: task.area,
+				labels: task.labels,
+				priority: task.priority,
+			},
+		}).open();
+	}
+
 	// Clicking a project's lane header creates a new task already parented to it,
 	// and holds focus on that lane so the new card lands in a focused lane.
 	function createTaskInProject(projectPath: string): void {
@@ -1255,8 +1270,21 @@
 							</div>
 						</button>
 						{#if (hoverTracePath === node.path || (!hoverCapable && pinnedTracePath === node.path)) && node.task.type === 'task'}
-							<!-- Spawn a task depending on this one (inherits project/area/labels/priority).
-							     Shown on hover (mouse) or, on touch (no hover), when the node is pinned by a tap. -->
+							<!-- Left `+`: spawn a blocker (upstream/parent) this task will depend on.
+							     Right `+`: spawn a dependent that depends on this one. Both inherit
+							     project/area/labels/priority. Shown on hover (mouse) or, on touch (no
+							     hover), when the node is pinned by a tap. -->
+							<button
+								type="button"
+								class="tt-node-add tt-node-add-left"
+								style={`left:${node.x - 24}px;top:${node.y + node.height / 2 - 14}px;`}
+								aria-label={`New task blocking ${node.task.name}`}
+								on:click|stopPropagation={() => createBlockerTask(node.task)}
+								on:mouseenter={cancelHoverClear}
+								on:mouseleave={(event) => onNodeHoverLeave(event, node)}
+							>
+								<span class="tt-node-add-icon" use:icon={'plus'}></span>
+							</button>
 							<button
 								type="button"
 								class="tt-node-add"

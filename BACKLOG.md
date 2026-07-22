@@ -271,10 +271,17 @@ original list for traceability.*
   (`taskGraph.ts`), a `.tt-graph-edge.is-complete` class
   (`color-mix(in srgb, var(--color-green) 65%, transparent)`). Rig-verified via
   computed style.
-- `[ ]` **(11, 13) Add a parent task from a selected task** — create a new
-  task that the selected task will `depend_on` (spawn a blocker/parent),
-  including an entry point via a left-side `+` on the node (mirrors the
-  existing lane-header `+` for children from GP5).
+- `[x]` **(11, 13) Add a parent task from a selected task** — *done
+  2026-07-22.* A **left-side `+`** on each task node (mirror of the existing
+  right-side "add dependent" `+`) spawns a new **blocker/parent** the selected
+  task will `depend_on`. Shown on hover (mouse) / tap-pin (touch), same gate as
+  the right `+`; inherits the node's project/area/labels/priority.
+  `CreateTaskModal` gained a symmetric `initialBlocks?: string[]` option: after
+  the blocker is created it calls `taskStore.addDependency(target, newTask)` for
+  each target, so the reverse index (`blocks`) syncs through the canonical write
+  path (no manual `blocks` mutation). `TaskGraph.svelte` (`createBlockerTask` +
+  the left `+` button) + `CreateTaskModal.ts` + 1 modal test. Build green;
+  rig-verified both `+`s render on hover (left/right, symmetric).
 - `[ ]` **(12) Drag connectors to create dependency chains** 🔎 — click-and-drag
   a node's connector (left = depends-on, right = blocks) to link it to another
   node; needs interaction-design research (hit targets, drop targets, touch

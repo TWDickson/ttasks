@@ -223,6 +223,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 function buildPluginMock(allTasks: Task[] = []) {
 	const create = vi.fn().mockResolvedValue({ path: 'Planner/Tasks/new-task.md' });
 	const openDetail = vi.fn().mockResolvedValue(undefined);
+	const addDependency = vi.fn().mockResolvedValue(undefined);
 	return {
 		settings: {
 			tasksFolder: 'Planner/Tasks',
@@ -234,15 +235,15 @@ function buildPluginMock(allTasks: Task[] = []) {
 			labelColors: { feature: '#3b82f6', bug: '#ef4444' },
 		},
 		manifest: { id: 'ttasks' },
-		taskStore: { tasks: writable(allTasks), create, openDetail, getByPath: (path: string) => allTasks.find((task) => task.path === path) ?? null },
+		taskStore: { tasks: writable(allTasks), create, openDetail, addDependency, getByPath: (path: string) => allTasks.find((task) => task.path === path) ?? null },
 	} as unknown as TTasksPlugin;
 }
 
-function buildModal(allTasks: Task[] = [], options?: { initialDependsOn?: string[]; mobile?: boolean }) {
+function buildModal(allTasks: Task[] = [], options?: { initialDependsOn?: string[]; initialBlocks?: string[]; mobile?: boolean }) {
 	setupGlobals(options?.mobile ?? false);
 
 	const plugin = buildPluginMock(allTasks);
-	const { create, openDetail } = (plugin as any).taskStore;
+	const { create, openDetail, addDependency } = (plugin as any).taskStore;
 
 	const modal = new CreateTaskModal(new App(), plugin, 'task', options);
 	const contentEl = new FakeElement('div');
@@ -252,7 +253,7 @@ function buildModal(allTasks: Task[] = [], options?: { initialDependsOn?: string
 
 	modal.onOpen();
 
-	return { modal, contentEl, create, openDetail };
+	return { modal, contentEl, create, openDetail, addDependency };
 }
 
 function findInputByClass(root: FakeElement, className: string, index = 0): FakeElement {
@@ -326,6 +327,26 @@ describe('CreateTaskModal DOM behavior', () => {
 			type: 'task',
 		}));
 		expect(openDetail).toHaveBeenCalledWith('Planner/Tasks/new-task.md');
+	});
+
+	it('wires the reverse dependency for initialBlocks so the new task blocks the targets', async () => {
+		const blocked = makeTask({ path: 'Planner/Tasks/target55-feature.md', name: 'Downstream feature' });
+		const { contentEl, create, addDependency } = buildModal([blocked], {
+			initialBlocks: ['Planner/Tasks/target55-feature.md'],
+		});
+		const nameInput = findInputByClass(contentEl, 'tt-modal-name');
+		const createBtn = findInputByClass(contentEl, 'tt-modal-btn-primary');
+
+		nameInput.value = 'Upstream blocker';
+		await nameInput.trigger('input');
+		await createBtn.trigger('click');
+		await flushPromises();
+
+		// The blocker itself is created with no depends_on of its own …
+		expect(create).toHaveBeenCalledWith(expect.objectContaining({ name: 'Upstream blocker', depends_on: [] }));
+		// … and the target gains the new task as a dependency (full-path target,
+		// extension-less new-task path).
+		expect(addDependency).toHaveBeenCalledWith('Planner/Tasks/target55-feature.md', 'Planner/Tasks/new-task');
 	});
 
 	it('enforces due-date vs estimated-days exclusivity in submit payload', async () => {
