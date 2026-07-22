@@ -42,6 +42,7 @@
 	import { promoteTaskToTTasks } from '../integration/promoteTaskToTTasks';
 	import {
 		PRIORITIES,
+		RENDERER_AGENDA,
 		RENDERER_ARCHIVE,
 		RENDERER_GRAPH,
 		RENDERER_KANBAN,
@@ -140,6 +141,10 @@
 	// ── Filter state (routed through the query engine) ────────────────────────
 	let filterPriority = '';
 	let filterArea     = '';
+	// Date-range filter — only surfaced for the Agenda view, on top of its
+	// existing date-bucket grouping (backlog: "Agenda: date-range filter").
+	let filterDateFrom = '';
+	let filterDateTo   = '';
 	let showCompletedByViewId: Record<string, boolean> = { ...(plugin.settings.showCompletedByViewId ?? {}) };
 	let logbookRendererModeByViewId: Record<string, 'list' | 'kanban'> = {
 		logbook: plugin.settings.logbookRendererMode,
@@ -155,7 +160,8 @@
 	$: areaOptions = resolveAreaOptions(plugin.settings.areas ?? [], observedAreas);
 	$: hasAreaOptions = areaOptions.managed.length > 0 || areaOptions.unmanaged.length > 0;
 
-	$: hasActiveFilters = !!$searchQuery || !!filterPriority || !!filterArea;
+	$: hasAgendaDateRange = currentRenderer === RENDERER_AGENDA && (!!filterDateFrom || !!filterDateTo);
+	$: hasActiveFilters = !!$searchQuery || !!filterPriority || !!filterArea || hasAgendaDateRange;
 	$: canToggleCompletedForCurrentView = canToggleBuiltinCompleted(currentView);
 	$: showCompleted = showCompletedByViewId[currentView.id] ?? defaultCompletedVisibility(currentView);
 	$: currentRenderer = resolveViewRenderer(currentView.id, currentView.renderer, logbookRendererModeByViewId) as RendererType;
@@ -234,6 +240,10 @@
 		const conditions = [...currentBoardQuery.filter.conditions];
 		if (filterPriority) conditions.push({ field: 'priority', operator: 'is', value: filterPriority });
 		if (filterArea)     conditions.push({ field: 'area',     operator: 'is', value: filterArea });
+		if (hasAgendaDateRange) {
+			if (filterDateFrom) conditions.push({ field: 'due_date', operator: 'on_or_after', value: filterDateFrom });
+			if (filterDateTo)   conditions.push({ field: 'due_date', operator: 'on_or_before', value: filterDateTo });
+		}
 		query.update(q => ({
 			...q,
 			filter: { logic: currentBoardQuery.filter.logic, conditions },
@@ -251,6 +261,8 @@
 		searchQuery.set('');
 		filterPriority = '';
 		filterArea     = '';
+		filterDateFrom = '';
+		filterDateTo   = '';
 	}
 
 	async function toggleCompletedVisibility(view: typeof currentView) {
@@ -360,6 +372,26 @@
 							{/each}
 						{/if}
 					</select>
+				{/if}
+
+				{#if currentRenderer === RENDERER_AGENDA}
+					<div class="tt-filter-date-range" aria-label="Filter by due-date range">
+						<input
+							class="tt-filter-select tt-filter-date"
+							type="date"
+							bind:value={filterDateFrom}
+							aria-label="Due on or after"
+							max={filterDateTo || undefined}
+						/>
+						<span class="tt-filter-date-sep">–</span>
+						<input
+							class="tt-filter-select tt-filter-date"
+							type="date"
+							bind:value={filterDateTo}
+							aria-label="Due on or before"
+							min={filterDateFrom || undefined}
+						/>
+					</div>
 				{/if}
 
 				{#if currentRenderer === RENDERER_LIST}
@@ -631,6 +663,23 @@
 		color: var(--text-normal);
 		cursor: pointer;
 		flex-shrink: 0;
+	}
+
+	.tt-filter-date-range {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		flex-shrink: 0;
+	}
+
+	.tt-filter-date {
+		cursor: text;
+		color-scheme: light dark;
+	}
+
+	.tt-filter-date-sep {
+		color: var(--text-faint);
+		font-size: 0.8rem;
 	}
 
 	.tt-filter-sort-direction {

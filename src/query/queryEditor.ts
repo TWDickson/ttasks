@@ -61,7 +61,7 @@ const FIELD_CATEGORY: Record<FilterField, FieldCategory> = {
 };
 
 const ENUM_OPS: FilterOperator[] = ['is', 'is_not', 'is_null', 'is_not_null'];
-const DATE_OPS: FilterOperator[] = ['before', 'after', 'within_days', 'is_null', 'is_not_null'];
+const DATE_OPS: FilterOperator[] = ['before', 'after', 'on_or_after', 'on_or_before', 'within_days', 'is_null', 'is_not_null'];
 const ARRAY_OPS: FilterOperator[] = ['contains', 'not_contains', 'contains_any', 'contains_all', 'is_null', 'is_not_null'];
 const BOOLEAN_OPS: FilterOperator[] = ['is'];
 const RELATIONSHIP_OPS: FilterOperator[] = ['is', 'is_not', 'is_null', 'is_not_null'];
@@ -94,7 +94,7 @@ export function valueInputKind(field: FilterField, operator: FilterOperator): Va
 
 	const category = FIELD_CATEGORY[field];
 
-	if (operator === 'before' || operator === 'after') {
+	if (operator === 'before' || operator === 'after' || operator === 'on_or_after' || operator === 'on_or_before') {
 		if (category === 'date') return 'date';
 	}
 

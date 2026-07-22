@@ -36,7 +36,9 @@ const OPERATOR_LABELS: Record<FilterOperator, string> = {
 	is: 'is', is_not: 'is not',
 	contains: 'contains', not_contains: 'does not contain',
 	contains_any: 'contains any of', contains_all: 'contains all of',
-	before: 'before', after: 'after', within_days: 'within days',
+	before: 'before', after: 'after',
+	on_or_after: 'on or after', on_or_before: 'on or before',
+	within_days: 'within days',
 	is_null: 'is empty', is_not_null: 'is not empty',
 };
 

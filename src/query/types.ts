@@ -5,6 +5,7 @@ export type FilterOperator =
 	| 'contains' | 'not_contains'
 	| 'contains_any' | 'contains_all'
 	| 'before' | 'after'
+	| 'on_or_after' | 'on_or_before'
 	| 'within_days'
 	| 'is_null' | 'is_not_null';
 

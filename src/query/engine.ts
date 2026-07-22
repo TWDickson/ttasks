@@ -113,6 +113,16 @@ function evalCondition(task: Task, cond: FilterCondition): boolean {
 			return raw > resolveDate(value as string);
 		}
 
+		case 'on_or_after': {
+			if (typeof raw !== 'string') return false;
+			return raw >= resolveDate(value as string);
+		}
+
+		case 'on_or_before': {
+			if (typeof raw !== 'string') return false;
+			return raw <= resolveDate(value as string);
+		}
+
 		case 'within_days': {
 			if (typeof raw !== 'string') return false;
 			const t = today();

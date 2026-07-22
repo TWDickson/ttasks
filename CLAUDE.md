@@ -174,6 +174,28 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 `run-autopilot.fish`. Older PRDs (TASK_H*/I*/J*/K*) are vault-side synced
 notes.
 
+## Recent Updates (2026-07-21)
+
+- **Pomodoro backgrounding-drift bug fixed.** See BACKLOG.md's 2026-07-21
+  feedback batch for detail — `PomodoroService` now anchors each phase to a
+  wall-clock instant instead of counting fixed 1s `setInterval` ticks, so a
+  throttled-background countdown catches up to true elapsed time. Commit
+  `0964f45`.
+- **Agenda date-range filter shipped.** Two `<input type="date">` controls
+  ("from"/"to") in the filter toolbar, surfaced only on the Agenda view, on
+  top of its existing date-bucket grouping. New inclusive `on_or_after`/
+  `on_or_before` `FilterOperator`s in `query/engine.ts` (kept `before`/
+  `after` strictly exclusive — already relied on elsewhere) — also wired into
+  the Smart List query editor (`queryEditor.ts` `DATE_OPS` +
+  `QueryEditorModal.ts` labels) so Smart Lists get the same inclusive range
+  for free. Filter state is ephemeral (`filterDateFrom`/`filterDateTo` in
+  `TaskBoard.svelte`, matching the existing `filterPriority`/`filterArea`
+  pattern — not persisted to settings), gated by
+  `currentRenderer === RENDERER_AGENDA` for both visibility and application.
+  +4 engine tests; rig-verified dark/light (range filter correctly narrows
+  the task list; no-date tasks excluded by design). Build green, **1458
+  tests** (up from 1454).
+
 ## Recent Updates (2026-07-20)
 
 - **Taylor's 2026-07-20 feedback batch — 10 of 22 items triaged and shipped.**

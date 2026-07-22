@@ -185,6 +185,52 @@ describe('applyFilter', () => {
 		});
 	});
 
+	describe('on_or_after / on_or_before (inclusive date comparisons)', () => {
+		it('includes the boundary date for on_or_after', () => {
+			const tasks = [
+				makeTask({ due_date: '2026-04-14' }),
+				makeTask({ due_date: '2026-04-15' }),
+				makeTask({ due_date: '2026-04-16' }),
+			];
+			const spec: FilterSpec = { logic: 'and', conditions: [{ field: 'due_date', operator: 'on_or_after', value: '2026-04-15' }] };
+			expect(applyFilter(tasks, spec).map(t => t.due_date)).toEqual(['2026-04-15', '2026-04-16']);
+		});
+
+		it('includes the boundary date for on_or_before', () => {
+			const tasks = [
+				makeTask({ due_date: '2026-04-14' }),
+				makeTask({ due_date: '2026-04-15' }),
+				makeTask({ due_date: '2026-04-16' }),
+			];
+			const spec: FilterSpec = { logic: 'and', conditions: [{ field: 'due_date', operator: 'on_or_before', value: '2026-04-15' }] };
+			expect(applyFilter(tasks, spec).map(t => t.due_date)).toEqual(['2026-04-14', '2026-04-15']);
+		});
+
+		it('combines on_or_after + on_or_before as an inclusive date range', () => {
+			const tasks = [
+				makeTask({ due_date: '2026-04-09' }),
+				makeTask({ due_date: '2026-04-10' }),
+				makeTask({ due_date: '2026-04-15' }),
+				makeTask({ due_date: '2026-04-20' }),
+				makeTask({ due_date: '2026-04-21' }),
+			];
+			const spec: FilterSpec = {
+				logic: 'and',
+				conditions: [
+					{ field: 'due_date', operator: 'on_or_after', value: '2026-04-10' },
+					{ field: 'due_date', operator: 'on_or_before', value: '2026-04-20' },
+				],
+			};
+			expect(applyFilter(tasks, spec).map(t => t.due_date)).toEqual(['2026-04-10', '2026-04-15', '2026-04-20']);
+		});
+
+		it('excludes tasks with no date', () => {
+			const tasks = [makeTask({ due_date: null }), makeTask({ due_date: '2026-04-15' })];
+			const spec: FilterSpec = { logic: 'and', conditions: [{ field: 'due_date', operator: 'on_or_after', value: '2026-04-01' }] };
+			expect(applyFilter(tasks, spec)).toHaveLength(1);
+		});
+	});
+
 	describe('within_days', () => {
 		it('matches tasks due within N days from today', () => {
 			vi.setSystemTime(new Date('2026-04-24T12:00:00'));
