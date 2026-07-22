@@ -754,6 +754,68 @@ group, not committed.
 **Phase 8 — Power features**
 
 - `[~]` **Pomodoro** — in progress; see the *In progress* thread above.
+- `[ ]` **Centralized notification + error-handling system, + desktop native
+  notifications** 🔎 — *scoped 2026-07-21 (Taylor).* Audit found notification
+  firing is **fractured**: 50+ ad-hoc `new Notice(...)` call sites across
+  `main.ts`, `ArchiveService.ts`, `TaskWriter.ts`, modals, settings sections,
+  and Svelte components, each building its own message inline. The only
+  shared helper is `buildReminderNotice` (`src/store/reminderNoticeBuilder.ts`),
+  and it's reminder-specific. `PomodoroService` fires through an injected
+  `notify` closure that's also just wired to `new Notice` in `main.ts`. **No
+  code anywhere uses the native/Electron `Notification` API** — nothing
+  surfaces at the OS level when Obsidian is backgrounded/minimized, which is
+  presumably the itch behind this ask (related to, but distinct from, the
+  Pomodoro backgrounding-drift bug in the 2026-07-21 feedback batch above —
+  that one is a timer-math bug in the countdown itself; this item is about
+  adding an OS-level notification on top, e.g. so a Pomodoro phase-complete
+  still surfaces even if Obsidian isn't the focused window).
+  - **Folded in (2026-07-21):** a follow-up audit found the **error/failure
+    messaging path is fractured the same way, and worse** — no single
+    try/catch → log → notify helper exists. At least four inconsistent
+    patterns coexist: `plugin.log()` + `Notice` (`TaskWriter.ts:82-84,158-160`,
+    `ArchiveService.ts:57-59,65-67,163-165`), silent `console.warn` with no
+    user feedback at all (`ArchiveService.ts:73-75,179-181`), `console.error`
+    paired with `Notice` (`CreateTaskModal.ts:788-790`), and three separate *mini*
+    shared helpers that each only cover their own local call sites
+    (`buildBulkErrorHandler` in `migrationSettingsSection.ts`,
+    `scanErrorPolicy.ts`'s `handleScanError` used only by `ScanEngine.ts`/
+    `promoteTaskToTTasks.ts`, and a private `logFailure` inside
+    `vaultSafe.ts`). Since centralizing `Notice` already means answering "how
+    does a call site report a failure," this item now covers both: the
+    `NotificationService` below should own success/info/error variants
+    (consistent log-then-notify behavior) rather than solving `Notice`
+    alone and leaving error-handling to a second pass.
+  - **Direction (proposed):** a single `NotificationService` that all current
+    `Notice` call sites — and the four error-handling patterns above — route
+    through, so message handling + failure logging is one integration point.
+    On **desktop**, additionally fire the Web/Electron `Notification` API
+    (Obsidian desktop runs in Electron's renderer, so the standard `new
+    Notification(...)` Web API should work without touching
+    `electron`/`ipcRenderer` directly — confirm during implementation) with a
+    click handler that focuses the Obsidian window and navigates to the
+    relevant task/pane. On **mobile**, the native `Notification` API isn't
+    available in Obsidian's mobile webview — gate behind
+    `Platform.isDesktop`/`!Platform.isMobile` (same convention as the
+    existing status-bar item, `main.ts` `initializeStatusBar`); mobile stays
+    `Notice`-only. New settings toggle (e.g. `nativeNotificationsEnabled`)
+    defaulting **off** (triggers a browser permission prompt — should be
+    opt-in), settings-tab section following the existing toggle pattern
+    (`pomodoroSettingsSection.ts`).
+  - **Still needs scoping:** which notification *types* get the native OS
+    upgrade (Pomodoro phase-complete and due-date reminders are the two
+    obvious candidates; error/CRUD notices stay in-app-only `Notice`, just
+    routed through the same service) — confirm with Taylor before
+    implementing. Also confirm the click-to-focus mechanism available from
+    the renderer (`window.focus()` vs. anything Electron-specific).
+- `[ ]` **Minor: `ImportConfirmModal` duplicates `confirmModal.ts`** — found
+  during the 2026-07-21 notification audit while scoping the item above.
+  `src/modals/confirmModal.ts` is a real shared confirm-dialog helper (used by
+  `TaskBoard.svelte`/`TaskDetail.svelte` for delete/batch-delete), but
+  `src/modals/ImportConfirmModal.ts` reimplements the same open/cancel/confirm
+  shape as its own bespoke `Modal` subclass instead of reusing it. Small,
+  low-risk cleanup — fold `ImportConfirmModal` onto `confirmModal()` (or
+  extend `confirmModal()` if it needs a custom body) whenever it's convenient,
+  not blocking anything.
 - `[ ]` **Natural language quick capture** — parse `Fix bug #high due:tomorrow
   @Project blocking:abc123` from palette / status bar / mobile FAB. (Gated on a
   stable filter engine — Phase 6, now done — so unblocked.)
