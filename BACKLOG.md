@@ -323,11 +323,45 @@ original list for traceability.*
 
 ### Data model / frontmatter
 
-- `[ ]` **(19) Obsidian native-frontmatter type handling** 🔎 — a bug surfaced
-  today suggests TTasks isn't fully respecting Obsidian's native frontmatter
-  property types (cf. the YAML-date-coercion fix, commit `498fdbc`); needs an
-  audit of how the plugin reads/writes typed frontmatter vs. what Obsidian
-  expects, beyond just dates.
+- `[x]` **(19) Obsidian native-frontmatter type handling** — *done 2026-07-22.*
+  Audited the whole frontmatter → Task boundary (`TaskStore.fileToTask`) against
+  Obsidian's **native property types**: a user can retype any property to
+  Text / List / Number / Checkbox / Date in the Properties UI and Obsidian then
+  rewrites that field vault-wide into the chosen shape. Every failure in this
+  class was **silent data loss**, not an error. Found and fixed:
+  - **List field retyped to Text** — `labels: feature` (a bare scalar) hit an
+    `Array.isArray` guard and became `[]`, so the labels vanished from the UI and
+    the next write clobbered them. Same for `depends_on` / `blocks` (a
+    relationship silently disappeared) and `holiday_dates`.
+  - **Scalar field retyped to List** — `area: [Work]` failed a `typeof === 'string'`
+    check and became `null`, dropping the task into the Inbox; `status: [In Progress]`
+    silently reset to the default status; `name: [Ship it]` was truthy enough to
+    pass the presence check but coerced to `''`.
+  - **Unchecked casts** — `type` and `priority` were `as`-cast straight out of
+    frontmatter with no validation, so `type: [project]` made a project read as a
+    task in every `type === 'project'` check, and a junk priority flowed into
+    sorting/rendering.
+  - **Number/Checkbox drift** — `pomodoro_count` / `focused_minutes` were
+    `typeof === 'number'`-only (a quoted `"4"` reset the count to null);
+    `workweek_only` was `=== true`-only (a Text-typed `"true"` read as false).
+
+  Fix: extended the existing pure `src/utils/frontmatterValue.ts` with
+  `toFrontmatterScalar` (unwrap a List-typed scalar), `toFrontmatterStringArray`
+  (wrap a Text-typed list), `toFrontmatterBoolean`, `toFrontmatterStringOrNull`,
+  and `toFrontmatterOptionalEnum`/`toFrontmatterEnum` (closed-set validation,
+  exact match then case-/whitespace-insensitive — so a hand-edited
+  `priority: high` now resolves to `High` instead of falling back). New
+  `TASK_RECORD_TYPES` + `REMINDER_OVERRIDES` constants back the enum checks.
+  `resolveWikiLinkPaths` now accepts a bare scalar as a one-entry list. +39
+  tests (`frontmatterValue.test.ts` + a new `TaskStore.frontmatterTypes.test.ts`
+  that parses real frontmatter shapes through `fileToTask`); build green,
+  **1511 tests**.
+
+  *Not covered (deliberate):* the **write** side is unchanged — the plugin still
+  writes its own canonical shapes via `processFrontMatter`, and a retyped
+  property gets re-normalized by Obsidian on its next write anyway. Also
+  untouched: Obsidian's "Date & time" type on `due_date` (still reduced to its
+  calendar-date portion by `toCalendarDate`, which is the intended behaviour).
 
 ### AI Import/Export
 

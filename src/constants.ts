@@ -5,7 +5,7 @@
  * changes have a single source of truth.
  */
 
-import type { TaskPriority } from './types';
+import type { Task, TaskPriority, TaskRecordType } from './types';
 import type { TaskViewRenderer } from './settings/types';
 
 /**
@@ -14,6 +14,17 @@ import type { TaskViewRenderer } from './settings/types';
  * and detail-panel options. `satisfies` keeps it in lockstep with TaskPriority.
  */
 export const PRIORITIES = ['High', 'Medium', 'Low', 'None'] as const satisfies readonly TaskPriority[];
+
+/**
+ * The two record kinds a TTasks note can be. Used to validate the `type`
+ * frontmatter field at the read boundary.
+ */
+export const TASK_RECORD_TYPES = ['task', 'project'] as const satisfies readonly TaskRecordType[];
+
+/**
+ * The allowed values of the optional per-task `reminder_override` field.
+ */
+export const REMINDER_OVERRIDES = ['urgent', 'mute'] as const satisfies readonly NonNullable<Task['reminder_override']>[];
 
 /**
  * Maps each TaskPriority to an Obsidian CSS variable string.

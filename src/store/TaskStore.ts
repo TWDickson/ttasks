@@ -5,7 +5,17 @@ import type { Task, TaskCreateInput, TaskPriority, TaskRecordType } from '../typ
 import { resolveCompletionStatus } from '../settings';
 import { ensureMdExt } from '../utils/pathUtils';
 import { toCalendarDate } from '../utils/dateUtils';
-import { toFrontmatterString, toFrontmatterNumber } from '../utils/frontmatterValue';
+import {
+	toFrontmatterBoolean,
+	toFrontmatterEnum,
+	toFrontmatterNumber,
+	toFrontmatterOptionalEnum,
+	toFrontmatterScalar,
+	toFrontmatterString,
+	toFrontmatterStringArray,
+	toFrontmatterStringOrNull,
+} from '../utils/frontmatterValue';
+import { PRIORITIES, REMINDER_OVERRIDES, TASK_RECORD_TYPES } from '../constants';
 import { parseWikiLink } from '../utils/wikiLink';
 import { ensureFolderPath } from '../utils/vaultSafe';
 import { seedGraphTestData } from './graphSandboxSeeder';
@@ -276,7 +286,10 @@ export class TaskStore {
 	private async fileToTask(file: TFile): Promise<Task | null> {
 		const cache = this.app.metadataCache.getFileCache(file);
 		const fm = cache?.frontmatter;
-		if (!fm?.name) {
+		// Coerce before the presence check: a List-typed `name` arrives as
+		// ['Ship it'], which is truthy but not a usable title.
+		const name = toFrontmatterString(toFrontmatterScalar(fm?.name));
+		if (!fm || name === '') {
 			console.log(`[TTasks] skipping ${file.name} — cache not ready yet`);
 			return null;
 		}
@@ -291,35 +304,27 @@ export class TaskStore {
 
 		const allowedStatuses = this.plugin.settings.statuses ?? ['Active'];
 		const fallbackStatus = allowedStatuses[0] ?? 'Active';
-		const rawStatus = typeof fm.status === 'string' ? fm.status : '';
-		const normalizedStatus = rawStatus && allowedStatuses.includes(rawStatus)
-			? rawStatus
-			: fallbackStatus;
+		const normalizedStatus = toFrontmatterEnum(fm.status, allowedStatuses, fallbackStatus);
 
 		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
 
-		const area: string | null = typeof fm.area === 'string' ? fm.area : null;
+		const rawArea = toFrontmatterString(toFrontmatterScalar(fm.area));
+		const area: string | null = rawArea === '' ? null : rawArea;
 
-		const labelsRaw = fm.labels;
-		const labels: string[] = Array.isArray(labelsRaw)
-			? labelsRaw.filter((v): v is string => typeof v === 'string')
-			: [];
+		const labels: string[] = toFrontmatterStringArray(fm.labels);
 
-		const holidayDatesRaw = fm.holiday_dates;
-		const holiday_dates: string[] = Array.isArray(holidayDatesRaw)
-			? holidayDatesRaw
-				.map((v) => toCalendarDate(v))
-				.filter((v): v is string => v !== null)
-			: [];
+		const holiday_dates: string[] = (Array.isArray(fm.holiday_dates) ? fm.holiday_dates : [fm.holiday_dates])
+			.map((v) => toCalendarDate(v))
+			.filter((v): v is string => v !== null);
 
 		return {
 			id, slug,
 			path: file.path,
-			type:           (fm.type as TaskRecordType)  ?? 'task',
-			name:           toFrontmatterString(fm.name),
+			type:           toFrontmatterEnum<TaskRecordType>(fm.type, TASK_RECORD_TYPES, 'task'),
+			name,
 			area,
 			status:         normalizedStatus,
-			priority:       (fm.priority as TaskPriority) ?? 'None',
+			priority:       toFrontmatterEnum<TaskPriority>(fm.priority, PRIORITIES, 'None'),
 			labels,
 			parent_task:    this.resolveWikiLinkPath(fm.parent_task, file.path),
 			depends_on:     this.resolveWikiLinkPaths(fm.depends_on, file.path),
@@ -329,20 +334,19 @@ export class TaskStore {
 			source:         toFrontmatterString(fm.source),
 			start_date:     toCalendarDate(fm.start_date),
 			due_date:       toCalendarDate(fm.due_date),
-			due_time:       typeof fm.due_time === 'string' ? fm.due_time : null,
-			estimated_days: toFrontmatterNumber(fm.estimated_days),
-			workweek_only: fm.workweek_only === true,
+			due_time:       toFrontmatterStringOrNull(fm.due_time),
+			estimated_days: toFrontmatterNumber(toFrontmatterScalar(fm.estimated_days)),
+			workweek_only: toFrontmatterBoolean(fm.workweek_only),
 			holiday_dates,
 			created:         toCalendarDate(fm.created),
 			completed:       toCalendarDate(fm.completed),
 			status_changed:  toCalendarDate(fm.status_changed),
-			pomodoro_count:  typeof fm.pomodoro_count === 'number' ? fm.pomodoro_count : null,
-			focused_minutes: typeof fm.focused_minutes === 'number' ? fm.focused_minutes : null,
+			pomodoro_count:  toFrontmatterNumber(toFrontmatterScalar(fm.pomodoro_count)),
+			focused_minutes: toFrontmatterNumber(toFrontmatterScalar(fm.focused_minutes)),
 			notes,
-			recurrence:      typeof fm.recurrence === 'string' ? fm.recurrence : null,
-			recurrence_type: typeof fm.recurrence_type === 'string' ? fm.recurrence_type : null,
-			reminder_override: (fm.reminder_override === 'urgent' || fm.reminder_override === 'mute')
-				? fm.reminder_override : null,
+			recurrence:      toFrontmatterStringOrNull(fm.recurrence),
+			recurrence_type: toFrontmatterStringOrNull(fm.recurrence_type),
+			reminder_override: toFrontmatterOptionalEnum(fm.reminder_override, REMINDER_OVERRIDES),
 			is_complete: normalizedStatus === completionStatus,
 			is_inbox:    area === null,
 		};
@@ -366,9 +370,15 @@ export class TaskStore {
 		return resolved ? resolved.path : ensureMdExt(linkpath);
 	}
 
+	/**
+	 * Resolve a link-list field. A bare scalar is accepted as a one-entry list —
+	 * that is what `depends_on` looks like once a user retypes the property to
+	 * Text in Obsidian's property settings, and dropping it would silently lose
+	 * the relationship.
+	 */
 	private resolveWikiLinkPaths(raw: unknown, sourcePath: string): string[] {
-		if (!Array.isArray(raw)) return [];
-		return (raw as unknown[])
+		const entries: unknown[] = Array.isArray(raw) ? raw : [raw];
+		return entries
 			.map(v => this.resolveWikiLinkPath(v, sourcePath))
 			.filter((v): v is string => v !== null);
 	}

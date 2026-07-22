@@ -176,6 +176,27 @@ notes.
 
 ## Recent Updates (2026-07-22)
 
+- **Frontmatter type-handling audit (feedback #19).** Hardened the whole
+  frontmatter → Task boundary (`TaskStore.fileToTask`) against Obsidian's
+  **native property types** — retyping a property to Text / List / Number /
+  Checkbox in the Properties UI rewrites that field vault-wide, and every
+  mismatch was **silent data loss**. Fixed: a Text-typed list (`labels: feature`,
+  a bare `depends_on` link, `holiday_dates`) was dropped by an `Array.isArray`
+  guard; a List-typed scalar (`area: [Work]` → Inbox, `status: [In Progress]` →
+  reset to default, `name: [Ship it]` → empty) failed a `typeof === 'string'`
+  check; `type` and `priority` were unchecked `as`-casts (so `type: [project]`
+  made a project read as a task everywhere); `pomodoro_count` /
+  `focused_minutes` were `typeof === 'number'`-only and `workweek_only` was
+  `=== true`-only. Extended the pure `utils/frontmatterValue.ts` with
+  `toFrontmatterScalar` / `toFrontmatterStringArray` / `toFrontmatterBoolean` /
+  `toFrontmatterStringOrNull` / `toFrontmatterOptionalEnum` + `toFrontmatterEnum`
+  (closed-set, exact-then-case-insensitive — a hand-edited `priority: high` now
+  resolves instead of falling back), backed by new `TASK_RECORD_TYPES` /
+  `REMINDER_OVERRIDES` constants; `resolveWikiLinkPaths` accepts a bare scalar.
+  Write side deliberately unchanged. +39 tests (new
+  `TaskStore.frontmatterTypes.test.ts` parses real frontmatter shapes through
+  `fileToTask`). Build green, **1511 tests**.
+
 - **Graph: add a blocker/parent from a node (feedback #11/#13).** Each task
   node now has a **left-side `+`** (mirror of the existing right-side
   "add dependent" `+`) that spawns a new **blocker/parent** the selected task
@@ -252,10 +273,10 @@ notes.
     `depends_on`/`parent` import already shipped in C3 (`b7f0e78`); corrected
     the doc.
   - **Left open:** #6/#8 (Blocked vs Hold semantics + cascade — needs
-    Taylor's taste call), #11/#13 (add-parent-from-node), #12 (drag
-    connectors — needs interaction research), #16 (completed-sort-lower —
-    taste call), #15 (Pomodoro discoverability), #19 (frontmatter type-
-    handling audit).
+    Taylor's taste call), #12 (drag connectors — needs interaction research),
+    #16 (completed-sort-lower — taste call), #15 (Pomodoro discoverability).
+    *Since closed: #11/#13 (add-parent-from-node) and #19 (frontmatter
+    type-handling audit), both 2026-07-22.*
   - Touched: `TaskGraph.svelte`, `taskGraph.ts` (+edge/edge-test fixtures),
     `engine.ts`, `query/types.ts`, `query/taskReadiness.ts` (new),
     `viewRegistry.ts`, `boardQuery.ts`, `TaskBoard.svelte`, `TaskRail.svelte`,
