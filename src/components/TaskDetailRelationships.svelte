@@ -308,6 +308,9 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 6px;
+		/* Flex items default to min-width:auto, so a single unbreakable chip
+		   would push this row wider than the pane. */
+		min-width: 0;
 	}
 
 	.tt-chip {
@@ -320,6 +323,18 @@
 		font-weight: 600;
 		cursor: pointer;
 		transition: all 0.12s;
+		/* These chips carry whole task names, so they must survive a narrow
+		   sidebar. app.css styles bare `button` with nowrap + a fixed height
+		   (the theme-specificity trap in CLAUDE.md), which made one long name
+		   force the detail pane ~230px wider than the leaf — and .tt-detail-view
+		   clips overflow-x, so the excess was silently cut off rather than
+		   scrolled to. Wrap instead of truncating: the full name stays readable. */
+		min-width: 0;
+		max-width: 100%;
+		height: auto;
+		white-space: normal;
+		text-align: left;
+		overflow-wrap: anywhere;
 	}
 
 	.tt-chip:hover {
@@ -370,11 +385,22 @@
 		color: var(--color-red);
 	}
 
-	/* No max-height/overflow: the detail pane owns scrolling (no nested scrollbars). */
+	/* No max-height/overflow: the detail pane owns scrolling (no nested scrollbars).
+	   Every column below carries min-width:0 so the stack can shrink with a
+	   narrow sidebar instead of being clipped by .tt-detail-view's overflow-x. */
 	.tt-rel-health {
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
+		min-width: 0;
+		/* The P5 rule centres .tt-detail > .tt-field-group's items
+		   (`align-items: center`), which leaves this block's cross size at
+		   max-content — so a long task name in the tree below sized the whole
+		   section past the leaf and .tt-detail-view clipped it. This section is
+		   full-width, not a centred control; stretch it like
+		   .tt-parent-task-row already does in styles.css. */
+		align-self: stretch;
+		width: 100%;
 	}
 
 	.tt-rel-health-metrics {
@@ -423,12 +449,14 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+		min-width: 0;
 	}
 
 	.tt-rel-tree-stack {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+		min-width: 0;
 	}
 
 	.tt-rel-tree-level {
@@ -437,6 +465,7 @@
 		flex-direction: column;
 		gap: 6px;
 		padding-left: calc((var(--tt-tree-depth, 1) - 1) * 14px + 10px);
+		min-width: 0;
 	}
 
 	.tt-rel-tree-level::before {
@@ -466,6 +495,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
+		min-width: 0;
 	}
 
 	.tt-rel-lane-full {
@@ -506,7 +536,9 @@
 		padding: 6px 10px;
 		border: 1px dashed var(--background-modifier-border);
 		border-radius: var(--radius-m, 8px);
-		min-width: 120px;
+		/* Floor the box, but never past the pane it sits in. */
+		min-width: min(120px, 100%);
+		max-width: 100%;
 		background: var(--background-primary-alt, var(--background-secondary));
 	}
 

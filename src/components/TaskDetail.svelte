@@ -774,6 +774,11 @@
 		max-width: 600px;
 		overflow-wrap: break-word;
 		word-break: break-word;
+		/* Size container for the responsive rules below: the detail leaf is a
+		   resizable sidebar, so its width is independent of the viewport's and
+		   only a container query can see it. */
+		container-type: inline-size;
+		container-name: tt-detail;
 	}
 
 	.tt-detail-name-row {
@@ -784,6 +789,9 @@
 
 	:global(.tt-detail-name-row .tt-field) {
 		flex: 1;
+		/* Without this the flex item floors at the text input's intrinsic
+		   min-content width and pushes the title past a narrow leaf. */
+		min-width: 0;
 	}
 
 	:global(.tt-detail-name-row .tt-field label) {
@@ -873,19 +881,60 @@
 
 	.tt-fields {
 		display: grid;
-		grid-template-columns: auto 1fr;
+		/* minmax(0, 1fr), not 1fr: a `1fr` track has an automatic minimum of
+		   min-content, so the selects' and date inputs' large intrinsic widths
+		   would size the column past the leaf no matter how narrow the pane got. */
+		grid-template-columns: auto minmax(0, 1fr);
 		gap: 8px 12px;
 		align-items: center;
+		min-width: 0;
 	}
 
-	/* On a narrow mobile drawer the label column steals width and squeezes the
-	   control until it overflows. Collapse to one column so each label sits on its
-	   own row *above* its control (the two-level layout), and let controls stretch
-	   full width. Extra top-margin on labels re-groups each label/control pair now
-	   that the row gap is gone. */
+	/* Same reason, one level down. Every grid item, whichever field component
+	   rendered it — a grid item's automatic minimum size is min-content, and the
+	   controls' intrinsic widths are large. */
+	.tt-fields > :global(*),
+	.tt-fields :global(.tt-field-input),
+	.tt-fields :global(.tt-field-select-input) {
+		min-width: 0;
+	}
+
+	/* In a narrow pane the `auto` label column collapses to min-content — one
+	   character per line — and the control column overflows the leaf, where
+	   .tt-detail-view's overflow-x:hidden clips it. Collapse to one column so
+	   each label sits on its own row *above* its control (the two-level layout),
+	   and let controls stretch full width. Extra top-margin on labels re-groups
+	   each label/control pair now that the row gap is gone.
+
+	   Keyed on the *container*, not the viewport: the detail leaf is a resizable
+	   desktop sidebar, so it can be 300px wide on a 1600px screen — which is
+	   exactly the case the old `@media (max-width: 768px)` rule could not see.
+
+	   360px is measured, not guessed: with two columns the label column holds its
+	   full width down to ~360px of container, starts being squeezed below that,
+	   and collapses to one character per line (plus real overflow) by ~270px. The
+	   threshold deliberately sits above the squeeze and below the default 440px
+	   sidebar (407px of container), so the default pane keeps two columns. */
+	@container tt-detail (max-width: 360px) {
+		.tt-fields {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 0;
+			align-items: stretch;
+		}
+		.tt-fields > .tt-label {
+			margin-top: 12px;
+		}
+		.tt-fields > .tt-label:first-child {
+			margin-top: 0;
+		}
+	}
+
+	/* Fallback for engines without container queries (Chromium <105 / iOS <16):
+	   keeps the original mobile-viewport behaviour. Harmless where @container
+	   works — both rules collapse the grid the same way. */
 	@media (max-width: 768px) {
 		.tt-fields {
-			grid-template-columns: 1fr;
+			grid-template-columns: minmax(0, 1fr);
 			gap: 0;
 			align-items: stretch;
 		}

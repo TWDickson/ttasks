@@ -176,6 +176,26 @@ notes.
 
 ## Recent Updates (2026-07-22)
 
+- **Detail sidebar clipping fixed (2026-07-21 feedback).** Reproduced in the rig:
+  narrowing the detail leaf to 300px on a 1280px viewport left its content 413px
+  wide, and `.tt-detail-view`'s `overflow-x: hidden` silently cut off the rest.
+  Three separate "floors at min-content" causes: (1) the field grid's
+  two-column → one-column collapse was gated on `@media (max-width: 768px)`,
+  which reads the **viewport**, not the resizable pane — so labels rendered one
+  character per line on desktop; re-keyed to a **container query** on a new
+  `container-type: inline-size` on `.tt-detail`, threshold **360px** measured so
+  the default 440px sidebar keeps two columns (old media query kept as a
+  pre-container-query fallback). (2) The P5 centering rule
+  (`.tt-detail > .tt-field-group { align-items: center }`) left the relationship
+  tree at max-content, so one long task name sized the section to 527px — fixed
+  with `align-self: stretch` (the override `.tt-parent-task-row` already uses) +
+  `min-width: 0` down the tree; the tree chips are `<button>`s inheriting
+  app.css's `nowrap` (the **theme-specificity trap**) and now wrap instead of
+  forcing the pane wide. (3) `minmax(0, 1fr)` tracks + `min-width: 0` on grid and
+  flex items. Rig-swept by leaf width: **zero clipped elements from 220px up**
+  (was 31 at 300px), dark + light + mobile clean. `TaskDetail.svelte` +
+  `TaskDetailRelationships.svelte`. Build green, **1511 tests**.
+
 - **Frontmatter type-handling audit (feedback #19).** Hardened the whole
   frontmatter → Task boundary (`TaskStore.fileToTask`) against Obsidian's
   **native property types** — retyping a property to Text / List / Number /

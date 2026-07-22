@@ -140,10 +140,45 @@ researched.*
   monochrome in the V2 colour-spine work, 2026-07-19); needs a taste call on
   how much contrast the selected state should carry, especially in dark
   mode.
-- `[ ]` **Detail sidebar: content clips inside the frame** — check whether
-  this is the same issue as the mobile detail-pane-fit fix (2026-07-19,
-  still device-unverified) or a distinct/desktop clipping bug before
-  starting.
+- `[x]` **Detail sidebar: content clips inside the frame** — *done 2026-07-22;
+  distinct from the mobile detail-pane-fit fix.* Reproduced in the rig by
+  narrowing the detail leaf to 300px on a 1280px desktop viewport: the pane's
+  content measured **413px against a 299px leaf**, and `.tt-detail-view`'s
+  `overflow-x: hidden` silently cut off the excess. Three independent causes,
+  all of them "an element floors at its min-content width":
+  1. **The field grid never collapsed on desktop.** The two-column →
+     one-column collapse was gated on `@media (max-width: 768px)`, which reads
+     the **viewport**, not the pane — so a 300px sidebar on a wide screen kept
+     `grid-template-columns: auto 1fr`, the `auto` label column shrank to
+     min-content (**one character per line** — "A/R/E/A" stacked vertically),
+     and the controls overflowed. Re-keyed to a **container query** on a new
+     `container-type: inline-size` on `.tt-detail`. Threshold **360px** is
+     measured, not guessed: with two columns the label column holds full width
+     down to ~360px of container, is squeezed below that, and hits one
+     char/line by ~270px — so 360 sits above the squeeze and below the default
+     440px sidebar (407px of container), leaving the default pane two-column.
+     The old `@media` rule is kept as a fallback for engines without container
+     queries (Chromium <105 / iOS <16); both collapse identically.
+  2. **The relationship tree was never stretched.** The P5 centering rule
+     (`.tt-detail > .tt-field-group { align-items: center }`) leaves an item's
+     cross size at max-content, so one long task name in a chip sized the whole
+     Dependencies section to 527px. Fixed with `align-self: stretch` +
+     `width: 100%` on `.tt-rel-health` — the same override
+     `.tt-parent-task-row` already carries in `styles.css` — plus `min-width: 0`
+     down the tree columns. The chips themselves are `<button>`s inheriting
+     app.css's `nowrap` + fixed height (the **theme-specificity trap** in
+     CLAUDE.md); they now wrap (`white-space: normal; height: auto;
+     overflow-wrap: anywhere`) so a long name stays fully readable instead of
+     being truncated.
+  3. **`1fr` tracks and flex items floored at min-content.** `grid-template-
+     columns: auto minmax(0, 1fr)` on `.tt-fields`, `min-width: 0` on its
+     items and on `.tt-detail-name-row .tt-field`.
+
+  Verified in the rig by sweeping the leaf width: **zero clipped elements from
+  220px up** (was 31 at 300px), two-column preserved at the 440px default,
+  dark + light + mobile all clean. Below ~200px a single 4px overflow remains —
+  under Obsidian's practical sidebar minimum, left alone. Build green, 1511
+  tests. Live-Obsidian sign-off folds into the visual regression pass.
 - `[x]` **Agenda: date-range filter on selection** — *done 2026-07-21,
   centralized same-day.* Two `<input type="date">` controls ("from" / "to")
   in the filter toolbar, on top of the existing date-bucket grouping (not a
