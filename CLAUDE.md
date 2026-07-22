@@ -181,20 +181,26 @@ notes.
   wall-clock instant instead of counting fixed 1s `setInterval` ticks, so a
   throttled-background countdown catches up to true elapsed time. Commit
   `0964f45`.
-- **Agenda date-range filter shipped.** Two `<input type="date">` controls
-  ("from"/"to") in the filter toolbar, surfaced only on the Agenda view, on
-  top of its existing date-bucket grouping. New inclusive `on_or_after`/
-  `on_or_before` `FilterOperator`s in `query/engine.ts` (kept `before`/
-  `after` strictly exclusive — already relied on elsewhere) — also wired into
-  the Smart List query editor (`queryEditor.ts` `DATE_OPS` +
+- **Agenda date-range filter shipped, then centralized same-day (Taylor:
+  "try and centralize this sort of filtering logic and reuse it across
+  views").** Two `<input type="date">` controls ("from"/"to") in the filter
+  toolbar, on top of the existing date-bucket grouping. New inclusive
+  `on_or_after`/`on_or_before` `FilterOperator`s in `query/engine.ts` (kept
+  `before`/`after` strictly exclusive — already relied on elsewhere) — also
+  wired into the Smart List query editor (`queryEditor.ts` `DATE_OPS` +
   `QueryEditorModal.ts` labels) so Smart Lists get the same inclusive range
-  for free. Filter state is ephemeral (`filterDateFrom`/`filterDateTo` in
-  `TaskBoard.svelte`, matching the existing `filterPriority`/`filterArea`
-  pattern — not persisted to settings), gated by
-  `currentRenderer === RENDERER_AGENDA` for both visibility and application.
-  +4 engine tests; rig-verified dark/light (range filter correctly narrows
-  the task list; no-date tasks excluded by design). Build green, **1458
-  tests** (up from 1454).
+  for free. The ad-hoc toolbar-filter logic (Priority/Area/date-range →
+  `FilterCondition[]`, plus "any filter active") moved into a new pure,
+  tested `src/components/boardFilters.ts` — mirrors the existing
+  `boardQuery.ts` pattern (pure module, `TaskBoard.svelte` just calls in).
+  Widened the date-range control from Agenda-only to **List + Kanban +
+  Agenda** (`supportsDateRangeFilter()`); Graph and Archive/Logbook excluded
+  (relationship-first / `completed`-not-`due_date`). Filter state stays
+  ephemeral (not persisted to settings), matching `filterPriority`/
+  `filterArea`. +4 engine tests + 14 `boardFilters.test.ts` tests;
+  rig-verified dark/light on List, Kanban, and Agenda (filter narrows
+  results on all three; Graph correctly has no date-range control). Build
+  green, **1472 tests** (up from 1454).
 
 ## Recent Updates (2026-07-20)
 

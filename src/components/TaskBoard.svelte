@@ -30,6 +30,7 @@
 	import { runBatchArchive, runBatchComplete, runBatchDelete } from './taskBoardBatchActions';
 	import { confirmModal } from '../modals/confirmModal';
 	import { buildBoardQuery, type ListGroupOverride, type ListSortOverride } from './boardQuery';
+	import { buildToolbarFilterConditions, hasActiveToolbarFilters, supportsDateRangeFilter } from './boardFilters';
 	import type { FilterCondition, GroupField, SortField } from '../query/types';
 	import { GROUP_FIELDS, SORT_FIELDS } from '../query/queryEditor';
 	import {
@@ -42,7 +43,6 @@
 	import { promoteTaskToTTasks } from '../integration/promoteTaskToTTasks';
 	import {
 		PRIORITIES,
-		RENDERER_AGENDA,
 		RENDERER_ARCHIVE,
 		RENDERER_GRAPH,
 		RENDERER_KANBAN,
@@ -160,8 +160,12 @@
 	$: areaOptions = resolveAreaOptions(plugin.settings.areas ?? [], observedAreas);
 	$: hasAreaOptions = areaOptions.managed.length > 0 || areaOptions.unmanaged.length > 0;
 
-	$: hasAgendaDateRange = currentRenderer === RENDERER_AGENDA && (!!filterDateFrom || !!filterDateTo);
-	$: hasActiveFilters = !!$searchQuery || !!filterPriority || !!filterArea || hasAgendaDateRange;
+	$: dateRangeSupported = supportsDateRangeFilter(currentRenderer);
+	$: hasActiveFilters = hasActiveToolbarFilters(
+		{ priority: filterPriority, area: filterArea, dateFrom: filterDateFrom, dateTo: filterDateTo },
+		currentRenderer,
+		$searchQuery,
+	);
 	$: canToggleCompletedForCurrentView = canToggleBuiltinCompleted(currentView);
 	$: showCompleted = showCompletedByViewId[currentView.id] ?? defaultCompletedVisibility(currentView);
 	$: currentRenderer = resolveViewRenderer(currentView.id, currentView.renderer, logbookRendererModeByViewId) as RendererType;
@@ -237,13 +241,13 @@
 
 	// Rebuild the filter spec whenever any filter control changes
 	$: {
-		const conditions = [...currentBoardQuery.filter.conditions];
-		if (filterPriority) conditions.push({ field: 'priority', operator: 'is', value: filterPriority });
-		if (filterArea)     conditions.push({ field: 'area',     operator: 'is', value: filterArea });
-		if (hasAgendaDateRange) {
-			if (filterDateFrom) conditions.push({ field: 'due_date', operator: 'on_or_after', value: filterDateFrom });
-			if (filterDateTo)   conditions.push({ field: 'due_date', operator: 'on_or_before', value: filterDateTo });
-		}
+		const conditions = [
+			...currentBoardQuery.filter.conditions,
+			...buildToolbarFilterConditions(
+				{ priority: filterPriority, area: filterArea, dateFrom: filterDateFrom, dateTo: filterDateTo },
+				currentRenderer,
+			),
+		];
 		query.update(q => ({
 			...q,
 			filter: { logic: currentBoardQuery.filter.logic, conditions },
@@ -374,7 +378,7 @@
 					</select>
 				{/if}
 
-				{#if currentRenderer === RENDERER_AGENDA}
+				{#if dateRangeSupported}
 					<div class="tt-filter-date-range" aria-label="Filter by due-date range">
 						<input
 							class="tt-filter-select tt-filter-date"

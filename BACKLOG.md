@@ -144,21 +144,34 @@ researched.*
   this is the same issue as the mobile detail-pane-fit fix (2026-07-19,
   still device-unverified) or a distinct/desktop clipping bug before
   starting.
-- `[x]` **Agenda: date-range filter on selection** — *done 2026-07-21.* Two
-  `<input type="date">` controls ("from" / "to") in the filter toolbar,
-  surfaced only when the Agenda view is active (on top of its existing
-  date-bucket grouping, not a replacement for it). New inclusive
-  `on_or_after`/`on_or_before` `FilterOperator`s in `query/engine.ts`
-  (existing `before`/`after` stay strictly exclusive — used elsewhere with
-  that meaning) — also wired into `queryEditor.ts` `DATE_OPS` +
-  `QueryEditorModal.ts` labels so Smart Lists get the same inclusive-range
-  operators for free. Ephemeral local state (`filterDateFrom`/`filterDateTo`
-  in `TaskBoard.svelte`, like `filterPriority`/`filterArea` — not persisted),
-  gated by `currentRenderer === RENDERER_AGENDA` for both visibility and
-  application so a leftover range can't silently filter other views. No
-  due-date task falls in a range (by design — "no date" tasks are excluded
-  from a date-range filter). +4 engine tests; rig-verified dark/light
-  (filter drops 9→5 tasks on a July range, Clear button appears/works).
+- `[x]` **Agenda: date-range filter on selection** — *done 2026-07-21,
+  centralized same-day.* Two `<input type="date">` controls ("from" / "to")
+  in the filter toolbar, on top of the existing date-bucket grouping (not a
+  replacement for it). New inclusive `on_or_after`/`on_or_before`
+  `FilterOperator`s in `query/engine.ts` (existing `before`/`after` stay
+  strictly exclusive — used elsewhere with that meaning) — also wired into
+  `queryEditor.ts` `DATE_OPS` + `QueryEditorModal.ts` labels so Smart Lists
+  get the same inclusive-range operators for free.
+  **Centralized (same day, per Taylor):** the ad-hoc toolbar-filter logic
+  (Priority / Area / date-range → `FilterCondition[]`, plus the
+  "any filter active" check) moved out of `TaskBoard.svelte`'s inline
+  reactive block into a new pure, tested `src/components/boardFilters.ts`
+  (`buildToolbarFilterConditions`/`hasActiveToolbarFilters`/
+  `supportsDateRangeFilter`) — same pattern as the existing `boardQuery.ts`
+  (group/sort overrides). Widened the date-range control's visibility from
+  Agenda-only to **List + Kanban + Agenda** (the renderers where `due_date`
+  is a meaningful axis and the toolbar has room); Graph and Archive/Logbook
+  stay excluded (relationship-first / `completed`-not-`due_date`,
+  respectively) — narrow back to Agenda-only if that turns out to be too
+  broad. Toolbar filter state stays ephemeral (`filterDateFrom`/
+  `filterDateTo` in `TaskBoard.svelte`, like `filterPriority`/`filterArea` —
+  not persisted); `supportsDateRangeFilter(renderer)` gates both visibility
+  and whether a leftover date range still applies after switching views. No
+  due-date task falls in a range (by design — "no date" tasks are excluded).
+  +14 `boardFilters.test.ts` tests (on top of the +4 engine tests); build
+  green, **1472 tests**; rig-verified dark/light on List, Kanban, and Agenda
+  (filter narrows results correctly on all three; Graph correctly shows no
+  date-range control).
 - `[x]` **Pomodoro: timer inconsistent when Obsidian is backgrounded** —
   *done 2026-07-21 (commit `0964f45`).* Root cause confirmed:
   `PomodoroService.tick()` decremented `remainingSec` by a fixed 1s per
