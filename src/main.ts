@@ -504,9 +504,9 @@ export default class TTasksPlugin extends Plugin {
 	/**
 	 * Apply a planned import to the vault. Order matters: field updates, then create
 	 * the new tasks (recording their fresh paths), then wire dependency links (which
-	 * may point at tasks just created), then removals, then deletes last. Parent and
-	 * notes are intentionally not imported (see taskImportPlan.ts). Returns the counts
-	 * actually applied.
+	 * may point at tasks just created), then removals, then deletes last. Note-body
+	 * replacements ride alongside the field updates but have their own toggle, since
+	 * they overwrite the whole body. Returns the counts actually applied.
 	 */
 	async applyImportPlan(
 		plan: ImportPlan,
@@ -517,20 +517,23 @@ export default class TTasksPlugin extends Plugin {
 			links?: boolean;
 			linkRemovals?: boolean;
 			parents?: boolean;
+			notes?: boolean;
 		} = {},
-	): Promise<{ created: number; updated: number; deleted: number; linked: number; unlinked: number; reparented: number }> {
+	): Promise<{ created: number; updated: number; deleted: number; linked: number; unlinked: number; reparented: number; renoted: number }> {
 		const doUpdates = selection.updates ?? true;
 		const doCreates = selection.creates ?? true;
 		const doDeletes = selection.deletes ?? true;
 		const doLinks = selection.links ?? true;
 		const doLinkRemovals = selection.linkRemovals ?? true;
 		const doParents = selection.parents ?? true;
+		const doNotes = selection.notes ?? true;
 		let updated = 0;
 		let created = 0;
 		let deleted = 0;
 		let linked = 0;
 		let unlinked = 0;
 		let reparented = 0;
+		let renoted = 0;
 
 		if (doUpdates) {
 			for (const update of plan.updates) {
@@ -539,6 +542,17 @@ export default class TTasksPlugin extends Plugin {
 					updated++;
 				} catch (error) {
 					this.log(`import update failed for ${update.path}: ${String(error)}`);
+				}
+			}
+		}
+
+		if (doNotes) {
+			for (const change of plan.notesChanges) {
+				try {
+					await this.taskStore.updateNotes(change.path, change.to);
+					renoted++;
+				} catch (error) {
+					this.log(`import notes failed for ${change.path}: ${String(error)}`);
 				}
 			}
 		}
@@ -618,7 +632,7 @@ export default class TTasksPlugin extends Plugin {
 			}
 		}
 
-		return { created, updated, deleted, linked, unlinked, reparented };
+		return { created, updated, deleted, linked, unlinked, reparented, renoted };
 	}
 
 	/** Build a create input from a parsed import record; relationships are dropped. */

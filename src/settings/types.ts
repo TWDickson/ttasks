@@ -1,5 +1,7 @@
 ﻿import type { GroupField, QuerySpec, SortField } from '../query/types';
 import type { Task } from '../types';
+import type { TaskJsonMode } from '../integration/taskJsonExport';
+import type { ShareOutputFormat, SharePreamblePresetId } from '../integration/sharePreamble';
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
 export type TaskViewRenderer = 'list' | 'kanban' | 'agenda' | 'graph' | 'archive';
@@ -182,4 +184,25 @@ export interface TTasksSettings {
 	/** Per-view "Sort by" override for list-rendered views, keyed by view id.
 	 *  Unset views use the view's own default sort. */
 	listSortOverrideByViewId: Record<string, { field: SortField; direction: 'asc' | 'desc' }>;
+	/** Last-used state of the Share/Sync export tab, so reopening the modal picks
+	 *  up where the previous share left off instead of resetting to defaults. */
+	shareSync: ShareSyncSettings;
+}
+
+/**
+ * Remembered Share/Sync export choices. Filter facets are stored as the raw
+ * values the user selected; entries naming an area/label/status/project that no
+ * longer exists are simply inert (they match nothing), so no pruning is needed.
+ */
+export interface ShareSyncSettings {
+	mode: TaskJsonMode;
+	outputFormat: ShareOutputFormat;
+	preamblePreset: SharePreamblePresetId;
+	/** User-edited preamble body. Empty means "use the preset's own text". */
+	customPreamble: string;
+	areas: string[];
+	projects: string[];
+	statuses: string[];
+	labels: string[];
+	includeCompleted: boolean;
 }

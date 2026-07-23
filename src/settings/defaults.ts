@@ -22,6 +22,8 @@ import type {
 } from '../query/types';
 import { RENDERER_KANBAN, RENDERER_LIST } from '../constants';
 import { normalizeHolidayEntries } from './holidays';
+import { SHARE_PREAMBLE_PRESETS } from '../integration/sharePreamble';
+import type { SharePreamblePresetId } from '../integration/sharePreamble';
 export const DEFAULT_STATUSES = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Completed'];
 
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
@@ -111,6 +113,17 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	showCompletedByViewId: {},
 	listGroupOverrideByViewId: {},
 	listSortOverrideByViewId: {},
+	shareSync: {
+		mode: 'ai',
+		outputFormat: 'fenced',
+		preamblePreset: 'review',
+		customPreamble: '',
+		areas: [],
+		projects: [],
+		statuses: [],
+		labels: [],
+		includeCompleted: true,
+	},
 };
 
 const FILTER_OPERATORS = new Set<FilterOperator>([
@@ -283,6 +296,14 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		showCompletedByViewId: settings.showCompletedByViewId ?? { ...DEFAULT_SETTINGS.showCompletedByViewId },
 		listGroupOverrideByViewId: settings.listGroupOverrideByViewId ?? { ...DEFAULT_SETTINGS.listGroupOverrideByViewId },
 		listSortOverrideByViewId: settings.listSortOverrideByViewId ?? { ...DEFAULT_SETTINGS.listSortOverrideByViewId },
+		shareSync: {
+			...DEFAULT_SETTINGS.shareSync,
+			...(settings.shareSync ?? {}),
+			areas: [...(settings.shareSync?.areas ?? DEFAULT_SETTINGS.shareSync.areas)],
+			projects: [...(settings.shareSync?.projects ?? DEFAULT_SETTINGS.shareSync.projects)],
+			statuses: [...(settings.shareSync?.statuses ?? DEFAULT_SETTINGS.shareSync.statuses)],
+			labels: [...(settings.shareSync?.labels ?? DEFAULT_SETTINGS.shareSync.labels)],
+		},
 	};
 }
 
@@ -782,6 +803,33 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 
 		const logPartialOnStop = asBoolean(pomodoro.logPartialOnStop);
 		if (logPartialOnStop !== null) target.pomodoro.logPartialOnStop = logPartialOnStop;
+	}
+
+	const shareSync = asRecord(root.shareSync);
+	if (shareSync !== null) {
+		const mode = asString(shareSync.mode);
+		if (mode === 'ai' || mode === 'full') target.shareSync.mode = mode;
+
+		const outputFormat = asString(shareSync.outputFormat);
+		if (outputFormat === 'fenced' || outputFormat === 'separate' || outputFormat === 'json-only') {
+			target.shareSync.outputFormat = outputFormat;
+		}
+
+		const preamblePreset = asString(shareSync.preamblePreset);
+		if (preamblePreset !== null && SHARE_PREAMBLE_PRESETS.some((preset) => preset.id === preamblePreset)) {
+			target.shareSync.preamblePreset = preamblePreset as SharePreamblePresetId;
+		}
+
+		const customPreamble = asString(shareSync.customPreamble);
+		if (customPreamble !== null) target.shareSync.customPreamble = customPreamble;
+
+		for (const facet of ['areas', 'projects', 'statuses', 'labels'] as const) {
+			const values = asStringArray(shareSync[facet]);
+			if (values !== null) target.shareSync[facet] = values;
+		}
+
+		const includeCompleted = asBoolean(shareSync.includeCompleted);
+		if (includeCompleted !== null) target.shareSync.includeCompleted = includeCompleted;
 	}
 }
 

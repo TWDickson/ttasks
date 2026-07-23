@@ -15,8 +15,11 @@
 //    A link target resolves by ref or name against existing tasks + tasks being
 //    created in the same import (so a brand-new A→B→C chain works). Unresolvable or
 //    ambiguous targets are surfaced, never guessed. Parent (project membership)
-//    round-trips the same way — set via `parent`, detach via `remove_parent`. Only
-//    the note body is still NOT imported.
+//    round-trips the same way — set via `parent`, detach via `remove_parent`.
+//  - The note body IS imported, but as its own plan bucket (`notesChanges`) rather
+//    than a normal field: it rewrites the whole markdown body instead of a
+//    frontmatter key, so it needs a separate write path and its own apply toggle.
+//    A create carries its notes through the create input, so only updates land here.
 
 import type { Task } from '../types';
 import type { ParsedImportTask } from './taskJsonImport';
@@ -54,6 +57,15 @@ export interface ImportDelete {
 	name: string;
 }
 
+/** A replacement note body for an existing task. */
+export interface ImportNotesChange {
+	/** Vault path of the existing task whose body is being replaced. */
+	path: string;
+	name: string;
+	from: string;
+	to: string;
+}
+
 /**
  * One end of a dependency link. `existing` tasks carry their vault path; `new`
  * tasks don't have one yet (they're created in the same import) so they're keyed
@@ -88,6 +100,8 @@ export interface ImportPlan {
 	linkRemovals: LinkOp[];
 	/** Project-membership changes (set or detach). */
 	parentChanges: ParentOp[];
+	/** Note-body replacements on existing tasks (own toggle — it overwrites the body). */
+	notesChanges: ImportNotesChange[];
 	/** Matched an existing task but nothing changed. */
 	unchangedCount: number;
 	/** Names that matched more than one existing task and were skipped. */
@@ -170,6 +184,7 @@ export function planImport(parsed: ParsedImportTask[], existing: Task[]): Import
 		linkAdds: [],
 		linkRemovals: [],
 		parentChanges: [],
+		notesChanges: [],
 		unchangedCount: 0,
 		ambiguousNames: [],
 		missingNames: [],
@@ -222,8 +237,19 @@ export function planImport(parsed: ParsedImportTask[], existing: Task[]): Import
 				plan.fieldChangeCounts[field] = (plan.fieldChangeCounts[field] ?? 0) + 1;
 			}
 		}
-		if (changes.length === 0) plan.unchangedCount++;
-		else plan.updates.push({ path: match.path, name: match.name, changes });
+		// Note body: an omitted/empty `notes` means "not specified" (same
+		// never-clear rule as the fields), so only a non-empty, different body
+		// counts. Compared trimmed so trailing-newline noise isn't a "change".
+		const incomingNotes = record.notes.trim();
+		const notesChanged = incomingNotes !== '' && incomingNotes !== (match.notes ?? '').trim();
+		if (notesChanged) {
+			plan.notesChanges.push({ path: match.path, name: match.name, from: match.notes ?? '', to: record.notes });
+		}
+		if (changes.length === 0) {
+			if (!notesChanged) plan.unchangedCount++;
+		} else {
+			plan.updates.push({ path: match.path, name: match.name, changes });
+		}
 		linkSources.push({ record, from: { kind: 'existing', path: match.path, name: match.name }, existingTask: match });
 	}
 
@@ -327,6 +353,7 @@ export function summarizeImportPlan(plan: ImportPlan): string[] {
 	if (plan.linkAdds.length > 0) lines.push(`${plan.linkAdds.length} dependency link${plan.linkAdds.length === 1 ? '' : 's'} added`);
 	if (plan.linkRemovals.length > 0) lines.push(`${plan.linkRemovals.length} dependency link${plan.linkRemovals.length === 1 ? '' : 's'} removed`);
 	if (plan.parentChanges.length > 0) lines.push(`${plan.parentChanges.length} task${plan.parentChanges.length === 1 ? '' : 's'} reparented`);
+	if (plan.notesChanges.length > 0) lines.push(`${plan.notesChanges.length} note bod${plan.notesChanges.length === 1 ? 'y' : 'ies'} replaced`);
 	if (plan.unchangedCount > 0) lines.push(`${plan.unchangedCount} unchanged`);
 
 	const fields = Object.keys(plan.fieldChangeCounts).sort();

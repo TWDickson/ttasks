@@ -27,6 +27,10 @@ export interface TaskJsonMeta {
 	sequences: string;
 	/** How to set/clear a task's project membership. */
 	parent: string;
+	/** How projects differ from tasks, and how to create one. */
+	projects: string;
+	/** Semantics of the free-form note body on the way back in. */
+	notes: string;
 	/** Fields an import can set on a matched task (mirrors taskImportPlan). */
 	updatableFields: string[];
 	/** Fields present in the export but ignored on import. */
@@ -57,8 +61,10 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		'To send changes back, reply with this same shape — a JSON object with a "tasks" array. ' +
 		'Omit any task you are not changing. On each task you do change, add an "action" key and ' +
 		'include only "ref"/"name" (the match key) plus the fields you are setting — keep it light. ' +
-		'For "status", "priority", "area", and "labels", pick only from validValues below — do not ' +
-		'invent new values.',
+		'For "status", "priority", "area", and "labels", pick ONLY from validValues below. Do not ' +
+		'invent new statuses, priorities, areas, or labels — an unrecognized value is not created, it ' +
+		'is imported as-is and has to be cleaned up by hand. If none of the listed values fits, leave ' +
+		'the field unchanged and explain why in prose outside the JSON.',
 	ref:
 		'Stable unique id. Echo it back to target that exact task; omit it to create a new task. ' +
 		'You can also point a dependency at a task by its ref.',
@@ -67,7 +73,9 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		update:
 			'Default when "action" is omitted. Sets the fields you include on the matched task; ' +
 			'omitted fields are left unchanged (a field cannot be cleared by omitting it).',
-		create: 'Add a new task. Requires "name"; unset fields take TTasks defaults.',
+		create:
+			'Add a new item. Requires "name"; unset fields take TTasks defaults. Set "type": "project" ' +
+			'to create a project rather than a task (see "projects").',
 		delete: 'Remove the matched task. Only "ref" (or "name") is needed.',
 	},
 	sequences:
@@ -79,12 +87,22 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		'Set a task\'s project with "parent" (a project ref or name — a project you create in the same ' +
 		'reply works too). Omit it to leave the current project unchanged; set "remove_parent": true to ' +
 		'detach the task from its project.',
+	projects:
+		'A project is an entry with "type": "project" — it groups tasks rather than being worked directly. ' +
+		'Every field above applies to projects too, and they are matched the same way (a project only ever ' +
+		'matches a project). To create one, send "action": "create" with "type": "project", then point its ' +
+		'tasks at it with "parent". Projects do not nest: a project has no "parent" of its own.',
+	notes:
+		'"notes" is the task\'s free-form markdown body. Sending it REPLACES the whole body, so include ' +
+		'the existing text plus your additions rather than only the new part. Omit "notes" entirely to ' +
+		'leave the body untouched — that is the safe default.',
 	updatableFields: [
 		'status', 'priority', 'area', 'labels', 'blocked_reason', 'assigned_to',
 		'source', 'start_date', 'due_date', 'due_time', 'estimated_days',
 		'completed', 'recurrence', 'recurrence_type', 'pomodoro_count', 'focused_minutes',
+		'notes',
 	],
-	ignoredOnImport: ['blocks', 'notes'],
+	ignoredOnImport: ['blocks'],
 };
 
 /** Static meta with no `validValues` — the shape used when the caller doesn't supply settings. */

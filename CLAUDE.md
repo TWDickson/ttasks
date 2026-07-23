@@ -176,6 +176,32 @@ notes.
 
 ## Recent Updates (2026-07-22)
 
+- **Share/Sync export pane reworked (Taylor's 2026-07-22 asks).** Three things
+  landed together. (1) **Message presets + packaging** — new pure
+  `src/integration/sharePreamble.ts`: five presets (*Review & advise*, *Break
+  down into subtasks*, *Plan my week*, *Status catch-up*, *No preamble*) in a
+  dropdown over an **editable textarea**, plus a **Copy as** control with three
+  formats — **One block** (message + JSON in a ```json fence, one paste), **Two
+  fields** (message and JSON as separate copy buttons), and **JSON only**.
+  `composeShareOutput` returns the blocks and the modal renders one Copy button
+  each, auto-closing only on a single-block copy. Every non-empty preset appends
+  the round-trip rule and a **no-new-values rule**, and spells this vault's
+  statuses out inline. (2) **Last-used memory** — new `shareSync` settings block
+  (mode / format / preset / custom preamble / all four filter facets /
+  include-completed) saved on every change; `customPreamble` persists only when
+  it differs from the preset's generated text, so an unedited message still picks
+  up status changes. (3) **notes + projects on import** — `notes` now imports on
+  *updates* too (it already worked on creates while the meta claimed otherwise),
+  as its own `ImportPlan.notesChanges` bucket written via `TaskStore.updateNotes`
+  with its own destructive-flagged toggle; and a new `meta.projects` finally
+  tells the receiving AI that `type: "project"` exists and how to use it
+  (behaviour was already there, only undocumented). **Bug fixed on the way:**
+  `.tt-share-modal` had no scroll containment — app.css caps `.modal` at ~85vh
+  but leaves `.modal-content` `overflow: visible`, so action buttons rendered
+  outside the modal box (709px of content in a 680px modal; pre-existing, the
+  Import tab already hit it). Fixed with a flex column + `overflow-y: auto;
+  min-height: 0`. Build green, **1533 tests**; rig-verified dark + light.
+
 - **Detail sidebar clipping fixed (2026-07-21 feedback).** Reproduced in the rig:
   narrowing the detail leaf to 300px on a 1280px viewport left its content 413px
   wide, and `.tt-detail-view`'s `overflow-x: hidden` silently cut off the rest.

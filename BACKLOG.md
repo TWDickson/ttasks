@@ -123,6 +123,76 @@ Obsidian-touching part.
 
 ---
 
+## Now — Taylor feedback batch (2026-07-22)
+
+- `[x]` **Share/Sync export pane: message presets, packaging, and memory** —
+  *done 2026-07-22.* Taylor: "my work AI takes large text as a single message
+  but others would add it as an attachment… I'd like some option to include a
+  preamble and then the json in a code fence, or just the configurable preamble
+  and then the JSON as two copiable fields… maybe we provide a few default
+  options? Also remember last used on this pane, instructions not to create new
+  statuses."
+  - **Message presets.** New pure `src/integration/sharePreamble.ts` with five
+    presets — *Review & advise*, *Break down into subtasks*, *Plan my week*,
+    *Status catch-up*, *No preamble* — surfaced as a dropdown plus an **editable
+    textarea** (the presets seed the text; what's in the box is what gets
+    copied). Every non-empty preset automatically appends the round-trip rule and
+    the no-new-values rule, and — when the caller passes `validValues` — spells
+    this vault's statuses out inline, on the theory that an AI following prose is
+    more reliable than one that has to go find `meta.validValues` in a long doc.
+  - **Packaging.** A **Copy as** control with three formats: **One block**
+    (message then the JSON in a ```json fence — a single paste, for the work AI),
+    **Two fields** (message and JSON as independently copiable buttons, for tools
+    that want the data as its own paste), and **JSON only** (the previous
+    behaviour). `composeShareOutput` returns the blocks; the modal renders one
+    Copy button per block and only auto-closes on a single-block copy (with two
+    fields the user still needs the second one). **Save .json file** is unchanged
+    and is the attachment path.
+  - **Remembered.** New `shareSync` settings block (mode, output format, preset,
+    custom preamble, all four filter facets, include-completed) written on every
+    change and read in the modal constructor. `customPreamble` is only persisted
+    when it differs from the preset's generated text, so an unedited preamble
+    still picks up changes to the vault's statuses on the next open.
+  - **Bug found + fixed on the way:** `.tt-share-modal` had no scroll
+    containment — app.css caps `.modal` at ~85vh but leaves `.modal-content`
+    `overflow: visible`, so the action buttons rendered *outside* the modal box
+    (measured in the rig: 709px of content in a 680px modal, buttons at y=786
+    against a modal bottom of 740). Pre-existing — the Import tab's preview
+    already hit it. Fixed with `display: flex; flex-direction: column` on the
+    modal + `overflow-y: auto; min-height: 0` on the content (the same
+    "flex item floors at content height" trap as the detail-sidebar fix).
+  - Rig-verified dark + light: presets render, format switching swaps the copy
+    buttons correctly (`Copy message` / `Copy JSON`), and the actions now sit
+    inside the modal. Build green, **1533 tests** (up from 1511).
+- `[x]` **Share/Sync: notes field on import** — *done 2026-07-22; answered a
+  question of Taylor's and found a docs bug.* Status before: a **create** already
+  wrote `notes` into the new note's body, but an **update** silently ignored
+  them, and both the AI meta (`ignoredOnImport: ['blocks','notes']`) and the
+  modal's blurb claimed notes were ignored outright. Now imported on updates too,
+  as its own plan bucket (`ImportPlan.notesChanges`) rather than a
+  `IMPORT_UPDATABLE_FIELDS` entry — it rewrites the whole markdown body via
+  `TaskStore.updateNotes` instead of a frontmatter key, so it needs a separate
+  write path. Same never-clear rule as the fields (an omitted/empty `notes` means
+  "not specified"), compared trimmed so trailing-newline noise isn't a change.
+  Gets its own **destructive-flagged** apply toggle ("Replace note bodies") since
+  it overwrites, and a new `meta.notes` tells the AI to send the existing body
+  plus its additions rather than only the new part. `applyImportPlan` returns a
+  new `renoted` count.
+- `[x]` **Share/Sync: does it handle projects?** — *answered + documented
+  2026-07-22.* Yes, mechanically: `type: 'project'` exports, parses, matches
+  project-to-project by name, creates as a project, and `parent` sets membership.
+  But nothing told the receiving AI — `actions.create` said "Add a new task" and
+  `type: "project"` was mentioned nowhere. Added a `meta.projects` key explaining
+  what a project is, that it's matched the same way, that you create one with
+  `action: "create"` + `type: "project"`, and that projects don't nest; also
+  updated `actions.create` and the Import tab's blurb. No behaviour change —
+  documentation of behaviour that already worked.
+- `[ ]` **Share/Sync import: allow importing from notes** 🔎 — still open, see the
+  2026-07-21 batch below. (Distinct from the notes *field* item above: this is
+  about parsing tasks out of an arbitrary Obsidian note.)
+
+---
+
 ## Now — Taylor feedback batch (2026-07-21)
 
 *Raw feedback from Taylor's pass through the app 2026-07-21 — not yet scoped or

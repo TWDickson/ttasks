@@ -11,6 +11,15 @@ import {
 } from '../integration/taskExportFilter';
 import { parseTasksJson } from '../integration/taskJsonImport';
 import { type ImportPlan, planImport, summarizeImportPlan } from '../integration/taskImportPlan';
+import {
+	type ShareOutputBlock,
+	type ShareOutputFormat,
+	type SharePreamblePresetId,
+	SHARE_PREAMBLE_PRESETS,
+	buildPreambleText,
+	composeShareOutput,
+	findPreamblePreset,
+} from '../integration/sharePreamble';
 
 type ShareTab = 'export' | 'import';
 
@@ -22,26 +31,70 @@ type ShareTab = 'export' | 'import';
  */
 export class ShareSyncModal extends Modal {
 	private tab: ShareTab = 'export';
-	private mode: TaskJsonMode = 'ai';
-	private criteria: ExportFilterCriteria = { ...EMPTY_EXPORT_CRITERIA };
+	private mode: TaskJsonMode;
+	private criteria: ExportFilterCriteria;
+	private outputFormat: ShareOutputFormat;
+	private preamblePreset: SharePreamblePresetId;
+	/** Live preamble text; seeded from the preset and editable in place. */
+	private preambleText: string;
 
 	private bodyEl: HTMLElement | null = null;
 	private countEl: HTMLElement | null = null;
+	private outputEl: HTMLElement | null = null;
 
 	// Import state
 	private importText = '';
 	private importPlan: ImportPlan | null = null;
 	// All categories are accepted by default; uncheck to deny. Destructive ones
-	// (deletions, link removals) are still flagged so they don't apply unnoticed.
+	// (deletions, link removals, note-body replacements) are still flagged so they
+	// don't apply unnoticed.
 	private applyCreates = true;
 	private applyUpdates = true;
 	private applyDeletes = true;
 	private applyLinks = true;
 	private applyLinkRemovals = true;
 	private applyParents = true;
+	private applyNotes = true;
 
 	constructor(app: App, private readonly plugin: TTasksPlugin) {
 		super(app);
+		// Reopen where the last share left off (settings.shareSync).
+		const remembered = plugin.settings.shareSync;
+		this.mode = remembered.mode;
+		this.outputFormat = remembered.outputFormat;
+		this.preamblePreset = remembered.preamblePreset;
+		this.criteria = {
+			areas: [...remembered.areas],
+			projects: [...remembered.projects],
+			statuses: [...remembered.statuses],
+			labels: [...remembered.labels],
+			includeCompleted: remembered.includeCompleted,
+		};
+		this.preambleText = remembered.customPreamble.trim() !== ''
+			? remembered.customPreamble
+			: buildPreambleText(findPreamblePreset(this.preamblePreset), plugin.taskJsonValidValues());
+	}
+
+	/**
+	 * Persist the export tab's current state. Fire-and-forget on every change so a
+	 * mid-session close still remembers; `customPreamble` is only stored when it
+	 * differs from the preset's generated text, so preset edits (or a change to the
+	 * vault's statuses) still refresh the default wording on next open.
+	 */
+	private rememberExportState(): void {
+		const generated = buildPreambleText(findPreamblePreset(this.preamblePreset), this.plugin.taskJsonValidValues());
+		this.plugin.settings.shareSync = {
+			mode: this.mode,
+			outputFormat: this.outputFormat,
+			preamblePreset: this.preamblePreset,
+			customPreamble: this.preambleText === generated ? '' : this.preambleText,
+			areas: [...this.criteria.areas],
+			projects: [...this.criteria.projects],
+			statuses: [...this.criteria.statuses],
+			labels: [...this.criteria.labels],
+			includeCompleted: this.criteria.includeCompleted,
+		};
+		void this.plugin.saveSettings();
 	}
 
 	onOpen(): void {
@@ -116,15 +169,18 @@ export class ShareSyncModal extends Modal {
 		cb.addEventListener('change', () => {
 			this.criteria.includeCompleted = cb.checked;
 			this.updateCount();
+			this.rememberExportState();
 		});
 
 		this.countEl = parent.createEl('p', { cls: 'tt-share-count' });
 
-		const actions = parent.createDiv({ cls: 'modal-button-container' });
-		actions.createEl('button', { text: 'Copy to clipboard', cls: 'mod-cta' })
-			.addEventListener('click', () => void this.copy());
-		actions.createEl('button', { text: 'Save .json file' })
-			.addEventListener('click', () => void this.save());
+		// The message + packaging controls only apply to an AI-bound export; a
+		// 'full' export is a machine round-trip file with no chat on the other end.
+		if (this.mode === 'ai') this.renderPreamble(parent);
+		this.renderOutputFormat(parent);
+
+		this.outputEl = parent.createDiv({ cls: 'modal-button-container' });
+		this.renderOutputActions();
 
 		this.updateCount();
 	}
@@ -141,11 +197,100 @@ export class ShareSyncModal extends Modal {
 			const btn = group.createEl('button', { text: opt.label, cls: 'tt-btn tt-btn-sm', title: opt.title });
 			btn.toggleClass('tt-btn-primary', this.mode === opt.id);
 			btn.addEventListener('click', () => {
+				if (this.mode === opt.id) return;
 				this.mode = opt.id;
-				group.querySelectorAll('button').forEach((b) => b.removeClass('tt-btn-primary'));
-				btn.addClass('tt-btn-primary');
+				this.rememberExportState();
+				// Re-render: the message controls appear/disappear with the mode.
+				this.renderActiveTab();
 			});
 		}
+	}
+
+	/**
+	 * The framing message that goes in front of the JSON. A preset seeds the
+	 * textarea; editing it in place is what actually gets copied, so the presets
+	 * are a starting point rather than a fixed set.
+	 */
+	private renderPreamble(parent: HTMLElement): void {
+		const group = parent.createDiv({ cls: 'tt-share-group tt-share-preamble' });
+		const head = group.createDiv({ cls: 'tt-share-preamble-head' });
+		head.createSpan({ cls: 'tt-label', text: 'Message' });
+
+		const select = head.createEl('select', { cls: 'dropdown tt-share-preamble-select' });
+		for (const preset of SHARE_PREAMBLE_PRESETS) {
+			select.createEl('option', { text: preset.label, value: preset.id });
+		}
+		select.value = this.preamblePreset;
+
+		const textarea = group.createEl('textarea', { cls: 'tt-share-preamble-text' });
+		textarea.rows = 5;
+		textarea.value = this.preambleText;
+		textarea.placeholder = 'Message to put in front of the JSON…';
+
+		select.addEventListener('change', () => {
+			this.preamblePreset = select.value as SharePreamblePresetId;
+			// Switching preset replaces the text — the edited copy belonged to the
+			// preset that was selected, so carrying it over would be misleading.
+			this.preambleText = buildPreambleText(
+				findPreamblePreset(this.preamblePreset),
+				this.plugin.taskJsonValidValues(),
+			);
+			textarea.value = this.preambleText;
+			this.rememberExportState();
+			this.renderOutputActions();
+		});
+		textarea.addEventListener('input', () => {
+			this.preambleText = textarea.value;
+			this.rememberExportState();
+			this.renderOutputActions();
+		});
+	}
+
+	/** How the message and the JSON are packaged for copying. */
+	private renderOutputFormat(parent: HTMLElement): void {
+		const row = parent.createDiv({ cls: 'tt-share-mode' });
+		row.createSpan({ cls: 'tt-label', text: 'Copy as' });
+		const group = row.createDiv({ cls: 'tt-share-mode-btns' });
+		const options: Array<{ id: ShareOutputFormat; label: string; title: string }> = [
+			{ id: 'fenced', label: 'One block', title: 'Message then the JSON in a ```json fence — a single paste.' },
+			{ id: 'separate', label: 'Two fields', title: 'Message and JSON copied separately — for tools that take the data as its own paste or attachment.' },
+			{ id: 'json-only', label: 'JSON only', title: 'No message, just the JSON.' },
+		];
+		for (const opt of options) {
+			const btn = group.createEl('button', { text: opt.label, cls: 'tt-btn tt-btn-sm', title: opt.title });
+			btn.toggleClass('tt-btn-primary', this.outputFormat === opt.id);
+			btn.addEventListener('click', () => {
+				this.outputFormat = opt.id;
+				group.querySelectorAll('button').forEach((b) => b.removeClass('tt-btn-primary'));
+				btn.addClass('tt-btn-primary');
+				this.rememberExportState();
+				this.renderOutputActions();
+			});
+		}
+	}
+
+	/** One Copy button per composed block, plus the always-present file export. */
+	private renderOutputActions(): void {
+		const actions = this.outputEl;
+		if (!actions) return;
+		actions.empty();
+
+		const blocks = this.composeBlocks('');
+		blocks.forEach((block, index) => {
+			const btn = actions.createEl('button', { text: block.copyLabel });
+			// Highlight the first copy button as the primary action.
+			if (index === 0) btn.addClass('mod-cta');
+			btn.addEventListener('click', () => void this.copyBlock(index));
+		});
+
+		actions.createEl('button', { text: 'Save .json file', title: 'Write a .json file to the vault root — use this when the tool wants an attachment.' })
+			.addEventListener('click', () => void this.save());
+	}
+
+	/** Compose the current output blocks around a given JSON payload. */
+	private composeBlocks(json: string): ShareOutputBlock[] {
+		const preamble = this.mode === 'ai' ? this.preambleText : '';
+		return composeShareOutput(preamble, json, this.outputFormat);
 	}
 
 	private renderChipGroup(
@@ -169,6 +314,7 @@ export class ShareSyncModal extends Modal {
 				else selected.push(value);
 				chip.toggleClass('is-selected', selected.includes(value));
 				this.updateCount();
+				this.rememberExportState();
 			});
 		}
 	}
@@ -184,17 +330,23 @@ export class ShareSyncModal extends Modal {
 		this.countEl.setText(`${n} of ${total} task${total === 1 ? '' : 's'} selected.`);
 	}
 
-	private async copy(): Promise<void> {
+	private async copyBlock(index: number): Promise<void> {
 		const tasks = this.selectedTasks();
 		if (tasks.length === 0) {
 			new Notice('TTasks: no tasks match the current filters.');
 			return;
 		}
 		const json = serializeTasksToJson(tasks, this.mode, new Date().toISOString(), this.plugin.taskJsonValidValues());
+		const blocks = this.composeBlocks(json);
+		const block = blocks[index];
+		if (!block) return;
 		try {
-			await navigator.clipboard.writeText(json);
-			new Notice(`TTasks: copied ${tasks.length} task(s) to the clipboard.`);
-			this.close();
+			await navigator.clipboard.writeText(block.text);
+			const what = block.label === '' ? `${tasks.length} task(s)` : `the ${block.label.toLowerCase()}`;
+			new Notice(`TTasks: copied ${what} to the clipboard.`);
+			// With two separate fields the user still needs the other one, so only
+			// a single-block copy is "done".
+			if (blocks.length === 1) this.close();
 		} catch {
 			new Notice('TTasks: clipboard unavailable — use “Save .json file” instead.');
 		}
@@ -215,7 +367,7 @@ export class ShareSyncModal extends Modal {
 	private renderImport(parent: HTMLElement): void {
 		parent.createEl('p', {
 			cls: 'setting-item-description',
-			text: 'Paste an exported (or AI-edited) document. Preview the changes, then apply — all categories are applied by default; uncheck any to skip it. Matched by ref, else by task name. An entry can carry an "action" ("create" / "delete"); with none it updates the matched task, or creates it if new. Dependency links (depends_on) are added; list tasks under "remove_depends_on" to unlink. Set a project with "parent" or detach with "remove_parent". Note bodies are not imported.',
+			text: 'Paste an exported (or AI-edited) document. Preview the changes, then apply — all categories are applied by default; uncheck any to skip it. Matched by ref, else by type + task name (projects only ever match projects). An entry can carry an "action" ("create" / "delete"); with none it updates the matched task, or creates it if new — add "type": "project" to create a project. Dependency links (depends_on) are added; list tasks under "remove_depends_on" to unlink. Set a project with "parent" or detach with "remove_parent". A "notes" value replaces the whole note body; omit it to leave the body alone.',
 		});
 
 		const textarea = parent.createEl('textarea', { cls: 'tt-share-import-text' });
@@ -260,7 +412,8 @@ export class ShareSyncModal extends Modal {
 					(this.applyDeletes && plan.deletes.length > 0) ||
 					(this.applyLinks && plan.linkAdds.length > 0) ||
 					(this.applyLinkRemovals && plan.linkRemovals.length > 0) ||
-					(this.applyParents && plan.parentChanges.length > 0)
+					(this.applyParents && plan.parentChanges.length > 0) ||
+					(this.applyNotes && plan.notesChanges.length > 0)
 				);
 			};
 
@@ -290,6 +443,7 @@ export class ShareSyncModal extends Modal {
 			addToggle('Apply links', plan.linkAdds.length, this.applyLinks, (v) => (this.applyLinks = v));
 			addToggle('Apply link removals', plan.linkRemovals.length, this.applyLinkRemovals, (v) => (this.applyLinkRemovals = v), true);
 			addToggle('Apply parent changes', plan.parentChanges.length, this.applyParents, (v) => (this.applyParents = v));
+			addToggle('Replace note bodies', plan.notesChanges.length, this.applyNotes, (v) => (this.applyNotes = v), true);
 			addToggle('Apply deletions', plan.deletes.length, this.applyDeletes, (v) => (this.applyDeletes = v), true);
 
 			refreshApply();
@@ -307,19 +461,21 @@ export class ShareSyncModal extends Modal {
 	private async applyImport(): Promise<void> {
 		if (!this.importPlan) return;
 		const plan = this.importPlan;
-		const { created, updated, deleted, linked, unlinked, reparented } = await this.plugin.applyImportPlan(plan, {
+		const { created, updated, deleted, linked, unlinked, reparented, renoted } = await this.plugin.applyImportPlan(plan, {
 			creates: this.applyCreates,
 			updates: this.applyUpdates,
 			deletes: this.applyDeletes,
 			links: this.applyLinks,
 			linkRemovals: this.applyLinkRemovals,
 			parents: this.applyParents,
+			notes: this.applyNotes,
 		});
 		const parts = [`${created} created`, `${updated} updated`];
 		if (deleted > 0) parts.push(`${deleted} deleted`);
 		if (linked > 0) parts.push(`${linked} linked`);
 		if (unlinked > 0) parts.push(`${unlinked} unlinked`);
 		if (reparented > 0) parts.push(`${reparented} reparented`);
+		if (renoted > 0) parts.push(`${renoted} note bodies replaced`);
 		new Notice(`TTasks: imported — ${parts.join(', ')}.`);
 		this.close();
 	}

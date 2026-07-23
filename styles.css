@@ -1052,6 +1052,18 @@
 /* ── Share / Sync modal ─────────────────────────────────────────────────────── */
 .tt-share-modal {
 	width: min(640px, 94vw);
+	/* app.css caps .modal at ~85vh but leaves .modal-content overflow visible, so a
+	   tall tab (export with a message box, or import with a preview) renders its
+	   action buttons *outside* the modal box. Flex the modal and let the content
+	   scroll instead. `min-height: 0` is required — a flex item floors at its
+	   content height otherwise, which is exactly the overflow we're removing. */
+	display: flex;
+	flex-direction: column;
+}
+
+.tt-share-modal .modal-content {
+	overflow-y: auto;
+	min-height: 0;
 }
 
 .tt-share-mode {
@@ -1152,6 +1164,27 @@
 	font-family: var(--font-monospace);
 	font-size: var(--font-ui-smaller);
 	min-height: 140px;
+}
+
+/* Export tab: the editable message that goes in front of the JSON. */
+.tt-share-preamble-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--tt-space-2, 8px);
+	flex-wrap: wrap;
+}
+
+.tt-share-preamble-select {
+	max-width: 60%;
+}
+
+.tt-share-preamble-text {
+	width: 100%;
+	resize: vertical;
+	font-size: var(--font-ui-smaller);
+	min-height: 76px;
+	line-height: 1.45;
 }
 
 .tt-share-summary {

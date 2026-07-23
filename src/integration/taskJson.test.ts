@@ -111,8 +111,21 @@ describe('buildTaskJsonDocument — ai mode', () => {
 		expect(fullDoc.meta).toBeUndefined();
 	});
 
+	// `notes` is importable but isn't a frontmatter field, so it lives in its own
+	// plan bucket (see taskImportPlan) rather than IMPORT_UPDATABLE_FIELDS. The
+	// meta still has to advertise it, hence the explicit "+ notes" here.
 	it('keeps the meta field list in sync with the real updatable fields', () => {
-		expect(AI_IMPORT_META.updatableFields).toEqual([...IMPORT_UPDATABLE_FIELDS]);
+		expect(AI_IMPORT_META.updatableFields).toEqual([...IMPORT_UPDATABLE_FIELDS, 'notes']);
+	});
+
+	it('tells the AI that projects exist and how to make one', () => {
+		expect(AI_IMPORT_META.projects).toContain('"type": "project"');
+		expect(AI_IMPORT_META.actions.create).toContain('"type": "project"');
+	});
+
+	it('warns that a notes value replaces the whole body, and no longer claims notes are ignored', () => {
+		expect(AI_IMPORT_META.notes).toContain('REPLACES');
+		expect(AI_IMPORT_META.ignoredOnImport).toEqual(['blocks']);
 	});
 
 	it('embeds this vault\'s configured enum values when supplied', () => {

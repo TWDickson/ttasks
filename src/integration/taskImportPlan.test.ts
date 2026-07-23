@@ -208,6 +208,73 @@ describe('planImport', () => {
 	});
 });
 
+describe('planImport — note bodies', () => {
+	it('records a note-body replacement as its own bucket, not a field update', () => {
+		const existing = task({ name: 'A', notes: 'old body' });
+		const plan = planImport([parsed({ name: 'A', notes: 'new body' })], [existing]);
+		expect(plan.notesChanges).toEqual([
+			{ path: existing.path, name: 'A', from: 'old body', to: 'new body' },
+		]);
+		expect(plan.updates).toHaveLength(0);
+		expect(plan.unchangedCount).toBe(0);
+	});
+
+	it('treats an omitted or empty notes value as "not specified" (never clears a body)', () => {
+		const existing = task({ name: 'A', notes: 'keep me' });
+		for (const notes of ['', '   ']) {
+			const plan = planImport([parsed({ name: 'A', notes })], [existing]);
+			expect(plan.notesChanges).toHaveLength(0);
+			expect(plan.unchangedCount).toBe(1);
+		}
+	});
+
+	it('ignores a body that differs only by surrounding whitespace', () => {
+		const plan = planImport(
+			[parsed({ name: 'A', notes: '\n  same body \n' })],
+			[task({ name: 'A', notes: 'same body' })],
+		);
+		expect(plan.notesChanges).toHaveLength(0);
+		expect(plan.unchangedCount).toBe(1);
+	});
+
+	it('adds a body to a task that had none', () => {
+		const plan = planImport([parsed({ name: 'A', notes: 'first note' })], [task({ name: 'A', notes: '' })]);
+		expect(plan.notesChanges).toHaveLength(1);
+		expect(plan.notesChanges[0].from).toBe('');
+	});
+
+	it('pairs a note change with field changes on the same task', () => {
+		const existing = task({ name: 'A', status: 'Active', notes: 'old' });
+		const plan = planImport([parsed({ name: 'A', status: 'Done', notes: 'new' })], [existing]);
+		expect(plan.updates).toHaveLength(1);
+		expect(plan.notesChanges).toHaveLength(1);
+		expect(plan.unchangedCount).toBe(0);
+	});
+
+	it('leaves creates out of notesChanges (their body rides on the create input)', () => {
+		const plan = planImport([parsed({ name: 'Brand new', notes: 'body' })], []);
+		expect(plan.creates).toHaveLength(1);
+		expect(plan.notesChanges).toHaveLength(0);
+	});
+});
+
+describe('planImport — projects', () => {
+	it('only matches a project against a project of the same name', () => {
+		const existingTask = task({ name: 'Apollo', type: 'task', path: 'Tasks/t.md' });
+		const plan = planImport([parsed({ name: 'Apollo', type: 'project', status: 'Active' })], [existingTask]);
+		expect(plan.updates).toHaveLength(0);
+		expect(plan.creates).toHaveLength(1);
+		expect(plan.creates[0].parsed.type).toBe('project');
+	});
+
+	it('updates an existing project matched by type + name', () => {
+		const project = task({ id: 'p1', name: 'Apollo', type: 'project', path: 'Tasks/p1-apollo.md', status: 'Active' });
+		const plan = planImport([parsed({ name: 'apollo', type: 'project', status: 'Hold' })], [project]);
+		expect(plan.updates).toHaveLength(1);
+		expect(plan.updates[0].changes).toEqual([{ field: 'status', from: 'Active', to: 'Hold' }]);
+	});
+});
+
 describe('planImport — dependency links', () => {
 	it('adds a depends_on edge between two existing tasks, resolving by name', () => {
 		const a = task({ id: 'a', name: 'A', path: 'Tasks/a.md' });

@@ -206,6 +206,8 @@ export interface RigPlugin {
 	focusedTaskPath: Writable<string | null>;
 	activeViewMode: Writable<string | null>;
 	saveSettings: () => Promise<void>;
+	/** Mirrors the plugin method the Share/Sync modal uses to seed its preamble. */
+	taskJsonValidValues: () => { statuses: string[]; priorities: string[]; areas: string[]; labels: string[] };
 	openPluginSettings: () => void;
 	showTaskContextMenu: (task: Task, event: MouseEvent) => void;
 	triggerTaskHoverPreview: (path: string, event: MouseEvent) => void;
@@ -299,6 +301,17 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			kanbanCardFields: ['area', 'dueDate', 'labels', 'depCount'],
 			kanbanCollapsedColumns: '',
 			showCompletedByViewId: {},
+			shareSync: {
+				mode: 'ai',
+				outputFormat: 'fenced',
+				preamblePreset: 'review',
+				customPreamble: '',
+				areas: [],
+				projects: [],
+				statuses: [],
+				labels: [],
+				includeCompleted: true,
+			},
 			quickActions: { blockStatus: 'Blocked' },
 			fabPosition: 'right',
 			holidays: [],
@@ -309,12 +322,14 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			pomodoro: { ...DEFAULT_POMODORO_CONFIG, autoStartNext: true, logEnabled: true, logPath: 'ttasks-pomodoro-log.csv' },
 	};
 
+	// Real vault settings win over rig defaults; defaults backfill anything
+	// data.json doesn't carry.
+	const settings = { ...defaultSettings, ...(options.settings ?? {}) };
+
 	return {
 		app: {},
 		manifest: { id: 'ttasks' },
-		// Real vault settings win over rig defaults; defaults backfill anything
-		// data.json doesn't carry.
-		settings: { ...defaultSettings, ...(options.settings ?? {}) },
+		settings,
 		taskStore,
 		scanEngine: { tasks: writable<Task[]>([]) },
 		archiveService: {
@@ -331,6 +346,12 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		focusedTaskPath,
 		activeViewMode,
 		saveSettings: async () => {},
+		taskJsonValidValues: () => ({
+			statuses: [...(settings.statuses as string[])],
+			priorities: ['High', 'Medium', 'Low', 'None'],
+			areas: [...(settings.areas as string[])],
+			labels: [...(settings.labelValues as string[])],
+		}),
 		openPluginSettings: () => console.info('[rig] openPluginSettings'),
 		showTaskContextMenu: (task: Task, event: MouseEvent) => {
 			console.info('[rig] context menu', task.name, event.type);
