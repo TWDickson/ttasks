@@ -9,7 +9,7 @@ import './vendor/theme-underwater.css';
 import '../styles.css';
 import './rig.css';
 
-import { derived, writable } from 'svelte/store';
+import { derived, get, writable } from 'svelte/store';
 import TaskBoard from '../src/components/TaskBoard.svelte';
 import TaskRail from '../src/components/TaskRail.svelte';
 import TaskDetail from '../src/components/TaskDetail.svelte';
@@ -249,6 +249,46 @@ if (params.get('modal') === '1') {
 }
 if (params.get('share') === '1') {
 	new ShareSyncModal(plugin.app as never, plugin as never).open();
+}
+
+/* ?share=import — opens the modal on the Import tab with a paste already
+   previewed, so the per-item review list (expand/reject rows, rendered note
+   bodies) can be screenshotted. The paste is built from the live task set so the
+   entries resolve to real names instead of "not found". */
+if (params.get('share') === 'import') {
+	new ShareSyncModal(plugin.app as never, plugin as never).open();
+	const sample = get(plugin.taskStore.tasks).filter((task) => task.type === 'task').slice(0, 4);
+	const paste = JSON.stringify({
+		tasks: [
+			{ ref: sample[0]?.id, status: 'In Progress', priority: 'High' },
+			{ ref: sample[1]?.id, due_date: '2026-08-14', estimated_days: 3 },
+			{
+				ref: sample[2]?.id,
+				notes: '## Revised plan\n\nPull the **schema freeze** forward and split the migration:\n\n- dry run against a copy\n- verify row counts\n- cut over\n\n> Rollback is a single `git revert`.',
+			},
+			{ action: 'create', name: 'Draft the QA checklist', depends_on: [sample[0]?.name].filter(Boolean) },
+			{ action: 'delete', ref: sample[3]?.id },
+		],
+	}, null, 2);
+
+	// Drive the modal through its own UI rather than reaching into its state —
+	// the rig should exercise the same path a user does.
+	requestAnimationFrame(() => {
+		const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.tt-share-tab'));
+		tabs.find((tab) => tab.textContent === 'Import')?.click();
+		const textarea = document.querySelector<HTMLTextAreaElement>('.tt-share-import-text');
+		if (textarea) {
+			textarea.value = paste;
+			textarea.dispatchEvent(new Event('input'));
+		}
+		const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('.modal-button-container button'));
+		buttons.find((btn) => btn.textContent === 'Preview changes')?.click();
+		// Expand the note-body row: the rendered markdown is the point of the scene.
+		requestAnimationFrame(() => {
+			document.querySelectorAll<HTMLButtonElement>('.tt-import-group')[1]
+				?.querySelector<HTMLButtonElement>('.tt-import-expand')?.click();
+		});
+	});
 }
 
 // Signal readiness for the screenshot script

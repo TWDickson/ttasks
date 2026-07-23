@@ -13,6 +13,27 @@ export type TaskJsonMode = 'full' | 'ai';
 export const TASK_JSON_SCHEMA_VERSION = 1;
 
 /**
+ * How much of each task's markdown body ships with the export.
+ *
+ * Note bodies dominate a real export — measured against a 100-task vault they were
+ * 62% of the tokens, more than every structural choice combined — so this is the
+ * single biggest lever on what an external AI has to read. `summary` keeps the
+ * opening of each body for context; `none` drops bodies entirely.
+ */
+export type NotesPolicy = 'full' | 'summary' | 'none';
+
+/** Characters kept per body under the `summary` policy. */
+export const NOTES_SUMMARY_LENGTH = 200;
+
+/** Apply a notes policy to one body. */
+export function applyNotesPolicy(notes: string, policy: NotesPolicy): string {
+	if (policy === 'none') return '';
+	if (policy === 'full') return notes;
+	const trimmed = notes.trim();
+	return trimmed.length <= NOTES_SUMMARY_LENGTH ? trimmed : `${trimmed.slice(0, NOTES_SUMMARY_LENGTH)}…`;
+}
+
+/**
  * Round-trip contract embedded in 'ai'-mode exports so a receiving AI knows how
  * to reply: it may tag each task with an `action` and send back only the fields
  * it is changing. Nothing it returns is written blindly — TTasks previews every
@@ -23,6 +44,8 @@ export interface TaskJsonMeta {
 	ref: string;
 	matchedBy: string;
 	actions: Record<'update' | 'create' | 'delete', string>;
+	/** That this is a graph, not a flat list — read before reasoning about order. */
+	graph: string;
 	/** How to express dependency order on the way back. */
 	sequences: string;
 	/** How to set/clear a task's project membership. */
@@ -35,6 +58,12 @@ export interface TaskJsonMeta {
 	updatableFields: string[];
 	/** Fields present in the export but ignored on import. */
 	ignoredOnImport: string[];
+	/**
+	 * Present only when note bodies were shortened or dropped for this export.
+	 * Sending `notes` back would then overwrite a full body with a fragment, so
+	 * the warning has to travel with the data.
+	 */
+	notesTruncated?: string;
 	/**
 	 * This vault's configured enum values — pick from these rather than
 	 * inventing new statuses/areas/labels the plugin doesn't recognize.
@@ -78,6 +107,13 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 			'to create a project rather than a task (see "projects").',
 		delete: 'Remove the matched task. Only "ref" (or "name") is needed.',
 	},
+	graph:
+		'This is a dependency GRAPH, not a flat list. Each task may point at the tasks that must finish ' +
+		'before it ("depends_on") and at the project that owns it ("parent"); "blocks" is the reverse of ' +
+		'"depends_on" and is derived, never set. Read the whole set as a graph before advising: a task is ' +
+		'only workable once everything it depends on is complete, changing one task\'s dates or status can ' +
+		'move everything downstream of it, and a project\'s real timeline is driven by the longest chain ' +
+		'through it. Do not propose a cycle — the chain must stay acyclic.',
 	sequences:
 		'Order tasks with "depends_on": a task lists the tasks that must finish before it, each by ' +
 		'ref or name. New tasks created in the same reply can be referenced by name, so you can define ' +
@@ -109,9 +145,21 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 export const AI_IMPORT_META: TaskJsonMeta = AI_IMPORT_META_BASE;
 
 /** Meta for an 'ai'-mode export, embedding this vault's enum lists when supplied. */
-function buildAiImportMeta(validValues?: TaskJsonValidValues): TaskJsonMeta {
-	if (!validValues) return AI_IMPORT_META;
-	return { ...AI_IMPORT_META_BASE, validValues };
+function buildAiImportMeta(validValues?: TaskJsonValidValues, notesPolicy: NotesPolicy = 'full'): TaskJsonMeta {
+	const meta: TaskJsonMeta = validValues ? { ...AI_IMPORT_META_BASE, validValues } : { ...AI_IMPORT_META_BASE };
+	if (notesPolicy === 'full') return meta;
+
+	meta.notesTruncated = notesPolicy === 'summary'
+		? `Note bodies in this export are TRUNCATED to the first ${NOTES_SUMMARY_LENGTH} characters (a trailing ` +
+			'"…" marks a cut body). Do NOT send "notes" back — doing so would replace the real, longer body ' +
+			'with this fragment. Put anything you want added to a body in prose instead.'
+		: 'Note bodies were OMITTED from this export — you are seeing task fields only. Do NOT send "notes" ' +
+			'back; a body you did not see cannot be safely replaced.';
+	// The default `notes` contract invites a replacement body, which is exactly
+	// what must not happen here — overwrite it rather than leaving the two
+	// instructions to contradict each other.
+	meta.notes = `Do not send "notes" back in this export. ${meta.notesTruncated}`;
+	return meta;
 }
 
 /** One task in the exported document. Optional fields are omitted in 'ai' mode. */
@@ -176,7 +224,13 @@ function pruneUndefined(record: ExportedTask): ExportedTask {
 	return out as unknown as ExportedTask;
 }
 
-function exportOne(task: Task, mode: TaskJsonMode, resolveLink: (path: string) => string): ExportedTask {
+function exportOne(
+	task: Task,
+	mode: TaskJsonMode,
+	resolveLink: (path: string) => string,
+	notesPolicy: NotesPolicy,
+): ExportedTask {
+	const notes = applyNotesPolicy(task.notes, notesPolicy);
 	if (mode === 'ai') {
 		return pruneUndefined({
 			ref: task.id,
@@ -199,7 +253,7 @@ function exportOne(task: Task, mode: TaskJsonMode, resolveLink: (path: string) =
 			recurrence_type: task.recurrence_type || undefined,
 			pomodoro_count: task.pomodoro_count ?? undefined,
 			focused_minutes: task.focused_minutes ?? undefined,
-			notes: task.notes,
+			notes,
 		});
 	}
 
@@ -233,7 +287,7 @@ function exportOne(task: Task, mode: TaskJsonMode, resolveLink: (path: string) =
 		reminder_override: task.reminder_override ?? null,
 		pomodoro_count: task.pomodoro_count ?? null,
 		focused_minutes: task.focused_minutes ?? null,
-		notes: task.notes,
+		notes,
 	};
 }
 
@@ -243,15 +297,16 @@ export function buildTaskJsonDocument(
 	mode: TaskJsonMode,
 	generatedAt: string,
 	validValues?: TaskJsonValidValues,
+	notesPolicy: NotesPolicy = 'full',
 ): TaskJsonDocument {
 	const nameByPath = new Map(tasks.map((task) => [task.path, task.name]));
 	const resolveLink = (path: string): string => nameByPath.get(path) ?? basename(path);
-	const exported = tasks.map((task) => exportOne(task, mode, resolveLink));
+	const exported = tasks.map((task) => exportOne(task, mode, resolveLink, notesPolicy));
 	return {
 		schemaVersion: TASK_JSON_SCHEMA_VERSION,
 		generatedAt,
 		mode,
-		...(mode === 'ai' ? { meta: buildAiImportMeta(validValues) } : {}),
+		...(mode === 'ai' ? { meta: buildAiImportMeta(validValues, notesPolicy) } : {}),
 		taskCount: exported.length,
 		tasks: exported,
 	};
@@ -263,6 +318,7 @@ export function serializeTasksToJson(
 	mode: TaskJsonMode,
 	generatedAt: string,
 	validValues?: TaskJsonValidValues,
+	notesPolicy: NotesPolicy = 'full',
 ): string {
-	return JSON.stringify(buildTaskJsonDocument(tasks, mode, generatedAt, validValues), null, 2);
+	return JSON.stringify(buildTaskJsonDocument(tasks, mode, generatedAt, validValues, notesPolicy), null, 2);
 }

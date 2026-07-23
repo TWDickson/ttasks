@@ -337,6 +337,222 @@ export function planImport(parsed: ParsedImportTask[], existing: Task[]): Import
 	return plan;
 }
 
+// ── Per-item review ──────────────────────────────────────────────────────────
+// The category toggles answer "apply updates at all?"; these answer "apply THIS
+// one?". Every plan bucket is flattened into one addressable, rejectable row so
+// the modal can list them, expand one for detail, and drop a single item without
+// discarding its whole category.
+
+export type ImportEntryKind = 'update' | 'notes' | 'create' | 'delete' | 'link' | 'unlink' | 'parent';
+
+/** One line of an entry's expanded detail. */
+export interface ImportEntryDetail {
+	label: string;
+	from?: string;
+	to?: string;
+}
+
+export interface ImportPlanEntry {
+	/** Stable within a plan; identifies the entry for rejection. */
+	key: string;
+	kind: ImportEntryKind;
+	/** Position in the plan bucket this entry came from. */
+	index: number;
+	/** The task the change lands on. */
+	title: string;
+	/** One-line gist for the collapsed row. */
+	summary: string;
+	details: ImportEntryDetail[];
+	/**
+	 * Set on note-body entries only: the markdown before and after. The caller
+	 * renders these — a body has to be read as prose to be judged, not as a diff
+	 * of escaped source.
+	 */
+	markdown?: { from: string; to: string };
+	/** Overwrites or removes existing content. */
+	destructive: boolean;
+}
+
+/** Human-readable rendering of a field value for the detail rows. */
+function displayValue(value: unknown): string {
+	if (value === null || value === undefined || value === '') return '—';
+	if (Array.isArray(value)) return value.length === 0 ? '—' : value.join(', ');
+	return String(value);
+}
+
+const endpointName = (ep: LinkEndpoint): string => ep.name;
+
+/**
+ * Flatten a plan into reviewable rows, in the order the apply step processes
+ * them. Keys are identity-based (vault path, endpoint pair) rather than
+ * positional, with a counter appended only to break a genuine tie — two creates
+ * of the same name — so a key means the same thing across a re-plan.
+ */
+export function importPlanEntries(plan: ImportPlan): ImportPlanEntry[] {
+	const entries: ImportPlanEntry[] = [];
+	const used = new Map<string, number>();
+	const uniqueKey = (base: string): string => {
+		const seen = used.get(base) ?? 0;
+		used.set(base, seen + 1);
+		return seen === 0 ? base : `${base}#${seen}`;
+	};
+
+	plan.updates.forEach((update, index) => {
+		entries.push({
+			key: uniqueKey(`update:${update.path}`),
+			kind: 'update',
+			index,
+			title: update.name,
+			summary: update.changes.map((c) => `${c.field.replace(/_/g, ' ')} → ${displayValue(c.to)}`).join(', '),
+			details: update.changes.map((c) => ({
+				label: c.field.replace(/_/g, ' '),
+				from: displayValue(c.from),
+				to: displayValue(c.to),
+			})),
+			destructive: false,
+		});
+	});
+
+	plan.notesChanges.forEach((change, index) => {
+		entries.push({
+			key: uniqueKey(`notes:${change.path}`),
+			kind: 'notes',
+			index,
+			title: change.name,
+			summary: change.from.trim() === '' ? 'adds a note body' : 'replaces the whole note body',
+			details: [],
+			markdown: { from: change.from, to: change.to },
+			destructive: change.from.trim() !== '',
+		});
+	});
+
+	plan.creates.forEach((create, index) => {
+		const { parsed } = create;
+		const details: ImportEntryDetail[] = [];
+		for (const field of IMPORT_UPDATABLE_FIELDS) {
+			const value = parsed[field];
+			if (value === null || value === '' || (Array.isArray(value) && value.length === 0)) continue;
+			details.push({ label: field.replace(/_/g, ' '), to: displayValue(value) });
+		}
+		if (parsed.parent) details.push({ label: 'project', to: parsed.parent });
+		if (parsed.depends_on.length > 0) details.push({ label: 'depends on', to: parsed.depends_on.join(', ') });
+		if (parsed.notes.trim() !== '') details.push({ label: 'notes', to: `${parsed.notes.trim().length} characters` });
+		entries.push({
+			key: uniqueKey(`create:${parsed.type}:${normName(parsed.name)}`),
+			kind: 'create',
+			index,
+			title: parsed.name,
+			summary: `new ${parsed.type}${parsed.status ? ` · ${parsed.status}` : ''}`,
+			details,
+			...(parsed.notes.trim() !== '' ? { markdown: { from: '', to: parsed.notes } } : {}),
+			destructive: false,
+		});
+	});
+
+	plan.linkAdds.forEach((link, index) => {
+		entries.push({
+			key: uniqueKey(`link:${endpointKey(link.from)}=>${endpointKey(link.to)}`),
+			kind: 'link',
+			index,
+			title: endpointName(link.from),
+			summary: `depends on ${endpointName(link.to)}`,
+			details: [{ label: 'must finish first', to: endpointName(link.to) }],
+			destructive: false,
+		});
+	});
+
+	plan.linkRemovals.forEach((link, index) => {
+		entries.push({
+			key: uniqueKey(`unlink:${endpointKey(link.from)}=>${endpointKey(link.to)}`),
+			kind: 'unlink',
+			index,
+			title: endpointName(link.from),
+			summary: `no longer depends on ${endpointName(link.to)}`,
+			details: [{ label: 'dependency removed', from: endpointName(link.to) }],
+			destructive: true,
+		});
+	});
+
+	plan.parentChanges.forEach((change, index) => {
+		entries.push({
+			key: uniqueKey(`parent:${endpointKey(change.from)}`),
+			kind: 'parent',
+			index,
+			title: endpointName(change.from),
+			summary: change.to ? `moves into ${endpointName(change.to)}` : 'detached from its project',
+			details: [{ label: 'project', to: change.to ? endpointName(change.to) : '—' }],
+			destructive: change.to === null,
+		});
+	});
+
+	plan.deletes.forEach((del, index) => {
+		entries.push({
+			key: uniqueKey(`delete:${del.path}`),
+			kind: 'delete',
+			index,
+			title: del.name,
+			summary: 'deleted from the vault',
+			details: [{ label: 'file', from: del.path }],
+			destructive: true,
+		});
+	});
+
+	return entries;
+}
+
+/** Bucket-by-bucket copy of a plan with the rejected entries dropped. */
+export function filterImportPlan(plan: ImportPlan, rejectedKeys: Iterable<string>): ImportPlan {
+	const rejected = new Set(rejectedKeys);
+	if (rejected.size === 0) return plan;
+
+	// Derive the drop-lists from the same walk the UI keyed off, so a key can
+	// never mean one entry in the list and another here.
+	const dropped: Record<ImportEntryKind, Set<number>> = {
+		update: new Set(), notes: new Set(), create: new Set(),
+		delete: new Set(), link: new Set(), unlink: new Set(), parent: new Set(),
+	};
+	for (const entry of importPlanEntries(plan)) {
+		if (rejected.has(entry.key)) dropped[entry.kind].add(entry.index);
+	}
+
+	const keep = <T>(items: T[], drop: Set<number>): T[] => items.filter((_, index) => !drop.has(index));
+	const updates = keep(plan.updates, dropped.update);
+
+	// Recount field changes from what survived — the summary must describe the
+	// plan that will actually run, not the one that was parsed.
+	const fieldChangeCounts: Record<string, number> = {};
+	for (const update of updates) {
+		for (const change of update.changes) {
+			fieldChangeCounts[change.field] = (fieldChangeCounts[change.field] ?? 0) + 1;
+		}
+	}
+
+	return {
+		...plan,
+		updates,
+		notesChanges: keep(plan.notesChanges, dropped.notes),
+		creates: keep(plan.creates, dropped.create),
+		linkAdds: keep(plan.linkAdds, dropped.link),
+		linkRemovals: keep(plan.linkRemovals, dropped.unlink),
+		parentChanges: keep(plan.parentChanges, dropped.parent),
+		deletes: keep(plan.deletes, dropped.delete),
+		fieldChangeCounts,
+	};
+}
+
+/** True when the plan would write nothing. */
+export function isEmptyImportPlan(plan: ImportPlan): boolean {
+	return (
+		plan.updates.length === 0 &&
+		plan.notesChanges.length === 0 &&
+		plan.creates.length === 0 &&
+		plan.linkAdds.length === 0 &&
+		plan.linkRemovals.length === 0 &&
+		plan.parentChanges.length === 0 &&
+		plan.deletes.length === 0
+	);
+}
+
 /** Turn an update's field changes into a Partial<Task> patch for TaskStore.update. */
 export function changesToPatch(changes: FieldChange[]): Partial<Task> {
 	const patch: Record<string, unknown> = {};

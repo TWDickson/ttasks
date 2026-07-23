@@ -1,19 +1,30 @@
-import { Modal, Notice, type App } from 'obsidian';
+import { Component, MarkdownRenderer, Modal, Notice, setIcon, type App } from 'obsidian';
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
-import type { TaskJsonMode } from '../integration/taskJsonExport';
+import type { NotesPolicy, TaskJsonMode } from '../integration/taskJsonExport';
 import { serializeTasksToJson } from '../integration/taskJsonExport';
+import { serializeTasksToToon } from '../integration/taskToonExport';
 import {
 	type ExportFilterCriteria,
-	EMPTY_EXPORT_CRITERIA,
 	collectProjectFacets,
 	filterTasksForExport,
 } from '../integration/taskExportFilter';
+import type { Task } from '../types';
 import { parseTasksJson } from '../integration/taskJsonImport';
-import { type ImportPlan, planImport, summarizeImportPlan } from '../integration/taskImportPlan';
+import {
+	type ImportPlan,
+	type ImportPlanEntry,
+	type ImportEntryKind,
+	filterImportPlan,
+	importPlanEntries,
+	isEmptyImportPlan,
+	planImport,
+	summarizeImportPlan,
+} from '../integration/taskImportPlan';
 import {
 	type ShareOutputBlock,
 	type ShareOutputFormat,
+	type SharePayloadFormat,
 	type SharePreamblePresetId,
 	SHARE_PREAMBLE_PRESETS,
 	buildPreambleText,
@@ -23,17 +34,30 @@ import {
 
 type ShareTab = 'export' | 'import';
 
+/** Section headings for the per-item review list, in apply order. */
+const ENTRY_GROUPS: Array<{ kind: ImportEntryKind; label: string }> = [
+	{ kind: 'update', label: 'Field updates' },
+	{ kind: 'notes', label: 'Note bodies' },
+	{ kind: 'create', label: 'New tasks' },
+	{ kind: 'link', label: 'Dependency links' },
+	{ kind: 'unlink', label: 'Links removed' },
+	{ kind: 'parent', label: 'Project moves' },
+	{ kind: 'delete', label: 'Deletions' },
+];
+
 /**
  * Share / Sync — the round-trip surface for feeding tasks to an external
  * (file-less) AI. Export: pick a mode + narrow by area/project/status/label, then
- * copy or save. Import: paste an (edited) document, preview the bulk-edit summary,
- * then apply it to the vault.
+ * copy or save. Import: paste an (edited) document, review the changes item by
+ * item, reject any you don't want, then apply the rest to the vault.
  */
 export class ShareSyncModal extends Modal {
 	private tab: ShareTab = 'export';
 	private mode: TaskJsonMode;
 	private criteria: ExportFilterCriteria;
 	private outputFormat: ShareOutputFormat;
+	private payloadFormat: SharePayloadFormat;
+	private notesPolicy: NotesPolicy;
 	private preamblePreset: SharePreamblePresetId;
 	/** Live preamble text; seeded from the preset and editable in place. */
 	private preambleText: string;
@@ -45,16 +69,33 @@ export class ShareSyncModal extends Modal {
 	// Import state
 	private importText = '';
 	private importPlan: ImportPlan | null = null;
+	/** Entries the user rejected in the review list — dropped before applying. */
+	private rejectedKeys = new Set<string>();
+	/** Re-renders the import preview from the pasted text; set while the tab is mounted. */
+	private renderPreview: (() => void) | null = null;
+	/** Recomputes the totals + Apply button state; set alongside a live preview. */
+	private refreshApplyState: (() => void) | null = null;
+	/** Per-category label updaters, refreshed whenever the effective plan changes. */
+	private toggleCountUpdaters: Array<(plan: ImportPlan) => void> = [];
 	// All categories are accepted by default; uncheck to deny. Destructive ones
 	// (deletions, link removals, note-body replacements) are still flagged so they
 	// don't apply unnoticed.
-	private applyCreates = true;
-	private applyUpdates = true;
-	private applyDeletes = true;
-	private applyLinks = true;
-	private applyLinkRemovals = true;
-	private applyParents = true;
-	private applyNotes = true;
+	private applyToggles = {
+		creates: true,
+		updates: true,
+		deletes: true,
+		links: true,
+		linkRemovals: true,
+		parents: true,
+		notes: true,
+	};
+
+	/**
+	 * Owns the lifecycle of markdown rendered into the note-body previews.
+	 * `Modal` isn't a `Component`, so MarkdownRenderer needs one of its own —
+	 * unloaded on close so embedded children don't outlive the modal.
+	 */
+	private readonly renderHost = new Component();
 
 	constructor(app: App, private readonly plugin: TTasksPlugin) {
 		super(app);
@@ -62,6 +103,8 @@ export class ShareSyncModal extends Modal {
 		const remembered = plugin.settings.shareSync;
 		this.mode = remembered.mode;
 		this.outputFormat = remembered.outputFormat;
+		this.payloadFormat = remembered.payloadFormat;
+		this.notesPolicy = remembered.notesPolicy;
 		this.preamblePreset = remembered.preamblePreset;
 		this.criteria = {
 			areas: [...remembered.areas],
@@ -72,22 +115,31 @@ export class ShareSyncModal extends Modal {
 		};
 		this.preambleText = remembered.customPreamble.trim() !== ''
 			? remembered.customPreamble
-			: buildPreambleText(findPreamblePreset(this.preamblePreset), plugin.taskJsonValidValues());
+			: this.generatedPreamble();
+	}
+
+	/** The preamble the current settings would produce, unedited. */
+	private generatedPreamble(): string {
+		return buildPreambleText(findPreamblePreset(this.preamblePreset), this.plugin.taskJsonValidValues(), {
+			payloadFormat: this.payloadFormat,
+			notesPolicy: this.notesPolicy,
+		});
 	}
 
 	/**
 	 * Persist the export tab's current state. Fire-and-forget on every change so a
 	 * mid-session close still remembers; `customPreamble` is only stored when it
 	 * differs from the preset's generated text, so preset edits (or a change to the
-	 * vault's statuses) still refresh the default wording on next open.
+	 * vault's statuses, format, or notes policy) still refresh the default wording.
 	 */
 	private rememberExportState(): void {
-		const generated = buildPreambleText(findPreamblePreset(this.preamblePreset), this.plugin.taskJsonValidValues());
 		this.plugin.settings.shareSync = {
 			mode: this.mode,
 			outputFormat: this.outputFormat,
+			payloadFormat: this.payloadFormat,
+			notesPolicy: this.notesPolicy,
 			preamblePreset: this.preamblePreset,
-			customPreamble: this.preambleText === generated ? '' : this.preambleText,
+			customPreamble: this.preambleText === this.generatedPreamble() ? '' : this.preambleText,
 			areas: [...this.criteria.areas],
 			projects: [...this.criteria.projects],
 			statuses: [...this.criteria.statuses],
@@ -101,6 +153,7 @@ export class ShareSyncModal extends Modal {
 		const { contentEl, modalEl } = this;
 		modalEl.addClass('tt-share-modal');
 		contentEl.empty();
+		this.renderHost.load();
 
 		contentEl.createEl('h2', { text: 'Share / Sync' });
 		this.renderTabs(contentEl);
@@ -109,6 +162,7 @@ export class ShareSyncModal extends Modal {
 	}
 
 	onClose(): void {
+		this.renderHost.unload();
 		this.contentEl.empty();
 	}
 
@@ -144,7 +198,7 @@ export class ShareSyncModal extends Modal {
 	private renderExport(parent: HTMLElement): void {
 		parent.createEl('p', {
 			cls: 'setting-item-description',
-			text: 'Export tasks as JSON to paste into an external tool. Narrow the set with the filters below, then copy or save.',
+			text: 'Export tasks to paste into an external tool. Narrow the set with the filters below, then copy or save.',
 		});
 
 		this.renderModeToggle(parent);
@@ -174,9 +228,13 @@ export class ShareSyncModal extends Modal {
 
 		this.countEl = parent.createEl('p', { cls: 'tt-share-count' });
 
-		// The message + packaging controls only apply to an AI-bound export; a
+		// Payload shape + message controls only apply to an AI-bound export; a
 		// 'full' export is a machine round-trip file with no chat on the other end.
-		if (this.mode === 'ai') this.renderPreamble(parent);
+		if (this.mode === 'ai') {
+			this.renderNotesPolicy(parent);
+			this.renderPayloadFormat(parent);
+			this.renderPreamble(parent);
+		}
 		this.renderOutputFormat(parent);
 
 		this.outputEl = parent.createDiv({ cls: 'modal-button-container' });
@@ -186,32 +244,91 @@ export class ShareSyncModal extends Modal {
 	}
 
 	private renderModeToggle(parent: HTMLElement): void {
-		const row = parent.createDiv({ cls: 'tt-share-mode' });
-		row.createSpan({ cls: 'tt-label', text: 'Mode' });
-		const group = row.createDiv({ cls: 'tt-share-mode-btns' });
-		const options: Array<{ id: TaskJsonMode; label: string; title: string }> = [
+		this.renderSegmented(parent, 'Mode', [
 			{ id: 'ai', label: 'AI-friendly', title: 'Clean, self-contained: names not vault paths, empty fields dropped.' },
 			{ id: 'full', label: 'Full', title: 'Lossless: keeps ids/paths so it can round-trip back.' },
-		];
+		], this.mode, (id) => {
+			if (this.mode === id) return;
+			this.mode = id;
+			this.rememberExportState();
+			// Re-render: the payload/message controls appear/disappear with the mode.
+			this.renderActiveTab();
+		});
+	}
+
+	/**
+	 * How much of each note body goes out. Measured on a real 100-task export the
+	 * bodies were 62% of the tokens — more than every other choice here combined —
+	 * so this control is the one that actually decides how big a share is.
+	 */
+	private renderNotesPolicy(parent: HTMLElement): void {
+		this.renderSegmented(parent, 'Note bodies', [
+			{ id: 'full', label: 'Full', title: 'Send every note body in full. Largest, and the only setting where the AI can propose body edits.' },
+			{ id: 'summary', label: 'First 200 chars', title: 'Send the opening of each body for context. Roughly a quarter the size.' },
+			{ id: 'none', label: 'Omit', title: 'Task fields only — about a third the size of a full export.' },
+		], this.notesPolicy, (id) => {
+			if (this.notesPolicy === id) return;
+			this.withPreambleSync(() => { this.notesPolicy = id; });
+			this.rememberExportState();
+			this.renderActiveTab();
+		});
+	}
+
+	/** JSON (round-trips) vs TOON (denser, export-only). */
+	private renderPayloadFormat(parent: HTMLElement): void {
+		this.renderSegmented(parent, 'Data format', [
+			{ id: 'json', label: 'JSON', title: 'The standard shape. Use this if the tool on the other end might send data back.' },
+			{ id: 'toon', label: 'TOON', title: 'A compact table — about 18% fewer tokens than JSON. Export only; replies still come back as JSON.' },
+		], this.payloadFormat, (id) => {
+			if (this.payloadFormat === id) return;
+			this.withPreambleSync(() => { this.payloadFormat = id; });
+			this.rememberExportState();
+			this.renderActiveTab();
+		});
+	}
+
+	/**
+	 * Apply a change that the preamble wording depends on, keeping an untouched
+	 * message in step with it — the text carries format- and notes-specific
+	 * warnings. Whether the message counts as "untouched" has to be decided
+	 * BEFORE the setting moves, since the comparison is against what the old
+	 * setting would have generated. An edited message is left alone; silently
+	 * rewriting the user's own words would be worse than a stale sentence.
+	 */
+	private withPreambleSync(mutate: () => void): void {
+		const wasGenerated = this.preambleText === '' || this.preambleText === this.generatedPreamble();
+		mutate();
+		if (wasGenerated) this.preambleText = this.generatedPreamble();
+	}
+
+	/** Shared renderer for the modal's segmented button rows. */
+	private renderSegmented<T extends string>(
+		parent: HTMLElement,
+		label: string,
+		options: Array<{ id: T; label: string; title: string }>,
+		selected: T,
+		onPick: (id: T) => void,
+	): void {
+		const row = parent.createDiv({ cls: 'tt-share-mode' });
+		row.createSpan({ cls: 'tt-label', text: label });
+		const group = row.createDiv({ cls: 'tt-share-mode-btns' });
 		for (const opt of options) {
 			const btn = group.createEl('button', { text: opt.label, cls: 'tt-btn tt-btn-sm', title: opt.title });
-			btn.toggleClass('tt-btn-primary', this.mode === opt.id);
-			btn.addEventListener('click', () => {
-				if (this.mode === opt.id) return;
-				this.mode = opt.id;
-				this.rememberExportState();
-				// Re-render: the message controls appear/disappear with the mode.
-				this.renderActiveTab();
-			});
+			btn.toggleClass('tt-btn-primary', selected === opt.id);
+			btn.addEventListener('click', () => onPick(opt.id));
 		}
 	}
 
 	/**
-	 * The framing message that goes in front of the JSON. A preset seeds the
+	 * The framing message that goes in front of the data. A preset seeds the
 	 * textarea; editing it in place is what actually gets copied, so the presets
 	 * are a starting point rather than a fixed set.
 	 */
 	private renderPreamble(parent: HTMLElement): void {
+		// An empty stored preamble means "use the generated one" — resolve it here
+		// so a format change is reflected the moment the tab re-renders.
+		if (this.preambleText === '') this.preambleText = this.generatedPreamble();
+
 		const group = parent.createDiv({ cls: 'tt-share-group tt-share-preamble' });
 		const head = group.createDiv({ cls: 'tt-share-preamble-head' });
 		head.createSpan({ cls: 'tt-label', text: 'Message' });
@@ -225,16 +342,13 @@ export class ShareSyncModal extends Modal {
 		const textarea = group.createEl('textarea', { cls: 'tt-share-preamble-text' });
 		textarea.rows = 5;
 		textarea.value = this.preambleText;
-		textarea.placeholder = 'Message to put in front of the JSON…';
+		textarea.placeholder = 'Message to put in front of the data…';
 
 		select.addEventListener('change', () => {
 			this.preamblePreset = select.value as SharePreamblePresetId;
 			// Switching preset replaces the text — the edited copy belonged to the
 			// preset that was selected, so carrying it over would be misleading.
-			this.preambleText = buildPreambleText(
-				findPreamblePreset(this.preamblePreset),
-				this.plugin.taskJsonValidValues(),
-			);
+			this.preambleText = this.generatedPreamble();
 			textarea.value = this.preambleText;
 			this.rememberExportState();
 			this.renderOutputActions();
@@ -246,27 +360,18 @@ export class ShareSyncModal extends Modal {
 		});
 	}
 
-	/** How the message and the JSON are packaged for copying. */
+	/** How the message and the data are packaged for copying. */
 	private renderOutputFormat(parent: HTMLElement): void {
-		const row = parent.createDiv({ cls: 'tt-share-mode' });
-		row.createSpan({ cls: 'tt-label', text: 'Copy as' });
-		const group = row.createDiv({ cls: 'tt-share-mode-btns' });
-		const options: Array<{ id: ShareOutputFormat; label: string; title: string }> = [
-			{ id: 'fenced', label: 'One block', title: 'Message then the JSON in a ```json fence — a single paste.' },
-			{ id: 'separate', label: 'Two fields', title: 'Message and JSON copied separately — for tools that take the data as its own paste or attachment.' },
-			{ id: 'json-only', label: 'JSON only', title: 'No message, just the JSON.' },
-		];
-		for (const opt of options) {
-			const btn = group.createEl('button', { text: opt.label, cls: 'tt-btn tt-btn-sm', title: opt.title });
-			btn.toggleClass('tt-btn-primary', this.outputFormat === opt.id);
-			btn.addEventListener('click', () => {
-				this.outputFormat = opt.id;
-				group.querySelectorAll('button').forEach((b) => b.removeClass('tt-btn-primary'));
-				btn.addClass('tt-btn-primary');
-				this.rememberExportState();
-				this.renderOutputActions();
-			});
-		}
+		const name = this.payloadFormat === 'toon' ? 'TOON' : 'JSON';
+		this.renderSegmented(parent, 'Copy as', [
+			{ id: 'fenced' as ShareOutputFormat, label: 'One block', title: `Message then the data in a \`\`\`${this.payloadFormat} fence — a single paste.` },
+			{ id: 'separate' as ShareOutputFormat, label: 'Two fields', title: 'Message and data copied separately — for tools that take the data as its own paste or attachment.' },
+			{ id: 'json-only' as ShareOutputFormat, label: `${name} only`, title: 'No message, just the data.' },
+		], this.outputFormat, (id) => {
+			this.outputFormat = id;
+			this.rememberExportState();
+			this.renderActiveTab();
+		});
 	}
 
 	/** One Copy button per composed block, plus the always-present file export. */
@@ -283,14 +388,20 @@ export class ShareSyncModal extends Modal {
 			btn.addEventListener('click', () => void this.copyBlock(index));
 		});
 
-		actions.createEl('button', { text: 'Save .json file', title: 'Write a .json file to the vault root — use this when the tool wants an attachment.' })
+		const ext = this.payloadFormat === 'toon' ? '.toon' : '.json';
+		actions.createEl('button', { text: `Save ${ext} file`, title: `Write a ${ext} file to the vault root — use this when the tool wants an attachment.` })
 			.addEventListener('click', () => void this.save());
 	}
 
-	/** Compose the current output blocks around a given JSON payload. */
-	private composeBlocks(json: string): ShareOutputBlock[] {
+	/** Compose the current output blocks around a given payload. */
+	private composeBlocks(payload: string): ShareOutputBlock[] {
 		const preamble = this.mode === 'ai' ? this.preambleText : '';
-		return composeShareOutput(preamble, json, this.outputFormat);
+		return composeShareOutput(preamble, payload, this.outputFormat, this.effectivePayloadFormat());
+	}
+
+	/** TOON is offered for 'ai' exports only; 'full' always serializes as JSON. */
+	private effectivePayloadFormat(): SharePayloadFormat {
+		return this.mode === 'ai' ? this.payloadFormat : 'json';
 	}
 
 	private renderChipGroup(
@@ -330,25 +441,31 @@ export class ShareSyncModal extends Modal {
 		this.countEl.setText(`${n} of ${total} task${total === 1 ? '' : 's'} selected.`);
 	}
 
+	/** Serialize the current selection in the chosen payload format. */
+	private serializeSelection(tasks: Task[]): string {
+		const now = new Date().toISOString();
+		const validValues = this.plugin.taskJsonValidValues();
+		const notesPolicy = this.mode === 'ai' ? this.notesPolicy : 'full';
+		return this.effectivePayloadFormat() === 'toon'
+			? serializeTasksToToon(tasks, now, validValues, notesPolicy)
+			: serializeTasksToJson(tasks, this.mode, now, validValues, notesPolicy);
+	}
+
 	private async copyBlock(index: number): Promise<void> {
 		const tasks = this.selectedTasks();
 		if (tasks.length === 0) {
 			new Notice('TTasks: no tasks match the current filters.');
 			return;
 		}
-		const json = serializeTasksToJson(tasks, this.mode, new Date().toISOString(), this.plugin.taskJsonValidValues());
-		const blocks = this.composeBlocks(json);
+		const blocks = this.composeBlocks(this.serializeSelection(tasks));
 		const block = blocks[index];
 		if (!block) return;
 		try {
 			await navigator.clipboard.writeText(block.text);
 			const what = block.label === '' ? `${tasks.length} task(s)` : `the ${block.label.toLowerCase()}`;
 			new Notice(`TTasks: copied ${what} to the clipboard.`);
-			// With two separate fields the user still needs the other one, so only
-			// a single-block copy is "done".
-			if (blocks.length === 1) this.close();
 		} catch {
-			new Notice('TTasks: clipboard unavailable — use “Save .json file” instead.');
+			new Notice('TTasks: clipboard unavailable — use the save-file button instead.');
 		}
 	}
 
@@ -358,8 +475,10 @@ export class ShareSyncModal extends Modal {
 			new Notice('TTasks: no tasks match the current filters.');
 			return;
 		}
-		await this.plugin.exportTasksToJsonFrom(tasks, this.mode);
-		this.close();
+		await this.plugin.exportTasksToJsonFrom(tasks, this.mode, {
+			payloadFormat: this.effectivePayloadFormat(),
+			notesPolicy: this.mode === 'ai' ? this.notesPolicy : 'full',
+		});
 	}
 
 	// ── Import ───────────────────────────────────────────────────────────────────
@@ -367,7 +486,7 @@ export class ShareSyncModal extends Modal {
 	private renderImport(parent: HTMLElement): void {
 		parent.createEl('p', {
 			cls: 'setting-item-description',
-			text: 'Paste an exported (or AI-edited) document. Preview the changes, then apply — all categories are applied by default; uncheck any to skip it. Matched by ref, else by type + task name (projects only ever match projects). An entry can carry an "action" ("create" / "delete"); with none it updates the matched task, or creates it if new — add "type": "project" to create a project. Dependency links (depends_on) are added; list tasks under "remove_depends_on" to unlink. Set a project with "parent" or detach with "remove_parent". A "notes" value replaces the whole note body; omit it to leave the body alone.',
+			text: 'Paste an exported (or AI-edited) JSON document. Preview the changes, expand any one to see the detail, drop the ones you don\'t want, then apply the rest. Matched by ref, else by type + task name (projects only ever match projects). An entry can carry an "action" ("create" / "delete"); with none it updates the matched task, or creates it if new.',
 		});
 
 		const textarea = parent.createEl('textarea', { cls: 'tt-share-import-text' });
@@ -382,7 +501,7 @@ export class ShareSyncModal extends Modal {
 		const applyBtn = actions.createEl('button', { text: 'Apply', cls: 'mod-cta' });
 		applyBtn.disabled = true;
 
-		const renderSummary = () => {
+		this.renderPreview = (): void => {
 			summaryEl.empty();
 			this.importPlan = null;
 			applyBtn.disabled = true;
@@ -398,78 +517,216 @@ export class ShareSyncModal extends Modal {
 				for (const err of parsed.errors) box.createEl('div', { text: `⚠ ${err}` });
 				return;
 			}
-			const plan = planImport(parsed.tasks, get(this.plugin.taskStore.tasks));
-			this.importPlan = plan;
+			this.importPlan = planImport(parsed.tasks, get(this.plugin.taskStore.tasks));
+			// A fresh plan invalidates the old rejections — the keys refer to
+			// entries that may no longer exist — and the old label updaters point
+			// at elements this render is about to replace.
+			this.rejectedKeys.clear();
+			this.toggleCountUpdaters = [];
 
-			const list = summaryEl.createEl('ul', { cls: 'tt-share-summary-list' });
-			for (const line of summarizeImportPlan(plan)) list.createEl('li', { text: line });
-			for (const warn of parsed.warnings) list.createEl('li', { cls: 'tt-share-warn', text: `⚠ ${warn}` });
+			const totalsEl = summaryEl.createEl('ul', { cls: 'tt-share-summary-list' });
+			if (parsed.warnings.length > 0) {
+				const warnEl = summaryEl.createEl('ul', { cls: 'tt-share-summary-list' });
+				for (const warn of parsed.warnings) warnEl.createEl('li', { cls: 'tt-share-warn', text: `⚠ ${warn}` });
+			}
 
-			const refreshApply = () => {
-				applyBtn.disabled = !(
-					(this.applyUpdates && plan.updates.length > 0) ||
-					(this.applyCreates && plan.creates.length > 0) ||
-					(this.applyDeletes && plan.deletes.length > 0) ||
-					(this.applyLinks && plan.linkAdds.length > 0) ||
-					(this.applyLinkRemovals && plan.linkRemovals.length > 0) ||
-					(this.applyParents && plan.parentChanges.length > 0) ||
-					(this.applyNotes && plan.notesChanges.length > 0)
-				);
+			const refreshApply = (): void => {
+				const plan = this.effectivePlan();
+				const allowed =
+					(this.applyToggles.updates && plan.updates.length > 0) ||
+					(this.applyToggles.creates && plan.creates.length > 0) ||
+					(this.applyToggles.deletes && plan.deletes.length > 0) ||
+					(this.applyToggles.links && plan.linkAdds.length > 0) ||
+					(this.applyToggles.linkRemovals && plan.linkRemovals.length > 0) ||
+					(this.applyToggles.parents && plan.parentChanges.length > 0) ||
+					(this.applyToggles.notes && plan.notesChanges.length > 0);
+				applyBtn.disabled = !allowed;
+				// Totals describe the plan that would actually run, not the paste.
+				totalsEl.empty();
+				const lines = isEmptyImportPlan(plan) ? ['Nothing left to apply.'] : summarizeImportPlan(plan);
+				for (const line of lines) totalsEl.createEl('li', { text: line });
+				for (const update of this.toggleCountUpdaters) update(plan);
 			};
+			this.refreshApplyState = refreshApply;
 
-			const toggles = summaryEl.createDiv({ cls: 'tt-share-apply-toggles' });
-			const addToggle = (
-				label: string,
-				count: number,
-				checked: boolean,
-				onChange: (value: boolean) => void,
-				destructive = false,
-			): void => {
-				if (count === 0) return;
-				const row = toggles.createDiv({ cls: 'tt-share-toggle-row' });
-				row.toggleClass('is-destructive', destructive);
-				const cb = row.createEl('input', { type: 'checkbox' });
-				cb.checked = checked;
-				const id = `tt-share-apply-${label.replace(/\s+/g, '-').toLowerCase()}`;
-				cb.id = id;
-				row.createEl('label', { text: `${label} (${count})`, attr: { for: id } });
-				cb.addEventListener('change', () => {
-					onChange(cb.checked);
-					refreshApply();
-				});
-			};
-			addToggle('Apply updates', plan.updates.length, this.applyUpdates, (v) => (this.applyUpdates = v));
-			addToggle('Apply new tasks', plan.creates.length, this.applyCreates, (v) => (this.applyCreates = v));
-			addToggle('Apply links', plan.linkAdds.length, this.applyLinks, (v) => (this.applyLinks = v));
-			addToggle('Apply link removals', plan.linkRemovals.length, this.applyLinkRemovals, (v) => (this.applyLinkRemovals = v), true);
-			addToggle('Apply parent changes', plan.parentChanges.length, this.applyParents, (v) => (this.applyParents = v));
-			addToggle('Replace note bodies', plan.notesChanges.length, this.applyNotes, (v) => (this.applyNotes = v), true);
-			addToggle('Apply deletions', plan.deletes.length, this.applyDeletes, (v) => (this.applyDeletes = v), true);
-
+			this.renderEntryList(summaryEl, this.importPlan, refreshApply);
+			this.renderApplyToggles(summaryEl, this.importPlan, refreshApply);
 			refreshApply();
 		};
 
 		textarea.addEventListener('input', () => {
 			this.importText = textarea.value;
 		});
-		previewBtn.addEventListener('click', renderSummary);
+		previewBtn.addEventListener('click', () => this.renderPreview?.());
 		applyBtn.addEventListener('click', () => void this.applyImport());
 
-		if (this.importText.trim() !== '') renderSummary();
+		if (this.importText.trim() !== '') this.renderPreview();
+	}
+
+	/** The plan minus everything the user rejected. */
+	private effectivePlan(): ImportPlan {
+		if (!this.importPlan) {
+			throw new Error('effectivePlan called without a plan');
+		}
+		return filterImportPlan(this.importPlan, this.rejectedKeys);
+	}
+
+	/**
+	 * The reviewable list: one row per change, grouped by kind. Each row expands
+	 * in place to show its detail — for a note body that means the markdown
+	 * rendered as it will look in the note, not raw source.
+	 */
+	private renderEntryList(parent: HTMLElement, plan: ImportPlan, refreshApply: () => void): void {
+		const entries = importPlanEntries(plan);
+		if (entries.length === 0) return;
+
+		const list = parent.createDiv({ cls: 'tt-import-items' });
+		for (const group of ENTRY_GROUPS) {
+			const groupEntries = entries.filter((entry) => entry.kind === group.kind);
+			if (groupEntries.length === 0) continue;
+			const section = list.createDiv({ cls: 'tt-import-group' });
+			section.createDiv({ cls: 'tt-group-heading', text: `${group.label} (${groupEntries.length})` });
+			for (const entry of groupEntries) this.renderEntryRow(section, entry, refreshApply);
+		}
+	}
+
+	private renderEntryRow(parent: HTMLElement, entry: ImportPlanEntry, refreshApply: () => void): void {
+		const wrapper = parent.createDiv({ cls: 'tt-import-item' });
+		wrapper.toggleClass('is-destructive', entry.destructive);
+		const row = wrapper.createDiv({ cls: 'tt-import-row' });
+
+		// Visibility via a class, not `hide()`/`show()`: those write inline
+		// `display`, which then outranks the stylesheet.
+		const detail = wrapper.createDiv({ cls: 'tt-import-detail' });
+		let open = false;
+
+		// `clickable-icon` is load-bearing, not decoration: app.css styles bare
+		// buttons via `button:not(.clickable-icon)`, which outranks a single class
+		// and would give these icon buttons a full button chrome.
+		const expand = row.createEl('button', {
+			cls: 'clickable-icon tt-import-expand',
+			attr: { 'aria-expanded': 'false', 'aria-label': `Show details for ${entry.title}` },
+		});
+		setIcon(expand, 'chevron-right');
+
+		const text = row.createDiv({ cls: 'tt-import-text' });
+		text.createSpan({ cls: 'tt-import-title', text: entry.title });
+		text.createSpan({ cls: 'tt-import-summary', text: entry.summary });
+
+		const reject = row.createEl('button', {
+			cls: 'clickable-icon tt-import-reject',
+			attr: { 'aria-label': `Skip this change to ${entry.title}` },
+		});
+		setIcon(reject, 'x');
+
+		let rendered = false;
+		expand.addEventListener('click', () => {
+			open = !open;
+			// Bodies are rendered on first open — a paste can carry dozens, and
+			// rendering them all up front stalls the preview.
+			if (open && !rendered) {
+				this.renderEntryDetail(detail, entry);
+				rendered = true;
+			}
+			detail.toggleClass('is-open', open);
+			expand.setAttribute('aria-expanded', String(open));
+			expand.toggleClass('is-open', open);
+		});
+
+		reject.addEventListener('click', () => {
+			const nowRejected = !this.rejectedKeys.has(entry.key);
+			if (nowRejected) this.rejectedKeys.add(entry.key);
+			else this.rejectedKeys.delete(entry.key);
+			wrapper.toggleClass('is-rejected', nowRejected);
+			setIcon(reject, nowRejected ? 'rotate-ccw' : 'x');
+			reject.setAttribute(
+				'aria-label',
+				nowRejected ? `Restore this change to ${entry.title}` : `Skip this change to ${entry.title}`,
+			);
+			refreshApply();
+		});
+	}
+
+	/** Body of the expanded row: field table, then rendered markdown for a note body. */
+	private renderEntryDetail(parent: HTMLElement, entry: ImportPlanEntry): void {
+		if (entry.details.length > 0) {
+			const table = parent.createDiv({ cls: 'tt-import-fields' });
+			for (const line of entry.details) {
+				const fieldRow = table.createDiv({ cls: 'tt-import-field' });
+				fieldRow.createSpan({ cls: 'tt-import-field-label', text: line.label });
+				const values = fieldRow.createSpan({ cls: 'tt-import-field-values' });
+				if (line.from !== undefined) {
+					values.createSpan({ cls: 'tt-import-from', text: line.from });
+					if (line.to !== undefined) values.createSpan({ cls: 'tt-import-arrow', text: '→' });
+				}
+				if (line.to !== undefined) values.createSpan({ cls: 'tt-import-to', text: line.to });
+			}
+		}
+
+		if (!entry.markdown) return;
+		const { from, to } = entry.markdown;
+		if (from.trim() !== '') {
+			const before = parent.createDiv({ cls: 'tt-import-body' });
+			before.createDiv({ cls: 'tt-label', text: 'Current note body' });
+			void this.renderMarkdown(before.createDiv({ cls: 'tt-import-md is-current' }), from);
+		}
+		const after = parent.createDiv({ cls: 'tt-import-body' });
+		after.createDiv({ cls: 'tt-label', text: from.trim() === '' ? 'Note body' : 'Replacement note body' });
+		void this.renderMarkdown(after.createDiv({ cls: 'tt-import-md is-incoming' }), to);
+	}
+
+	private async renderMarkdown(target: HTMLElement, markdown: string): Promise<void> {
+		try {
+			// sourcePath '' — an imported body has no file of its own yet, so
+			// relative links resolve against the vault root.
+			await MarkdownRenderer.render(this.app, markdown, target, '', this.renderHost);
+		} catch {
+			// Never let a malformed body break the preview; show the source instead.
+			target.empty();
+			target.createEl('pre', { text: markdown });
+		}
+	}
+
+	private renderApplyToggles(parent: HTMLElement, plan: ImportPlan, refreshApply: () => void): void {
+		const toggles = parent.createDiv({ cls: 'tt-share-apply-toggles' });
+		const addToggle = (
+			label: string,
+			count: (p: ImportPlan) => number,
+			key: keyof typeof this.applyToggles,
+			destructive = false,
+		): void => {
+			// Rendered against the pasted plan so a row never appears or vanishes
+			// mid-review; the count then tracks what rejection left behind.
+			if (count(plan) === 0) return;
+			const row = toggles.createDiv({ cls: 'tt-share-toggle-row' });
+			row.toggleClass('is-destructive', destructive);
+			const cb = row.createEl('input', { type: 'checkbox' });
+			cb.checked = this.applyToggles[key];
+			const id = `tt-share-apply-${key}`;
+			cb.id = id;
+			const labelEl = row.createEl('label', { attr: { for: id } });
+			this.toggleCountUpdaters.push((effective) => {
+				labelEl.setText(`${label} (${count(effective)})`);
+			});
+			cb.addEventListener('change', () => {
+				this.applyToggles[key] = cb.checked;
+				refreshApply();
+			});
+		};
+		addToggle('Apply updates', (p) => p.updates.length, 'updates');
+		addToggle('Apply new tasks', (p) => p.creates.length, 'creates');
+		addToggle('Apply links', (p) => p.linkAdds.length, 'links');
+		addToggle('Apply link removals', (p) => p.linkRemovals.length, 'linkRemovals', true);
+		addToggle('Apply parent changes', (p) => p.parentChanges.length, 'parents');
+		addToggle('Replace note bodies', (p) => p.notesChanges.length, 'notes', true);
+		addToggle('Apply deletions', (p) => p.deletes.length, 'deletes', true);
 	}
 
 	private async applyImport(): Promise<void> {
 		if (!this.importPlan) return;
-		const plan = this.importPlan;
-		const { created, updated, deleted, linked, unlinked, reparented, renoted } = await this.plugin.applyImportPlan(plan, {
-			creates: this.applyCreates,
-			updates: this.applyUpdates,
-			deletes: this.applyDeletes,
-			links: this.applyLinks,
-			linkRemovals: this.applyLinkRemovals,
-			parents: this.applyParents,
-			notes: this.applyNotes,
-		});
+		const plan = this.effectivePlan();
+		const { created, updated, deleted, linked, unlinked, reparented, renoted } =
+			await this.plugin.applyImportPlan(plan, this.applyToggles);
 		const parts = [`${created} created`, `${updated} updated`];
 		if (deleted > 0) parts.push(`${deleted} deleted`);
 		if (linked > 0) parts.push(`${linked} linked`);
@@ -477,6 +734,8 @@ export class ShareSyncModal extends Modal {
 		if (reparented > 0) parts.push(`${reparented} reparented`);
 		if (renoted > 0) parts.push(`${renoted} note bodies replaced`);
 		new Notice(`TTasks: imported — ${parts.join(', ')}.`);
-		this.close();
+		// The modal stays open, so the preview has to be re-planned against the
+		// vault we just wrote — otherwise Apply would offer the same edits again.
+		this.renderPreview?.();
 	}
 }

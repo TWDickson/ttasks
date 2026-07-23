@@ -32,7 +32,9 @@ import { ArchiveService } from './store/ArchiveService';
 import { type CompletedFocus, PomodoroService } from './store/PomodoroService';
 import { type PomodoroLogEntry, formatLogRow, formatNewLogFile } from './integration/pomodoroLog';
 import { pomodoroStatusBarView } from './integration/pomodoroStatusBar';
-import { type TaskJsonMode, type TaskJsonValidValues, serializeTasksToJson } from './integration/taskJsonExport';
+import { type NotesPolicy, type TaskJsonMode, type TaskJsonValidValues, serializeTasksToJson } from './integration/taskJsonExport';
+import { serializeTasksToToon } from './integration/taskToonExport';
+import type { SharePayloadFormat } from './integration/sharePreamble';
 import { dispatchProtocolAction, parseProtocolAction } from './integration/protocol';
 import { buildStatusSummary } from './integration/statusSummary';
 import { pathToLinktext } from './integration/hoverLink';
@@ -688,19 +690,30 @@ export default class TTasksPlugin extends Plugin {
 		};
 	}
 
-	async exportTasksToJsonFrom(tasks: Task[], mode: TaskJsonMode): Promise<void> {
-		const json = serializeTasksToJson(tasks, mode, new Date().toISOString(), this.taskJsonValidValues());
+	async exportTasksToJsonFrom(
+		tasks: Task[],
+		mode: TaskJsonMode,
+		options: { payloadFormat?: SharePayloadFormat; notesPolicy?: NotesPolicy } = {},
+	): Promise<void> {
+		// TOON is 'ai'-only — its flattening is lossy for the vault paths a 'full'
+		// export exists to round-trip.
+		const payloadFormat = mode === 'ai' && options.payloadFormat === 'toon' ? 'toon' : 'json';
+		const notesPolicy = options.notesPolicy ?? 'full';
+		const now = new Date().toISOString();
+		const payload = payloadFormat === 'toon'
+			? serializeTasksToToon(tasks, now, this.taskJsonValidValues(), notesPolicy)
+			: serializeTasksToJson(tasks, mode, now, this.taskJsonValidValues(), notesPolicy);
 		const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-		const path = `ttasks-export-${mode}-${stamp}.json`;
+		const path = `ttasks-export-${mode}-${stamp}.${payloadFormat}`;
 		try {
-			await this.app.vault.create(path, json);
+			await this.app.vault.create(path, payload);
 		} catch (error) {
 			new Notice(`TTasks: could not write export file: ${error instanceof Error ? error.message : String(error)}`);
 			return;
 		}
 		let copied = false;
 		try {
-			await navigator.clipboard.writeText(json);
+			await navigator.clipboard.writeText(payload);
 			copied = true;
 		} catch {
 			// Clipboard can be unavailable (mobile / permissions); the file is the fallback.

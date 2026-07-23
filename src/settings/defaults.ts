@@ -116,6 +116,8 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	shareSync: {
 		mode: 'ai',
 		outputFormat: 'fenced',
+		payloadFormat: 'json',
+		notesPolicy: 'full',
 		preamblePreset: 'review',
 		customPreamble: '',
 		areas: [],
@@ -813,6 +815,14 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		const outputFormat = asString(shareSync.outputFormat);
 		if (outputFormat === 'fenced' || outputFormat === 'separate' || outputFormat === 'json-only') {
 			target.shareSync.outputFormat = outputFormat;
+		}
+
+		const payloadFormat = asString(shareSync.payloadFormat);
+		if (payloadFormat === 'json' || payloadFormat === 'toon') target.shareSync.payloadFormat = payloadFormat;
+
+		const notesPolicy = asString(shareSync.notesPolicy);
+		if (notesPolicy === 'full' || notesPolicy === 'summary' || notesPolicy === 'none') {
+			target.shareSync.notesPolicy = notesPolicy;
 		}
 
 		const preamblePreset = asString(shareSync.preamblePreset);

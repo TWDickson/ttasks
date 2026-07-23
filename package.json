@@ -40,5 +40,8 @@
     "tslib": "^2.6.3",
     "typescript": "^5.5.4",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@toon-format/toon": "^4.0.0"
   }
 }

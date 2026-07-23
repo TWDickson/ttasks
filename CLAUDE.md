@@ -174,6 +174,60 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 `run-autopilot.fish`. Older PRDs (TASK_H*/I*/J*/K*) are vault-side synced
 notes.
 
+## Recent Updates (2026-07-22, later)
+
+- **Share/Sync: TOON payload, notes policy, graph framing, per-item import
+  review.** Started as "can we add TOON?" and became an evaluation first — TOON,
+  YAML, NDJSON, CSV/TSV, markdown table and minified JSON all measured against
+  Taylor's real 100-task export with a real tokenizer (`o200k_base`; `cl100k`
+  tracked within 0.5%). Two findings drove the design. **(1) Note bodies were 62%
+  of the export** (24,372 of 39,278 tokens) — a bigger lever than every format
+  choice combined. **(2) TOON as-is saves 7%, not the advertised ~40%**, because
+  its tabular form needs uniform keys and scalar cells; the 'ai' export prunes
+  empty fields and carries `labels`/`depends_on` arrays. Filling the keys but
+  keeping arrays measured **-0.5%**. What shipped:
+  - **`notesPolicy` (Full / First 200 chars / Omit)** — new segmented control,
+    `applyNotesPolicy` in `taskJsonExport`. Non-full policies rewrite `meta.notes`
+    and add `meta.notesTruncated`, plus a preamble rule: a truncated body must
+    never come back as a replacement or it overwrites the real one with a
+    fragment. **Safety, not sizing** — the default `notes` contract invites
+    exactly that.
+  - **TOON as an export-only payload format** — new pure `taskToonExport.ts`
+    (uniform columns, `labels`/`depends_on` joined with ` | `, bodies hoisted to
+    a ref-keyed sidecar) over `@toon-format/toon` v4 (zero deps; encoder
+    tree-shakes to **6.5 KB**). `meta.format` tells the AI how to read the table
+    and to **reply in JSON**. Deliberately export-only: a sparse reply can't be
+    tabular (TOON 129 vs minified JSON 103 tokens on a 5-entry reply) and its
+    decoder hard-throws on a miscounted `[N]`, a 4-space indent, or an unquoted
+    comma — all four tested. CSV/TSV were marginally smaller and rejected: no
+    self-description, bespoke parser, can't carry `meta`.
+  - **Graph framing** — new `GRAPH_RULE` in every preset + `meta.graph`: the
+    export is a dependency graph, not a flat list (nothing is workable until its
+    dependencies are done, changes ripple downstream, keep it acyclic).
+  - **Per-item import review** — pure `importPlanEntries` / `filterImportPlan` /
+    `isEmptyImportPlan` flatten every plan bucket into keyed, rejectable rows.
+    The modal lists them grouped by kind: chevron expands in place (field
+    before → after; **note bodies rendered as markdown** via `MarkdownRenderer`
+    into a `Component` the modal owns, lazily on first open), `×` drops that one
+    change and re-strikes the row. Totals *and* category-toggle counts recompute
+    from the filtered plan, so what's shown is what will run.
+  - **Copy/Save/Apply no longer close the modal**; Apply re-plans against the
+    just-written vault. Fixed the hover scrollbar: `.modal-content` had
+    `overflow-y: auto` with `overflow-x: visible`, which the browser promotes to
+    `auto` — the button hover shadow then spilled a pixel and flashed a
+    horizontal bar. Row icon buttons carry `clickable-icon` because app.css
+    styles `button:not(.clickable-icon)`, which outranks a single class (the
+    theme-specificity trap again).
+  - **Measured end-to-end through the shipped code**, full 108-task vault:
+    JSON+full **50,821** tokens → TOON+full 43,243 (**-15%**) → JSON+omit 14,775
+    (**-71%**) → TOON+omit 6,579 (**-87%**).
+  - Touched `taskJsonExport.ts`, `taskToonExport.ts` (new), `sharePreamble.ts`,
+    `taskImportPlan.ts`, `ShareSyncModal.ts`, `main.ts`, settings
+    `types`/`defaults`, `styles.css`, rig `main.ts` (new `?share=import` scene) +
+    `obsidian-shim.ts`. Build green, **1566 tests** (up from 1533); rig-verified
+    dark + light. Live-Obsidian sign-off still owed for the real
+    `MarkdownRenderer` output and the Apply write path.
+
 ## Recent Updates (2026-07-22)
 
 - **Share/Sync export pane reworked (Taylor's 2026-07-22 asks).** Three things

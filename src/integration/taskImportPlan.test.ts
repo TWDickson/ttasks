@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
 import type { ParsedImportTask } from './taskJsonImport';
-import { changesToPatch, planImport, summarizeImportPlan } from './taskImportPlan';
+import {
+	changesToPatch,
+	filterImportPlan,
+	importPlanEntries,
+	isEmptyImportPlan,
+	planImport,
+	summarizeImportPlan,
+} from './taskImportPlan';
 
 function task(overrides: Partial<Task> = {}): Task {
 	return {
@@ -435,5 +442,112 @@ describe('summarizeImportPlan', () => {
 		expect(lines[0]).toBe('1 new task');
 		expect(lines[1]).toBe('1 task updated');
 		expect(lines.some((l) => l.includes('status: 1') && l.includes('due date: 1'))).toBe(true);
+	});
+});
+
+// ── Per-item review ──────────────────────────────────────────────────────────
+
+describe('importPlanEntries', () => {
+	it('flattens every bucket into addressable rows', () => {
+		const existing = task({ name: 'A', status: 'Active' });
+		const dep = task({ id: 'bbb222', path: 'Tasks/bbb222-b.md', name: 'B' });
+		const plan = planImport(
+			[
+				parsed({ name: 'A', status: 'Done', depends_on: ['B'] }),
+				parsed({ name: 'Fresh' }),
+				parsed({ name: 'B', action: 'delete' }),
+			],
+			[existing, dep],
+		);
+		const entries = importPlanEntries(plan);
+		const kinds = entries.map((e) => e.kind);
+
+		expect(kinds).toContain('update');
+		expect(kinds).toContain('create');
+		expect(kinds).toContain('link');
+		expect(kinds).toContain('delete');
+		expect(new Set(entries.map((e) => e.key)).size).toBe(entries.length);
+	});
+
+	it('describes an update with its before and after values', () => {
+		const plan = planImport([parsed({ name: 'A', status: 'Done' })], [task({ name: 'A', status: 'Active' })]);
+		const entry = importPlanEntries(plan)[0];
+
+		expect(entry.kind).toBe('update');
+		expect(entry.title).toBe('A');
+		expect(entry.summary).toContain('status → Done');
+		expect(entry.details).toEqual([{ label: 'status', from: 'Active', to: 'Done' }]);
+		expect(entry.destructive).toBe(false);
+	});
+
+	it('carries the markdown for a note-body change so it can be rendered', () => {
+		const plan = planImport(
+			[parsed({ name: 'A', notes: '# New body' })],
+			[task({ name: 'A', notes: '# Old body' })],
+		);
+		const entry = importPlanEntries(plan).find((e) => e.kind === 'notes');
+
+		expect(entry?.markdown).toEqual({ from: '# Old body', to: '# New body' });
+		// Replacing an existing body is destructive; filling an empty one isn't.
+		expect(entry?.destructive).toBe(true);
+	});
+
+	it('does not flag a first note body as destructive', () => {
+		const plan = planImport([parsed({ name: 'A', notes: 'first' })], [task({ name: 'A', notes: '' })]);
+		expect(importPlanEntries(plan).find((e) => e.kind === 'notes')?.destructive).toBe(false);
+	});
+
+	it('keeps keys unique when two creates share a name', () => {
+		const plan = planImport(
+			[parsed({ name: 'Dup', action: 'create' }), parsed({ name: 'Dup', action: 'create' })],
+			[],
+		);
+		const keys = importPlanEntries(plan).map((e) => e.key);
+		expect(new Set(keys).size).toBe(2);
+	});
+});
+
+describe('filterImportPlan', () => {
+	it('drops only the rejected entry, leaving its category intact', () => {
+		const a = task({ id: 'aaa111', path: 'Tasks/a.md', name: 'A', status: 'Active' });
+		const b = task({ id: 'bbb222', path: 'Tasks/b.md', name: 'B', status: 'Active' });
+		const plan = planImport(
+			[parsed({ name: 'A', status: 'Done' }), parsed({ name: 'B', status: 'Done' })],
+			[a, b],
+		);
+		expect(plan.updates).toHaveLength(2);
+
+		const rejectA = importPlanEntries(plan).find((e) => e.title === 'A')!.key;
+		const filtered = filterImportPlan(plan, [rejectA]);
+
+		expect(filtered.updates.map((u) => u.name)).toEqual(['B']);
+		// The original is untouched — rejection is a view over the plan, not an edit.
+		expect(plan.updates).toHaveLength(2);
+	});
+
+	it('recounts the field breakdown from what survived', () => {
+		const a = task({ id: 'aaa111', path: 'Tasks/a.md', name: 'A' });
+		const b = task({ id: 'bbb222', path: 'Tasks/b.md', name: 'B' });
+		const plan = planImport(
+			[parsed({ name: 'A', status: 'Done' }), parsed({ name: 'B', status: 'Done' })],
+			[a, b],
+		);
+		expect(plan.fieldChangeCounts.status).toBe(2);
+
+		const rejectA = importPlanEntries(plan).find((e) => e.title === 'A')!.key;
+		expect(filterImportPlan(plan, [rejectA]).fieldChangeCounts.status).toBe(1);
+	});
+
+	it('returns the same plan when nothing is rejected', () => {
+		const plan = planImport([parsed({ name: 'A', status: 'Done' })], [task({ name: 'A' })]);
+		expect(filterImportPlan(plan, [])).toBe(plan);
+	});
+
+	it('reports an emptied plan as empty', () => {
+		const plan = planImport([parsed({ name: 'A', status: 'Done' })], [task({ name: 'A', status: 'Active' })]);
+		expect(isEmptyImportPlan(plan)).toBe(false);
+
+		const allKeys = importPlanEntries(plan).map((e) => e.key);
+		expect(isEmptyImportPlan(filterImportPlan(plan, allKeys))).toBe(true);
 	});
 });

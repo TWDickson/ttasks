@@ -185,11 +185,30 @@ export class App {}
 export class Component { load(): void {} unload(): void {} addChild<T>(child: T): T { return child; } }
 export class MarkdownRenderer {
 	static async render(_app: unknown, markdown: string, el: HTMLElement, _sourcePath: string, _component: unknown): Promise<void> {
-		// Cheap markdown-ish preview: paragraphs + inline code stay readable.
-		el.innerHTML = markdown
-			.split(/\n{2,}/)
-			.map((block) => `<p>${block.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>')}</p>`)
-			.join('');
+		// Cheap markdown-ish preview. Not a real parser — just enough of the block
+		// types (headings, lists, quotes, fences) for the rendered-body styling in
+		// the import preview to be verifiable without launching Obsidian.
+		const inline = (s: string): string => s
+			.replace(/`([^`]+)`/g, '<code>$1</code>')
+			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+			.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+		const html = markdown.split(/\n{2,}/).map((block) => {
+			const trimmed = block.trim();
+			if (trimmed.startsWith('```')) {
+				return `<pre><code>${trimmed.replace(/^```\w*\n?/, '').replace(/```$/, '')}</code></pre>`;
+			}
+			const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
+			if (heading) return `<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`;
+			if (/^[-*]\s+/.test(trimmed)) {
+				const items = trimmed.split('\n').map((line) => `<li>${inline(line.replace(/^[-*]\s+/, ''))}</li>`);
+				return `<ul>${items.join('')}</ul>`;
+			}
+			if (trimmed.startsWith('>')) {
+				return `<blockquote>${inline(trimmed.replace(/^>\s?/gm, ''))}</blockquote>`;
+			}
+			return `<p>${inline(trimmed).replace(/\n/g, '<br>')}</p>`;
+		}).join('');
+		el.innerHTML = html;
 	}
 }
 export class TAbstractFile { path = ''; name = ''; }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
 import {
 	AI_IMPORT_META,
+	NOTES_SUMMARY_LENGTH,
 	TASK_JSON_SCHEMA_VERSION,
 	buildTaskJsonDocument,
 	serializeTasksToJson,
@@ -105,7 +106,9 @@ describe('buildTaskJsonDocument — ai mode', () => {
 
 	it('embeds the paste-back contract as meta (ai mode only)', () => {
 		const aiDoc = buildTaskJsonDocument([makeTask()], 'ai', AT);
-		expect(aiDoc.meta).toBe(AI_IMPORT_META);
+		// Value-equal, not identity-equal: the meta is built per export so it can
+		// carry a notes-policy warning (see the notesPolicy tests below).
+		expect(aiDoc.meta).toEqual(AI_IMPORT_META);
 		expect(aiDoc.meta?.actions).toHaveProperty('delete');
 		const fullDoc = buildTaskJsonDocument([makeTask()], 'full', AT);
 		expect(fullDoc.meta).toBeUndefined();
@@ -268,5 +271,57 @@ describe('round-trip (full export → import)', () => {
 		expect(back.notes).toBe('some notes');
 		expect(back.pomodoro_count).toBe(2);
 		expect(back.focused_minutes).toBe(50);
+	});
+});
+
+describe('notes policy', () => {
+	const long = 'y'.repeat(NOTES_SUMMARY_LENGTH + 50);
+
+	it('sends bodies untouched under the default policy', () => {
+		const doc = buildTaskJsonDocument([makeTask({ notes: long })], 'ai', AT);
+		expect(doc.tasks[0].notes).toBe(long);
+		expect(doc.meta?.notesTruncated).toBeUndefined();
+	});
+
+	it('truncates to the summary length and marks the cut', () => {
+		const doc = buildTaskJsonDocument([makeTask({ notes: long })], 'ai', AT, undefined, 'summary');
+		expect(doc.tasks[0].notes).toBe(`${'y'.repeat(NOTES_SUMMARY_LENGTH)}…`);
+	});
+
+	it('leaves a body shorter than the limit alone, with no ellipsis', () => {
+		const doc = buildTaskJsonDocument([makeTask({ notes: 'short' })], 'ai', AT, undefined, 'summary');
+		expect(doc.tasks[0].notes).toBe('short');
+	});
+
+	it('drops bodies entirely under the none policy', () => {
+		const doc = buildTaskJsonDocument([makeTask({ notes: long })], 'ai', AT, undefined, 'none');
+		expect(doc.tasks[0].notes).toBe('');
+	});
+
+	it('applies to a full-mode export too', () => {
+		const doc = buildTaskJsonDocument([makeTask({ notes: long })], 'full', AT, undefined, 'none');
+		expect(doc.tasks[0].notes).toBe('');
+	});
+
+	// A shortened body must never come back as a replacement — it would overwrite
+	// the real one with a fragment. The warning has to ride along with the data.
+	it('warns the receiving AI not to send truncated bodies back', () => {
+		for (const policy of ['summary', 'none'] as const) {
+			const meta = buildTaskJsonDocument([makeTask()], 'ai', AT, undefined, policy).meta;
+			expect(meta?.notesTruncated).toMatch(/Do NOT send "notes" back/i);
+			// …and the default "sending notes replaces the body" contract is
+			// replaced, not left to contradict it.
+			expect(meta?.notes).toMatch(/Do not send "notes" back/i);
+			expect(meta?.notes).not.toContain('REPLACES the whole body');
+		}
+	});
+});
+
+describe('graph framing', () => {
+	it('tells the receiving AI the export is a dependency graph', () => {
+		const meta = buildTaskJsonDocument([makeTask()], 'ai', AT).meta;
+		expect(meta?.graph).toContain('GRAPH');
+		expect(meta?.graph).toContain('depends_on');
+		expect(meta?.graph).toMatch(/acyclic/i);
 	});
 });

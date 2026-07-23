@@ -1,7 +1,7 @@
 ﻿import type { GroupField, QuerySpec, SortField } from '../query/types';
 import type { Task } from '../types';
-import type { TaskJsonMode } from '../integration/taskJsonExport';
-import type { ShareOutputFormat, SharePreamblePresetId } from '../integration/sharePreamble';
+import type { NotesPolicy, TaskJsonMode } from '../integration/taskJsonExport';
+import type { SharePayloadFormat, ShareOutputFormat, SharePreamblePresetId } from '../integration/sharePreamble';
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
 export type TaskViewRenderer = 'list' | 'kanban' | 'agenda' | 'graph' | 'archive';
@@ -197,6 +197,10 @@ export interface TTasksSettings {
 export interface ShareSyncSettings {
 	mode: TaskJsonMode;
 	outputFormat: ShareOutputFormat;
+	/** Wire format of the data block — JSON, or the denser export-only TOON. */
+	payloadFormat: SharePayloadFormat;
+	/** How much of each note body ships (the dominant lever on export size). */
+	notesPolicy: NotesPolicy;
 	preamblePreset: SharePreamblePresetId;
 	/** User-edited preamble body. Empty means "use the preset's own text". */
 	customPreamble: string;

@@ -8,9 +8,16 @@
 // JSON are laid out for copying — some AIs take one big message, others want the
 // prose in the message and the JSON as a separate paste/attachment.
 
-import type { TaskJsonValidValues } from './taskJsonExport';
+import type { NotesPolicy, TaskJsonValidValues } from './taskJsonExport';
 
 export type SharePreamblePresetId = 'review' | 'breakdown' | 'plan' | 'catchup' | 'none';
+
+/**
+ * Wire format of the data block. 'json' is the round-trip default; 'toon' is a
+ * denser export-only encoding (see taskToonExport) that still asks for a JSON
+ * reply, so the preamble has to say which one is going out.
+ */
+export type SharePayloadFormat = 'json' | 'toon';
 
 export interface SharePreamblePreset {
 	id: SharePreamblePresetId;
@@ -36,12 +43,52 @@ export type ShareOutputFormat = 'fenced' | 'separate' | 'json-only';
  */
 export const NO_NEW_VALUES_RULE =
 	'Do not invent new statuses, priorities, areas, or labels. Use only the values listed in ' +
-	'"meta.validValues" in the JSON — if none fits, leave the field unchanged and say so in prose.';
+	'"meta.validValues" in the data — if none fits, leave the field unchanged and say so in prose.';
 
 const ROUND_TRIP_RULE =
 	'To propose changes, reply with a JSON object in the same shape ({ "tasks": [...] }), including ' +
 	'only the tasks you are changing and only the fields you are changing on each. Read "meta" in the ' +
-	'JSON for the exact contract (matching by "ref", the "action" key, dependencies, projects).';
+	'data for the exact contract (matching by "ref", the "action" key, dependencies, projects).';
+
+/**
+ * The shape rule. Without it a model reads the export as a flat to-do list and
+ * advises on each row in isolation — reordering work that has a fixed
+ * prerequisite chain, or calling a task stalled when it is simply waiting on its
+ * blocker. Stated in the prose as well as in `meta.graph` because prose is what
+ * actually steers the reply.
+ */
+export const GRAPH_RULE =
+	'These tasks are a dependency GRAPH, not a flat list. "depends_on" names the tasks that must finish ' +
+	'first, "parent" names the project a task belongs to, and "blocks" is just the reverse view of ' +
+	'"depends_on". Reason over the whole graph: nothing is workable until its dependencies are done, a ' +
+	'date or status change ripples to everything downstream, and a project runs as long as its longest ' +
+	'chain. Keep the graph acyclic and say so explicitly when a change moves work that depends on it.';
+
+/** Told to the model when the data block is TOON rather than JSON. */
+const TOON_FORMAT_RULE =
+	'The data below is TOON, a compact tabular encoding: "tasks[N]{col,col,…}:" gives the row count and ' +
+	'column order, then one line per task. In the "labels" and "depends_on" columns a single cell holds a ' +
+	'list separated by " | ", and note bodies live under "notes" keyed by ref rather than in the table. ' +
+	'Reply in JSON, not TOON.';
+
+/** Told to the model when note bodies were shortened or dropped on the way out. */
+function notesPolicyRule(policy: NotesPolicy): string | null {
+	if (policy === 'summary') {
+		return 'Note bodies are TRUNCATED here (a trailing "…" marks a cut body). Do not send "notes" back — ' +
+			'it would overwrite the real body with this fragment. Suggest body edits in prose instead.';
+	}
+	if (policy === 'none') {
+		return 'Note bodies are NOT included in this export — you are seeing task fields only. Do not send ' +
+			'"notes" back, and say so if a question really needs the body text.';
+	}
+	return null;
+}
+
+/** Optional context that changes what the preamble has to warn about. */
+export interface PreambleContext {
+	payloadFormat?: SharePayloadFormat;
+	notesPolicy?: NotesPolicy;
+}
 
 export const SHARE_PREAMBLE_PRESETS: SharePreamblePreset[] = [
 	{
@@ -94,9 +141,13 @@ export function findPreamblePreset(id: SharePreamblePresetId): SharePreamblePres
 export function buildPreambleText(
 	preset: SharePreamblePreset,
 	validValues?: TaskJsonValidValues,
+	context: PreambleContext = {},
 ): string {
 	if (preset.id === 'none') return '';
-	const parts = [preset.text, ROUND_TRIP_RULE, NO_NEW_VALUES_RULE];
+	const parts = [preset.text, GRAPH_RULE, ROUND_TRIP_RULE, NO_NEW_VALUES_RULE];
+	if (context.payloadFormat === 'toon') parts.push(TOON_FORMAT_RULE);
+	const notesRule = notesPolicyRule(context.notesPolicy ?? 'full');
+	if (notesRule) parts.push(notesRule);
 	if (validValues && validValues.statuses.length > 0) {
 		parts.push(`Valid statuses in this vault: ${validValues.statuses.join(', ')}.`);
 	}
@@ -119,22 +170,26 @@ export interface ShareOutputBlock {
  */
 export function composeShareOutput(
 	preamble: string,
-	json: string,
+	payload: string,
 	format: ShareOutputFormat,
+	payloadFormat: SharePayloadFormat = 'json',
 ): ShareOutputBlock[] {
 	const prose = preamble.trim();
+	// Casing of the format name lives here so the fence, the block heading, and
+	// the button all agree.
+	const name = payloadFormat === 'toon' ? 'TOON' : 'JSON';
 	if (format === 'json-only' || prose === '') {
-		return [{ label: '', copyLabel: 'Copy to clipboard', text: json }];
+		return [{ label: '', copyLabel: 'Copy to clipboard', text: payload }];
 	}
 	if (format === 'separate') {
 		return [
 			{ label: 'Message', copyLabel: 'Copy message', text: prose },
-			{ label: 'JSON', copyLabel: 'Copy JSON', text: json },
+			{ label: name, copyLabel: `Copy ${name}`, text: payload },
 		];
 	}
 	return [{
 		label: '',
 		copyLabel: 'Copy to clipboard',
-		text: `${prose}\n\n\`\`\`json\n${json}\n\`\`\``,
+		text: `${prose}\n\n\`\`\`${payloadFormat}\n${payload}\n\`\`\``,
 	}];
 }
