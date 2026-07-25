@@ -1158,7 +1158,12 @@ implementation since it changes how API fields are exposed.
 ### Testing posture (TD)
 
 - `[ ]` **TD-1 🔴 no CI** — nothing runs build/test/lint on push; the local gate
-  is manual.
+  is manual (`npm run check`, added with TD-2, is the thing CI would run).
+  **Deliberately deferred 2026-07-25 (Taylor): still mid-flight on substantial
+  improvements, so revisit closer to publication.** Blocked on a prerequisite
+  anyway: `origin/main` is a separate/divergent history that we don't push to, and
+  CI needs a remote reflecting local `main`. Don't re-raise this as a quick win —
+  the sequencing decision is already made.
 - `[x]` **TD-2 🟡 lint was failing and wasn't in the local gate** — *done
   2026-07-25.* Cleared all **50 `no-mixed-spaces-and-tabs` errors** (up from 10 in
   one file at audit time) across `TaskGraph.svelte`, `TaskKanban.svelte`, and
