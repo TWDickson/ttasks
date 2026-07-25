@@ -496,8 +496,8 @@
 		width: 100%;
 		box-shadow: 0 1px 3px rgba(var(--mono-rgb-100), 0.08);
 		/* Colour-spine model: the card's identity colour is its left edge, keyed
-		   to the project area. Frees the badge row to stay monochrome. Active
-		   state overrides this to the accent below. */
+		to the project area. Frees the badge row to stay monochrome. Active
+		state overrides this to the accent below. */
 		border-left: 3px solid var(--tt-area-color, transparent);
 		transition: background 0.1s, box-shadow 0.1s, border-left-color 0.1s;
 	}
@@ -552,7 +552,7 @@
 	}
 
 	/* Overdue is signalled by the red-tinted date badge only (P2-8) — the card
-	   name stays neutral so a column of overdue cards doesn't shout. */
+	name stays neutral so a column of overdue cards doesn't shout. */
 
 	.tt-card-blocked-reason {
 		font-size: 0.76rem;

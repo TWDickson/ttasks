@@ -1153,16 +1153,16 @@
 				<div class="tt-graph-fit" bind:this={dependencyFitEl} style={`width:${fittedDependencyWidth}px;height:${fittedDependencyHeight}px;`}>
 				{#if dependencyLaneHeaders.length > 0}
 					<!-- Lane tint bands live in the fit box (not the scaled stage) so they
-					     span the full visible width even when the graph is narrower than the
-					     panel; positions are pre-scaled to match the stage. -->
+					span the full visible width even when the graph is narrower than the
+					panel; positions are pre-scaled to match the stage. -->
 					<div class="tt-dependency-lane-bands" aria-hidden="true">
 						{#each dependencyLaneHeaders as lane (lane.key)}
 							{@const tint = laneTint(lane)}
 							{@const state = laneStates.get(lane.key) ?? ''}
 							<!-- Tint is focus-gated: full for the active lane, reduced for the
-							     soft lanes its chain reaches, invisible at rest. Kept mounted
-							     (not {#if}-toggled) so the CSS opacity transition fades it in and
-							     out instead of popping. Shares the header's padded box. -->
+							soft lanes its chain reaches, invisible at rest. Kept mounted
+							(not {#if}-toggled) so the CSS opacity transition fades it in and
+							out instead of popping. Shares the header's padded box. -->
 							{#if tint}
 								<div
 									class={`tt-dependency-lane-band ${state === 'active' ? 'is-active' : state === 'soft' ? 'is-soft' : ''}`}
@@ -1178,9 +1178,9 @@
 							{#each dependencyLaneHeaders as lane (lane.key)}
 								{#if isProjectLaneHeader(lane)}
 									<!-- GP5: the chip's label body is a plain (non-interactive) label —
-									     the click-to-focus-the-lane interaction was disabled for now; only
-									     the `+` footer below is clickable (adds a task to the project).
-									     Lane focus still comes from hover (GP8) and clicking a task. -->
+									the click-to-focus-the-lane interaction was disabled for now; only
+									the `+` footer below is clickable (adds a task to the project).
+									Lane focus still comes from hover (GP8) and clicking a task. -->
 									<div
 										class={`${getLaneHeaderClass(lane)} is-clickable ${laneStateClass(laneStates.get(lane.key) ?? '')}`}
 										style={`top:${lane.topPx}px;height:${lane.heightPx}px;`}
@@ -1271,9 +1271,9 @@
 						</button>
 						{#if (hoverTracePath === node.path || (!hoverCapable && pinnedTracePath === node.path)) && node.task.type === 'task'}
 							<!-- Left `+`: spawn a blocker (upstream/parent) this task will depend on.
-							     Right `+`: spawn a dependent that depends on this one. Both inherit
-							     project/area/labels/priority. Shown on hover (mouse) or, on touch (no
-							     hover), when the node is pinned by a tap. -->
+							Right `+`: spawn a dependent that depends on this one. Both inherit
+							project/area/labels/priority. Shown on hover (mouse) or, on touch (no
+							hover), when the node is pinned by a tap. -->
 							<button
 								type="button"
 								class="tt-node-add tt-node-add-left"
@@ -1661,8 +1661,8 @@
 		position: absolute;
 		top: calc(100% + 6px);
 		/* Anchor to the pill's right edge and expand leftward: the Projects pill
-		   sits toward the right of the (wrapping) toolbar, so a left anchor
-		   overflows the panel on narrow/mobile viewports. */
+		sits toward the right of the (wrapping) toolbar, so a left anchor
+		overflows the panel on narrow/mobile viewports. */
 		right: 0;
 		left: auto;
 		z-index: 41;
@@ -1743,8 +1743,8 @@
 	.tt-graph-zoom-float {
 		position: absolute;
 		/* Anchor top-right: the board's create-task FAB owns the bottom corners
-		   (bottom-right by default, bottom-left via settings), so the top-right is
-		   the only corner guaranteed clear of it. */
+		(bottom-right by default, bottom-left via settings), so the top-right is
+		the only corner guaranteed clear of it. */
 		top: 12px;
 		right: 16px;
 		z-index: 11;
@@ -1759,11 +1759,11 @@
 		min-height: 0;
 		overflow: auto;
 		/* Extra top/side breathing room so the first row of cards and the tinted
-		   lane bands don't sit flush against the board edges. */
+		lane bands don't sit flush against the board edges. */
 		padding: 22px 20px 20px;
 		cursor: grab;
 		/* Pan and pinch-zoom are handled manually via pointer events; opt out of
-		   the browser's own touch scrolling/zooming so those gestures reach us. */
+		the browser's own touch scrolling/zooming so those gestures reach us. */
 		touch-action: none;
 	}
 
@@ -2124,20 +2124,20 @@
 	.tt-graph-stage {
 		position: relative;
 		/* No min-width: the stage box must stay exactly layout.width so the
-		   absolutely-positioned <svg> (inset:0, viewBox 0 0 layout.width
-		   layout.height) maps 1:1. A min-width:100% inflated the box past the
-		   inline width once dependencyScale > 1 (fit width = layout.width*scale),
-		   which made preserveAspectRatio rescale edges while nodes stayed in
-		   unscaled coords — edges detached above 100% zoom (C1). */
+		absolutely-positioned <svg> (inset:0, viewBox 0 0 layout.width
+		layout.height) maps 1:1. A min-width:100% inflated the box past the
+		inline width once dependencyScale > 1 (fit width = layout.width*scale),
+		which made preserveAspectRatio rescale edges while nodes stayed in
+		unscaled coords — edges detached above 100% zoom (C1). */
 		transform-origin: top left;
 	}
 
 	.tt-graph-fit {
 		position: relative;
 		/* Fill the scroll viewport when the graph is narrower than the panel, so
-		   the full-width lane tint bands reach the right edge instead of stopping
-		   at the graph's own (narrower) right edge. When the graph is wider, its
-		   explicit inline width wins and the box scrolls as before. */
+		the full-width lane tint bands reach the right edge instead of stopping
+		at the graph's own (narrower) right edge. When the graph is wider, its
+		explicit inline width wins and the box scrolls as before. */
 		min-width: 100%;
 	}
 
@@ -2156,7 +2156,7 @@
 	}
 
 	/* GP4: full-width swim-lane tint, keyed to the project's area colour. First
-	   child of the stage with no z-index, so edges/nodes paint on top of it. */
+	child of the stage with no z-index, so edges/nodes paint on top of it. */
 	.tt-dependency-lane-bands {
 		position: absolute;
 		inset: 0;
@@ -2169,9 +2169,9 @@
 		right: 0;
 		border-radius: 10px;
 		/* Symmetric vertical gradient: a tint cap at the top/bottom edges, fading to
-		   nothing across the middle of the lane. color-mix onto transparent keeps it
-		   a translucent overlay, readable in dark + light. Focus-gated (shown only
-		   for the active/soft lanes); `--tt-lane-cap` sets the strength per state. */
+		nothing across the middle of the lane. color-mix onto transparent keeps it
+		a translucent overlay, readable in dark + light. Focus-gated (shown only
+		for the active/soft lanes); `--tt-lane-cap` sets the strength per state. */
 		background: linear-gradient(
 			180deg,
 			color-mix(in srgb, var(--tt-lane-tint) 17%, transparent) 0%,
@@ -2180,8 +2180,8 @@
 			color-mix(in srgb, var(--tt-lane-tint) 17%, transparent) 100%
 		);
 		/* Active vs soft differ only by opacity (not gradient strength) so every
-		   direction — rest↔active↔soft — is a single, smoothly animatable opacity
-		   change. Hidden at rest; mounted always so the transition runs both ways. */
+		direction — rest↔active↔soft — is a single, smoothly animatable opacity
+		change. Hidden at rest; mounted always so the transition runs both ways. */
 		opacity: 0;
 		transition: opacity 0.32s ease;
 	}
@@ -2220,8 +2220,8 @@
 	}
 
 	/* Lane focus: the active lane's header pops (accent border), soft lanes (the
-	   ones the active chain reaches) stay bright, and other lanes recede — but
-	   headers never fully hide, they are the lane map. */
+	ones the active chain reaches) stay bright, and other lanes recede — but
+	headers never fully hide, they are the lane map. */
 	.tt-dependency-lane-header.is-lane-dim {
 		opacity: 0.42;
 	}
@@ -2364,8 +2364,8 @@
 	}
 
 	/* Clickable project chip (GP5) — a container of two subshapes: the label body
-	   (tap → focus/pin the lane) and a `+` footer (tap → add a task). Padding + gap
-	   move onto the inner buttons so the `+` can sit flush at the bottom edge. */
+	(tap → focus/pin the lane) and a `+` footer (tap → add a task). Padding + gap
+	move onto the inner buttons so the `+` can sit flush at the bottom edge. */
 	.tt-dependency-lane-header.is-clickable {
 		pointer-events: auto;
 		padding: 0;
@@ -2384,9 +2384,9 @@
 	}
 
 	/* Label body — fills the chip above the `+` footer, laying out the label +
-	   count exactly as the old single-button chip did (inherits the header's
-	   cross-axis alignment so compact chips stay centred). Non-interactive: the
-	   click-to-focus interaction is disabled for now; only the `+` footer clicks. */
+	count exactly as the old single-button chip did (inherits the header's
+	cross-axis alignment so compact chips stay centred). Non-interactive: the
+	click-to-focus interaction is disabled for now; only the `+` footer clicks. */
 	.tt-dependency-lane-focus {
 		flex: 1 1 auto;
 		min-height: 0;
@@ -2405,7 +2405,7 @@
 	}
 
 	/* `+` footer subshape — full-width strip flush to the chip's bottom edge,
-	   divided from the body by a hairline so the two read as one card. */
+	divided from the body by a hairline so the two read as one card. */
 	.tt-dependency-lane-add-btn {
 		flex: 0 0 auto;
 		width: 100%;
@@ -2444,7 +2444,7 @@
 	}
 
 	/* Touch: expand the `+` footer's hit area to the mobile ≥44px minimum without
-	   growing its visual strip (matches the node-add affordance). */
+	growing its visual strip (matches the node-add affordance). */
 	@media (pointer: coarse) {
 		.tt-dependency-lane-add-btn {
 			position: relative;
@@ -2532,7 +2532,7 @@
 	}
 
 	/* Touch devices: keep the 28px visual chip but expand the tap area to ≥44px
-	   so the "add dependent" affordance meets the mobile hit-target minimum. */
+	so the "add dependent" affordance meets the mobile hit-target minimum. */
 	@media (pointer: coarse) {
 		.tt-node-add::after {
 			content: '';

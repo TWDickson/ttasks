@@ -53,10 +53,19 @@ backlog — didn't list at all. The repeat redesign that RP-1 was nominally
 deferred to wasn't scheduled anywhere, so "wait for the redesign" meant "never".
 All open `AR`/`DT`/`MD`/`RP`/`TD`/`PB` items are now indexed in a new
 **`Audit 2026-07`** section of BACKLOG.md, and the audit is listed in CLAUDE.md's
-Status Sources. Also surfaced: **lint is failing (50 `no-mixed-spaces-and-tabs`
-errors** across `TaskGraph.svelte`/`TaskKanban.svelte`/`TaskRow.svelte`, up from
-10 in one file at audit time) — it runs in neither CI nor the local gate, which
-is TD-2.
+Status Sources.
+
+**Lint cleared + a local gate (TD-2, same day).** Surfaced by the fold-in: lint
+was failing with **50 `no-mixed-spaces-and-tabs` errors** across
+`TaskGraph.svelte`, `TaskKanban.svelte`, and `TaskRow.svelte` — up from 10 in one
+file at audit time, because it ran in neither CI nor the local gate. All 50 were
+the same pattern: a comment **continuation** line indented with tabs *then* spaces
+to align the prose under the opening `/*` or `<!--`. Cleared the way `d16350b`
+already had elsewhere (a continuation takes the opening line's tab depth, no
+spaces) — **comments only**, exactly 50 insertions / 50 deletions, no code,
+selector, or markup change, line endings preserved. Added **`npm run check`**
+(`lint && build && test`) so the three gates run as one. TD-1 (no CI) stays open
+and is the natural home for `check`, once the divergent-`origin` story is settled.
 
 ## Docs reconcile — BACKLOG is now all-horizons (2026-07-19)
 

@@ -182,14 +182,14 @@
 		border-radius: var(--radius-m, 8px);
 		min-height: 36px;
 		/* Colour-spine model: identity colour is a left edge keyed to the task's
-		   area. Painted as an inset shadow (not a border) so row content stays
-		   aligned with the group headings above it. */
+		area. Painted as an inset shadow (not a border) so row content stays
+		aligned with the group headings above it. */
 		box-shadow: inset 3px 0 0 var(--tt-area-color, transparent);
 		transition: background 0.1s ease;
 	}
 
 	/* Active/keyboard-focused rows use the accent inset overlay (::before /
-	   outline) as their signal, so drop the area spine to avoid two left bars. */
+	outline) as their signal, so drop the area spine to avoid two left bars. */
 	.tt-task.is-active {
 		box-shadow: none;
 	}
@@ -356,9 +356,9 @@
 	}
 
 	/* Overdue is signalled by the red-tinted date badge only (P2-8). The task
-	   name stays in normal text so a column of overdue rows doesn't shout —
-	   consistent with the colour-spine model (loud signals live on the badge,
-	   not the whole row). */
+	name stays in normal text so a column of overdue rows doesn't shout —
+	consistent with the colour-spine model (loud signals live on the badge,
+	not the whole row). */
 
 	.tt-task-main {
 		display: flex;

@@ -1159,10 +1159,18 @@ implementation since it changes how API fields are exposed.
 
 - `[ ]` **TD-1 🔴 no CI** — nothing runs build/test/lint on push; the local gate
   is manual.
-- `[ ]` **TD-2 🟡 lint is not in the local gate either** — and it's currently
-  **failing: 50 `no-mixed-spaces-and-tabs` errors** across `TaskGraph.svelte`,
-  `TaskKanban.svelte`, and `TaskRow.svelte` (was 10 in one file at audit time, so
-  this is growing). Add a `check` script that runs build + test + lint together.
+- `[x]` **TD-2 🟡 lint was failing and wasn't in the local gate** — *done
+  2026-07-25.* Cleared all **50 `no-mixed-spaces-and-tabs` errors** (up from 10 in
+  one file at audit time) across `TaskGraph.svelte`, `TaskKanban.svelte`, and
+  `TaskRow.svelte`: every one was a comment **continuation** line indented with
+  tabs *then* spaces, aligning the prose under the opening `/*` or `<!--`
+  delimiter. Fixed the same way as
+  `d16350b` — continuations take the opening line's tab depth and no spaces.
+  Comments only; zero code, selector, or markup changes (diff is exactly 50
+  insertions / 50 deletions, line endings preserved). Added **`npm run check`**
+  (`lint && build && test`) so the three gates run together and lint can't drift
+  again. `npm run lint` is now clean; check passes end-to-end (**1616 tests** +
+  65 component tests).
 - `[ ]` **TD-3 🟡 coverage visibility** — no coverage reporting.
 - `[ ]` **TD-4 🟢 component-test debt** — tracks AR-1; fold "add a render test"
   into each component migration.

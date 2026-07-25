@@ -236,10 +236,20 @@ notes.
   anywhere. All open `AR`/`DT`/`MD`/`RP`/`TD`/`PB` items are now indexed in a new
   **`Audit 2026-07`** section of `BACKLOG.md` (with the audit's own priority
   markers), and the audit is listed in this file's **Status Sources**.
-  Noted while there: **lint is failing — 50 `no-mixed-spaces-and-tabs` errors**
-  in `TaskGraph.svelte` / `TaskKanban.svelte` / `TaskRow.svelte`, up from 10 in
-  one file at audit time (tracked as TD-2; lint is in neither CI nor the local
-  gate, which is why it drifted).
+- **Lint cleared + a real local gate (audit TD-2).** Lint had been failing with
+  **50 `no-mixed-spaces-and-tabs` errors** in `TaskGraph.svelte` /
+  `TaskKanban.svelte` / `TaskRow.svelte` — up from 10 in one file at audit time,
+  because it ran in neither CI nor the local gate. Every one was the same thing: a
+  comment **continuation** line indented with tabs *then* spaces to align the prose
+  under the opening delimiter. Cleared them the way `d16350b` already had
+  elsewhere — a continuation takes the opening line's tab depth and no spaces —
+  which is **comments only**: the diff is exactly 50 insertions / 50 deletions
+  with no code, selector, or markup change, and line endings preserved. Added
+  **`npm run check`** (`lint && build && test`) so the three gates run as one and
+  this can't drift again. Lint clean, check green end-to-end (**1616 tests** + 65
+  component tests). Remaining from that audit item's neighbourhood: **TD-1 (no
+  CI)** — still open, and the natural home for `check`, but it needs the
+  `origin`-is-divergent story resolved first.
 
 ## Recent Updates (2026-07-22, later)
 
