@@ -9,6 +9,11 @@ Use these files as the canonical status references:
 - `BACKLOG.md` — the single live backlog (all open items with specs)
 - `CLAUDE.md` — current state, priorities, conventions, and latest milestone snapshot
 - `ROADMAP.md` — dated progress log and backlog checkpoint by phase/slice
+- `AUDIT_2026-07.md` — full codebase / date-handling / publication-readiness
+  audit (2026-07-12). Its open items are indexed in `BACKLOG.md`'s
+  `Audit 2026-07` section; the audit itself holds the rationale, code
+  references, and the §7 dependency-ordered sequencing plan. **Read it before
+  starting any `AR`/`DT`/`MD`/`RP`/`TD`/`PB` item.**
 - `Scripts/memory/project_ttasks.md` — synced high-level status note for quick reference from the vault side
 
 When updating project status, prefer updating `CLAUDE.md` first, then add a dated checkpoint to `ROADMAP.md` when the change is milestone-worthy.
@@ -121,11 +126,13 @@ Body = free-form markdown notes only. Plugin renders all structured UI on top.
 ## Current Priorities
 
 **The single live backlog is `BACKLOG.md`** — now **all-horizons** (all-horizons
-reconcile 2026-07-19; originally consolidated 2026-07-12). It holds every open
-item: near-term threads (`Now` / `Next` / `Gated`) *and* longer-range roadmap
-features (`Later`, migrated from ROADMAP Phase 5–8 + Deferred). `ROADMAP.md` is
-now a **dated journal + historical phase notes only** — not a live registry;
-don't treat an unchecked box in its phase sections as open work. Open:
+reconcile 2026-07-19; originally consolidated 2026-07-12; audit fold-in
+2026-07-25). It holds every open item: near-term threads (`Now` / `Next` /
+`Gated`), longer-range roadmap features (`Later`, migrated from ROADMAP Phase
+5–8 + Deferred), *and* the codebase / publication-readiness items from
+`AUDIT_2026-07.md` (`Audit 2026-07`). `ROADMAP.md` is now a **dated journal +
+historical phase notes only** — not a live registry; don't treat an unchecked
+box in its phase sections as open work. Open:
 
 0. ~~**JSON import/export**~~ — **done 2026-07-19.** Full round-trip for the
    work-AI workflow: a **Share / Sync** rail entry + command opens a modal with an
@@ -164,6 +171,15 @@ don't treat an unchecked box in its phase sections as open work. Open:
 5. **Gated on Taylor** — N3 API review (then implement), C2-F2 whitespace call,
    N7 Bases (live vault), dark/light × desktop/phone visual regression pass.
    *Done: P2-8 overdue softening; branch merge of `feat/ui-polish-autopilot`.*
+6. **Audit 2026-07 thread** — *newly tracked 2026-07-25.* The codebase /
+   publication-readiness items from `AUDIT_2026-07.md`, which had been sitting
+   outside the backlog entirely. Nothing here blocks feature work, but the 🔴
+   set blocks any **public release**: no CI (TD-1), no README/LICENSE/release
+   scaffolding (PB-1), review-bot flags (PB-2), the `ttask_*` schema prefix +
+   sparse writes (MD-1/MD-2), midnight-stale query results (DT-1), and
+   semantically-dead `due_time` (DT-2 ⚖). *Done: RP-1/DT-3 recurrence drift;
+   DT-4 doc half.* Two ⚖ calls waiting on Taylor: DT-2 (`due_time` real vs.
+   display-only) and DT-5 (rolling-7-day vs. calendar "this week").
 
 All prior sweeps are closed (AUDIT Sweep 2, DESIGN_AUDIT P0–P2, BUGFIX #1–13,
 NATIVE N1–N6, UI_POLISH P1–P7 + C1 + C2, Autopilot batches A–I, graph GP2/GP6).
@@ -173,6 +189,57 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 `GRAPH_LAYOUT_C2.md`, `CODEBASE_MODAL_DETAIL_EXPLORATION.md`,
 `run-autopilot.fish`. Older PRDs (TASK_H*/I*/J*/K*) are vault-side synced
 notes.
+
+## Recent Updates (2026-07-25)
+
+- **Recurrence drift fixed (audit RP-1 / DT-3 🔴) + the audit folded into the
+  backlog.** A month-end recurring task permanently collapsed onto February's
+  day: Jan 31 → Feb 28 → **Mar 28 → Apr 28 …** forever, because each occurrence
+  was computed from the previous *already-clamped* date instead of from the
+  schedule's anchor day. Verified in `AUDIT_2026-07.md` by execution back on
+  2026-07-12; the drift was even **codified as an expected-behaviour test**
+  (`advancing repeatedly from Jan 31 drifts to the clamped day`), which is why it
+  survived. Fixed by making the anchor explicit and persisted:
+  - `advanceDate(date, rule, anchorDay?)` clamps **per-occurrence** instead of
+    cumulatively. Omitting the anchor reproduces the old behaviour exactly, so
+    every pre-existing test still passes unchanged — including two that encode
+    deliberate intent (`Feb 29 monthly → Mar 29`, `Feb 28 yearly stays Feb 28`).
+    Those two are also why a **month-end heuristic was rejected**: without a real
+    anchor you can't tell "monthly on the 31st, clamped" from "monthly on the
+    30th", and guessing month-end mis-fires on a genuine 29th/30th schedule
+    (Apr 30 → May 31). Taylor picked the persisted-anchor option.
+  - New pure `deriveAnchorDay(dueDate)`, and a new **`recurrence_anchor_day`**
+    frontmatter field. Derived whenever `due_date` is written *without* an
+    explicit anchor — so a manual reschedule redefines the schedule — and passed
+    **explicitly** by `completeAndRecur` and `buildDuplicateInput` so a clamped
+    occurrence never re-derives a wrong anchor (that re-derivation *is* the bug).
+    Read back through the same native-property-type hardening as feedback #19;
+    written only for recurring tasks, so non-recurring notes don't grow a null
+    key; kept out of `TASK_FIELD_DEFINITIONS` because it's derived, not
+    user-editable. Now: Jan 31 → Feb 28 → **Mar 31** → Apr 30 → May 31, stable
+    over a 12-month chain. Tasks predating the field fall back to their due
+    date's own day.
+  - Also closed the doc half of **DT-4**: the comment claimed
+    "T12:00:00 **local**" while the code uses `T12:00:00Z` + UTC accessors
+    (behaviour was right, the comment wasn't), and the duplicated
+    monthly/yearly days-in-month clamp is now one `daysInMonth` helper.
+  - `recurrence.ts`, `completeTask.ts`, `TaskWriter.ts`, `TaskStore.ts`,
+    `taskDuplicate.ts`, `types.ts`. **+50 tests, 1616 total**, build green.
+    Residuals recorded in BACKLOG: `nextStartDate` is still un-anchored, and the
+    anchor isn't in the JSON export surface.
+- **`AUDIT_2026-07.md` was an untracked second registry** — it holds 🔴
+  pre-publication items (no CI, no README/LICENSE/release scaffolding,
+  midnight-stale agenda buckets, semantically-dead `due_time`, the `ttask_*`
+  schema prefix, the repeat redesign) that `BACKLOG.md` — the self-described
+  "single live backlog for all open work, every horizon" — didn't list at all.
+  The repeat redesign that RP-1 was nominally waiting on wasn't scheduled
+  anywhere. All open `AR`/`DT`/`MD`/`RP`/`TD`/`PB` items are now indexed in a new
+  **`Audit 2026-07`** section of `BACKLOG.md` (with the audit's own priority
+  markers), and the audit is listed in this file's **Status Sources**.
+  Noted while there: **lint is failing — 50 `no-mixed-spaces-and-tabs` errors**
+  in `TaskGraph.svelte` / `TaskKanban.svelte` / `TaskRow.svelte`, up from 10 in
+  one file at audit time (tracked as TD-2; lint is in neither CI nor the local
+  gate, which is why it drifted).
 
 ## Recent Updates (2026-07-22, later)
 

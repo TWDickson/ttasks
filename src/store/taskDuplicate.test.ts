@@ -173,6 +173,26 @@ describe('buildDuplicateInput', () => {
 			const result = buildDuplicateInput(makeTask({ notes: '' }), TODAY, FIRST_STATUS);
 			expect(result.notes).toBe('');
 		});
+
+		it('carries a stored recurrence anchor instead of re-deriving it (RP-1)', () => {
+			// due_date is a clamped occurrence; re-deriving would give 28 and the copy
+			// would drift from then on.
+			const result = buildDuplicateInput(
+				makeTask({ recurrence: 'monthly', due_date: '2026-02-28', recurrence_anchor_day: 31 }),
+				TODAY,
+				FIRST_STATUS,
+			);
+			expect(result.recurrence_anchor_day).toBe(31);
+		});
+
+		it('derives the anchor from the due date when none is stored', () => {
+			const result = buildDuplicateInput(
+				makeTask({ recurrence: 'monthly', due_date: '2026-01-31', recurrence_anchor_day: null }),
+				TODAY,
+				FIRST_STATUS,
+			);
+			expect(result.recurrence_anchor_day).toBe(31);
+		});
 	});
 
 	describe('result shape', () => {

@@ -5,7 +5,7 @@ import type { Task, TaskCreateInput } from '../types';
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 import { materializeChecklistChildren } from './checklistMaterializer';
 import { resolveCompletionStatus } from '../settings';
-import { nextStartDate } from './recurrence';
+import { deriveAnchorDay, nextStartDate } from './recurrence';
 import { computeStatusChanged, computeCompletedOnStatusChange } from './statusChanged';
 import { decideCompletion } from './completeTask';
 import { buildDuplicateInput } from './taskDuplicate';
@@ -97,7 +97,7 @@ export class TaskWriter {
 		return full;
 	}
 
-	async update(path: string, updates: Partial<Task>): Promise<void> {
+	async update(path: string, incoming: Partial<Task>): Promise<void> {
 		const normalizedPath = normalizePath(path);
 		const file = this.app.vault.getAbstractFileByPath(normalizedPath);
 		if (!(file instanceof TFile)) return;
@@ -109,9 +109,18 @@ export class TaskWriter {
 			'blocked_reason', 'assigned_to', 'source', 'due_time',
 			'start_date', 'due_date', 'estimated_days', 'completed',
 			'workweek_only', 'holiday_dates',
-			'recurrence', 'recurrence_type', 'reminder_override',
+			'recurrence', 'recurrence_type', 'recurrence_anchor_day', 'reminder_override',
 			'pomodoro_count', 'focused_minutes',
 		];
+
+		// Setting or rescheduling a due date (re)defines the recurrence anchor, so a
+		// month-end schedule keeps its day instead of drifting to February's (RP-1).
+		// An explicit anchor from the caller wins — that's how completeAndRecur
+		// hands the inherited anchor down to the next instance.
+		const updates: Partial<Task> =
+			'due_date' in incoming && !('recurrence_anchor_day' in incoming)
+				? { ...incoming, recurrence_anchor_day: deriveAnchorDay(incoming.due_date) }
+				: incoming;
 		// Captured inside processFrontMatter so the optimistic store patch below
 		// can reproduce exactly what was persisted without re-reading the file.
 		let derivedStatusChanged: string | undefined;
@@ -368,6 +377,11 @@ export class TaskWriter {
 		const recurType = (task.recurrence_type ?? 'fixed') as import('./recurrence').RecurrenceType;
 		const nextDue   = decision.nextDue;
 		const nextStart = nextStartDate(rule, recurType, task.start_date, task.due_date, today);
+		// Inherited, not re-derived from nextDue: nextDue may itself be clamped (a
+		// 31st anchor lands on Feb 28), and re-deriving there is exactly the drift
+		// RP-1 describes. Falls back to this instance's own day for tasks predating
+		// the anchor field.
+		const anchorDay = task.recurrence_anchor_day ?? deriveAnchorDay(task.due_date);
 		const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
 
 		const nextInput: TaskCreateInput = {
@@ -391,6 +405,7 @@ export class TaskWriter {
 			notes:           resetChecklistCompletionInNotes(task.notes ?? ''),
 			recurrence:      task.recurrence,
 			recurrence_type: task.recurrence_type,
+			recurrence_anchor_day: anchorDay,
 		};
 
 		return this.create(nextInput);
@@ -654,6 +669,12 @@ export function buildTaskFrontmatter(task: Task, resolveName: (pathWithoutExt: s
 		? `\n${holidayDates.map((date) => `  - '${date}'`).join('\n')}`
 		: ' []';
 
+	// Only meaningful for a recurring task, and only monthly/yearly actually clamp —
+	// but it's cheap to carry for any rule and it makes the schedule self-describing.
+	// Omitted entirely otherwise, so non-recurring notes don't grow a null key.
+	const anchorDay = task.recurrence ? (task.recurrence_anchor_day ?? deriveAnchorDay(task.due_date)) : null;
+	const anchorLines = anchorDay !== null ? [`recurrence_anchor_day: ${anchorDay}`] : [];
+
 	return [
 		'---',
 		`type: ${task.type}`,
@@ -680,6 +701,7 @@ export function buildTaskFrontmatter(task: Task, resolveName: (pathWithoutExt: s
 		`status_changed: '${task.created}'`,
 		`recurrence: ${task.recurrence ? `"${esc(task.recurrence)}"` : 'null'}`,
 		`recurrence_type: ${task.recurrence_type ? `"${esc(task.recurrence_type)}"` : 'null'}`,
+		...anchorLines,
 		'---',
 	].join('\n');
 }

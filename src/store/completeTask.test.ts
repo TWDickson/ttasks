@@ -58,6 +58,62 @@ describe('decideCompletion', () => {
 		expect(decision.updates).toEqual({ status: 'Done', completed: '2026-04-16' });
 	});
 
+	describe('recurrence anchor (RP-1)', () => {
+		it('uses a stored anchor so a month-end schedule recovers its day', () => {
+			// Instance due Feb 28 was itself clamped from a 31st schedule; the next
+			// one must go back to the 31st, not stay on the 28th.
+			const task = makeTask({
+				recurrence: 'monthly',
+				recurrence_type: 'fixed',
+				due_date: '2026-02-28',
+				recurrence_anchor_day: 31,
+			});
+			const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
+			expect(decision).toMatchObject({ kind: 'complete-and-recur', nextDue: '2026-03-31' });
+		});
+
+		it('falls back to the due date’s own day when no anchor is stored', () => {
+			// Tasks created before the anchor field existed keep their old behaviour.
+			const task = makeTask({
+				recurrence: 'monthly',
+				recurrence_type: 'fixed',
+				due_date: '2026-02-28',
+			});
+			const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
+			expect(decision).toMatchObject({ kind: 'complete-and-recur', nextDue: '2026-03-28' });
+		});
+
+		it('holds a month-end schedule across a simulated 4-month chain', () => {
+			let due = '2026-01-31';
+			const chain: string[] = [];
+			for (let i = 0; i < 4; i++) {
+				const task = makeTask({
+					recurrence: 'monthly',
+					recurrence_type: 'fixed',
+					due_date: due,
+					recurrence_anchor_day: 31,
+				});
+				const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
+				if (decision.kind !== 'complete-and-recur') throw new Error('expected a spawn');
+				due = decision.nextDue;
+				chain.push(due);
+			}
+			expect(chain).toEqual(['2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31']);
+		});
+
+		it('ignores the anchor in from_completion mode', () => {
+			const task = makeTask({
+				recurrence: 'monthly',
+				recurrence_type: 'from_completion',
+				due_date: '2026-01-31',
+				recurrence_anchor_day: 31,
+			});
+			const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
+			// Advances from `today` (2026-04-16), not from the anchored due date.
+			expect(decision).toMatchObject({ kind: 'complete-and-recur', nextDue: '2026-05-16' });
+		});
+	});
+
 	describe('idempotence guard', () => {
 		it('skips the spawn when an open next instance already exists (same name + rule, due >= next)', () => {
 			const task = makeTask({ recurrence: 'weekly', recurrence_type: 'fixed', due_date: '2026-04-16' });

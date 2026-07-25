@@ -1,9 +1,11 @@
 # TTasks — Backlog
 
 The single live backlog for **all open work, every horizon** (consolidated
-2026-07-12; all-horizons reconcile 2026-07-19). Everything open lives here —
-near-term threads up top (`Now` / `Next` / `Gated`) and longer-range roadmap
-features under `Later`. Closed sweeps and their full histories are under
+2026-07-12; all-horizons reconcile 2026-07-19; audit fold-in 2026-07-25).
+Everything open lives here — near-term threads up top (`Now` / `Next` /
+`Gated`), longer-range roadmap features under `Later`, and the codebase /
+publication-readiness items from `AUDIT_2026-07.md` under
+`Audit 2026-07`. Closed sweeps and their full histories are under
 `Scripts/archive/` (see Cross-refs at the bottom). When an item lands, mark it
 `[x]` with a dated one-line note; when a whole thread empties, add a checkpoint
 to `ROADMAP.md`.
@@ -1036,6 +1038,157 @@ group, not committed.
 
 ---
 
+## Audit 2026-07 — codebase / publication readiness
+
+*Folded into this registry 2026-07-25.* Full analysis, rationale, and code
+references live in **`AUDIT_2026-07.md`** (root); this section is the tracked
+index so a backlog pass can see the work. Item IDs are the audit's own:
+`AR` architecture · `DT` dates · `MD` frontmatter/schema hygiene · `RP` repeat
+mechanism · `TD` testing · `PB` publication. Priority markers are the audit's:
+🔴 fix before publication · 🟡 should do · 🟢 opportunistic.
+
+The audit's §7 gives a dependency-ordered sequencing plan (Phase 0 hygiene →
+Phase 1 publication scaffolding → Phase 2 date hardening → Phase 3 schema
+reset + repeat redesign → Phase 4 architecture debt). Two cross-refs into the
+rest of this backlog: **AR-2** (TaskGraph decomposition) should land ahead of further
+graph work, and **AR-3** (schema descriptor table) should land before **N3**
+implementation since it changes how API fields are exposed.
+
+### Dates (DT)
+
+- `[x]` **DT-3 / RP-1 🔴 monthly + yearly recurrence drift** — *done 2026-07-25.*
+  A month-end schedule permanently collapsed onto February's day (Jan 31 → Feb 28
+  → Mar 28 → Apr 28 …) because each occurrence was computed from the previous
+  *already-clamped* date instead of the schedule's anchor day. Fixed by making the
+  anchor explicit and persisted: `advanceDate(date, rule, anchorDay?)` clamps
+  per-occurrence instead of cumulatively (defaults to the date's own day, so the
+  un-anchored behaviour is preserved exactly); new pure `deriveAnchorDay`; new
+  `recurrence_anchor_day` frontmatter field, derived whenever `due_date` is written
+  *without* an explicit anchor (so a manual reschedule redefines the schedule)
+  and carried across recurrence spawns and duplication (so a clamped occurrence
+  never re-derives a wrong anchor). Now: Jan 31 → Feb 28 → **Mar 31** → Apr 30 →
+  May 31. Tasks predating the field fall back to the due date's own day.
+  `recurrence.ts`, `completeTask.ts`, `TaskWriter.ts`, `TaskStore.ts` (reader,
+  with the same native-property-type hardening as feedback #19), `taskDuplicate.ts`,
+  `types.ts`. +50 tests, build green, **1616 tests**.
+  **Residuals:** (a) `nextStartDate` is still un-anchored, so a month-end *start*
+  date can drift — smaller blast radius, and the RP redesign unifies it;
+  (b) the anchor isn't in the JSON export surface, so a full export→import
+  round-trip re-derives it from the (possibly clamped) due date; (c) the field is
+  deliberately kept out of `TASK_FIELD_DEFINITIONS` (it's derived, not
+  user-editable), and MD-1 will rename it to `ttask_repeat_*` form.
+- `[~]` **DT-4 🟡 `recurrence.ts` contradicted the dateUtils contract** —
+  *partly done 2026-07-25.* The wrong doc comment (claimed "T12:00:00 **local**"
+  while the code uses `T12:00:00Z` + UTC accessors — behaviour was correct, the
+  comment wasn't) is fixed, and the duplicated monthly/yearly days-in-month clamp
+  is extracted to one `daysInMonth` helper. **Still open:** folding `advanceDate`
+  onto `dateUtils` primitives so the module stops carrying its own parse/format
+  (planned for the RP redesign).
+- `[ ]` **DT-1 🔴 agenda buckets + query results go stale at midnight** — the
+  engine calls `localDateString()` internally, and nothing re-runs the query at
+  midnight; a board left open overnight shows yesterday's Overdue/Today buckets
+  while the row badges (which do subscribe to the `today` store) update — a
+  visible inconsistency. Plan: make `applyQuery` take `ctx: { today }`, derive
+  `useTaskQuery` from `[tasks, query, today]`, then sweep the remaining
+  `startOfToday()`-at-mount surfaces (`TaskGraph`/`hybridTimeline` today-marker,
+  `TaskBoard`, `TaskDetail`, `statusSummary`). Also makes the engine tests
+  deterministic.
+- `[ ]` **DT-2 🔴 `due_time` is stored but semantically dead** ⚖ — persisted,
+  written, sortable, offered in the query editor, and consumed by *nothing*:
+  overdue logic, agenda bucketing, and all four reminder rules are date-only.
+  Needs a decision: **(A, audit's recommendation)** make it real via a
+  `due-time-passed` reminder rule (the 5-minute poll already exists; overdue
+  *styling* stays date-based), or **(B)** declare it display/sort-only and
+  document that. Either way `dateUtils` gains `localTimeString()`.
+- `[ ]` **DT-5 🟡 "This week" is a rolling 7 days, not a calendar week** ⚖ — on a
+  Friday, "This Week" contains next Thursday. Either rename the buckets
+  ("Next 7 days" / "Following week") or implement calendar-week bucketing with a
+  week-starts-on setting. Cheap either way (keys/labels are centralized in
+  `agendaBuckets.ts`) but bucket names are user-facing semantics — decide before
+  publication.
+- `[ ]` **DT-6 🟢 consolidation + enforcement** — add `isIsoDateString` and sweep
+  the 8 duplicate ISO-date regexes (with AR-5); move `formatHumanDate` next to
+  `MONTH_ABBR`; enforce no bare `new Date()` outside the boundary.
+
+### Repeat mechanism (RP) — redesign
+
+- `[ ]` **RP-2 🟡 expressiveness** — no "every N", weekday sets, nth-weekday,
+  weekday classes, end conditions, or working-day awareness. Audit §4 specifies
+  the target: flat prefixed `ttask_repeat_*` frontmatter keys (**settled with
+  Taylor 2026-07-12** — not a human-language DSL, not nested YAML, because nested
+  objects are second-class in Obsidian's Properties panel and unreachable from
+  Bases), a pure `src/repeat/` engine with a TDD table, and a builder UI.
+- `[ ]` **RP-3 🟡 fragile recurrence identity** — the spawn dedupe guard in
+  `decideCompletion` matches on task **name**, so renaming a recurring task with
+  an open instance breaks the guard and double-spawns. Fixed by construction in
+  the redesign (stable series identity).
+
+### Frontmatter / schema hygiene (MD)
+
+- `[ ]` **MD-1 🔴 prefix the schema `ttask_*`** — the plugin's generic property
+  names (`type`, `name`, `status`, `priority`, …) pollute the vault-wide property
+  suggestion pool and collide with other plugins' conventions.
+- `[ ]` **MD-2 🔴 sparse writes** — stop writing null/empty keys on creation;
+  every task note currently carries the full key set whether or not it's used.
+- `[ ]` **MD-3 🟡 stop persisting `blocks`** — it's a pure reverse index of
+  `depends_on` and can be derived at load, which deletes the whole sync machinery
+  (and the `sync-blocks` command).
+- `[ ]` **MD-4 🟡 one-shot vault migration + dev-command pruning** — a standalone
+  `Scripts/migrate-prefixed-schema.mjs` run once with Obsidian closed does the
+  MD-1/MD-2/MD-3 + legacy-recurrence conversion, so **zero legacy code ships**
+  and the dev-phase migration commands (`migrate-phase6-data-model`,
+  `migrate-status-changed`, `migrate-css-classes`) get deleted.
+- `[ ]` **MD-5 🟢 property registry cleanup** — hand-edit the vault's
+  `types.json` (Obsidian closed) to drop the old generic entries so they stop
+  appearing in the suggestion pool; document recommended property types.
+
+### Publication readiness (PB) — blocks any public release
+
+- `[ ]` **PB-1 🔴 missing release scaffolding** — no README, LICENSE,
+  `versions.json`, version-bump script, or release workflow.
+- `[ ]` **PB-2 🔴 review-bot flags in the code** — the sweep Obsidian's reviewers
+  run: `innerHTML`/`setIcon` usage, `activeLeaf` access, `vault.process`,
+  `console` gating, the localStorage API, and casing/heading conventions.
+- `[ ]` **PB-3 🟡 manifest polish** — description + metadata.
+- `[ ]` **PB-4 🟡 Svelte CSS is JS-injected** — contradicts CLAUDE.md's "no
+  JS-injected `<style>` elements; all CSS belongs in `styles.css`" rule. Svelte's
+  scoped styles compile to runtime-injected `<style>` tags, so the rule is
+  currently only honoured for hand-written CSS. Extract at build time.
+
+### Testing posture (TD)
+
+- `[ ]` **TD-1 🔴 no CI** — nothing runs build/test/lint on push; the local gate
+  is manual.
+- `[ ]` **TD-2 🟡 lint is not in the local gate either** — and it's currently
+  **failing: 50 `no-mixed-spaces-and-tabs` errors** across `TaskGraph.svelte`,
+  `TaskKanban.svelte`, and `TaskRow.svelte` (was 10 in one file at audit time, so
+  this is growing). Add a `check` script that runs build + test + lint together.
+- `[ ]` **TD-3 🟡 coverage visibility** — no coverage reporting.
+- `[ ]` **TD-4 🟢 component-test debt** — tracks AR-1; fold "add a render test"
+  into each component migration.
+- `[ ]` **TD-5 🟢 date/time determinism** — tests that depend on the wall clock;
+  largely resolved by DT-1's `today` injection.
+
+### Architecture (AR)
+
+- `[ ]` **AR-1 🔴 the component→plugin coupling rule is violated by all ten
+  legacy components** — CLAUDE.md says new components must not import
+  `TTasksPlugin`/`TaskStore` directly, but every top-level component does (they
+  pre-date the rule). Plan: a `BoardContext` of callbacks/service refs, migrated
+  component by component, each with a render test (TD-4).
+- `[ ]` **AR-2 🟡 `TaskGraph.svelte` is a ~2,125-line god component** — schedule
+  ahead of further graph polish work.
+- `[ ]` **AR-3 🟡 the Task field schema is defined in four places** — they must be
+  updated in lockstep (this session touched three of them to add one field).
+  Plan: one descriptor table with `fmKey` / `omitWhenEmpty`, which MD-1/MD-2 and
+  N3 both build on.
+- `[ ]` **AR-4 🟡 `TaskWriter` mixes four concerns** — extract a
+  `ChecklistSyncService`.
+- `[ ]` **AR-5 🟢 smaller DRY / correctness items** — incl. the 8 duplicate
+  ISO-date regexes (with DT-6).
+
+---
+
 ## Cross-refs
 
 - **Closed sweeps + full item histories:** `Scripts/archive/` —
@@ -1045,5 +1198,8 @@ group, not committed.
   variant decision), plus the older `AUDIT_TASKS.md`, `BUGFIX_TASKS.md`,
   `DESIGN_AUDIT.md`, and `CODEBASE_MODAL_DETAIL_EXPLORATION.md`.
 - **Reference docs (live, root):** `API_DESIGN.md` (public API, awaiting
-  review), `PROTOCOL.md` (URI handler).
+  review), `PROTOCOL.md` (URI handler), `AUDIT_2026-07.md` (full codebase /
+  publication audit — its open items are indexed in the `Audit 2026-07`
+  section above; read it for rationale and code references before starting
+  one).
 - **Visual rig:** `npm run rig` / `npm run rig:shots` (CLAUDE.md → CSS Notes).

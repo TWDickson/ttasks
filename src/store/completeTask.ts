@@ -8,7 +8,7 @@
  * Pure: no Obsidian or plugin dependencies.
  */
 import type { Task } from '../types';
-import { nextDueDate, type RecurrenceType } from './recurrence';
+import { deriveAnchorDay, nextDueDate, type RecurrenceType } from './recurrence';
 
 export interface CompleteTaskDeps {
 	completionStatus: string;
@@ -41,7 +41,11 @@ export function decideCompletion(task: Task, deps: CompleteTaskDeps): CompleteTa
 	}
 
 	const recurType = (task.recurrence_type ?? 'fixed') as RecurrenceType;
-	const nextDue = nextDueDate(task.recurrence, recurType, task.due_date, deps.today);
+	// The anchor keeps a month-end schedule from collapsing onto February's day
+	// (RP-1). Falls back to the current due date's own day, which reproduces the
+	// un-anchored result for tasks created before the anchor existed.
+	const anchorDay = task.recurrence_anchor_day ?? deriveAnchorDay(task.due_date);
+	const nextDue = nextDueDate(task.recurrence, recurType, task.due_date, deps.today, anchorDay);
 
 	const alreadySpawned = deps.allTasks.some((candidate) =>
 		candidate.path !== task.path &&

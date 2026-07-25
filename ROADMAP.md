@@ -9,6 +9,55 @@ for their detail but are historical; an unchecked box there is **not** live work
 
 ---
 
+## Recurrence drift fix + audit fold-in (2026-07-25)
+
+**Fixed the first 🔴 correctness bug out of `AUDIT_2026-07.md` (RP-1 / DT-3), and
+closed the docs seam that had kept the audit invisible.**
+
+*The bug.* Monthly and yearly recurrence drifted: a task due Jan 31 spawned
+Feb 28, then **Mar 28, Apr 28, … forever**. `advanceDate` computed each
+occurrence from the previous *already-clamped* date, so the one-time February
+clamp became permanent. It was flagged (verified by execution) in the 2026-07-12
+audit and had even been **written into the test suite as expected behaviour**,
+which is how it survived three months of active work on the file.
+
+*The fix.* Make the anchor explicit and persist it. `advanceDate` gained an
+optional `anchorDay` so the short-month clamp applies **per-occurrence** rather
+than cumulatively; omitting it reproduces the old behaviour byte-for-byte, so
+every pre-existing test passed unchanged. A new pure `deriveAnchorDay` plus a new
+`recurrence_anchor_day` frontmatter field supply it: derived whenever `due_date`
+is written without an explicit anchor (a manual reschedule redefines the
+schedule), and passed **explicitly** by `completeAndRecur` and
+`buildDuplicateInput` so a clamped occurrence never re-derives a wrong anchor —
+that re-derivation is precisely the bug. Result: Jan 31 → Feb 28 → **Mar 31** →
+Apr 30 → May 31, stable across a 12-month chain.
+
+A **month-end heuristic was considered and rejected**: with no stored anchor you
+cannot distinguish "monthly on the 31st, clamped into February" from "monthly on
+the 30th", and guessing month-end mis-fires on a genuine 29th/30th schedule
+(Apr 30 → May 31). Two existing deliberate tests (`Feb 29 monthly → Mar 29`,
+`Feb 28 yearly stays Feb 28`) encode the day-of-month reading and would have had
+to be overturned. Taylor chose the persisted anchor.
+
+Also closed the documentation half of **DT-4** — the comment claimed
+`T12:00:00 local` while the code uses `T12:00:00Z` with UTC accessors (the
+behaviour was correct, the comment wasn't) — and extracted the duplicated
+monthly/yearly days-in-month clamp into one helper. **+50 tests, 1616 total**,
+build green.
+
+**Docs.** `AUDIT_2026-07.md` turned out to be a **second, untracked registry**:
+it held 🔴 pre-publication items (no CI, no README/LICENSE/release scaffolding,
+midnight-stale agenda buckets, dead `due_time`, the `ttask_*` schema prefix, the
+repeat redesign) that `BACKLOG.md` — the self-described single all-horizons
+backlog — didn't list at all. The repeat redesign that RP-1 was nominally
+deferred to wasn't scheduled anywhere, so "wait for the redesign" meant "never".
+All open `AR`/`DT`/`MD`/`RP`/`TD`/`PB` items are now indexed in a new
+**`Audit 2026-07`** section of BACKLOG.md, and the audit is listed in CLAUDE.md's
+Status Sources. Also surfaced: **lint is failing (50 `no-mixed-spaces-and-tabs`
+errors** across `TaskGraph.svelte`/`TaskKanban.svelte`/`TaskRow.svelte`, up from
+10 in one file at audit time) — it runs in neither CI nor the local gate, which
+is TD-2.
+
 ## Docs reconcile — BACKLOG is now all-horizons (2026-07-19)
 
 **Removed the backlog/roadmap coverage seam.** BACKLOG.md previously held only

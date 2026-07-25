@@ -346,6 +346,9 @@ export class TaskStore {
 			notes,
 			recurrence:      toFrontmatterStringOrNull(fm.recurrence),
 			recurrence_type: toFrontmatterStringOrNull(fm.recurrence_type),
+			// Same Obsidian-native-property-type hardening as the other numbers: a
+			// List- or Text-typed value must still resolve (see feedback #19).
+			recurrence_anchor_day: toFrontmatterNumber(toFrontmatterScalar(fm.recurrence_anchor_day)),
 			reminder_override: toFrontmatterOptionalEnum(fm.reminder_override, REMINDER_OVERRIDES),
 			is_complete: normalizedStatus === completionStatus,
 			is_inbox:    area === null,

@@ -228,6 +228,40 @@ describe('buildTaskFrontmatter', () => {
 
 	it('produces project type frontmatter', () => {
 		const fm = buildTaskFrontmatter(makeTask({ type: 'project', name: 'My Project' }), noName);
+		expect(fm).toContain('type: project');
+	});
+
+	describe('recurrence_anchor_day (RP-1)', () => {
+		it('omits the key entirely for a non-recurring task', () => {
+			const fm = buildTaskFrontmatter(makeTask({ recurrence: null, due_date: '2026-01-31' }), noName);
+			expect(fm).not.toContain('recurrence_anchor_day');
+		});
+
+		it('derives the anchor from the due date for a recurring task', () => {
+			const fm = buildTaskFrontmatter(
+				makeTask({ recurrence: 'monthly', due_date: '2026-01-31' }),
+				noName,
+			);
+			expect(fm).toContain('recurrence_anchor_day: 31');
+		});
+
+		it('prefers an explicitly carried anchor over the due date’s day', () => {
+			// The spawned instance is due Feb 28 but the schedule is still the 31st.
+			const fm = buildTaskFrontmatter(
+				makeTask({ recurrence: 'monthly', due_date: '2026-02-28', recurrence_anchor_day: 31 }),
+				noName,
+			);
+			expect(fm).toContain('recurrence_anchor_day: 31');
+		});
+
+		it('omits the key for a recurring task with no due date', () => {
+			const fm = buildTaskFrontmatter(makeTask({ recurrence: 'monthly', due_date: null }), noName);
+			expect(fm).not.toContain('recurrence_anchor_day');
+		});
+	});
+
+	it('marks a project type', () => {
+		const fm = buildTaskFrontmatter(makeTask({ type: 'project', name: 'My Project' }), noName);
 		expect(parseYaml(fm)['type']).toBe('project');
 	});
 });
@@ -288,6 +322,86 @@ describe('TaskWriter.update status_changed transitions', () => {
 
 		expect(frontmatter.status).toBe('Active');
 		expect(frontmatter.status_changed).toBe('2026-05-25');
+	});
+});
+
+describe('TaskWriter.update recurrence anchor (RP-1)', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-05-25T12:00:00'));
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('derives the anchor from a newly written due date', async () => {
+		const { writer, file, frontmatter } = makeWriterForUpdateTest(
+			{ status: 'Active', recurrence: 'monthly' },
+			{ status: 'Active', recurrence: 'monthly' },
+		);
+
+		await writer.update(file.path, { due_date: '2026-01-31' });
+
+		expect(frontmatter.recurrence_anchor_day).toBe(31);
+	});
+
+	it('re-derives the anchor when the user reschedules to a different day', async () => {
+		const { writer, file, frontmatter } = makeWriterForUpdateTest(
+			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
+			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
+		);
+
+		// A manual reschedule redefines the schedule; the old anchor must not stick.
+		await writer.update(file.path, { due_date: '2026-06-15' });
+
+		expect(frontmatter.recurrence_anchor_day).toBe(15);
+	});
+
+	it('honours an explicit anchor over the derived one (the spawn hand-off)', async () => {
+		const { writer, file, frontmatter } = makeWriterForUpdateTest(
+			{ status: 'Active', recurrence: 'monthly' },
+			{ status: 'Active', recurrence: 'monthly' },
+		);
+
+		// completeAndRecur writes the clamped due date but passes the inherited
+		// anchor, which is the whole point — deriving from Feb 28 would lose the 31.
+		await writer.update(file.path, { due_date: '2026-02-28', recurrence_anchor_day: 31 });
+
+		expect(frontmatter.recurrence_anchor_day).toBe(31);
+	});
+
+	it('clears the anchor when the due date is cleared', async () => {
+		const { writer, file, frontmatter } = makeWriterForUpdateTest(
+			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
+			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
+		);
+
+		await writer.update(file.path, { due_date: null });
+
+		expect(frontmatter.recurrence_anchor_day).toBeNull();
+	});
+
+	it('leaves the anchor alone on an unrelated update', async () => {
+		const { writer, file, frontmatter } = makeWriterForUpdateTest(
+			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
+			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
+		);
+
+		await writer.update(file.path, { priority: 'High' });
+
+		expect(frontmatter.recurrence_anchor_day).toBe(31);
+	});
+
+	it('mirrors the derived anchor into the in-memory task', async () => {
+		const { writer, file, tasks } = makeWriterForUpdateTest(
+			{ status: 'Active', recurrence: 'monthly' },
+			{ status: 'Active', recurrence: 'monthly' },
+		);
+
+		await writer.update(file.path, { due_date: '2026-01-31' });
+
+		expect(get(tasks).find((t) => t.path === file.path)?.recurrence_anchor_day).toBe(31);
 	});
 });
 

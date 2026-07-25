@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	advanceDate,
+	deriveAnchorDay,
 	nextDueDate,
 	nextStartDate,
 	isValidRecurrenceRule,
@@ -14,9 +15,9 @@ type NextDueCase = readonly [label: string, rule: string, type: string, dueDate:
 type NextStartCase = readonly [label: string, rule: string, type: string, startDate: string | null, dueDate: string | null, completionDate: string, expected: string | null];
 type BoolCase = readonly [label: string, input: unknown, expected: boolean];
 
-function runAdvanceCases(cases: readonly AdvanceCase[]): void {
+function runAdvanceCases(cases: readonly AdvanceCase[], anchorDay?: number): void {
 	it.each(cases)('%s', (_label, date, rule, expected) => {
-		expect(advanceDate(date, rule)).toBe(expected);
+		expect(advanceDate(date, rule, anchorDay)).toBe(expected);
 	});
 }
 
@@ -84,7 +85,12 @@ describe('advanceDate', () => {
 			expect(advanceDate('2026-03-31', 'monthly')).toBe('2026-04-30');
 		});
 
-		it('advancing repeatedly from Jan 31 drifts to the clamped day', () => {
+		// Un-anchored, each step is computed from the previous *clamped* date, so a
+		// month-end schedule collapses onto February's day and stays there. This is
+		// RP-1 / DT-3 in AUDIT_2026-07.md; it is pinned here as the documented
+		// un-anchored contract, not as desirable behaviour. Pass an anchorDay to
+		// avoid it — see the 'anchored (RP-1 drift fix)' block below.
+		it('advancing repeatedly from Jan 31 drifts to the clamped day (no anchor)', () => {
 			const feb = advanceDate('2026-01-31', 'monthly');
 			const mar = advanceDate(feb, 'monthly');
 			const apr = advanceDate(mar, 'monthly');
@@ -96,6 +102,90 @@ describe('advanceDate', () => {
 
 		it('keeps leap-day day-of-month when target month supports it', () => {
 			expect(advanceDate('2024-02-29', 'monthly')).toBe('2024-03-29');
+		});
+	});
+
+	// RP-1 / DT-3: passing the schedule's real day-of-month makes the short-month
+	// clamp per-occurrence instead of cumulative, so a month-end schedule recovers
+	// its day instead of collapsing onto February's.
+	describe('anchored (RP-1 drift fix)', () => {
+		it('recovers the anchor day after a short month (Feb 28 + anchor 31 → Mar 31)', () => {
+			expect(advanceDate('2026-02-28', 'monthly', 31)).toBe('2026-03-31');
+		});
+
+		it('holds a month-end schedule for a full year instead of drifting', () => {
+			const chain: string[] = [];
+			let date = '2026-01-31';
+			for (let i = 0; i < 12; i++) {
+				date = advanceDate(date, 'monthly', 31);
+				chain.push(date);
+			}
+
+			expect(chain).toEqual([
+				'2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31',
+				'2026-06-30', '2026-07-31', '2026-08-31', '2026-09-30',
+				'2026-10-31', '2026-11-30', '2026-12-31', '2027-01-31',
+			]);
+		});
+
+		it('clamps a 31st anchor into a leap February', () => {
+			expect(advanceDate('2024-01-31', 'monthly', 31)).toBe('2024-02-29');
+		});
+
+		it('holds a 30th anchor without being pulled to month-end', () => {
+			const feb = advanceDate('2026-01-30', 'monthly', 30);
+			const mar = advanceDate(feb, 'monthly', 30);
+			const apr = advanceDate(mar, 'monthly', 30);
+			const may = advanceDate(apr, 'monthly', 30);
+
+			// Apr 30 is month-end, but the anchor is 30 — May must not become the 31st.
+			expect([feb, mar, apr, may]).toEqual(['2026-02-28', '2026-03-30', '2026-04-30', '2026-05-30']);
+		});
+
+		it('an anchor at or below the target month length is a no-op', () => {
+			expect(advanceDate('2026-04-15', 'monthly', 15)).toBe('2026-05-15');
+		});
+
+		it('yearly recovers a leap day in the next leap year', () => {
+			const chain: string[] = [];
+			let date = '2024-02-29';
+			for (let i = 0; i < 4; i++) {
+				date = advanceDate(date, 'yearly', 29);
+				chain.push(date);
+			}
+
+			expect(chain).toEqual(['2025-02-28', '2026-02-28', '2027-02-28', '2028-02-29']);
+		});
+
+		describe('day-based rules ignore the anchor', () => {
+			runAdvanceCases([
+				['daily ignores anchorDay', '2026-04-15', 'daily', '2026-04-16'],
+				['weekly ignores anchorDay', '2026-04-15', 'weekly', '2026-04-22'],
+				['biweekly ignores anchorDay', '2026-04-15', 'biweekly', '2026-04-29'],
+			], 31);
+		});
+
+		describe('unusable anchors fall back to the date’s own day', () => {
+			it.each([
+				['zero', 0],
+				['negative', -5],
+				['NaN', Number.NaN],
+				['Infinity', Number.POSITIVE_INFINITY],
+			])('%s is ignored', (_label, anchor) => {
+				expect(advanceDate('2026-01-31', 'monthly', anchor as number)).toBe('2026-02-28');
+			});
+
+			it('null is ignored', () => {
+				expect(advanceDate('2026-01-31', 'monthly', null)).toBe('2026-02-28');
+			});
+
+			it('an anchor beyond 31 clamps to 31', () => {
+				expect(advanceDate('2026-02-28', 'monthly', 99)).toBe('2026-03-31');
+			});
+
+			it('a fractional anchor truncates', () => {
+				expect(advanceDate('2026-02-28', 'monthly', 31.7)).toBe('2026-03-31');
+			});
 		});
 	});
 
@@ -186,6 +276,22 @@ describe('nextDueDate', () => {
 		});
 	});
 
+	describe('anchorDay (RP-1)', () => {
+		it('fixed mode passes the anchor through to the month clamp', () => {
+			expect(nextDueDate('monthly', 'fixed', '2026-02-28', '2026-02-28', 31)).toBe('2026-03-31');
+		});
+
+		it('omitting the anchor preserves the un-anchored result', () => {
+			expect(nextDueDate('monthly', 'fixed', '2026-02-28', '2026-02-28')).toBe('2026-03-28');
+		});
+
+		it('from_completion ignores the anchor (no chain to drift)', () => {
+			// The clock restarts from the completion date every time, so the previous
+			// occurrence never feeds the next one.
+			expect(nextDueDate('monthly', 'from_completion', '2026-01-31', '2026-02-28', 31)).toBe('2026-03-28');
+		});
+	});
+
 	describe('unknown rule passthrough', () => {
 		it('returns dueDate unchanged in fixed mode', () => {
 			expect(nextDueDate('quarterly', 'fixed', '2026-04-10', '2026-04-16')).toBe('2026-04-10');
@@ -236,12 +342,54 @@ describe('nextStartDate', () => {
 		]);
 	});
 
+	describe('anchorDay (RP-1)', () => {
+		it('anchors the start date independently of the due date', () => {
+			// start 2026-02-28 (anchor 31), due later in the month — the start date
+			// carries its own anchor, so it recovers the 31st too.
+			expect(nextStartDate('monthly', 'fixed', '2026-02-28', '2026-03-05', '2026-02-28', 31)).toBe('2026-03-31');
+		});
+
+		it('from_completion ignores the anchor', () => {
+			expect(nextStartDate('monthly', 'from_completion', '2026-02-28', '2026-03-05', '2026-02-28', 31)).toBe('2026-03-28');
+		});
+	});
+
 	it('for unknown rules, fixed mode returns the original startDate unchanged', () => {
 		expect(nextStartDate('quarterly', 'fixed', '2026-04-01', '2026-04-15', '2026-04-16')).toBe('2026-04-01');
 	});
 
 	it('for unknown rules, from_completion returns completionDate', () => {
 		expect(nextStartDate('quarterly', 'from_completion', '2026-04-01', '2026-04-15', '2026-04-16')).toBe('2026-04-16');
+	});
+});
+
+// ── deriveAnchorDay ───────────────────────────────────────────────────────────
+
+describe('deriveAnchorDay', () => {
+	it.each([
+		['a month-end date', '2026-01-31', 31],
+		['a mid-month date', '2026-04-15', 15],
+		['the first of the month', '2026-04-01', 1],
+		['a leap day', '2024-02-29', 29],
+	])('reads the day-of-month from %s', (_label, date, expected) => {
+		expect(deriveAnchorDay(date as string)).toBe(expected);
+	});
+
+	it.each([
+		['null', null],
+		['undefined', undefined],
+		['an empty string', ''],
+		['a non-date string', 'tomorrow'],
+		['a partial date', '2026-04'],
+		['a datetime', '2026-04-15T09:00'],
+		['a non-string', 20260415 as unknown as string],
+	])('returns null for %s (leaves the schedule un-anchored)', (_label, value) => {
+		expect(deriveAnchorDay(value as string | null | undefined)).toBeNull();
+	});
+
+	it('round-trips through advanceDate to hold a month-end schedule', () => {
+		const anchor = deriveAnchorDay('2026-01-31');
+		expect(advanceDate(advanceDate('2026-01-31', 'monthly', anchor), 'monthly', anchor)).toBe('2026-03-31');
 	});
 });
 
