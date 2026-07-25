@@ -41,6 +41,22 @@ export function renderQuickActionsSettingsSection(params: RenderQuickActionsSett
 			});
 		});
 
+	// Not a quick action — it has no menu entry. It lives here so the two statuses
+	// that drive the dependency cascade are configured side by side. The "(none)"
+	// option is meaningful: with no Hold status, Hold simply doesn't cascade.
+	new Setting(containerEl)
+		.setName('Hold status')
+		.setDesc('The "deliberately paused" status — awaiting delegated work, or bumped by another priority — as distinct from Block\'s external impediment. Both cascade to dependent tasks as a badge; where they meet, Blocked wins.')
+		.addDropdown(dd => {
+			dd.addOption('', '(none)');
+			for (const s of statuses) dd.addOption(s, s);
+			dd.setValue(statuses.includes(qa.holdStatus) ? qa.holdStatus : '');
+			dd.onChange(async (v) => {
+				plugin.settings.quickActions.holdStatus = v;
+				await plugin.saveSettings();
+			});
+		});
+
 	new Setting(containerEl)
 		.setName('Defer days')
 		.setDesc('Default days used when the defer action does not receive a specific preset date. If there is no due date, today is used as the base.')

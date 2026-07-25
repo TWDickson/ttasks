@@ -86,6 +86,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	quickActions: {
 		startStatus: 'In Progress',
 		blockStatus: 'Blocked',
+		holdStatus: 'Hold',
 		deferDays: 1,
 	},
 	reminders: DEFAULT_REMINDERS_SETTINGS,
@@ -260,6 +261,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		quickActions: {
 			startStatus: settings.quickActions.startStatus,
 			blockStatus: settings.quickActions.blockStatus,
+			holdStatus: settings.quickActions.holdStatus,
 			deferDays: settings.quickActions.deferDays,
 		},
 		reminders: {
@@ -671,6 +673,9 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		const blockStatus = asString(quickActions.blockStatus);
 		if (blockStatus !== null) target.quickActions.blockStatus = blockStatus;
 
+		const holdStatus = asString(quickActions.holdStatus);
+		if (holdStatus !== null) target.quickActions.holdStatus = holdStatus;
+
 		const deferDays = asInteger(quickActions.deferDays);
 		if (deferDays !== null) target.quickActions.deferDays = deferDays;
 
@@ -864,6 +869,7 @@ export function normalizeSettingsFromSources(sources: unknown[]): TTasksSettings
 	merged.completionStatus = resolveCompletionStatus(merged.statuses, merged.completionStatus);
 	merged.quickActions.startStatus = resolveConfiguredStatus(merged.statuses, merged.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus);
 	merged.quickActions.blockStatus = resolveConfiguredStatus(merged.statuses, merged.quickActions.blockStatus, DEFAULT_SETTINGS.quickActions.blockStatus);
+	merged.quickActions.holdStatus = resolveOptionalStatus(merged.statuses, merged.quickActions.holdStatus, DEFAULT_SETTINGS.quickActions.holdStatus);
 	merged.quickActions.deferDays = clampInteger(merged.quickActions.deferDays, 1, 365);
 	merged.statusColors = normalizeColorMap(merged.statuses, merged.statusColors);
 	merged.areaColors = normalizeColorMap(merged.areas ?? [], merged.areaColors);
@@ -935,6 +941,24 @@ export function resolveConfiguredStatus(statuses: string[] | null | undefined, c
 	if (configured && valid.includes(configured)) return configured;
 	if (valid.includes(preferred)) return preferred;
 	return valid[0] ?? preferred;
+}
+
+/**
+ * Like `resolveConfiguredStatus`, but resolves to `''` instead of falling back to
+ * the first status when neither the configured nor the preferred name exists.
+ *
+ * Use this for a status whose *absence* is meaningful. `resolveConfiguredStatus`'s
+ * `valid[0]` fallback is fine for a quick action (worst case it sets an odd
+ * status), but it is actively wrong for a status that drives derived state: a
+ * vault with no "Hold" would resolve holdStatus to "Active" and then treat every
+ * active task as an impediment, cascading a bogus Hold across the whole graph.
+ * Empty string means "not configured", and `computeImpediments` skips it.
+ */
+export function resolveOptionalStatus(statuses: string[] | null | undefined, configured: string | null | undefined, preferred: string): string {
+	const valid = statuses ?? [];
+	if (configured && valid.includes(configured)) return configured;
+	if (valid.includes(preferred)) return preferred;
+	return '';
 }
 
 export function resolveEmergencyStatus(statuses: string[] | null | undefined): string {

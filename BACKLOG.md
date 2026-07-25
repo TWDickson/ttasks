@@ -378,10 +378,32 @@ original list for traceability.*
     a Blocked and a Held upstream resolves the same regardless of traversal
     order, so the derived state is a function of the graph, not of how we walked
     it. Implies a small ranked lattice rather than last-write-wins.
-  - Likely shape: cascade as a **derived flag/badge** on downstream tasks rather
-    than an actual status write — a written status can't be cleanly un-written
-    when the blocker clears, and the graph already computes reachability.
-    Still needs Taylor's call on flag-vs-write before building.
+  - **Derived, not written (Taylor 2026-07-25).** The cascade is recomputed from
+    the graph and surfaced as a badge; no status is ever written to a dependent.
+    A cascaded status can't be cleanly un-written when the blocker clears (you'd
+    have to remember what each task's status *was*), and the graph already
+    computes reachability.
+  - **Slice 1 — engine `[x]` (2026-07-25).** New pure
+    `src/query/taskImpediment.ts` (`computeImpediments` /
+    `isUpstreamImpediment`, boundary-listed): walks `depends_on` transitively and
+    returns `path → { kind: 'blocked' | 'held', source: 'self' | 'upstream',
+    causes }`. Reduces by **max rank rather than last-write-wins**, which is what
+    makes Blocked-beats-Hold order-independent — tested from both dependency order
+    and task-array order. `causes` names the tasks actually carrying the status,
+    not intermediate carriers, so the tooltip lists what has to clear. Completed
+    tasks neither impede nor are impeded; dangling links don't impede (mirrors
+    `isTaskReady`); cycles terminate via a visiting set, and a truncated result is
+    deliberately **not memoized** so a partial answer can't poison later lookups.
+    New **`quickActions.holdStatus`** setting (default `Hold`) + dropdown with a
+    meaningful `(none)`. Needed a new `resolveOptionalStatus` — the existing
+    `resolveConfiguredStatus` falls back to `statuses[0]`, which for a *cascade
+    source* would make a vault with no Hold status treat every **Active** task as
+    an impediment and cascade a bogus Hold across the whole graph. 24 tests; lint
+    clean, build green, **1640 tests**.
+  - **Slice 2 — UI surfacing `[ ]`.** Badge on the row / kanban card / detail
+    pane for `source === 'upstream'` tasks, with the causes in the tooltip. Needs
+    a look call first: the V2 colour-spine model deliberately made badges
+    monochrome, so a new coloured badge would fight it.
 
 ### Dependency graph
 

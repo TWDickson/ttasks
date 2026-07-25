@@ -96,6 +96,7 @@ describe('architecture boundaries', () => {
 			'src/settings/holidays.ts',
 			'src/views/detailHeaderActions.ts',
 			'src/query/taskReadiness.ts',
+			'src/query/taskImpediment.ts',
 		]) {
 			const content = readWorkspaceFile(relativePath);
 

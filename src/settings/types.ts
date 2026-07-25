@@ -67,6 +67,13 @@ export const QUICK_ACTION_OPTIONS: Array<{ value: QuickActionId; label: string }
 export interface QuickActionsSettings {
 	startStatus: string;
 	blockStatus: string;
+	/**
+	 * The "deliberate pause" status — awaiting delegated work, or bumped by
+	 * another priority — as distinct from `blockStatus`'s external impediment.
+	 * Not a quick action itself; it lives here so the two cascade statuses are
+	 * configured side by side (see `computeImpediments`).
+	 */
+	holdStatus: string;
 	deferDays: number;
 }
 
