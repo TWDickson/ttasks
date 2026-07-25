@@ -352,14 +352,36 @@ original list for traceability.*
 
 ### Status semantics — Blocked vs Hold
 
-- `[ ]` **(6) Blocked vs Hold verbiage confusion** ⚖ — unclear distinction
-  between the two statuses; needs a definition/taste call (what each means,
-  when to use which) before any wording changes.
-- `[ ]` **(8) Status changes should cascade to dependents** — setting a task to
-  Hold/Blocked should propagate to (or at least flag) its downstream
-  `depends_on` chain; completing/clearing that status should "reopen" them.
-  Design question: auto-change dependent statuses, or just surface a
-  warning/badge? Resolve (6)'s definitions first — this depends on them.
+- `[~]` **(6) Blocked vs Hold verbiage** — **defined by Taylor 2026-07-25:**
+  - **Blocked** — *"I need to escalate something, or something is just
+    impossible at the current moment"* (his example: a security issue was
+    raised, can't proceed). An **external impediment**: the work cannot move
+    until someone or something outside the task clears it.
+  - **Hold** — *"awaiting a confirmation of delegated work, paused due to some
+    other priority."* A **deliberate pause**: the work *could* proceed, but has
+    been consciously set down — waiting on a delegate to confirm, or bumped by
+    something more important.
+
+  The distinguishing axis is **can't vs. won't-right-now**, not severity.
+  Implementation remaining: reflect this in the UI wording/tooltips (and in the
+  `blocked_reason` field's copy, which currently only fits the Blocked case),
+  then (8).
+- `[ ]` **(8) Status changes should cascade to dependents** — unblocked by (6)'s
+  definitions, which supply most of the design: **Blocked** is an external
+  impediment, so it genuinely propagates downstream (nothing depending on it can
+  proceed either); **Hold** is a local choice about *this* task, so it should
+  **not** silently restatus dependents.
+  - **Precedence (Taylor 2026-07-25): Blocked beats Hold.** If a Hold cascade
+    reaches an already-Blocked task, it stays Blocked. Falls out of the
+    definitions — "can't proceed" outranks "chose to pause" — and it also makes
+    the cascade **order-independent**, which matters: a task reachable from both
+    a Blocked and a Held upstream resolves the same regardless of traversal
+    order, so the derived state is a function of the graph, not of how we walked
+    it. Implies a small ranked lattice rather than last-write-wins.
+  - Likely shape: cascade as a **derived flag/badge** on downstream tasks rather
+    than an actual status write — a written status can't be cleanly un-written
+    when the blocker clears, and the graph already computes reachability.
+    Still needs Taylor's call on flag-vs-write before building.
 
 ### Dependency graph
 
@@ -1093,19 +1115,59 @@ implementation since it changes how API fields are exposed.
   `startOfToday()`-at-mount surfaces (`TaskGraph`/`hybridTimeline` today-marker,
   `TaskBoard`, `TaskDetail`, `statusSummary`). Also makes the engine tests
   deterministic.
-- `[ ]` **DT-2 🔴 `due_time` is stored but semantically dead** ⚖ — persisted,
-  written, sortable, offered in the query editor, and consumed by *nothing*:
-  overdue logic, agenda bucketing, and all four reminder rules are date-only.
-  Needs a decision: **(A, audit's recommendation)** make it real via a
-  `due-time-passed` reminder rule (the 5-minute poll already exists; overdue
-  *styling* stays date-based), or **(B)** declare it display/sort-only and
-  document that. Either way `dateUtils` gains `localTimeString()`.
-- `[ ]` **DT-5 🟡 "This week" is a rolling 7 days, not a calendar week** ⚖ — on a
-  Friday, "This Week" contains next Thursday. Either rename the buckets
-  ("Next 7 days" / "Following week") or implement calendar-week bucketing with a
-  week-starts-on setting. Cheap either way (keys/labels are centralized in
-  `agendaBuckets.ts`) but bucket names are user-facing semantics — decide before
-  publication.
+- `[ ]` **DT-2 🔴 `due_time` is stored but semantically dead** — **decided
+  2026-07-25 (Taylor): make it real, reminders only.**
+  - **Scope is bigger than the audit stated.** The audit noted `due_time` is
+    persisted, written, sortable, and offered in the query editor but consumed by
+    nothing. It's also **not settable**: `due_time` has no entry in
+    `TASK_FIELD_DEFINITIONS`, so no create-modal or detail-pane control exists.
+    Today it only arrives via the emoji-capture parser (`promoteTask`) or JSON
+    import. So this needs **UI + consumption**, not just consumption.
+  - **Reminders only, not overdue.** New `due-time-passed` rule (due today +
+    `due_time` < now + not complete) on the existing 5-minute poll. Overdue
+    styling stays **date-based** — a 09:00 task is not overdue-red at 09:01.
+    Rationale: overdue drives colour across list, kanban, and graph, so a
+    time-sensitive overdue would have rows flipping state through the day and a
+    morning-heavy schedule going red by lunchtime. Document this explicitly, since
+    it's a deliberate asymmetry (the reminder fires; the styling doesn't change).
+  - `dateUtils` gains the one missing primitive `localTimeString(now): 'HH:MM'`
+    so `new Date()` stays out of the pure rules (they take `nowHHMM` injected,
+    like `today`).
+  - **Not** a move to datetime-everywhere. Checked 2026-07-25: no such plan exists
+    in any status doc. `dateUtils.ts` documents the opposite as a deliberate
+    choice (the "Option 3 — Hybrid model" header: date-only fields are local
+    calendar dates, and time-of-day reminders should carry an absolute instant +
+    timezone policy rather than use those helpers), and Obsidian's native
+    "Date & time" type on `due_date` is deliberately reduced to its calendar-date
+    portion by `toCalendarDate`. `due_date` + `due_time` already *are* a local
+    datetime, split across two fields — this just makes the second one count.
+- `[ ]` **DT-5 🟡 "This week" is a rolling 7 days, not a calendar week** —
+  **decided 2026-07-25 (Taylor): real calendar weeks, and keep rolling windows
+  available for the things they suit.**
+  - **Current behaviour** (`classifyAgendaBucketByDate`, `engine.ts`):
+    `today+1` → Tomorrow, `≤ today+7` → This Week, `≤ today+14` → Next Week.
+    So "This Week" is the next 7 days *rolling*. On Sat 2026-07-25 it runs
+    through Sat 08-01, swallowing all of the following Mon–Fri. The distortion
+    grows through the week: near-correct on the week's first day, almost entirely
+    *next* week by Friday. The practical cost is that "what's left this week?"
+    can't be answered — the bucket refills from the future as the week drains.
+  - **Target:** calendar-week bucketing — "This Week" ends on the configured
+    week's last day, "Next Week" is the following calendar week — plus a new
+    **week-starts-on** setting (Sun/Mon). Matches TickTick/Things.
+  - **Rolling stays a first-class option** (Taylor: *"I do like the idea of having
+    a rolling window for some things as well"*). It already exists as the
+    `within_days` filter operator, so Smart Lists can express "next 7 days"
+    directly; the inclusive `on_or_after`/`on_or_before` range operators and the
+    toolbar date-range filter cover the rest. Confirm `within_days` is discoverable
+    in the query editor as part of this work rather than building a second
+    mechanism.
+  - **Second bucket to align:** the **Logbook** has its own unrelated `this-week`
+    (`classifyLogbookBucket`: completed within the last 7 days, rolling
+    *backwards*) — same label, opposite direction, different function. A look-back
+    window arguably *should* stay rolling (a calendar "completed this week" shows
+    almost nothing on a Monday), so the likely resolution is to keep the behaviour
+    and **rename it** ("Last 7 Days") so the two "This Week"s stop colliding.
+    Decide alongside the agenda change so they don't drift again.
 - `[ ]` **DT-6 🟢 consolidation + enforcement** — add `isIsoDateString` and sweep
   the 8 duplicate ISO-date regexes (with AR-5); move `formatHumanDate` next to
   `MONTH_ABBR`; enforce no bare `new Date()` outside the boundary.
