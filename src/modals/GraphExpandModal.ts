@@ -17,7 +17,6 @@ export interface GraphExpandProps {
 	plugin: TTasksPlugin;
 	groups: Readable<TaskGroup[]>;
 	statusColors: Record<string, string>;
-	areaColors: Record<string, string>;
 	activeTaskPath: Writable<string | null>;
 	defaultGraphMode: GraphMode;
 	onOpen: (path: string) => void;
