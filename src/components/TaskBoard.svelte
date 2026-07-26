@@ -31,6 +31,7 @@
 	import { confirmModal } from '../modals/confirmModal';
 	import { buildBoardQuery, type ListGroupOverride, type ListSortOverride } from './boardQuery';
 	import { buildToolbarFilterConditions, hasActiveToolbarFilters, supportsDateRangeFilter } from './boardFilters';
+	import { buildImpedimentBadges, computeImpediments } from '../query/taskImpediment';
 	import type { FilterCondition, GroupField, SortField } from '../query/types';
 	import { GROUP_FIELDS, SORT_FIELDS } from '../query/queryEditor';
 	import {
@@ -295,6 +296,18 @@
 	$: configuredCategoryColors = plugin.settings.areaColors ?? {};
 	$: configuredTaskTypeColors = plugin.settings.labelColors ?? {};
 	$: configuredBlockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
+	$: configuredHoldStatus = plugin.settings.quickActions?.holdStatus ?? '';
+
+	// Derived Blocked/Hold cascade (#8) — computed from the full task list so a
+	// blocker outside the current filter still impedes, and recomputed rather than
+	// stored so clearing a blocker restores its dependents with no bookkeeping.
+	$: impedimentStatuses = { blockStatus: configuredBlockStatus, holdStatus: configuredHoldStatus };
+	$: impedimentBadges = buildImpedimentBadges(
+		computeImpediments($tasks, impedimentStatuses),
+		impedimentStatuses,
+		new Map($tasks.map((task) => [task.path, task.name])),
+		configuredStatusColors,
+	);
 
 	$: if ($focusedTaskPath && !$tasks.some((task) => task.path === $focusedTaskPath)) {
 		focusedTaskPath.set(null);
@@ -472,6 +485,7 @@
 						viewId={currentView.id}
 						groups={groupedTasks}
 						{schedule}
+						{impedimentBadges}
 						statuses={configuredStatuses}
 						hierarchy={currentView.presentation.hierarchy}
 						areaColors={configuredCategoryColors}
@@ -507,6 +521,7 @@
 						statuses={configuredStatuses}
 						statusColors={configuredStatusColors}
 						blockStatus={configuredBlockStatus}
+						{impedimentBadges}
 						areaColors={configuredCategoryColors}
 						labelColors={configuredTaskTypeColors}
 						kanbanCardFields={plugin.settings.kanbanCardFields}
@@ -540,6 +555,7 @@
 						{plugin}
 						groups={groupedTasks}
 						{schedule}
+						{impedimentBadges}
 						areaColors={configuredCategoryColors}
 						labelColors={configuredTaskTypeColors}
 						{activeTaskPath}

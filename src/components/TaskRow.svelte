@@ -7,6 +7,7 @@
 	import { getTaskDateBadge, formatHumanDate } from './taskDateMeta';
 	import { canShowInlineReopen } from './taskRowActions';
 	import { resolveInferredDueDate, type ResolvedTaskDate } from '../store/taskSchedule';
+	import type { ImpedimentBadge } from '../query/taskImpediment';
 	import { icon } from '../utils/icon';
 
 	export let plugin: TTasksPlugin;
@@ -38,6 +39,8 @@
 	export let onPromote: ((task: ExternalTask) => void) | undefined = undefined;
 	/** Resolved dependency-chain schedule, used for the projected-date badge. */
 	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
+	/** Derived upstream Blocked/Hold cascade (#8); absent when nothing impedes. */
+	export let impediment: ImpedimentBadge | undefined = undefined;
 
 	$: dateBadge = getTaskDateBadge(task, $today);
 	$: inferredDue = schedule ? resolveInferredDueDate(task, schedule.get(task.path)) : null;
@@ -145,6 +148,13 @@
 			{/if}
 			{#if task.area}
 				<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!areaColors?.[task.area]} style={getBadgeStyle(areaColors?.[task.area])}>{task.area}</span>
+			{/if}
+			{#if impediment}
+				<span
+					class="tt-badge tt-badge-impediment"
+					style={getBadgeStyle(impediment.color)}
+					title={impediment.tooltip}
+				>{impediment.label}</span>
 			{/if}
 			{#if dateBadge}
 				<span

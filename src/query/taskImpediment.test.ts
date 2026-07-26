@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
-import { computeImpediments, isUpstreamImpediment, type ImpedimentStatuses } from './taskImpediment';
+import { computeImpediments, describeImpediment, isUpstreamImpediment, type ImpedimentStatuses } from './taskImpediment';
 
 const STATUSES: ImpedimentStatuses = { blockStatus: 'Blocked', holdStatus: 'Hold' };
 
@@ -278,6 +278,61 @@ describe('computeImpediments', () => {
 			expect(isUpstreamImpediment(result.get('x.md'))).toBe(true);
 			expect(isUpstreamImpediment(result.get('y.md'))).toBe(true);
 		});
+	});
+});
+
+describe('describeImpediment', () => {
+	const names = new Map([['Tasks/a.md', 'Ship the API'], ['Tasks/b.md', 'Sign the contract']]);
+
+	it('names the blocking status from settings, not a hardcoded string', () => {
+		const described = describeImpediment(
+			{ kind: 'blocked', source: 'upstream', causes: ['Tasks/a.md'] },
+			{ blockStatus: 'Escalated', holdStatus: 'Parked' },
+			names,
+		);
+
+		expect(described.label).toBe('Escalated upstream');
+		expect(described.tooltip).toBe('Escalated upstream — waiting on: Ship the API');
+	});
+
+	it('uses the hold status name for a held impediment', () => {
+		const described = describeImpediment(
+			{ kind: 'held', source: 'upstream', causes: ['Tasks/b.md'] },
+			STATUSES,
+			names,
+		);
+
+		expect(described.label).toBe('Hold upstream');
+	});
+
+	it('lists every cause', () => {
+		const described = describeImpediment(
+			{ kind: 'blocked', source: 'upstream', causes: ['Tasks/a.md', 'Tasks/b.md'] },
+			STATUSES,
+			names,
+		);
+
+		expect(described.tooltip).toBe('Blocked upstream — waiting on: Ship the API, Sign the contract');
+	});
+
+	it('degrades an unknown cause to its filename rather than dropping it', () => {
+		const described = describeImpediment(
+			{ kind: 'blocked', source: 'upstream', causes: ['Tasks/abc123-hidden-task.md'] },
+			STATUSES,
+			new Map(),
+		);
+
+		expect(described.tooltip).toContain('abc123-hidden-task');
+	});
+
+	it('omits the waiting-on clause when there are no causes', () => {
+		const described = describeImpediment(
+			{ kind: 'blocked', source: 'upstream', causes: [] },
+			STATUSES,
+			names,
+		);
+
+		expect(described.tooltip).toBe('Blocked upstream');
 	});
 });
 

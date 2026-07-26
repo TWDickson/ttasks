@@ -186,6 +186,21 @@
 	color: var(--color-green);
 }
 
+/* Derived upstream impediment (#8): this task's own status looks workable, but a
+   blocker upstream is Blocked or on Hold. A *muted* variant of the blocking
+   status' colour — deliberately quieter than the date badges above, which are the
+   colour-spine model's one loud exception. `--tt-badge-color` is set inline from
+   the configured statusColors entry. */
+.tt-badge-impediment {
+	/* Explicit fallback: an unconfigured status colour leaves --tt-badge-color
+	   unset, and an invalid color-mix() would drop all three declarations rather
+	   than degrading. This keeps it a readable neutral badge instead. */
+	--tt-impediment-color: var(--tt-badge-color, var(--text-muted));
+	background: color-mix(in srgb, var(--tt-impediment-color) 10%, var(--background-primary));
+	border-color: color-mix(in srgb, var(--tt-impediment-color) 32%, var(--background-modifier-border));
+	color: color-mix(in srgb, var(--tt-impediment-color) 55%, var(--text-muted));
+}
+
 /* Inferred projected finish — weaker than a real due badge (dashed, no fill). */
 .tt-badge-inferred {
 	background: transparent;

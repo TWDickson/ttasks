@@ -6,11 +6,13 @@
 	import type { ExternalTask } from '../integration/types';
 	import type { TaskGroup } from '../query/types';
 	import type { ResolvedTaskDate } from '../store/taskSchedule';
+	import type { ImpedimentBadge } from '../query/taskImpediment';
 	import { buildListRows, labelForGroup, type ListSection, type ListHierarchyMode } from './viewAdapters';
 	export let plugin: TTasksPlugin;
 	export let viewId = '';
 	export let groups: Readable<TaskGroup[]>;
 	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
+	export let impedimentBadges: Map<string, ImpedimentBadge> | undefined = undefined;
 	export let statuses: string[];
 	export let hierarchy: ListHierarchyMode = 'tree';
 	export let areaColors: Record<string, string>;
@@ -97,6 +99,7 @@
 								{viewId}
 								task={row.task}
 								{schedule}
+								impediment={impedimentBadges?.get(row.task.path)}
 								active={$activeTaskPath === row.task.path}
 								{areaColors}
 								{labelColors}

@@ -182,3 +182,77 @@ function reduceContributions(contributions: Contribution[]): ImpedimentState | n
 export function isUpstreamImpediment(state: ImpedimentState | undefined): boolean {
 	return state?.source === 'upstream';
 }
+
+/** Human-readable badge text for an inherited impediment. */
+export interface ImpedimentLabel {
+	/** Compact badge text — rows are crowded, so detail goes in the tooltip. */
+	label: string;
+	/** Full explanation, naming what actually has to clear. */
+	tooltip: string;
+}
+
+/**
+ * Render an impediment for display. The status *name* comes from settings rather
+ * than being hardcoded, so a vault that renamed Blocked to "Escalated" reads
+ * "Escalated upstream".
+ *
+ * `nameByPath` resolves causes to task names; an unknown path degrades to its
+ * filename rather than being dropped, so the tooltip never silently under-reports
+ * what's holding the task up.
+ */
+export function describeImpediment(
+	state: ImpedimentState,
+	statuses: ImpedimentStatuses,
+	nameByPath: Map<string, string>,
+): ImpedimentLabel {
+	const statusName = state.kind === 'blocked' ? statuses.blockStatus : statuses.holdStatus;
+	const label = `${statusName} upstream`;
+	const names = state.causes.map((path) => nameByPath.get(path) ?? basename(path));
+	const tooltip = names.length > 0
+		? `${label} — waiting on: ${names.join(', ')}`
+		: label;
+	return { label, tooltip };
+}
+
+function basename(path: string): string {
+	const file = path.split('/').pop() ?? path;
+	return file.replace(/\.md$/, '');
+}
+
+/** A render-ready badge for one task. */
+export interface ImpedimentBadge extends ImpedimentLabel {
+	kind: ImpedimentKind;
+	/**
+	 * Configured colour of the blocking status. `undefined` (not null) so it drops
+	 * straight into the components' existing `getBadgeStyle(color?: string)`
+	 * helpers, which then emit no custom property and let the CSS fall back.
+	 */
+	color: string | undefined;
+}
+
+/**
+ * Build the display map the views consume: path → badge, for **upstream**
+ * impediments only. A task that is itself Blocked is excluded — its own status
+ * field already says so, and badging it would be noise.
+ *
+ * Kept here rather than in the components so the view layer stays a renderer,
+ * mirroring `boardFilters.ts` / `boardQuery.ts`.
+ */
+export function buildImpedimentBadges(
+	impediments: Map<string, ImpedimentState>,
+	statuses: ImpedimentStatuses,
+	nameByPath: Map<string, string>,
+	statusColors: Record<string, string> | null | undefined,
+): Map<string, ImpedimentBadge> {
+	const badges = new Map<string, ImpedimentBadge>();
+	for (const [path, state] of impediments) {
+		if (!isUpstreamImpediment(state)) continue;
+		const statusName = state.kind === 'blocked' ? statuses.blockStatus : statuses.holdStatus;
+		badges.set(path, {
+			...describeImpediment(state, statuses, nameByPath),
+			kind: state.kind,
+			color: statusColors?.[statusName],
+		});
+	}
+	return badges;
+}

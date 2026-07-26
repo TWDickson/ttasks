@@ -157,6 +157,26 @@ export function buildFixtureTasks(): Task[] {
 		estimated_days: 4,
 	});
 
+	// Hold cascade pair (#8): the delegated task is on Hold, so the task waiting on
+	// it inherits a "Hold upstream" badge while its own status stays Active. Held is
+	// the weaker signal, so a task reaching both this and `blocked` reads Blocked.
+	const delegated = makeTask({
+		name: 'Legal sign-off on data retention',
+		area: 'Work',
+		status: 'Hold',
+		blocked_reason: 'Delegated to legal; awaiting their confirmation',
+		due_date: isoDaysFromToday(6),
+	});
+
+	const awaitingDelegate = makeTask({
+		name: 'Publish the retention policy page',
+		area: 'Work',
+		priority: 'Medium',
+		labels: ['docs'],
+		depends_on: [stripMd(delegated.path)],
+		due_date: isoDaysFromToday(12),
+	});
+
 	const today = makeTask({
 		name: 'Water the plants',
 		area: 'Home',
@@ -191,7 +211,7 @@ export function buildFixtureTasks(): Task[] {
 	review.blocks = [stripMd(apiEndpoints.path)];
 	blocked.blocks = [stripMd(apiEndpoints.path)];
 
-	return [project, wireframes, implement, review, stress, stressChild, apiProject, blocked, apiEndpoints, today, inbox, done, doneOld];
+	return [project, wireframes, implement, review, stress, stressChild, apiProject, blocked, apiEndpoints, delegated, awaitingDelegate, today, inbox, done, doneOld];
 }
 
 export interface RigPlugin {
@@ -290,8 +310,8 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 					presentation: { hierarchy: 'flat', graphMode: 'dependency' },
 				},
 			],
-			statuses: ['Active', 'In Progress', 'Blocked', 'Done'],
-			statusColors: { 'In Progress': '#2563eb', Blocked: '#dc2626', Done: '#16a34a' },
+			statuses: ['Active', 'In Progress', 'Blocked', 'Hold', 'Done'],
+			statusColors: { 'In Progress': '#2563eb', Blocked: '#dc2626', Hold: '#a16207', Done: '#16a34a' },
 			areaColors: { Work: '#f59e0b', Home: '#10b981', Database: '#3b82f6' },
 			labelColors: { bug: '#ef4444', feature: '#8b5cf6', research: '#06b6d4' },
 			areas: ['Work', 'Home', 'Database'],
@@ -312,7 +332,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 				labels: [],
 				includeCompleted: true,
 			},
-			quickActions: { blockStatus: 'Blocked' },
+			quickActions: { blockStatus: 'Blocked', holdStatus: 'Hold' },
 			fabPosition: 'right',
 			holidays: [],
 			areaWorkweek: {},

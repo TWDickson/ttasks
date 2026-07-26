@@ -3,6 +3,7 @@
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task, TaskStatus } from '../types';
 	import type { TaskGroup } from '../query/types';
+	import type { ImpedimentBadge } from '../query/taskImpediment';
 	import type TaskStore from '../store/TaskStore';
 	import type TTasksPlugin from '../main';
 	import { PRIORITY_COLORS } from '../constants';
@@ -19,6 +20,8 @@
 	export let areaColors: Record<string, string>;
 	export let labelColors: Record<string, string>;
 	export let blockStatus = 'Blocked';
+	/** Derived upstream Blocked/Hold cascade (#8), keyed by task path. */
+	export let impedimentBadges: Map<string, ImpedimentBadge> | undefined = undefined;
 	export let kanbanCardFields: KanbanCardField[] = ['area', 'dueDate', 'labels', 'depCount'];
 	export let activeTaskPath: Writable<string | null>;
 	export let store: TaskStore;
@@ -238,6 +241,16 @@
 								<div class="tt-card-meta">
 									{#if task.area && isFieldEnabled(kanbanCardFields, 'area')}
 										<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!areaColors?.[task.area]} style={getBadgeStyle(areaColors?.[task.area])}>{task.area}</span>
+									{/if}
+									{#if impedimentBadges}
+										{@const impediment = impedimentBadges.get(task.path)}
+										{#if impediment}
+											<span
+												class="tt-badge tt-badge-impediment"
+												style={getBadgeStyle(impediment.color)}
+												title={impediment.tooltip}
+											>{impediment.label}</span>
+										{/if}
 									{/if}
 									{#if isFieldEnabled(kanbanCardFields, 'dueDate')}
 										{@const badge = getDateBadge(task, $today)}
