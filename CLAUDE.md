@@ -190,6 +190,50 @@ Closed sweeps + their full histories live in `Scripts/archive/`:
 `run-autopilot.fish`. Older PRDs (TASK_H*/I*/J*/K*) are vault-side synced
 notes.
 
+## Recent Updates (2026-07-31)
+
+- **Dev environment made portable (prep for a server checkout + the BRAT
+  handover).** Goal: run this repo on a box with no Obsidian, no vault, and no
+  symlink. `src/`, esbuild, vitest and eslint were already clean — the whole
+  problem was the visual rig, which hard-failed on any machine but Taylor's.
+  - **`test-rig/vendor/` is gitignored but `main.ts` imports it statically**, so
+    a fresh clone died at vite resolve time before rendering anything. New
+    `vendorCss.mjs` writes a marked empty stub for whichever file is missing and
+    the dev server prints a warning — the rig boots, structure and behaviour are
+    real, only Obsidian's look is absent (explicitly *not* sign-off-worthy).
+  - **CSS now has a git source, not just a local-install one** (Taylor: "vault
+    will not be on the server, source these elsewhere like the git repos"):
+    `app.css` falls back to `obsidianmd/obsidian-releases`' `obsidian-<v>.asar.gz`
+    (latest tag via the API, pinned fallback, gunzip → `@electron/asar
+    extract-file`, cached per version in `.cache/`), and the theme falls back to
+    `seniblue/Underwater` — the repo the community theme list points at. Both
+    paths verified end-to-end: remote sync produced a 635 KB app.css + 122 KB
+    theme with no Obsidian visible, then the local path restored Taylor's own
+    byte-identical 600 KB/123 KB pair.
+  - **New `test-rig/localPaths.mjs`** is the one place that knows machine-local
+    paths — vault, asar, theme, browser — each with an env override
+    (`TTASKS_VAULT`, `TTASKS_OBSIDIAN_ASAR`, `TTASKS_THEME_CSS`,
+    `TTASKS_OBSIDIAN_VERSION`, `TTASKS_THEME_URL`, `CHROME_PATH`). An override
+    wins even when the path is missing so typos fail loudly, and **set-but-empty
+    means "absent"**, which is how this machine reproduces the server's
+    vault-less behaviour. `/__vault.json` now serves `{files: []}` instead of a
+    500, and the client's existing fixture fallback takes over.
+  - **Browser resolution unified** — `shots.mjs` and the `run-ttasks` skill
+    driver had duplicate hardcoded lists (with a "keep in sync" comment) pinned
+    to `win64-1656505`; now both import one resolver that scans `.browser/` for
+    any build and probes Windows/macOS/**Linux** system paths. Linux launches add
+    `--no-sandbox` + `--disable-dev-shm-usage` for containers.
+  - **`vite` was undeclared** — `npm run rig` resolved it transitively through
+    vitest; now a real devDependency. Added `engines.node >= 20.19` and a
+    `rig:browser` script.
+  - Setup on a new box is `npm ci && npm run rig:sync-css && npm run rig`.
+    `npm run check` green: **1645 tests**, 128 files.
+- **`origin/main` is no longer divergent** — it's identical to local `main` (0/0
+  as of this date). CLAUDE.md had warned otherwise for months, and that warning
+  was the stated blocker on **TD-1 (no CI)**, which is now unblocked. Next up:
+  CI running `check`, plus the release scaffolding BRAT needs (`main.js` is
+  gitignored, so beta installs require built release assets + `versions.json`).
+
 ## Recent Updates (2026-07-25)
 
 - **Recurrence drift fixed (audit RP-1 / DT-3 🔴) + the audit folded into the
@@ -248,8 +292,9 @@ notes.
   **`npm run check`** (`lint && build && test`) so the three gates run as one and
   this can't drift again. Lint clean, check green end-to-end (**1616 tests** + 65
   component tests). Remaining from that audit item's neighbourhood: **TD-1 (no
-  CI)** — still open, and the natural home for `check`, but it needs the
-  `origin`-is-divergent story resolved first.
+  CI)** — still open, and the natural home for `check`. It was blocked on the
+  `origin`-is-divergent story; that's now resolved (see 2026-07-31), so TD-1 is
+  unblocked.
 
 ## Recent Updates (2026-07-22, later)
 
@@ -757,7 +802,10 @@ Still in solo dev — no review gate. When a slice is complete **and verified**
 3. Leave feature branches in place unless asked to prune; they're cheap.
 
 Do **not** push to `origin` or otherwise touch the remote unless explicitly
-asked — `origin/main` is a separate/divergent history from local `main`.
+asked. Note the reason has changed: `origin/main` and local `main` were
+divergent histories, but **as of 2026-07-31 they are identical** (0 ahead,
+0 behind) — so pushing is now a normal fast-forward, not a history collision.
+It stays opt-in because the repo is public, not because it's dangerous.
 Still confirm before genuinely destructive git ops (hard reset, force-delete,
 history rewrite).
 

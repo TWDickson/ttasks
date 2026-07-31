@@ -6,27 +6,13 @@
    e.g. `node test-rig/shots.mjs mobile`. */
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
+import { BROWSER_ARGS, findBrowser, rigDir } from './localPaths.mjs';
 
-const rigDir = path.dirname(fileURLToPath(import.meta.url));
 const shotsDir = path.join(rigDir, 'shots');
 const BASE = 'http://localhost:5199';
-
-/* Plain Chromium (installed via `npx @puppeteer/browsers install chromium@latest
-   --path test-rig/.browser`) — the corporate policy that blocks remote debugging
-   applies only to branded Chrome/Edge, not to Chromium builds. */
-const BROWSERS = [
-	path.join(rigDir, '.browser/chromium/win64-1656505/chrome-win/chrome.exe'),
-	'C:/Program Files/Google/Chrome/Application/chrome.exe',
-	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-	/* Edge before Chrome on macOS: this machine's Chrome (107) predates the
-	   current headless mode that puppeteer-core 25 expects. */
-	'/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-	'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-];
 
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
@@ -56,13 +42,6 @@ const SHOTS = [
 	{ name: 'mobile-modal-dark', url: '/?view=list&modal=1', viewport: PHONE },
 	{ name: 'mobile-modal-light', url: '/?view=list&modal=1&theme=light', viewport: PHONE },
 ];
-
-function findBrowser() {
-	for (const p of BROWSERS) {
-		if (existsSync(p)) return p;
-	}
-	throw new Error('No Chrome/Edge found — edit BROWSERS in shots.mjs');
-}
 
 async function serverUp() {
 	try {
@@ -104,7 +83,7 @@ async function main() {
 		executablePath: findBrowser(),
 		headless: true,
 		userDataDir: profileDir,
-		args: ['--hide-scrollbars', '--force-device-scale-factor=1', '--no-first-run'],
+		args: BROWSER_ARGS,
 	});
 
 	try {

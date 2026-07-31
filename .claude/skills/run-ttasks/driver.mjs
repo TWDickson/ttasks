@@ -21,10 +21,11 @@
    (and kills it on exit only if it started it). */
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
+import { mkdirSync, rmSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
+import { BROWSER_ARGS, findBrowser } from '../../../test-rig/localPaths.mjs';
 
 const skillDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(skillDir, '../../..');
@@ -32,24 +33,8 @@ const rigDir = path.join(root, 'test-rig');
 const shotsDir = path.join(rigDir, 'shots');
 const BASE = 'http://localhost:5199';
 
-/* Same candidate list as test-rig/shots.mjs — keep in sync. */
-const BROWSERS = [
-	path.join(rigDir, '.browser/chromium/win64-1656505/chrome-win/chrome.exe'),
-	'C:/Program Files/Google/Chrome/Application/chrome.exe',
-	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-	/* Edge before Chrome on macOS: this machine's Chrome (107) predates the
-	   current headless mode that puppeteer-core 25 expects. */
-	'/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-	'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-];
-
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
-
-function findBrowser() {
-	for (const p of BROWSERS) if (existsSync(p)) return p;
-	throw new Error('No Chrome/Edge found — edit BROWSERS in driver.mjs');
-}
 
 async function serverUp() {
 	try {
@@ -96,7 +81,7 @@ async function main() {
 		executablePath: findBrowser(),
 		headless: true,
 		userDataDir: profileDir,
-		args: ['--hide-scrollbars', '--force-device-scale-factor=1', '--no-first-run'],
+		args: BROWSER_ARGS,
 	});
 
 	try {

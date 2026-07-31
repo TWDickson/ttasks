@@ -3,17 +3,16 @@
    request — edit a task file in the vault and reload the rig to see it. */
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { load as yamlLoad } from 'js-yaml';
 import type { Plugin } from 'vite';
+// @ts-expect-error -- plain-JS helper shared with the rig's node scripts.
+import { VAULT } from './localPaths.mjs';
 
-// First existing candidate wins (Windows work machine, then macOS).
-const VAULT = [
-	'C:/Users/DICKSOTAYL/Projects/Obsidian/Taylor',
-	path.join(os.homedir(), 'Obsidian/Taylor'),
-].find((p) => existsSync(p)) ?? 'C:/Users/DICKSOTAYL/Projects/Obsidian/Taylor';
-const PLUGIN_DATA = path.join(VAULT, '.obsidian/plugins/ttasks/data.json');
+/* VAULT is null on a machine with no vault (server/CI). The endpoint then
+   serves an empty file list, which the client reads as "no vault" and falls
+   back to fixtures — see fetchVaultPayload in vaultTasks.ts. */
+const PLUGIN_DATA = VAULT ? path.join(VAULT, '.obsidian/plugins/ttasks/data.json') : null;
 
 interface RawTaskFile {
 	path: string;
@@ -46,7 +45,12 @@ export function vaultDataPlugin(): Plugin {
 		configureServer(server) {
 			server.middlewares.use('/__vault.json', (_req, res) => {
 				try {
-					const settings = existsSync(PLUGIN_DATA)
+					if (!VAULT) {
+						res.setHeader('content-type', 'application/json');
+						res.end(JSON.stringify({ settings: null, files: [] }));
+						return;
+					}
+					const settings = PLUGIN_DATA && existsSync(PLUGIN_DATA)
 						? JSON.parse(readFileSync(PLUGIN_DATA, 'utf8'))
 						: null;
 					const tasksFolder = settings?.tasksFolder ?? 'Planner/Tasks';
