@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "A task management plugin for Obsidian",
   "main": "main.js",
+  "license": "GPL-3.0-or-later",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
