@@ -9,6 +9,7 @@
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
     "lint": "eslint \"src/**/*.{ts,svelte}\"",
     "check": "npm run lint && npm run build && npm run test",
+    "version": "node version-bump.mjs && git add manifest.json versions.json",
     "test": "vitest run",
     "test:board": "vitest run src/integration/boardFocus.test.ts src/integration/boardKeymap.test.ts src/integration/boardViewBehavior.test.ts",
     "test:reminders": "vitest run src/store/reminderSnooze.test.ts src/store/ReminderService.test.ts",
