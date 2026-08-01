@@ -233,6 +233,32 @@ notes.
   was the stated blocker on **TD-1 (no CI)**, which is now unblocked. Next up:
   CI running `check`, plus the release scaffolding BRAT needs (`main.js` is
   gitignored, so beta installs require built release assets + `versions.json`).
+- **The vault install is a real folder now, NOT a symlink — do not recreate the
+  symlink.** `.obsidian/plugins/ttasks` used to be a symlink to this checkout,
+  which pointed **Obsidian Sync at the entire repo**: 827 MB `test-rig`
+  (`.browser` Chromium + `.cache` asars) + 212 MB `node_modules` + 9.7 MB `.git`,
+  to deliver a 1.4 MB plugin. That is the long-standing **mobile deploy blocker**
+  — the phone wasn't failing to load fresh builds so much as Sync was never
+  finishing. Replaced with a `vaultCopyPlugin` in `esbuild.config.mjs`: an
+  esbuild `onEnd` hook copying `main.js` / `manifest.json` / `styles.css` into
+  the vault after every successful build, watch rebuilds included. Deliberately
+  **never `data.json`** — that's Obsidian's, holds the user's settings, and syncs
+  between devices. Vault path comes from `test-rig/localPaths.mjs` (`VAULT`) so
+  machine-local paths stay in one place; absent vault is a silent no-op, while a
+  typo'd `TTASKS_VAULT` warns, matching that module's fail-loudly contract.
+  Sync now carries ~1.4 MB instead of ~1 GB. Note `npm run dev` writes a **3.85 MB**
+  inline-sourcemap bundle on every rebuild, so leaving watch running with plugin
+  sync on is chatty; `npm run build` is 1.37 MB.
+- **Released `0.1.0` on GitHub + GPL-3.0 licensed.** First tagged release
+  (`main.js`/`manifest.json`/`styles.css` attached, tag == manifest version, no
+  `v` prefix) so BRAT can install betas. **Not** submitted to the community
+  plugin list — Taylor's line is GitHub releases yes, `obsidianmd/obsidian-releases`
+  not yet. LICENSE is verbatim GPL-3.0 (`package.json` declares
+  `GPL-3.0-or-later`); Obsidian requires *a* LICENSE but prohibits no type. All
+  five deps bundled into `main.js` are MIT/ISC/0BSD, so GPL-compatible.
+  Closes half of **PB-1**; `versions.json`, `version-bump.mjs`, and the release
+  workflow are still open, as is **TD-1** (a clean-clone `npm ci && npm run check`
+  passes, so the workflow is de-risked).
 
 ## Recent Updates (2026-07-25)
 
