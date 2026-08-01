@@ -227,6 +227,16 @@ notes.
     tag check. Seeded `versions.json` with `{"0.1.0": "1.7.2"}` to match the
     already-published release. **Cutting a release is now `npm version patch &&
     git push --follow-tags`.**
+  - **Both workflows verified live.** CI green on both matrix legs (~1m10s
+    each; `actions/checkout` + `setup-node` bumped v4 → v5 to clear the Node 20
+    deprecation annotation). Then **`0.1.1` was cut deliberately to exercise the
+    release path** — identical plugin code to `0.1.0`, since only CI/docs had
+    changed; the point was to find a broken pipeline before needing it. It
+    produced a bare tag, one commit carrying all four version records, and a
+    published release with `main.js` (1.37 MB) / `manifest.json` / `styles.css`.
+    Only the guard's **happy path** is CI-proven — deliberately not tested
+    against a mismatched tag, since a broken guard would publish a junk release
+    to prove the point.
   - PB-1's remaining piece is **README.md** alone (LICENSE landed earlier the
     same day). Community-plugin-list submission stays deliberately out of scope.
 - **Dev environment made portable (prep for a server checkout + the BRAT

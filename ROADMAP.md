@@ -51,6 +51,17 @@ tag in the first place — belt and braces with the workflow's tag check. Seeded
 `versions.json` with `{"0.1.0": "1.7.2"}` to match the published release.
 Cutting a release is now `npm version patch && git push --follow-tags`.
 
+*Verified end-to-end.* CI went green on both matrix legs (~1m10s each), then
+**`0.1.1` was cut deliberately to exercise the release path** — same plugin code
+as `0.1.0`, since only CI/docs had changed; the point was to find a broken
+pipeline before needing it. `npm version patch` produced a **bare `0.1.1` tag**
+and one commit carrying package.json + package-lock + manifest.json +
+versions.json; the tag push ran the guard, `check`, and `gh release create`, and
+published `main.js` (1.37 MB) / `manifest.json` / `styles.css`. Only the guard's
+**happy path** is CI-proven — its failure branch was exercised locally (the same
+`node -p` reads) but not against a deliberately mismatched tag, because a broken
+guard would have published a junk release to prove the point.
+
 **README.md is the only piece of PB-1 left.** Submitting to
 `obsidianmd/obsidian-releases` remains deliberately out of scope.
 
