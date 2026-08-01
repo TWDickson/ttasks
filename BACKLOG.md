@@ -941,16 +941,27 @@ bar) — folds into the Visual regression pass.
   `overflow-x: hidden` on the detail leaf. **Rig-verified** dark + light at phone
   width; on-device blocked by the same build-load issue. `TaskDetail.svelte`,
   `styles.css`.
-- `[ ]` **Deploy pipeline: phone not loading fresh plugin builds** 🔎 —
-  *surfaced 2026-07-19.* During the mobile-fix session, verified-correct builds
-  (confirmed in the compiled `main.js` + rig) did **not** take effect on Taylor's
-  phone even after reload attempts — the old bundle kept rendering. This blocks
-  *all* on-device verification. Likely Obsidian Sync not delivering the symlinked
-  plugin's `main.js`/`styles.css`, or the mobile app caching the old JS/CSS past
-  a plugin toggle. Investigate: confirm Sync is set to sync installed plugins,
-  whether it follows the repo symlink, and whether a full app-kill (not just a
-  plugin toggle) is required to reload. Until fixed, mobile items above stay
-  `[~]` unverifiable.
+- `[x]` **Deploy pipeline: phone not loading fresh plugin builds** — *surfaced
+  2026-07-19, fixed and device-confirmed 2026-07-31.* **Root cause: the vault's
+  `.obsidian/plugins/ttasks` was a symlink to the repo checkout**, so Obsidian
+  Sync treated the entire repo as the plugin folder — 827 MB `test-rig`
+  (`.browser` Chromium + `.cache` asars) + 212 MB `node_modules` + 9.7 MB `.git`,
+  to deliver a 1.4 MB plugin. Sync was never finishing, which is why the symptom
+  read as "*fresh* builds don't arrive" rather than "plugin missing": the phone
+  stayed pinned to whatever early copy had made it across. The 2026-07-19 guesses
+  (plugin-sync disabled, mobile JS cache, app-kill needed) were all wrong.
+  Fixed by removing the symlink and making the vault folder real, with a
+  `vaultCopyPlugin` esbuild hook placing `main.js`/`manifest.json`/`styles.css`
+  there on production builds only — never `data.json`, which is Obsidian's and
+  syncs between devices. Sync now carries ~1.4 MB. `npm run build` is the deploy
+  step; `npm run dev` no longer touches the vault (a watch bundle is 3.85 MB with
+  its inline sourcemap, and syncing half-finished builds to a phone mid-edit is
+  worse than losing live reload). Commits `bcaef7d` + `8d4aee1`.
+  **Unblocks the `[~]` device-unverified mobile items above** — they are now
+  testable on-device and should be swept.
+  *Aside:* GitHub release `0.1.0` was cut during the investigation so BRAT could
+  serve as an independent install path. It confirmed the diagnosis, but with Sync
+  working it's a fallback, not the deploy mechanism.
 - `[ ]` **Visual regression pass** — dark/light × desktop/phone sweep per the
   `Scripts/STYLING_NOTES.md` checklist; includes the settings-tab before/after
   from the P7 overhaul (the rig doesn't cover the settings tab — live Obsidian

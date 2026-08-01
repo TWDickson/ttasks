@@ -164,10 +164,13 @@ box in its phase sections as open work. Open:
    **V2 colour-spine** model (area colour → card/row left edge, monochrome
    badges, softened date tints). Live-Obsidian sign-off folds into the visual
    regression pass.
-4. **Mobile fixes (device-unverified)** — tap-to-open double-tap, detail-drawer
-   surfacing, and detail-pane-fit fixes landed rig-side 2026-07-19 but **could
-   not be confirmed on-device**: Taylor's phone stopped loading fresh plugin
-   builds (a deploy/sync-reload blocker, now its own backlog item).
+4. **Mobile fixes (now testable — sweep owed)** — tap-to-open double-tap,
+   detail-drawer surfacing, and detail-pane-fit fixes landed rig-side 2026-07-19
+   but could not be confirmed on-device because the phone wasn't receiving fresh
+   builds. **That blocker is fixed and device-confirmed 2026-07-31** (the vault
+   symlink pointed Obsidian Sync at the whole repo — see the dated entry below),
+   so these are now verifiable. They remain **unverified**: an on-device sweep is
+   the outstanding work, not a new fix.
 5. **Gated on Taylor** — N3 API review (then implement), C2-F2 whitespace call,
    N7 Bases (live vault), dark/light × desktop/phone visual regression pass.
    *Done: P2-8 overdue softening; branch merge of `feat/ui-polish-autopilot`.*
