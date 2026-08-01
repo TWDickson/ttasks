@@ -241,14 +241,17 @@ notes.
   — the phone wasn't failing to load fresh builds so much as Sync was never
   finishing. Replaced with a `vaultCopyPlugin` in `esbuild.config.mjs`: an
   esbuild `onEnd` hook copying `main.js` / `manifest.json` / `styles.css` into
-  the vault after every successful build, watch rebuilds included. Deliberately
-  **never `data.json`** — that's Obsidian's, holds the user's settings, and syncs
-  between devices. Vault path comes from `test-rig/localPaths.mjs` (`VAULT`) so
-  machine-local paths stay in one place; absent vault is a silent no-op, while a
-  typo'd `TTASKS_VAULT` warns, matching that module's fail-loudly contract.
-  Sync now carries ~1.4 MB instead of ~1 GB. Note `npm run dev` writes a **3.85 MB**
-  inline-sourcemap bundle on every rebuild, so leaving watch running with plugin
-  sync on is chatty; `npm run build` is 1.37 MB.
+  the vault. Deliberately **never `data.json`** — that's Obsidian's, holds the
+  user's settings, and syncs between devices. Vault path comes from
+  `test-rig/localPaths.mjs` (`VAULT`) so machine-local paths stay in one place;
+  absent vault is a silent no-op, while a typo'd `TTASKS_VAULT` warns, matching
+  that module's fail-loudly contract. Sync now carries ~1.4 MB instead of ~1 GB.
+  **`npm run build` is production-only and is the deliberate "publish to my
+  devices" step; `npm run dev` no longer touches the vault at all.** A watch
+  rebuild is a 3.85 MB inline-sourcemap bundle vs 1.37 MB for prod, so copying on
+  watch would push a multi-megabyte Sync upload at every save and land unfinished
+  builds on the phone mid-edit. There is no live-reload link any more — rebuild
+  to deploy.
 - **Released `0.1.0` on GitHub + GPL-3.0 licensed.** First tagged release
   (`main.js`/`manifest.json`/`styles.css` attached, tag == manifest version, no
   `v` prefix) so BRAT can install betas. **Not** submitted to the community

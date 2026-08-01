@@ -42,11 +42,15 @@ function copyToVault() {
 	}
 }
 
-/* onEnd so watch rebuilds land in the vault too, not just production builds —
-   the live-reload loop the symlink used to give us for free. */
+/* Production builds only. A watch rebuild writes a 3.85 MB inline-sourcemap
+   bundle (vs 1.37 MB for prod), and the vault folder is synced — leaving watch
+   running would push a multi-megabyte upload at every save and land unfinished
+   builds on the phone mid-edit. `npm run build` is the deliberate "publish to
+   my devices" step; `npm run dev` stays local to the repo. */
 const vaultCopyPlugin = {
 	name: "ttasks-vault-copy",
 	setup(build) {
+		if (!prod) return;
 		build.onEnd((result) => {
 			if (result.errors.length === 0) copyToVault();
 		});
