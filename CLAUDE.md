@@ -177,11 +177,12 @@ box in its phase sections as open work. Open:
 6. **Audit 2026-07 thread** — *newly tracked 2026-07-25.* The codebase /
    publication-readiness items from `AUDIT_2026-07.md`, which had been sitting
    outside the backlog entirely. Nothing here blocks feature work, but the 🔴
-   set blocks any **public release**: no CI (TD-1), no README/LICENSE/release
-   scaffolding (PB-1), review-bot flags (PB-2), the `ttask_*` schema prefix +
-   sparse writes (MD-1/MD-2), midnight-stale query results (DT-1), and
-   semantically-dead `due_time` (DT-2 ⚖). *Done: RP-1/DT-3 recurrence drift;
-   DT-4 doc half.* Two ⚖ calls waiting on Taylor: DT-2 (`due_time` real vs.
+   set blocks any **public release**: review-bot flags (PB-2), the `ttask_*`
+   schema prefix + sparse writes (MD-1/MD-2), midnight-stale query results
+   (DT-1), and semantically-dead `due_time` (DT-2 ⚖). *Done: RP-1/DT-3
+   recurrence drift; DT-4 doc half; **TD-1 CI**; PB-1 bar the README
+   (LICENSE + `versions.json` + `version-bump.mjs` + release workflow all
+   landed 2026-07-31).* Two ⚖ calls waiting on Taylor: DT-2 (`due_time` real vs.
    display-only) and DT-5 (rolling-7-day vs. calendar "this week").
 
 All prior sweeps are closed (AUDIT Sweep 2, DESIGN_AUDIT P0–P2, BUGFIX #1–13,
@@ -195,6 +196,39 @@ notes.
 
 ## Recent Updates (2026-07-31)
 
+- **CI + release automation landed (audit TD-1 🔴, and PB-1 down to just the
+  README).** The stated blocker was gone — `origin/main` is no longer a
+  divergent history — and Taylor's call was to build this now regardless of
+  whether the phone ends up fed by Sync or BRAT: *"either way we should be
+  pushing releases while we're in dev mode."*
+  - **`.github/workflows/ci.yml`** — `npm ci && npm run check` (lint → build,
+    which includes `tsc --noEmit` → test) on push to `main`, on every PR, and on
+    manual dispatch. Runs a **Node 20.19 + 22 matrix**: 20.19 is the declared
+    `engines` floor (vite 5's requirement) and 22 is what dev runs on, so the
+    matrix is the thing that actually verifies that claim rather than restating
+    it. `concurrency` cancels superseded runs. **No CI special-casing was
+    needed** for the vault copy — `localPaths.VAULT` resolves to `null` when
+    none of the candidate paths exist, and `vaultCopyPlugin` already treats that
+    as a silent no-op.
+  - **`.github/workflows/release.yml`** — fires on a bare semver tag, re-runs
+    `check` (a release build is the one that reaches devices), then attaches
+    `main.js` / `manifest.json` / `styles.css` via `gh release create
+    --generate-notes`. It **fails before building** if the tag doesn't equal
+    `manifest.json`'s version, or if `versions.json[tag]` doesn't equal
+    `minAppVersion` — the submission checker enforces the first and BRAT
+    resolves releases the same way, so a mismatch is caught at the cheapest
+    point instead of producing a release nothing can install.
+  - **Release ergonomics** — `version-bump.mjs` syncs package.json →
+    manifest.json → versions.json (2-space + trailing newline, so a bump diffs
+    as one line, not a reformat) and rejects anything that isn't bare semver;
+    the `version` npm script stages both files into the version commit; and
+    `.npmrc`'s `tag-version-prefix=""` stops `npm version` minting a
+    `v`-prefixed tag in the first place — belt and braces with the workflow's
+    tag check. Seeded `versions.json` with `{"0.1.0": "1.7.2"}` to match the
+    already-published release. **Cutting a release is now `npm version patch &&
+    git push --follow-tags`.**
+  - PB-1's remaining piece is **README.md** alone (LICENSE landed earlier the
+    same day). Community-plugin-list submission stays deliberately out of scope.
 - **Dev environment made portable (prep for a server checkout + the BRAT
   handover).** Goal: run this repo on a box with no Obsidian, no vault, and no
   symlink. `src/`, esbuild, vitest and eslint were already clean — the whole
@@ -233,9 +267,8 @@ notes.
     `npm run check` green: **1645 tests**, 128 files.
 - **`origin/main` is no longer divergent** — it's identical to local `main` (0/0
   as of this date). CLAUDE.md had warned otherwise for months, and that warning
-  was the stated blocker on **TD-1 (no CI)**, which is now unblocked. Next up:
-  CI running `check`, plus the release scaffolding BRAT needs (`main.js` is
-  gitignored, so beta installs require built release assets + `versions.json`).
+  was the stated blocker on **TD-1 (no CI)**. *Both CI and the release
+  scaffolding shipped the same day — see the top bullet.*
 - **The vault install is a real folder now, NOT a symlink — do not recreate the
   symlink.** `.obsidian/plugins/ttasks` used to be a symlink to this checkout,
   which pointed **Obsidian Sync at the entire repo**: 827 MB `test-rig`
@@ -263,8 +296,8 @@ notes.
   `GPL-3.0-or-later`); Obsidian requires *a* LICENSE but prohibits no type. All
   five deps bundled into `main.js` are MIT/ISC/0BSD, so GPL-compatible.
   Closes half of **PB-1**; `versions.json`, `version-bump.mjs`, and the release
-  workflow are still open, as is **TD-1** (a clean-clone `npm ci && npm run check`
-  passes, so the workflow is de-risked).
+  workflow followed the same day (top bullet), leaving **README.md** as the only
+  open piece.
 
 ## Recent Updates (2026-07-25)
 
@@ -833,13 +866,29 @@ Still in solo dev — no review gate. When a slice is complete **and verified**
    normal merge. `main` is the running integration point; keep it current.
 3. Leave feature branches in place unless asked to prune; they're cheap.
 
-Do **not** push to `origin` or otherwise touch the remote unless explicitly
-asked. Note the reason has changed: `origin/main` and local `main` were
-divergent histories, but **as of 2026-07-31 they are identical** (0 ahead,
-0 behind) — so pushing is now a normal fast-forward, not a history collision.
-It stays opt-in because the repo is public, not because it's dangerous.
-Still confirm before genuinely destructive git ops (hard reset, force-delete,
-history rewrite).
+Pushing `main` to `origin` is now **expected, not opt-in** (changed
+2026-07-31, with CI): the histories are identical so a push is a plain
+fast-forward, and CI only earns its keep if `main` actually reaches the
+remote. Taylor's framing — *"either way we should be pushing releases while
+we're in dev mode"* — applies whether the phone ends up fed by Obsidian Sync
+or BRAT. Still confirm before genuinely destructive git ops (hard reset,
+force-delete, history rewrite), and before **cutting a release**, which is
+outward-facing and permanent.
+
+### Cutting a release
+
+```sh
+npm version patch      # or minor/major — bumps package.json, runs
+                       # version-bump.mjs (manifest.json + versions.json),
+                       # commits, and tags BARE semver (no `v` — .npmrc)
+git push --follow-tags # pushes the commit and the tag
+```
+
+The tag push triggers `.github/workflows/release.yml`, which re-runs `check`
+and publishes `main.js` / `manifest.json` / `styles.css` to a GitHub release.
+It refuses to build if the tag ≠ `manifest.json` version or
+`versions.json[tag]` ≠ `minAppVersion`. Don't hand-edit the version in
+`manifest.json`/`versions.json` — `npm version` is the single entry point.
 
 ## Key Conventions
 

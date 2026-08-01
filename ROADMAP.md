@@ -9,6 +9,51 @@ for their detail but are historical; an unchecked box there is **not** live work
 
 ---
 
+## CI + release automation (2026-07-31)
+
+**Closed `AUDIT_2026-07.md`'s TD-1 and all of PB-1 except the README**, finishing
+the same-day shipping thread that started with the vault-copy fix and the tagged
+`0.1.0` release.
+
+*Why now.* TD-1 had been deliberately deferred, on a stated prerequisite: CI
+needs a remote that reflects local `main`, and `origin/main` was a divergent
+history. That prerequisite cleared earlier the same day (0 ahead / 0 behind).
+The urgency argument had also inverted — with Sync delivering builds to the
+phone directly, BRAT is a fallback rather than the deploy path — but Taylor's
+call was to build it regardless: *"either way we should be pushing releases
+while we're in dev mode."*
+
+*CI.* `.github/workflows/ci.yml` runs `npm ci && npm run check` — the existing
+local gate, lint → build (which includes `tsc --noEmit`) → test — on push to
+`main`, on every PR, and on manual dispatch. It runs a **Node 20.19 + 22
+matrix**: 20.19 is the declared `engines` floor (vite 5's requirement) and 22 is
+what dev runs on, so the matrix verifies that claim rather than restating it.
+`concurrency` cancels superseded runs. **No CI-specific branching was needed in
+the build**: the production build's vault copy asks `localPaths.VAULT`, which
+resolves to `null` when no candidate path exists, and `vaultCopyPlugin` already
+treats that as a silent no-op — the portability work paid for itself here.
+
+*Releases.* `.github/workflows/release.yml` fires on a bare semver tag, re-runs
+`check` (a release build is the one that reaches devices), then attaches
+`main.js` / `manifest.json` / `styles.css` via `gh release create
+--generate-notes`. It **fails before building** if the tag doesn't equal
+`manifest.json`'s version, or if `versions.json[tag]` doesn't equal
+`minAppVersion` — the submission checker enforces the first and BRAT resolves
+releases the same way, so a mismatch dies at the cheapest point instead of
+producing a release nothing can install.
+
+*Ergonomics.* `version-bump.mjs` syncs package.json → manifest.json →
+versions.json and rejects anything that isn't bare semver; it writes 2-space +
+trailing newline so a bump diffs as one line rather than a whole-file reformat.
+The `version` npm script stages both files into the version commit, and
+`.npmrc`'s `tag-version-prefix=""` stops `npm version` minting a `v`-prefixed
+tag in the first place — belt and braces with the workflow's tag check. Seeded
+`versions.json` with `{"0.1.0": "1.7.2"}` to match the published release.
+Cutting a release is now `npm version patch && git push --follow-tags`.
+
+**README.md is the only piece of PB-1 left.** Submitting to
+`obsidianmd/obsidian-releases` remains deliberately out of scope.
+
 ## Recurrence drift fix + audit fold-in (2026-07-25)
 
 **Fixed the first 🔴 correctness bug out of `AUDIT_2026-07.md` (RP-1 / DT-3), and

@@ -1239,8 +1239,14 @@ implementation since it changes how API fields are exposed.
 
 ### Publication readiness (PB) — blocks any public release
 
-- `[ ]` **PB-1 🔴 missing release scaffolding** — no README, LICENSE,
-  `versions.json`, version-bump script, or release workflow.
+- `[ ]` **PB-1 🔴 missing release scaffolding** — **README is all that's left.**
+  LICENSE landed 2026-07-31 (verbatim GPL-3.0). `versions.json`,
+  `version-bump.mjs`, `.npmrc` (`tag-version-prefix=""`), the `version` npm
+  script, and `.github/workflows/release.yml` landed 2026-07-31 — see TD-1.
+  Still open: **README.md** (what it does, screenshots from the rig matrix, the
+  frontmatter data model, the local-calendar-date policy + timezone-travel
+  caveat, settings overview). Submitting to `obsidianmd/obsidian-releases` stays
+  deliberately out of scope — GitHub releases only, per Taylor.
 - `[ ]` **PB-2 🔴 review-bot flags in the code** — the sweep Obsidian's reviewers
   run: `innerHTML`/`setIcon` usage, `activeLeaf` access, `vault.process`,
   `console` gating, the localStorage API, and casing/heading conventions.
@@ -1252,13 +1258,26 @@ implementation since it changes how API fields are exposed.
 
 ### Testing posture (TD)
 
-- `[ ]` **TD-1 🔴 no CI** — nothing runs build/test/lint on push; the local gate
-  is manual (`npm run check`, added with TD-2, is the thing CI would run).
-  **Deliberately deferred 2026-07-25 (Taylor): still mid-flight on substantial
-  improvements, so revisit closer to publication.** Blocked on a prerequisite
-  anyway: `origin/main` is a separate/divergent history that we don't push to, and
-  CI needs a remote reflecting local `main`. Don't re-raise this as a quick win —
-  the sequencing decision is already made.
+- `[x]` **TD-1 🔴 no CI** — *done 2026-07-31.* The blocker cleared first:
+  `origin/main` is no longer a divergent history (0 ahead / 0 behind), so a
+  remote reflecting local `main` exists. Two workflows:
+  **`.github/workflows/ci.yml`** runs `npm ci && npm run check` (lint → build,
+  which includes `tsc --noEmit` → test) on push to `main`, on every PR, and on
+  manual dispatch, across a **Node 20.19 + 22 matrix** — 20.19 is the declared
+  `engines` floor (vite 5's requirement) and 22 is what dev runs on, so the
+  matrix is what actually verifies that claim. `concurrency` cancels superseded
+  runs. The production build's vault copy is a silent no-op on a runner
+  (`localPaths.VAULT` resolves to `null` when no vault path exists), so no CI
+  special-casing was needed. **`.github/workflows/release.yml`** fires on a bare
+  semver tag, re-runs `check`, and attaches `main.js` / `manifest.json` /
+  `styles.css` via `gh release create --generate-notes`; it **fails the release
+  before building** if the tag doesn't equal `manifest.json`'s version or if
+  `versions.json[tag]` doesn't equal `minAppVersion`. Release ergonomics land
+  with it: `version-bump.mjs` (package.json → manifest.json → versions.json,
+  rejecting a `v` prefix outright), the `version` npm script that stages both
+  files into the version commit, and `.npmrc`'s `tag-version-prefix=""` so
+  `npm version` can't mint a `v`-prefixed tag in the first place. Cutting a
+  release is now `npm version patch && git push --follow-tags`.
 - `[x]` **TD-2 🟡 lint was failing and wasn't in the local gate** — *done
   2026-07-25.* Cleared all **50 `no-mixed-spaces-and-tabs` errors** (up from 10 in
   one file at audit time) across `TaskGraph.svelte`, `TaskKanban.svelte`, and
