@@ -211,11 +211,14 @@ items below track.
 
 ### Publication readiness (PB) — blocks any public release
 
-- `[ ]` **PB-1 🔴 release scaffolding** — **README is all that's left.** LICENSE,
+- `[~]` **PB-1 🔴 release scaffolding** — **all but screenshots.** LICENSE,
   `versions.json`, `version-bump.mjs`, `.npmrc`, the `version` npm script, and
-  `release.yml` all landed 2026-07-31. The README wants: what it does,
-  screenshots from the rig matrix, the frontmatter data model, the
-  local-calendar-date policy + timezone-travel caveat, and a settings overview.
+  `release.yml` landed 2026-07-31; **`README.md` landed 2026-08-02** covering what
+  it does, install via BRAT, the frontmatter data model, the
+  local-calendar-date policy + timezone-travel caveat, a settings overview, and
+  the dev/rig instructions. **Remaining: screenshots from the rig matrix** — not
+  generated, because no browser is installed on this machine
+  (`npx @puppeteer/browsers install chromium@latest --path test-rig/.browser`).
   Submitting to `obsidianmd/obsidian-releases` stays **deliberately out of
   scope** — GitHub releases only, per Taylor.
 - `[ ]` **PB-2 🔴 review-bot flags** — the sweep Obsidian's reviewers run:
