@@ -38,6 +38,11 @@ body {
 	z-index: 10; /* below Obsidian modal layer so modals overlay the bar */
 }
 
+/* `?chrome=0` — screenshots should show the plugin, not the rig's own toolbar. */
+.rig-bar.is-hidden {
+	display: none;
+}
+
 .rig-bar-title {
 	font-weight: 700;
 	color: var(--text-muted);

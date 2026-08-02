@@ -56,6 +56,8 @@ const boardState = createBoardStateService({
 const root = document.getElementById('rig')!;
 const bar = root.createDiv({ cls: 'rig-bar' });
 bar.createSpan({ cls: 'rig-bar-title', text: 'TTasks rig' });
+// `?chrome=0` hides the rig's own toolbar so a screenshot shows only the plugin.
+if (params.get('chrome') === '0') bar.addClass('is-hidden');
 
 const themeBtn = bar.createEl('button', { text: theme === 'dark' ? 'Light theme' : 'Dark theme' });
 themeBtn.addEventListener('click', () => {

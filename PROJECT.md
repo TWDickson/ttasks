@@ -211,16 +211,14 @@ items below track.
 
 ### Publication readiness (PB) — blocks any public release
 
-- `[~]` **PB-1 🔴 release scaffolding** — **all but screenshots.** LICENSE,
+- `[x]` **PB-1 🔴 release scaffolding** — *done 2026-08-02.* LICENSE,
   `versions.json`, `version-bump.mjs`, `.npmrc`, the `version` npm script, and
-  `release.yml` landed 2026-07-31; **`README.md` landed 2026-08-02** covering what
+  `release.yml` landed 2026-07-31. **`README.md` landed 2026-08-02** covering what
   it does, install via BRAT, the frontmatter data model, the
   local-calendar-date policy + timezone-travel caveat, a settings overview, and
-  the dev/rig instructions. **Remaining: screenshots from the rig matrix** — not
-  generated, because no browser is installed on this machine
-  (`npx @puppeteer/browsers install chromium@latest --path test-rig/.browser`).
-  Submitting to `obsidianmd/obsidian-releases` stays **deliberately out of
-  scope** — GitHub releases only, per Taylor.
+  dev/rig instructions — with six screenshots from the rig matrix in
+  `docs/screenshots/`. Submitting to `obsidianmd/obsidian-releases` stays
+  **deliberately out of scope** — GitHub releases only, per Taylor.
 - `[ ]` **PB-2 🔴 review-bot flags** — the sweep Obsidian's reviewers run:
   - **`innerHTML` (5 sites)** — `QueryEditorModal` sets `btn.innerHTML = '✕'`
     (3×), which also violates the repo's Lucide-only rule; use `setIcon(btn,

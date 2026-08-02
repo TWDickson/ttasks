@@ -57,21 +57,26 @@ function stripMd(path: string): string {
 	return path.replace(/\.md$/, '');
 }
 
+/* Fixture content is deliberately fictional (Bikini Bottom) so screenshots and
+   shared rig output can never contain anything from a real vault. Keep it that
+   way: the *shape* of each task below is what matters — overdue, long-name wrap,
+   the three-label stress row, the cross-project dependency, the Hold cascade —
+   so rename freely but don't drop a role. */
 export function buildFixtureTasks(): Task[] {
 	const project = makeTask({
-		name: 'Website Redesign',
+		name: 'Krusty Krab Menu Relaunch',
 		type: 'project',
-		area: 'Work',
+		area: 'Krusty Krab',
 		priority: 'High',
 		start_date: isoDaysFromToday(-10),
 		due_date: isoDaysFromToday(20),
 		estimated_days: 30,
-		notes: 'Q3 flagship project. `styles.css` overhaul plus new landing page.\n\nSecond paragraph with more detail.',
+		notes: 'Summer flagship. New wrapper design plus a `Krabby Patty` deluxe tier.\n\nMr. Krabs wants costs down and prices up.',
 	});
 
 	const wireframes = makeTask({
-		name: 'Finish wireframes for landing page',
-		area: 'Work',
+		name: 'Finish the new Krabby Patty wrapper design',
+		area: 'Krusty Krab',
 		priority: 'High',
 		labels: ['feature'],
 		parent_task: stripMd(project.path),
@@ -83,8 +88,8 @@ export function buildFixtureTasks(): Task[] {
 	});
 
 	const implement = makeTask({
-		name: 'Implement responsive hero section with a deliberately long name that wraps',
-		area: 'Work',
+		name: 'Install the deluxe self-flipping spatula rig above the grill without alerting Plankton',
+		area: 'Krusty Krab',
 		priority: 'Medium',
 		labels: ['feature'],
 		parent_task: stripMd(project.path),
@@ -94,8 +99,8 @@ export function buildFixtureTasks(): Task[] {
 	});
 
 	const review = makeTask({
-		name: 'Design review with stakeholders',
-		area: 'Work',
+		name: 'Taste test with Mr. Krabs',
+		area: 'Krusty Krab',
 		priority: 'Low',
 		labels: ['research'],
 		parent_task: stripMd(project.path),
@@ -105,8 +110,8 @@ export function buildFixtureTasks(): Task[] {
 
 	// P2 stress row: overdue + three labels + a child (chevron) to rag the meta strip
 	const stress = makeTask({
-		name: 'Stress row with three labels that pushes the meta strip',
-		area: 'Work',
+		name: 'Repaint the Krusty Krab sign before the health inspection',
+		area: 'Krusty Krab',
 		priority: 'High',
 		labels: ['feature', 'bug', 'research'],
 		parent_task: stripMd(project.path),
@@ -115,17 +120,17 @@ export function buildFixtureTasks(): Task[] {
 	});
 
 	const stressChild = makeTask({
-		name: 'Subtask under the stress row',
+		name: 'Scrape the barnacles off first',
 		labels: ['bug'],
 		parent_task: stripMd(stress.path),
 	});
 
-	// Second project — gives the graph a second swim lane so the GP4 lane tints
-	// and the GP3 project filter have something to act on.
+	// Second project — gives the graph a second swim lane so the lane tints and the
+	// project filter have something to act on.
 	const apiProject = makeTask({
-		name: 'API Platform',
+		name: 'Jellyfishing Season Prep',
 		type: 'project',
-		area: 'Database',
+		area: 'Jellyfish Fields',
 		priority: 'Medium',
 		start_date: isoDaysFromToday(-4),
 		due_date: isoDaysFromToday(25),
@@ -133,23 +138,23 @@ export function buildFixtureTasks(): Task[] {
 	});
 
 	const blocked = makeTask({
-		name: 'Migrate analytics dashboard',
-		area: 'Database',
+		name: 'Repair the good jellyfishing net',
+		area: 'Jellyfish Fields',
 		priority: 'High',
 		labels: ['bug'],
 		status: 'Blocked',
 		parent_task: stripMd(apiProject.path),
-		blocked_reason: 'Waiting on prod DB credentials from IT',
+		blocked_reason: 'Patrick borrowed it and will not admit where it went',
 		due_date: isoDaysFromToday(1),
 	});
 
 	const apiEndpoints = makeTask({
-		name: 'Build export endpoints',
-		area: 'Database',
+		name: 'Catch a jellyfish for the county fair',
+		area: 'Jellyfish Fields',
 		priority: 'Medium',
 		labels: ['feature'],
 		parent_task: stripMd(apiProject.path),
-		// Cross-project dependency: also waits on the Website Redesign review, so
+		// Cross-project dependency: also waits on the menu-relaunch taste test, so
 		// focusing one lane pulls the connected task in the other into focus and
 		// soft-tints that lane (exercises the lane-focus spillover).
 		depends_on: [stripMd(blocked.path), stripMd(review.path)],
@@ -157,20 +162,20 @@ export function buildFixtureTasks(): Task[] {
 		estimated_days: 4,
 	});
 
-	// Hold cascade pair (#8): the delegated task is on Hold, so the task waiting on
-	// it inherits a "Hold upstream" badge while its own status stays Active. Held is
+	// Hold cascade pair: the delegated task is on Hold, so the task waiting on it
+	// inherits a "Hold upstream" badge while its own status stays Active. Held is
 	// the weaker signal, so a task reaching both this and `blocked` reads Blocked.
 	const delegated = makeTask({
-		name: 'Legal sign-off on data retention',
-		area: 'Work',
+		name: 'Get Squidward to approve the new uniforms',
+		area: 'Krusty Krab',
 		status: 'Hold',
-		blocked_reason: 'Delegated to legal; awaiting their confirmation',
+		blocked_reason: 'Delegated to Squidward; he is on his break',
 		due_date: isoDaysFromToday(6),
 	});
 
 	const awaitingDelegate = makeTask({
-		name: 'Publish the retention policy page',
-		area: 'Work',
+		name: 'Print the updated employee handbook',
+		area: 'Krusty Krab',
 		priority: 'Medium',
 		labels: ['docs'],
 		depends_on: [stripMd(delegated.path)],
@@ -178,29 +183,29 @@ export function buildFixtureTasks(): Task[] {
 	});
 
 	const today = makeTask({
-		name: 'Water the plants',
-		area: 'Home',
+		name: 'Walk Gary',
+		area: 'Pineapple',
 		due_date: isoDaysFromToday(0),
 		recurrence: 'weekly',
 		recurrence_type: 'fixed',
 	});
 
 	const inbox = makeTask({
-		name: 'Read that article about design tokens',
+		name: 'Read that book about mayonnaise being an instrument',
 		priority: 'Low',
 	});
 
 	const done = makeTask({
-		name: 'Renew domain registration',
-		area: 'Home',
+		name: 'Buy a spare spatula',
+		area: 'Pineapple',
 		status: 'Done',
 		completed: isoDaysFromToday(-1),
 		due_date: isoDaysFromToday(-1),
 	});
 
 	const doneOld = makeTask({
-		name: 'File taxes',
-		area: 'Home',
+		name: 'Renew boating school licence',
+		area: 'Pineapple',
 		status: 'Done',
 		completed: isoDaysFromToday(-40),
 	});
@@ -312,9 +317,9 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			],
 			statuses: ['Active', 'In Progress', 'Blocked', 'Hold', 'Done'],
 			statusColors: { 'In Progress': '#2563eb', Blocked: '#dc2626', Hold: '#a16207', Done: '#16a34a' },
-			areaColors: { Work: '#f59e0b', Home: '#10b981', Database: '#3b82f6' },
+			areaColors: { 'Krusty Krab': '#f59e0b', Pineapple: '#10b981', 'Jellyfish Fields': '#ec4899' },
 			labelColors: { bug: '#ef4444', feature: '#8b5cf6', research: '#06b6d4' },
-			areas: ['Work', 'Home', 'Database'],
+			areas: ['Krusty Krab', 'Pineapple', 'Jellyfish Fields'],
 			labelValues: ['feature', 'bug', 'research'],
 			completionStatus: COMPLETION_STATUS,
 			logbookRendererMode: 'list',

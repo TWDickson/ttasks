@@ -17,31 +17,42 @@ const BASE = 'http://localhost:5199';
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
 
+/* Every shot renders the built-in Bikini Bottom fixtures, never vault data —
+   `forceFixtures` below appends `data=fixtures` to each URL. Screenshots get
+   shared and committed, so a matrix that silently picked up whatever was in the
+   developer's own vault would leak real tasks. Don't remove the guard. */
 const SHOTS = [
 	{ name: 'list-dark', url: '/?view=list', viewport: DESKTOP },
 	{ name: 'list-light', url: '/?view=list&theme=light', viewport: DESKTOP },
-	/* Fixture data includes the P2 stress row (chevron + 3 labels + overdue). */
-	{ name: 'list-fixtures-dark', url: '/?view=list&data=fixtures', viewport: DESKTOP },
-	{ name: 'list-fixtures-light', url: '/?view=list&data=fixtures&theme=light', viewport: DESKTOP },
-	{ name: 'mobile-list-fixtures-dark', url: '/?view=list&data=fixtures', viewport: PHONE },
-	{ name: 'mobile-list-fixtures-light', url: '/?view=list&data=fixtures&theme=light', viewport: PHONE },
 	{ name: 'kanban-dark', url: '/?view=kanban', viewport: DESKTOP },
 	{ name: 'kanban-light', url: '/?view=kanban&theme=light', viewport: DESKTOP },
 	{ name: 'agenda-dark', url: '/?view=agenda', viewport: DESKTOP },
+	{ name: 'agenda-light', url: '/?view=agenda&theme=light', viewport: DESKTOP },
 	{ name: 'graph-dark', url: '/?view=graph', viewport: { width: 1440, height: 900 } },
-	{ name: 'mobile-graph-dark', url: '/?view=graph', viewport: PHONE },
+	{ name: 'graph-light', url: '/?view=graph&theme=light', viewport: { width: 1440, height: 900 } },
 	{ name: 'timeline-dark', url: '/?view=timeline', viewport: { width: 1440, height: 900 } },
-	{ name: 'mobile-timeline-dark', url: '/?view=timeline', viewport: PHONE },
 	{ name: 'detail-dark', url: '/?view=list&detail=1', viewport: DESKTOP },
 	{ name: 'detail-light', url: '/?view=list&detail=1&theme=light', viewport: DESKTOP },
 	{ name: 'modal-dark', url: '/?view=list&modal=1', viewport: DESKTOP },
 	{ name: 'modal-light', url: '/?view=list&modal=1&theme=light', viewport: DESKTOP },
 	{ name: 'mobile-list-dark', url: '/?view=list', viewport: PHONE },
+	{ name: 'mobile-list-light', url: '/?view=list&theme=light', viewport: PHONE },
 	{ name: 'mobile-kanban-dark', url: '/?view=kanban', viewport: PHONE },
+	{ name: 'mobile-graph-dark', url: '/?view=graph', viewport: PHONE },
+	{ name: 'mobile-timeline-dark', url: '/?view=timeline', viewport: PHONE },
 	{ name: 'mobile-detail-dark', url: '/?view=list&detail=1', viewport: PHONE },
 	{ name: 'mobile-modal-dark', url: '/?view=list&modal=1', viewport: PHONE },
 	{ name: 'mobile-modal-light', url: '/?view=list&modal=1&theme=light', viewport: PHONE },
 ];
+
+/** Pin every shot to fixture data so a populated vault can never reach a PNG,
+    and hide the rig's own toolbar so the image shows only the plugin. */
+function shotUrl(url) {
+	const u = new URL(url, BASE);
+	u.searchParams.set('data', 'fixtures');
+	u.searchParams.set('chrome', '0');
+	return `${u.pathname}${u.search}`;
+}
 
 async function serverUp() {
 	try {
@@ -90,7 +101,7 @@ async function main() {
 		for (const shot of shots) {
 			const page = await browser.newPage();
 			await page.setViewport(shot.viewport);
-			await page.goto(`${BASE}${shot.url}`, { waitUntil: 'networkidle0', timeout: 30000 });
+			await page.goto(`${BASE}${shotUrl(shot.url)}`, { waitUntil: 'networkidle0', timeout: 30000 });
 			await page.waitForSelector('body[data-rig-ready="1"]', { timeout: 15000 });
 			await new Promise((r) => setTimeout(r, 400)); // let fonts/transitions settle
 			const file = path.join(shotsDir, `${shot.name}.png`);

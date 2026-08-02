@@ -65,6 +65,17 @@ Task modal. The top bar has the same controls for interactive use.
   styles them.
 - `fixtures.ts` is a live in-memory TaskStore — drag-drop, status changes, and
   detail edits mutate the store, so interactions behave like the real plugin.
+  Its content is deliberately fictional (Bikini Bottom), and each task exists to
+  exercise a specific UI state — overdue, a name long enough to wrap, a
+  three-label stress row, a cross-project dependency, the Hold/Blocked cascade.
+  Rename freely, but don't drop a role or the matrix stops covering it.
+- **Screenshots never use vault data.** `shots.mjs` forces `data=fixtures` on
+  every URL, because PNGs get committed and shared — a matrix that silently
+  picked up whatever was in your own vault would leak real tasks. It also sets
+  `chrome=0`, which hides the rig's own toolbar so the image shows only the
+  plugin. Both flags work by hand too: `/?view=kanban&data=fixtures&chrome=0`.
+  Curated shots for the README live in `docs/screenshots/` (committed);
+  `test-rig/shots/` is gitignored regenerable output.
 - `vendor/` (gitignored) holds `obsidian-app.css` extracted from
   `obsidian.asar` and the theme CSS — see the table above for where each comes
   from. `.browser/` (gitignored) holds a plain Chromium — corporate policy

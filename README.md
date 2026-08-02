@@ -14,6 +14,10 @@ files — no proprietary database, no lock-in.
 > property prefix is planned), and TTasks is **not** in Obsidian's community
 > plugin list. Install it via BRAT if you want to follow along.
 
+![The task list](docs/screenshots/list-dark.png)
+
+*Screenshots use fictional sample data, not a real vault.*
+
 ## What makes it different
 
 Most task plugins model a flat list with dates. TTasks models **work that depends
@@ -29,6 +33,29 @@ on other work**:
 - **Realistic planning** — a Today list ordered so ready-to-work tasks float
   above blocked ones, plus a working-day calendar with holidays and per-area
   workweeks.
+
+### The dependency graph
+
+Project swim-lanes, dependency edges, cycle detection, and a "ready now" filter —
+so you can see what's genuinely unblocked. Dependencies cross project boundaries.
+
+![The dependency graph](docs/screenshots/graph-dark.png)
+
+### Kanban, agenda, and detail
+
+Blocked and held state propagates along the chain, shown as an **upstream** badge
+on everything downstream, so a task waiting three hops back still reads as
+blocked.
+
+![Kanban board](docs/screenshots/kanban-dark.png)
+
+![Agenda](docs/screenshots/agenda-dark.png)
+
+![Task detail](docs/screenshots/detail-dark.png)
+
+### Mobile
+
+<img src="docs/screenshots/mobile-list-dark.png" width="320" alt="The task list on a phone">
 
 ## Features
 
