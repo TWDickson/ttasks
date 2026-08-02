@@ -55,7 +55,7 @@ export interface Task {
 	// whenever due_date is written, then carried across recurrence spawns so a
 	// month-end schedule doesn't collapse onto February's day (Jan 31 → Feb 28 →
 	// Mar 28 → …). See `advanceDate` in store/recurrence.ts and RP-1 in
-	// AUDIT_2026-07.md. Not user-editable: it's derived, so it stays out of the
+	// Scripts/archive/HISTORY.md. Not user-editable: it's derived, so it stays out of the
 	// TASK_FIELD_DEFINITIONS form registry.
 	recurrence_anchor_day?: number | null;
 

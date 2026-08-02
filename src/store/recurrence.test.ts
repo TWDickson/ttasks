@@ -87,7 +87,7 @@ describe('advanceDate', () => {
 
 		// Un-anchored, each step is computed from the previous *clamped* date, so a
 		// month-end schedule collapses onto February's day and stays there. This is
-		// RP-1 / DT-3 in AUDIT_2026-07.md; it is pinned here as the documented
+		// RP-1 / DT-3 (Scripts/archive/HISTORY.md); it is pinned here as the documented
 		// un-anchored contract, not as desirable behaviour. Pass an anchorDay to
 		// avoid it — see the 'anchored (RP-1 drift fix)' block below.
 		it('advancing repeatedly from Jan 31 drifts to the clamped day (no anchor)', () => {

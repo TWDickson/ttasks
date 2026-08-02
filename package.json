@@ -20,7 +20,7 @@
     "rig:browser": "npx @puppeteer/browsers install chromium@latest --path test-rig/.browser"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.1.2",

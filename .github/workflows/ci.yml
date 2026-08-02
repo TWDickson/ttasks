@@ -17,8 +17,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 20.19 is the engines floor (vite 5 needs it); 22 is what dev runs on.
-        node: ['20.19', '22']
+        # 22 is the engines floor and in maintenance until 2027-04; 24 is the
+        # active LTS and what dev runs on (.nvmrc). Node 20 was dropped when it
+        # went EOL 2026-04-30 — an EOL runtime is not a support claim worth
+        # verifying.
+        node: ['22', '24']
 
     steps:
       - uses: actions/checkout@v5

@@ -70,7 +70,8 @@ function normalizeAnchorDay(anchorDay: number | null | undefined): number | null
  * `monthly` / `yearly` only (the day-based rules just add days). Without it,
  * each occurrence is derived from the previous *already-clamped* one, so a
  * month-end schedule drifts permanently to the shortest month's day:
- * Jan 31 → Feb 28 → Mar 28 → Apr 28 … (RP-1 / DT-3 in `AUDIT_2026-07.md`).
+ * Jan 31 → Feb 28 → Mar 28 → Apr 28 … (RP-1 / DT-3; see
+ * `Scripts/archive/HISTORY.md`, 2026-07-25).
  * Passing the rule's original day makes the clamp per-occurrence instead of
  * cumulative — anchor 31 gives Jan 31 → Feb 28 → Mar 31 → Apr 30 → May 31.
  * Defaults to the date's own day, which preserves the un-anchored behaviour
