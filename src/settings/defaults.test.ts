@@ -6,6 +6,7 @@ import {
 	THEME_SWATCHES,
 	getDefaultThemeColor,
 	normalizeColorMap,
+	migrateLegacyStatusColors,
 	normalizeEditorSuggestTrigger,
 	resolveEmergencyStatus,
 	normalizeSettingsFromSources,
@@ -143,6 +144,158 @@ describe('normalizeColorMap', () => {
 
 	it('returns empty object for empty values', () => {
 		expect(normalizeColorMap([], {})).toEqual({});
+	});
+
+	it('does not hand a fallback the same colour as an explicit entry', () => {
+		// 'Second' would positionally land on index 1's swatch; 'First' has already
+		// claimed it explicitly, so the fallback has to move on to another swatch.
+		const claimedByFirst = getDefaultThemeColor(1);
+		const result = normalizeColorMap(['First', 'Second'], { First: claimedByFirst });
+		expect(result['First']).toBe(claimedByFirst);
+		expect(result['Second']).not.toBe(claimedByFirst);
+	});
+
+	it('gives every value a distinct colour while swatches remain', () => {
+		const values = THEME_SWATCHES.map((_, i) => `Status ${i}`);
+		const colors = Object.values(normalizeColorMap(values, {}));
+		expect(new Set(colors).size).toBe(THEME_SWATCHES.length);
+	});
+
+	it('allows duplicates once every swatch is claimed', () => {
+		const values = [...THEME_SWATCHES.map((_, i) => `Status ${i}`), 'Overflow'];
+		const result = normalizeColorMap(values, {});
+		expect(typeof result['Overflow']).toBe('string');
+		expect(Object.keys(result)).toHaveLength(THEME_SWATCHES.length + 1);
+	});
+
+	it('preserves key order regardless of which entries are explicit', () => {
+		const result = normalizeColorMap(['A', 'B', 'C'], { B: 'var(--color-red)' });
+		expect(Object.keys(result)).toEqual(['A', 'B', 'C']);
+	});
+});
+
+describe('migrateLegacyStatusColors', () => {
+	const legacy = {
+		'In Progress': '#2563eb',
+		Blocked: '#dc2626',
+		Completed: '#16a34a',
+		Cancelled: '#6b7280',
+	};
+
+	it('converts every legacy shipped hex to its theme swatch', () => {
+		const { colors, converted } = migrateLegacyStatusColors(legacy);
+		expect(colors).toEqual({
+			'In Progress': 'var(--color-blue)',
+			Blocked: 'var(--color-red)',
+			Completed: 'var(--color-green)',
+			Cancelled: 'var(--text-muted)',
+		});
+		expect(converted.sort()).toEqual(['Blocked', 'Cancelled', 'Completed', 'In Progress']);
+	});
+
+	it('is idempotent — re-running converts nothing', () => {
+		const once = migrateLegacyStatusColors(legacy);
+		const twice = migrateLegacyStatusColors(once.colors);
+		expect(twice.colors).toEqual(once.colors);
+		expect(twice.converted).toEqual([]);
+	});
+
+	it('leaves custom hex colours the user actually chose alone', () => {
+		const { colors, converted } = migrateLegacyStatusColors({ Custom: '#123456' });
+		expect(colors['Custom']).toBe('#123456');
+		expect(converted).toEqual([]);
+	});
+
+	it('matches legacy hex case-insensitively', () => {
+		const { colors } = migrateLegacyStatusColors({ Blocked: '#DC2626' });
+		expect(colors['Blocked']).toBe('var(--color-red)');
+	});
+
+	it('preserves statuses and key order', () => {
+		const { colors } = migrateLegacyStatusColors({ A: '#123456', Blocked: '#dc2626', Z: 'var(--color-pink)' });
+		expect(Object.keys(colors)).toEqual(['A', 'Blocked', 'Z']);
+	});
+
+	it('handles an empty or missing map', () => {
+		expect(migrateLegacyStatusColors({})).toEqual({ colors: {}, converted: [] });
+		expect(migrateLegacyStatusColors(null)).toEqual({ colors: {}, converted: [] });
+	});
+
+	it('lands on colours the settings UI recognises as swatches', () => {
+		const swatchValues = new Set(THEME_SWATCHES.map((s) => s.value));
+		const { colors } = migrateLegacyStatusColors(legacy);
+		for (const color of Object.values(colors)) {
+			expect(swatchValues.has(color)).toBe(true);
+		}
+	});
+
+	// Second pass: statuses left on the old positional fallback move to the pinned default.
+	const legacyPositional = {
+		Active: 'var(--color-red)',
+		Future: 'var(--color-yellow)',
+		Hold: 'var(--color-green)',
+	};
+
+	it('moves positional-fallback leftovers onto the pinned defaults', () => {
+		const { colors, converted } = migrateLegacyStatusColors(legacyPositional);
+		expect(colors).toEqual({
+			Active: DEFAULT_SETTINGS.statusColors['Active'],
+			Future: DEFAULT_SETTINGS.statusColors['Future'],
+			Hold: DEFAULT_SETTINGS.statusColors['Hold'],
+		});
+		expect(converted.sort()).toEqual(['Active', 'Future', 'Hold']);
+	});
+
+	it('is idempotent across the positional pass too', () => {
+		const once = migrateLegacyStatusColors(legacyPositional);
+		const twice = migrateLegacyStatusColors(once.colors);
+		expect(twice.colors).toEqual(once.colors);
+		expect(twice.converted).toEqual([]);
+	});
+
+	it('leaves a deliberate pick that differs from the legacy positional value', () => {
+		// Active's legacy positional colour was red; pink is therefore a real choice.
+		const { colors, converted } = migrateLegacyStatusColors({ Active: 'var(--color-pink)' });
+		expect(colors['Active']).toBe('var(--color-pink)');
+		expect(converted).toEqual([]);
+	});
+
+	it('does not touch statuses that never had a positional default', () => {
+		const { colors, converted } = migrateLegacyStatusColors({ Waiting: 'var(--color-red)' });
+		expect(colors['Waiting']).toBe('var(--color-red)');
+		expect(converted).toEqual([]);
+	});
+
+	it('resolves the collisions the pinned defaults exist to remove', () => {
+		// Active shared red with Blocked; Hold shared green with Completed.
+		const { colors } = migrateLegacyStatusColors({
+			Active: 'var(--color-red)',
+			Blocked: '#dc2626',
+			Hold: 'var(--color-green)',
+			Completed: '#16a34a',
+		});
+		expect(new Set(Object.values(colors)).size).toBe(4);
+	});
+});
+
+describe('DEFAULT_SETTINGS.statusColors', () => {
+	it('ships theme swatch values, never raw hex', () => {
+		// Hex is reserved for colours a user picked from the custom colour input; the
+		// settings UI decides "custom vs swatch" by matching against THEME_SWATCHES.
+		const swatchValues = new Set(THEME_SWATCHES.map((s) => s.value));
+		for (const [status, color] of Object.entries(DEFAULT_SETTINGS.statusColors)) {
+			expect(color, `${status} should be a theme swatch`).not.toMatch(/^#/);
+			expect(swatchValues.has(color), `${status} -> ${color}`).toBe(true);
+		}
+	});
+
+	it('pins every shipped status so none rely on positional fallback', () => {
+		expect(Object.keys(DEFAULT_SETTINGS.statusColors).sort()).toEqual([...DEFAULT_STATUSES].sort());
+	});
+
+	it('gives the shipped statuses distinct colours', () => {
+		const colors = Object.values(DEFAULT_SETTINGS.statusColors);
+		expect(new Set(colors).size).toBe(colors.length);
 	});
 });
 

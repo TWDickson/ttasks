@@ -32,6 +32,7 @@ export {
 	normalizeCaptureSourceDefaults,
 	normalizeStatuses,
 	normalizeColorMap,
+	migrateLegacyStatusColors,
 	resolveCompletionStatus,
 	resolveConfiguredStatus,
 	resolveEmergencyStatus,

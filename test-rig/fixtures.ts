@@ -6,8 +6,15 @@ import { get, writable, type Writable } from 'svelte/store';
 import type { Task, TaskPriority, TaskStatus } from '../src/types';
 import { PomodoroService } from '../src/store/PomodoroService';
 import { DEFAULT_POMODORO_CONFIG } from '../src/integration/pomodoro';
+import { normalizeColorMap } from '../src/settings/defaults';
 
 const COMPLETION_STATUS = 'Done';
+
+/* The rig runs its own fictional status set rather than DEFAULT_STATUSES. Colours go
+   through normalizeColorMap — the same call the plugin makes on load — so the rig
+   renders the real resolved palette instead of a hand-written map that silently
+   dropped statuses onto the --interactive-accent fallback. */
+const RIG_STATUSES = ['Active', 'In Progress', 'Blocked', 'Hold', 'Done'];
 
 function isoDaysFromToday(days: number): string {
 	const d = new Date();
@@ -315,8 +322,14 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 					presentation: { hierarchy: 'flat', graphMode: 'dependency' },
 				},
 			],
-			statuses: ['Active', 'In Progress', 'Blocked', 'Hold', 'Done'],
-			statusColors: { 'In Progress': '#2563eb', Blocked: '#dc2626', Hold: '#a16207', Done: '#16a34a' },
+			statuses: RIG_STATUSES,
+			statusColors: normalizeColorMap(RIG_STATUSES, {
+				Active: 'var(--color-cyan)',
+				'In Progress': 'var(--color-blue)',
+				Blocked: 'var(--color-red)',
+				Hold: 'var(--color-yellow)',
+				Done: 'var(--color-green)',
+			}),
 			areaColors: { 'Krusty Krab': '#f59e0b', Pineapple: '#10b981', 'Jellyfish Fields': '#ec4899' },
 			labelColors: { bug: '#ef4444', feature: '#8b5cf6', research: '#06b6d4' },
 			areas: ['Krusty Krab', 'Pineapple', 'Jellyfish Fields'],

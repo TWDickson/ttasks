@@ -71,11 +71,18 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	hiddenBuiltinViews: [],
 	statuses: DEFAULT_STATUSES,
 	completionStatus: 'Completed',
+	// Theme swatch values, never raw hex — hex is reserved for colours a user picked
+	// from the custom colour input, and the settings UI decides "custom vs swatch" by
+	// comparing against THEME_SWATCHES. Every shipped status is pinned so none of them
+	// depend on the positional fallback in normalizeColorMap.
 	statusColors: {
-		'In Progress': '#2563eb',
-		Blocked: '#dc2626',
-		Completed: '#16a34a',
-		Cancelled: '#6b7280',
+		Active: 'var(--color-cyan)',
+		'In Progress': 'var(--color-blue)',
+		Future: 'var(--color-purple)',
+		Hold: 'var(--color-yellow)',
+		Blocked: 'var(--color-red)',
+		Cancelled: 'var(--text-muted)',
+		Completed: 'var(--color-green)',
 	},
 	areas: ['database', 'general'],
 	areaColors: {},
@@ -916,17 +923,113 @@ export function normalizeStatuses(input: string[] | null | undefined): string[] 
 	return parsed.length > 0 ? parsed : [...DEFAULT_STATUSES];
 }
 
+/**
+ * Walks the swatch list from the positional starting point and returns the first
+ * colour nobody has taken yet. Once every swatch is claimed there is no distinct
+ * option left, so it falls back to the plain positional colour and allows the
+ * duplicate rather than inventing a value outside THEME_SWATCHES.
+ */
+function pickUnclaimedThemeColor(index: number, claimed: Set<string>): string {
+	for (let offset = 0; offset < THEME_SWATCHES.length; offset += 1) {
+		const candidate = getDefaultThemeColor(index + offset);
+		if (!claimed.has(candidate)) return candidate;
+	}
+	return getDefaultThemeColor(index);
+}
+
 export function normalizeColorMap(values: string[], colors: Record<string, string> | null | undefined): Record<string, string> {
+	// Explicit colours are claimed up front so a positional fallback further down the
+	// list can't hand out a duplicate of one — that collision is what previously put
+	// Active on the same red as Blocked and Hold on the same green as Completed.
+	const claimed = new Set<string>();
+	for (const value of values) {
+		const color = colors?.[value];
+		if (typeof color === 'string' && color.trim()) claimed.add(color);
+	}
+
 	const result: Record<string, string> = {};
 	for (const [index, value] of values.entries()) {
 		const color = colors?.[value];
 		if (typeof color === 'string' && color.trim()) {
 			result[value] = color;
 		} else {
-			result[value] = getDefaultThemeColor(index);
+			result[value] = pickUnclaimedThemeColor(index, claimed);
+			claimed.add(result[value]);
 		}
 	}
 	return result;
+}
+
+/**
+ * The four hex values TTasks shipped as status colour defaults before the palette
+ * moved onto theme swatches, mapped to their swatch equivalents.
+ */
+const LEGACY_HEX_STATUS_DEFAULTS: Record<string, string> = {
+	'#2563eb': 'var(--color-blue)',
+	'#dc2626': 'var(--color-red)',
+	'#16a34a': 'var(--color-green)',
+	'#6b7280': 'var(--text-muted)',
+};
+
+/**
+ * What the old positional fallback handed the shipped statuses that had no explicit
+ * default — DEFAULT_STATUSES indices 0, 2 and 3 against the THEME_SWATCHES order.
+ * These are the collisions the pinned defaults exist to remove: Active shared red
+ * with Blocked, Hold shared green with Completed.
+ */
+const LEGACY_POSITIONAL_STATUS_DEFAULTS: Record<string, string> = {
+	Active: 'var(--color-red)',
+	Future: 'var(--color-yellow)',
+	Hold: 'var(--color-green)',
+};
+
+/**
+ * Moves status colours left over from older versions onto the current defaults, in
+ * two passes: legacy shipped hex → its theme swatch, and legacy positional-fallback
+ * swatch → the pinned default for that status.
+ *
+ * Deliberately NOT run on load. Swatch values are `var()` references whose resolved
+ * hex depends on the active theme, so there is no general "is this hex a swatch?"
+ * test — only the fixed legacy lists above. Running it automatically would also stop
+ * a user ever custom-picking these exact values, since the picker would keep snapping
+ * them back. Invoked as a one-shot command it has no future footprint: after
+ * conversion nothing matches either legacy list, so re-running is a no-op.
+ *
+ * Provenance is not recorded, so a positional leftover and a deliberate pick of the
+ * same colour are indistinguishable. Both passes therefore convert only on an exact
+ * match with the known legacy value — anything a user actually chose differs from it
+ * and survives untouched.
+ *
+ * Scoped to statuses on purpose — `areaColors` and `labelColors` shipped empty, so
+ * any colour in those maps was genuinely chosen by the user and must be left alone.
+ */
+export function migrateLegacyStatusColors(colors: Record<string, string> | null | undefined): {
+	colors: Record<string, string>;
+	converted: string[];
+} {
+	const result: Record<string, string> = {};
+	const converted: string[] = [];
+	for (const [status, color] of Object.entries(colors ?? {})) {
+		const current = typeof color === 'string' ? color.trim() : '';
+
+		const fromHex = LEGACY_HEX_STATUS_DEFAULTS[current.toLowerCase()];
+		if (fromHex) {
+			result[status] = fromHex;
+			converted.push(status);
+			continue;
+		}
+
+		const positional = LEGACY_POSITIONAL_STATUS_DEFAULTS[status];
+		const pinned = DEFAULT_SETTINGS.statusColors[status];
+		if (positional && pinned && current === positional && pinned !== positional) {
+			result[status] = pinned;
+			converted.push(status);
+			continue;
+		}
+
+		result[status] = color;
+	}
+	return { colors: result, converted };
 }
 
 export function resolveCompletionStatus(statuses: string[] | null | undefined, completionStatus?: string | null): string {

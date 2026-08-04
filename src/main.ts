@@ -7,6 +7,7 @@ import {
 	TTasksSettingTab,
 	resolveConfiguredStatus,
 	normalizeSettingsFromSources,
+	migrateLegacyStatusColors,
 } from './settings';
 import {
 	buildAutoDetectedSources,
@@ -166,6 +167,21 @@ export default class TTasksPlugin extends Plugin {
 			callback: async () => {
 				const count = await this.taskStore.migrateStatusChanged();
 				new Notice(`TTasks: backfilled status_changed on ${count} task(s).`);
+			},
+		});
+
+		this.addCommand({
+			id: 'migrate-status-colors-to-theme',
+			name: 'Migrate status colours to current theme defaults',
+			callback: async () => {
+				const { colors, converted } = migrateLegacyStatusColors(this.settings.statusColors);
+				if (converted.length === 0) {
+					new Notice('TTasks: status colours are already up to date — nothing to migrate.');
+					return;
+				}
+				this.settings.statusColors = colors;
+				await this.saveSettings();
+				new Notice(`TTasks: moved ${converted.length} status colour(s) onto the current defaults — ${converted.join(', ')}.`);
 			},
 		});
 
