@@ -10,6 +10,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
 import { BROWSER_ARGS, findBrowser, rigDir } from './localPaths.mjs';
+import { ensureVendorCss } from './vendorCss.mjs';
 
 const shotsDir = path.join(rigDir, 'shots');
 const BASE = 'http://localhost:5199';
@@ -84,6 +85,21 @@ async function main() {
 	const shots = SHOTS.filter((s) => s.name.includes(filter));
 	if (shots.length === 0) {
 		console.error(`no shots match "${filter}"`);
+		process.exit(1);
+	}
+
+	/* Stubbed CSS renders structurally correct but visually unstyled shots — they
+	   look plausible enough to sign off, which is worse than having none. The vite
+	   config warns, but that goes to the dev server's output and is easily missed
+	   here. Refuse instead, unless someone is deliberately capturing layout only. */
+	const stubbed = ensureVendorCss(rigDir);
+	if (stubbed.length && !process.env.TTASKS_ALLOW_STUBBED_SHOTS) {
+		console.error(
+			`\n  ✗ Refusing to screenshot without Obsidian CSS (${stubbed.join(', ')}).\n` +
+			'    Shots would render unstyled — don\'t sign off visual work against them.\n\n' +
+			'    Fix with:  npm run rig:sync-css\n' +
+			'    Override:  TTASKS_ALLOW_STUBBED_SHOTS=1 npm run rig:shots\n',
+		);
 		process.exit(1);
 	}
 

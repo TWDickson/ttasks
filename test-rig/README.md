@@ -28,7 +28,15 @@ So a fresh clone anywhere is `npm ci && npm run rig:sync-css && npm run rig`.
 Skip `rig:sync-css` and the rig still boots — `vendor/` is stubbed with empty
 CSS and the dev server prints a warning. Structure and behaviour are real;
 Obsidian's native look is not, so **don't sign off visual work against a
-stubbed rig**.
+stubbed rig**. `rig:shots` enforces that rather than trusting you to read the
+warning: it refuses to write PNGs against stubbed CSS and exits 1. Override with
+`TTASKS_ALLOW_STUBBED_SHOTS=1` when you deliberately want layout-only captures.
+
+**Git worktrees need no setup of their own.** `vendor/` and `.browser/` are
+gitignored machine-local caches, so a linked worktree borrows both from the main
+worktree — found via `git rev-parse --git-common-dir`. A new worktree takes
+usable screenshots immediately, with no browser download and no re-sync. Without
+this the CSS gap fails silently: shots still render, just unstyled.
 
 ### Env overrides
 
@@ -80,8 +88,10 @@ Task modal. The top bar has the same controls for interactive use.
   `obsidian.asar` and the theme CSS — see the table above for where each comes
   from. `.browser/` (gitignored) holds a plain Chromium — corporate policy
   blocks DevTools debugging on branded Chrome/Edge, but not on Chromium builds.
-- `localPaths.mjs` is the single place that knows about machine-local paths;
-  `vendorCss.mjs` writes the stubs that keep the rig bootable without them.
+- `localPaths.mjs` is the single place that knows about machine-local paths,
+  including `OTHER_RIG_DIRS` — sibling worktrees to borrow caches from.
+  `vendorCss.mjs` borrows a real `vendor/` file from one of those before falling
+  back to writing the stubs that keep the rig bootable without them.
 
 ## Limits
 

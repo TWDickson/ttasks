@@ -8,8 +8,9 @@
    look is absent. Stubs carry a marker comment so they're recognisable later
    and so sync-css.mjs's real output is never mistaken for one. */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { OTHER_RIG_DIRS } from './localPaths.mjs';
 
 const MARKER = 'ttasks-rig-stub';
 
@@ -41,8 +42,28 @@ export function ensureVendorCss(rigDir, files = ['obsidian-app.css', 'theme-unde
 	const stubbed = [];
 	for (const name of files) {
 		const target = path.join(dir, name);
+		if (isStubbed(target)) borrowFromSiblingRig(name, target);
 		if (!existsSync(target)) writeFileSync(target, STUB);
 		if (isStubbed(target)) stubbed.push(name);
 	}
 	return stubbed;
+}
+
+/**
+ * Copy a real vendored file from another worktree on this machine. vendor/ is a
+ * gitignored machine-local cache, so a sibling worktree that has already run
+ * rig:sync-css has exactly the file this one needs — and syncing again would
+ * just re-extract it from the same local Obsidian install.
+ */
+function borrowFromSiblingRig(name, target) {
+	for (const other of OTHER_RIG_DIRS) {
+		const source = path.join(vendorDir(other), name);
+		if (isStubbed(source)) continue;
+		try {
+			copyFileSync(source, target);
+			return;
+		} catch {
+			/* Unreadable sibling is not fatal — fall through to the stub. */
+		}
+	}
 }

@@ -13,6 +13,7 @@
    loudly instead of silently falling through to someone else's machine. Setting
    one to the empty string declares the resource absent. */
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,6 +21,32 @@ import { fileURLToPath } from 'node:url';
 
 const home = os.homedir();
 export const rigDir = path.dirname(fileURLToPath(import.meta.url));
+
+/* A linked git worktree gets its own test-rig/, but .browser/ and vendor/ are
+   gitignored machine-local caches: the same Chromium and the same Obsidian CSS
+   serve every worktree on the box. Without this a fresh worktree has to
+   re-download a browser and re-run rig:sync-css before it can take a usable
+   screenshot — and the failure mode for the CSS is silent, producing unstyled
+   shots that look plausible enough to sign off. */
+function mainWorktreeRigDir() {
+	try {
+		const common = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+			cwd: rigDir,
+			encoding: 'utf8',
+			stdio: ['ignore', 'pipe', 'ignore'],
+		}).trim();
+		if (!common) return null;
+		/* Absolute from a linked worktree, relative to cwd from the main one. */
+		const dir = path.join(path.dirname(path.resolve(rigDir, common)), 'test-rig');
+		return dir === rigDir ? null : dir;
+	} catch {
+		/* Not a git checkout, or no git on PATH — the rig degrades, as ever. */
+		return null;
+	}
+}
+
+/** Other rig dirs on this machine worth borrowing machine-local caches from. */
+export const OTHER_RIG_DIRS = [mainWorktreeRigDir()].filter((d) => d && existsSync(d));
 
 /** First candidate that exists on disk; null when none do. */
 export function firstExisting(candidates) {
@@ -64,16 +91,19 @@ export const VAULT_THEME = resolveWithOverride(['TTASKS_THEME_CSS'], [
    Scanned rather than pinned to a build number so a reinstall keeps working;
    the three layouts are @puppeteer/browsers' per-platform ones. */
 function localChromiumBuilds() {
-	const root = path.join(rigDir, '.browser/chromium');
-	if (!existsSync(root)) return [];
 	const layouts = [
 		'chrome-win/chrome.exe',
 		'chrome-linux/chrome',
 		'chrome-mac/Chromium.app/Contents/MacOS/Chromium',
 	];
-	return readdirSync(root).flatMap((build) =>
-		layouts.map((layout) => path.join(root, build, layout)),
-	);
+	/* This worktree first, then any sibling worktree that already downloaded one. */
+	return [rigDir, ...OTHER_RIG_DIRS].flatMap((dir) => {
+		const root = path.join(dir, '.browser/chromium');
+		if (!existsSync(root)) return [];
+		return readdirSync(root).flatMap((build) =>
+			layouts.map((layout) => path.join(root, build, layout)),
+		);
+	});
 }
 
 /* Corporate policy blocks remote debugging on branded Chrome/Edge but not on
