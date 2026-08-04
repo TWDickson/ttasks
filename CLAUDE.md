@@ -37,7 +37,11 @@ thread closes or a decision is worth preserving.
 | `npm run rig:shots` | Desktop/mobile × dark/light screenshot matrix. |
 | `npm run rig:sync-css` | Refresh vendored CSS after an Obsidian or theme update. |
 
-A fresh checkout on a machine with no vault needs `npm ci && npm run rig:sync-css`.
+A fresh **clone** on a machine with no vault needs `npm ci && npm run rig:sync-css`.
+A linked **worktree** needs neither — `vendor/` and `.browser/` are gitignored
+machine-local caches, borrowed from the main worktree automatically. `rig:shots`
+refuses to write PNGs against stubbed CSS, so an unstyled screenshot can't be
+mistaken for a real one.
 
 ## Architecture
 
