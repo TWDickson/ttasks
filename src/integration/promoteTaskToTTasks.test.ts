@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { buildStatusPolicy } from '../settings/statusPolicy';
 
 const noticeSpy = vi.fn();
 
@@ -74,6 +75,8 @@ describe('promoteTaskToTTasks', () => {
 				captureSources: [{ path: 'Daily', includeSubdirectories: true, mode: 'auto-capture', sectionFilter: '', inheritDateFromFilename: true, defaults: { area: null, labels: [], status: null, priority: null, assignedTo: null } }],
 				tasksFolder: 'Tasks',
 			},
+			// Mirrors TTasksPlugin.statusPolicy: resolved from this fake's settings.
+			get statusPolicy() { return buildStatusPolicy(this.settings); },
 			taskStore: {
 				create: vi.fn().mockResolvedValue({ path: 'Tasks/abc123-captured-task.md', name: 'Captured task' }),
 			},

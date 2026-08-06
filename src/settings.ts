@@ -33,10 +33,11 @@ export {
 	normalizeStatuses,
 	normalizeColorMap,
 	migrateLegacyStatusColors,
-	resolveCompletionStatus,
-	resolveConfiguredStatus,
-	resolveEmergencyStatus,
-	isSystemStatus,
 	normalizeEditorSuggestTrigger,
 } from './settings/defaults';
+// The status resolvers are deliberately *not* re-exported. They belong to
+// `normalizeSettingsFromSources`, which runs them on load and on every save;
+// consumers read the already-resolved pointers off a StatusPolicy instead of
+// re-deriving them at the point of use. See settings/statusPolicy.
+export { buildStatusPolicy, type StatusPolicy, type StatusPolicySettings } from './settings/statusPolicy';
 export { TTasksSettingTab } from './settings/SettingsTab';

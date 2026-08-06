@@ -4,7 +4,6 @@ import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput } from '../types';
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
 import { materializeChecklistChildren } from './checklistMaterializer';
-import { resolveCompletionStatus } from '../settings';
 import { deriveAnchorDay, nextStartDate } from './recurrence';
 import { computeStatusChanged, computeCompletedOnStatusChange } from './statusChanged';
 import { decideCompletion } from './completeTask';
@@ -62,7 +61,7 @@ export class TaskWriter {
 			}
 		);
 
-		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+		const completionStatus = this.plugin.statusPolicy.completion;
 		const full: Task = {
 			...input,
 			depends_on: sanitizedDependsOn,
@@ -148,10 +147,7 @@ export class TaskWriter {
 				// Derive the completion date from status transitions unless the
 				// caller supplied an explicit `completed` value (which wins).
 				if (!('completed' in updates)) {
-					const completionStatus = resolveCompletionStatus(
-						this.plugin.settings.statuses,
-						this.plugin.settings.completionStatus,
-					);
+					const completionStatus = this.plugin.statusPolicy.completion;
 					const nextCompleted = computeCompletedOnStatusChange(
 						previousStatus,
 						updates.status,
@@ -178,7 +174,7 @@ export class TaskWriter {
 		this.applyOptimisticUpdate(normalizedPath, updates, writtenFields, derivedStatusChanged, derivedCompleted);
 
 		if (currentTask && typeof updates.status === 'string') {
-			const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+			const completionStatus = this.plugin.statusPolicy.completion;
 			try {
 				await syncCompletionToSource(
 					{ ...currentTask, status: updates.status },
@@ -229,10 +225,7 @@ export class TaskWriter {
 			if (derivedStatusChanged !== undefined) next.status_changed = derivedStatusChanged;
 			if (derivedCompleted !== undefined) next.completed = derivedCompleted;
 
-			const completionStatus = resolveCompletionStatus(
-				this.plugin.settings.statuses,
-				this.plugin.settings.completionStatus,
-			);
+			const completionStatus = this.plugin.statusPolicy.completion;
 			next.is_complete = next.status === completionStatus;
 			next.is_inbox = next.area === null;
 
@@ -347,7 +340,7 @@ export class TaskWriter {
 	 * paths recur (and stamp the completion date) like the Mark-complete button.
 	 */
 	async setStatus(task: Task, newStatus: string): Promise<void> {
-		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+		const completionStatus = this.plugin.statusPolicy.completion;
 		if (newStatus === completionStatus) {
 			await this.completeAndRecur(task);
 			return;
@@ -357,7 +350,7 @@ export class TaskWriter {
 
 	async completeAndRecur(task: Task): Promise<Task | null> {
 		const today = localDateString();
-		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+		const completionStatus = this.plugin.statusPolicy.completion;
 
 		const decision = decideCompletion(task, {
 			completionStatus,
@@ -379,7 +372,7 @@ export class TaskWriter {
 		// RP-1 describes. Falls back to this instance's own day for tasks predating
 		// the anchor field.
 		const anchorDay = task.recurrence_anchor_day ?? deriveAnchorDay(task.due_date);
-		const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
+		const firstStatus = this.plugin.statusPolicy.initial;
 
 		const nextInput: TaskCreateInput = {
 			type:            task.type,
@@ -413,7 +406,7 @@ export class TaskWriter {
 		if (!task) return null;
 
 		const today = localDateString();
-		const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
+		const firstStatus = this.plugin.statusPolicy.initial;
 		const input = buildDuplicateInput(task, today, firstStatus);
 		return this.create(input);
 	}
@@ -422,7 +415,7 @@ export class TaskWriter {
 		const task = this.getTaskByPath(normalizePath(path));
 		if (!task) return;
 
-		const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
+		const firstStatus = this.plugin.statusPolicy.initial;
 		const restoreInput = buildRestoreInput(firstStatus);
 		await this.update(path, restoreInput);
 	}
@@ -448,7 +441,7 @@ export class TaskWriter {
 		if (wanted.size === 0) return;
 
 		const complete = this.completionStatus();
-		const fallback = this.plugin.settings.statuses?.[0] ?? 'Active';
+		const fallback = this.plugin.statusPolicy.initial;
 		const tasksByPath = new Map(get(this.tasks).map((t) => [t.path, t]));
 		const today = localDateString();
 		const updates: Promise<void>[] = [];
@@ -631,7 +624,7 @@ export class TaskWriter {
 	}
 
 	private completionStatus(): string {
-		return resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+		return this.plugin.statusPolicy.completion;
 	}
 
 	private isCompleteStatus(status: string): boolean {

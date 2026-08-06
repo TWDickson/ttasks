@@ -174,7 +174,7 @@ export class ArchiveService {
 		// completion-date clearing (A2) applies — identical to Logbook restore.
 		const movedFile = this.app.vault.getAbstractFileByPath(destPath);
 		if (movedFile instanceof TFile) {
-			const firstStatus = this.plugin.settings.statuses[0] ?? 'Active';
+			const firstStatus = this.plugin.statusPolicy.initial;
 			await this.plugin.taskStore.update(destPath, buildRestoreInput(firstStatus));
 		}
 

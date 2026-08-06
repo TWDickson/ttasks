@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { buildStatusPolicy } from '../settings/statusPolicy';
 import { writable } from 'svelte/store';
 import { TFile } from 'obsidian';
 import { ArchiveService } from './ArchiveService';
@@ -43,13 +44,16 @@ function makeTask(overrides: Omit<Partial<Task>, 'path'> & { path: string }): Ta
 
 function makePlugin(tasks: Task[]): TTasksPlugin {
 	const tasksStore = writable(tasks);
+	const settings = {
+		tasksFolder: 'Planner/Tasks',
+		archive: { mode: 'scheduled', daysAfterComplete: 45 },
+		statuses: ['Active', 'Done'],
+	};
 	// cast through unknown — test mock intentionally only implements what ArchiveService uses
 	return {
-		settings: {
-			tasksFolder: 'Planner/Tasks',
-			archive: { mode: 'scheduled', daysAfterComplete: 45 },
-			statuses: ['Active', 'Done'],
-		},
+		settings,
+		// Mirrors TTasksPlugin.statusPolicy: resolved from this fake's settings.
+		statusPolicy: buildStatusPolicy(settings),
 		taskStore: { tasks: tasksStore, update: vi.fn(async () => {}) },
 		app: {
 			vault: {

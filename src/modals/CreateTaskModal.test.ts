@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildStatusPolicy } from '../settings/statusPolicy';
 import { writable } from 'svelte/store';
 import { App } from 'obsidian';
 import type TTasksPlugin from '../main';
@@ -226,16 +227,19 @@ function buildPluginMock(allTasks: Task[] = []) {
 	const create = vi.fn().mockResolvedValue({ path: 'Planner/Tasks/new-task.md' });
 	const openDetail = vi.fn().mockResolvedValue(undefined);
 	const addDependency = vi.fn().mockResolvedValue(undefined);
+	const settings = {
+		tasksFolder: 'Planner/Tasks',
+		statuses: ['Active', 'In Progress', 'Done'],
+		areas: ['Work', 'Personal'],
+		labelValues: ['feature', 'bug'],
+		statusColors: { Active: '#3b82f6', 'In Progress': '#f59e0b', Done: '#10b981' },
+		areaColors: { Work: '#3b82f6', Personal: '#8b5cf6' },
+		labelColors: { feature: '#3b82f6', bug: '#ef4444' },
+	};
 	return {
-		settings: {
-			tasksFolder: 'Planner/Tasks',
-			statuses: ['Active', 'In Progress', 'Done'],
-			areas: ['Work', 'Personal'],
-			labelValues: ['feature', 'bug'],
-			statusColors: { Active: '#3b82f6', 'In Progress': '#f59e0b', Done: '#10b981' },
-			areaColors: { Work: '#3b82f6', Personal: '#8b5cf6' },
-			labelColors: { feature: '#3b82f6', bug: '#ef4444' },
-		},
+		settings,
+		// Mirrors TTasksPlugin.statusPolicy: resolved from this fake's settings.
+		statusPolicy: buildStatusPolicy(settings),
 		manifest: { id: 'ttasks' },
 		taskStore: {
 			tasks: writable(allTasks),

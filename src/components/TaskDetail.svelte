@@ -5,7 +5,6 @@
 	import type TTasksPlugin from '../main';
 	import type { Task, TaskStatus, TaskPriority } from '../types';
 	import type { TaskStore } from '../store/TaskStore';
-	import { resolveCompletionStatus } from '../settings';
 	import { RECURRENCE_LABELS, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 	import { localDateString } from '../utils/dateUtils';
 	import { buildTaskSchedule, resolveProjectedSchedule } from '../store/taskSchedule';
@@ -140,7 +139,7 @@
 
 	// ── Field handlers ──────────────────────────────────────────────────────────
 	function getCompletionStatus(): TaskStatus {
-		return resolveCompletionStatus(plugin.settings.statuses, plugin.settings.completionStatus);
+		return plugin.statusPolicy.completion;
 	}
 
 	async function markComplete() {
@@ -399,7 +398,7 @@
 		: null;
 
 	$: completionStatus = getCompletionStatus();
-	$: blockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
+	$: blockStatus = plugin.statusPolicy.block;
 	$: showBlockedReason = isBlockedStatus(status, blockStatus);
 	$: parentProjectTasks = $tasks
 		.filter(t => t.type === 'project' && t.path !== task?.path)

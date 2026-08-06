@@ -135,6 +135,18 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
   colour spine and `statusAccent()` where `color-mix()` needs a guaranteed value.
   Priority is a closed union with a total colour map: call `priorityColor()`, and
   don't add a `?? None` fallback — it's unreachable.
+- **Read status pointers off `plugin.statusPolicy`, don't re-resolve them.**
+  `completionStatus` and the quick-action start/block/hold names are pointers
+  into the user's `statuses` list, and `normalizeSettingsFromSources` already
+  re-resolves every one of them on load, on **every** `saveSettings()`, and on
+  external change. So `plugin.statusPolicy.completion` / `.start` / `.block` /
+  `.initial` are the answer — never call `resolveCompletionStatus(settings.
+  statuses, …)` at the point of use, and never hand-inline `statuses[0] ??
+  'Active'`. The resolvers are not exported from `src/settings.ts` on purpose;
+  they belong to normalization. `.hold` is `string | null` because a vault with
+  no Hold status must not fall back — doing so cascades a bogus Hold across the
+  whole dependency graph. Any new plugin *mock* (tests, `test-rig/fixtures.ts`)
+  needs a `statusPolicy` alongside its `settings`.
 
 ## Architecture rules
 

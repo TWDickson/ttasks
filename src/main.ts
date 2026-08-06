@@ -5,7 +5,8 @@ import {
 	type TTasksSettings,
 	DEFAULT_SETTINGS,
 	TTasksSettingTab,
-	resolveConfiguredStatus,
+	buildStatusPolicy,
+	type StatusPolicy,
 	normalizeSettingsFromSources,
 	migrateLegacyStatusColors,
 } from './settings';
@@ -73,6 +74,24 @@ export default class TTasksPlugin extends Plugin {
 	private pomodoroStatusBarTextEl: HTMLElement | null = null;
 	private isApplyingExternalSettings = false;
 	private reminderStartTimeoutId: number | null = null;
+	private cachedStatusPolicy: { source: TTasksSettings; policy: StatusPolicy } | null = null;
+
+	/**
+	 * The resolved status pointers — completion, quick-action start/block/hold,
+	 * and the initial status. Read this instead of re-resolving from
+	 * `settings.statuses` at the point of use. See settings/statusPolicy.
+	 *
+	 * Keyed on settings *identity*, which is sound because every assignment to
+	 * `this.settings` goes through `normalizeSettingsFromSources`, and that
+	 * returns a fresh object — so the cache invalidates itself on load, on every
+	 * `saveSettings()`, and on external settings change.
+	 */
+	get statusPolicy(): StatusPolicy {
+		if (this.cachedStatusPolicy?.source !== this.settings) {
+			this.cachedStatusPolicy = { source: this.settings, policy: buildStatusPolicy(this.settings) };
+		}
+		return this.cachedStatusPolicy.policy;
+	}
 
 	private get extendedWorkspace(): ExtendedWorkspace {
 		return this.app.workspace as ExtendedWorkspace;
@@ -655,7 +674,7 @@ export default class TTasksPlugin extends Plugin {
 
 	/** Build a create input from a parsed import record; relationships are dropped. */
 	private buildCreateInputFromParsed(parsed: ParsedImportTask): TaskCreateInput {
-		const defaultStatus = this.settings.statuses[0] ?? 'Active';
+		const defaultStatus = this.statusPolicy.initial;
 		const priorities: TaskPriority[] = ['High', 'Medium', 'Low', 'None'];
 		const priority = priorities.includes(parsed.priority as TaskPriority) ? (parsed.priority as TaskPriority) : 'None';
 		return {
@@ -1023,8 +1042,8 @@ export default class TTasksPlugin extends Plugin {
 	private updateStatusBar(): void {
 		if (!this.statusBarEl) return;
 		const summary = buildStatusSummary(get(this.taskStore.tasks), {
-			blockStatus: this.settings.quickActions.blockStatus,
-			inProgressStatus: this.settings.quickActions.startStatus,
+			blockStatus: this.statusPolicy.block,
+			inProgressStatus: this.statusPolicy.start,
 		});
 		const attentionZero = summary.overdue === 0 && summary.blocked === 0;
 		this.statusBarEl.toggleClass('ttasks-statusbar-hidden', attentionZero && this.settings.statusBar.hideWhenZero);
@@ -1083,9 +1102,9 @@ export default class TTasksPlugin extends Plugin {
 
 		const result = resolveQuickAction(action, task, {
 			today: localDateString(),
-			completionStatus: this.settings.completionStatus,
-			startStatus: resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus),
-			blockStatus: resolveConfiguredStatus(this.settings.statuses, this.settings.quickActions.blockStatus, DEFAULT_SETTINGS.quickActions.blockStatus),
+			completionStatus: this.statusPolicy.completion,
+			startStatus: this.statusPolicy.start,
+			blockStatus: this.statusPolicy.block,
 			statuses: this.settings.statuses,
 			deferDays: this.settings.quickActions.deferDays,
 		});

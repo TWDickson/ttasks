@@ -1,6 +1,5 @@
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
-import { resolveConfiguredStatus, DEFAULT_SETTINGS } from '../settings';
 import { localDateString } from '../utils/dateUtils';
 import { safeLocalStorage, safeLocalStorageSet } from '../utils/vaultSafe';
 import { isSnoozed, purgeSnoozed, snoozeTask, type SnoozedState } from './reminderSnooze';
@@ -55,11 +54,7 @@ export class ReminderService {
 		const today = todayString();
 		this.storage.clearExpired(today);
 		const tasks = get(this.plugin.taskStore.tasks);
-		const startStatus = resolveConfiguredStatus(
-			this.plugin.settings.statuses,
-			this.plugin.settings.quickActions.startStatus,
-			DEFAULT_SETTINGS.quickActions.startStatus
-		);
+		const startStatus = this.plugin.statusPolicy.start;
 
 		let overdueCount  = 0;
 		let dueTodayCount = 0;

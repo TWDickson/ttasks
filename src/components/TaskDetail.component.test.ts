@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
+import { buildStatusPolicy } from '../settings/statusPolicy';
 import { render, screen } from '@testing-library/svelte';
 import { get, writable, type Writable } from 'svelte/store';
 import TaskDetail from './TaskDetail.svelte';
@@ -67,6 +68,8 @@ function renderDetail(options: {
 			quickActions: { blockStatus: 'Blocked' },
 			...options.settings,
 		},
+		// Mirrors TTasksPlugin.statusPolicy: resolved from this fake's settings.
+		get statusPolicy() { return buildStatusPolicy(this.settings); },
 		archiveService: {
 			archiveTask: vi.fn(async () => {}),
 		},

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
+import { buildStatusPolicy } from '../settings/statusPolicy';
 import { render } from '@testing-library/svelte';
 import { writable, type Writable } from 'svelte/store';
 
@@ -74,6 +75,8 @@ function buildPlugin(activeViewMode: ReturnType<typeof createTrackedModeStore>) 
 			quickActions: { blockStatus: 'Blocked' },
 			fabPosition: 'hidden',
 		},
+		// Mirrors TTasksPlugin.statusPolicy: resolved from this fake's settings.
+		get statusPolicy() { return buildStatusPolicy(this.settings); },
 		taskStore: {
 			tasks: writable([]),
 			openDetail: vi.fn(),

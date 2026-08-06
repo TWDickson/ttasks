@@ -17,7 +17,7 @@ export async function promoteTaskToTTasks(
 	}
 
 	const basename = sourcePath.split('/').pop()?.replace(/\.md$/i, '') ?? 'source-note';
-	const inboxStatus = plugin.settings.statuses?.[0] ?? 'Active';
+	const inboxStatus = plugin.statusPolicy.initial;
 	const input = buildPromoteInput(external, inboxStatus, basename);
 	const created = await plugin.taskStore.create(input);
 

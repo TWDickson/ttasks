@@ -2,7 +2,6 @@ import { Notice, TFile, normalizePath } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskPriority, TaskRecordType } from '../types';
-import { resolveCompletionStatus } from '../settings';
 import { ensureMdExt, splitTaskBasename, taskIdFromPath } from '../utils/pathUtils';
 import { normalizeRefPath, type TaskRef } from '../utils/taskRef';
 import { toCalendarDate } from '../utils/dateUtils';
@@ -316,11 +315,8 @@ export class TaskStore {
 		const fmEndOffset = cache?.frontmatterPosition?.end?.offset;
 		const notes = this.extractNotes(content, fmEndOffset);
 
-		const allowedStatuses = this.plugin.settings.statuses ?? ['Active'];
-		const fallbackStatus = allowedStatuses[0] ?? 'Active';
-		const normalizedStatus = toFrontmatterEnum(fm.status, allowedStatuses, fallbackStatus);
-
-		const completionStatus = resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.settings.completionStatus);
+		const policy = this.plugin.statusPolicy;
+		const normalizedStatus = toFrontmatterEnum(fm.status, policy.all, policy.initial);
 
 		const rawArea = toFrontmatterString(toFrontmatterScalar(fm.area));
 		const area: string | null = rawArea === '' ? null : rawArea;
@@ -364,7 +360,7 @@ export class TaskStore {
 			// List- or Text-typed value must still resolve (see feedback #19).
 			recurrence_anchor_day: toFrontmatterNumber(toFrontmatterScalar(fm.recurrence_anchor_day)),
 			reminder_override: toFrontmatterOptionalEnum(fm.reminder_override, REMINDER_OVERRIDES),
-			is_complete: normalizedStatus === completionStatus,
+			is_complete: policy.isComplete(normalizedStatus),
 			is_inbox:    area === null,
 		};
 	}

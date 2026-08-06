@@ -7,6 +7,7 @@ import type { Task, TaskPriority, TaskStatus } from '../src/types';
 import { PomodoroService } from '../src/store/PomodoroService';
 import { DEFAULT_POMODORO_CONFIG } from '../src/integration/pomodoro';
 import { normalizeColorMap } from '../src/settings/defaults';
+import { buildStatusPolicy } from '../src/settings/statusPolicy';
 
 const COMPLETION_STATUS = 'Done';
 
@@ -372,6 +373,9 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		app: {},
 		manifest: { id: 'ttasks' },
 		settings,
+		// Mirrors TTasksPlugin.statusPolicy — the views read the resolved status
+		// pointers off this rather than re-deriving them from `settings.statuses`.
+		statusPolicy: buildStatusPolicy(settings),
 		taskStore,
 		scanEngine: { tasks: writable<Task[]>([]) },
 		archiveService: {

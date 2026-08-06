@@ -110,7 +110,7 @@
 	async function batchComplete(): Promise<void> {
 		const nextSelection = await runBatchComplete({
 			selectedPaths: $selectedPaths,
-			completionStatus: plugin.settings.completionStatus,
+			completionStatus: plugin.statusPolicy.completion,
 			today: localDateString(),
 			updateTask: (path, updates) => plugin.taskStore.update(path, updates),
 			clearSelection,
@@ -293,18 +293,18 @@
 
 	// ──────────────────────────────────────────────────────────────────────────
 
-	$: configuredStatuses = plugin.settings.statuses ?? ['Active'];
+	// The resolved status pointers. See settings/statusPolicy.
+	$: statusPolicy = plugin.statusPolicy;
+	$: configuredStatuses = statusPolicy.all;
 	// One palette for every renderer, rebuilt only when the colour maps change —
 	// so a row, its kanban card and its graph node can't resolve a colour
 	// differently. See utils/badgePalette.
 	$: palette = buildBadgePalette(plugin.settings);
-	$: configuredBlockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
-	$: configuredHoldStatus = plugin.settings.quickActions?.holdStatus ?? '';
 
 	// Derived Blocked/Hold cascade (#8) — computed from the full task list so a
 	// blocker outside the current filter still impedes, and recomputed rather than
 	// stored so clearing a blocker restores its dependents with no bookkeeping.
-	$: impedimentStatuses = { blockStatus: configuredBlockStatus, holdStatus: configuredHoldStatus };
+	$: impedimentStatuses = { blockStatus: statusPolicy.block, holdStatus: statusPolicy.hold };
 	$: impedimentBadges = buildImpedimentBadges(
 		computeImpediments($tasks, impedimentStatuses),
 		impedimentStatuses,
@@ -522,7 +522,7 @@
 						groups={groupedTasks}
 						statuses={configuredStatuses}
 						{palette}
-						blockStatus={configuredBlockStatus}
+						blockStatus={statusPolicy.block}
 						{impedimentBadges}
 						kanbanCardFields={plugin.settings.kanbanCardFields}
 						{activeTaskPath}

@@ -2,7 +2,6 @@ import { App, Component, MarkdownRenderer, Modal, Notice, setIcon } from 'obsidi
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { TaskPriority, TaskRecordType, TaskStatus } from '../types';
-import { resolveEmergencyStatus } from '../settings';
 import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 import { priorityColor } from '../constants';
 import { localDateString } from '../utils/dateUtils';
@@ -74,7 +73,7 @@ export class CreateTaskModal extends Modal {
 		super(app);
 		this.plugin = plugin;
 		this.formValues.type = defaultType;
-		this.formValues.status = resolveEmergencyStatus(this.plugin.settings.statuses);
+		this.formValues.status = this.plugin.statusPolicy.initial;
 		if (options?.initialDependsOn?.length) {
 			this.formValues.depends_on = options.initialDependsOn.map(p => p.replace(/\.md$/, ''));
 		}

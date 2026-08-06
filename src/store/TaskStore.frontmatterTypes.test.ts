@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { buildStatusPolicy } from '../settings/statusPolicy';
 import { TFile } from 'obsidian';
 import { TaskStore } from './TaskStore';
 import type { Task } from '../types';
@@ -38,6 +39,12 @@ const CANONICAL_FRONTMATTER = {
  * parse that file into a Task. Link resolution is stubbed to "unresolved", which
  * makes `resolveWikiLinkPath` fall through to the raw linkpath + `.md`.
  */
+const FRONTMATTER_TEST_SETTINGS = {
+	tasksFolder: 'Tasks',
+	statuses: ['Active', 'In Progress', 'Done'],
+	completionStatus: 'Done',
+};
+
 async function parseFrontmatter(frontmatter: Record<string, unknown>): Promise<Task | null> {
 	const file = Object.assign(new TFile(), {
 		path: 'Tasks/abc123-ship-the-planner.md',
@@ -53,11 +60,9 @@ async function parseFrontmatter(frontmatter: Record<string, unknown>): Promise<T
 			},
 			vault: { cachedRead: async () => '' },
 		},
-		settings: {
-			tasksFolder: 'Tasks',
-			statuses: ['Active', 'In Progress', 'Done'],
-			completionStatus: 'Done',
-		},
+		settings: FRONTMATTER_TEST_SETTINGS,
+		// Mirrors TTasksPlugin.statusPolicy: resolved from this fake's settings.
+		statusPolicy: buildStatusPolicy(FRONTMATTER_TEST_SETTINGS),
 		log: () => undefined,
 		register: () => undefined,
 		registerEvent: () => undefined,

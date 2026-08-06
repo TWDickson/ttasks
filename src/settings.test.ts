@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
 	normalizeStatuses,
-	resolveCompletionStatus,
-	resolveConfiguredStatus,
 	normalizeEditorSuggestTrigger,
 	normalizeQuerySpec,
 	normalizeSettingsFromSources,
-	isSystemStatus,
 	DEFAULT_SETTINGS,
 	DEFAULT_STATUSES,
 } from './settings';
+// The status resolvers are internal to the settings module — consumers read a
+// StatusPolicy instead — so they're imported from their home, not the barrel.
+import {
+	resolveCompletionStatus,
+	resolveConfiguredStatus,
+	isSystemStatus,
+} from './settings/defaults';
 
 // ── normalizeStatuses ────────────────────────────────────────────────────────
 

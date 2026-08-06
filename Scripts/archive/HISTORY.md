@@ -12,6 +12,63 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-06 — Status pointers resolve to a `StatusPolicy`, not per-site calls
+
+Second half of the same sweep as the entry below, and the deeper of the two.
+
+`completionStatus` and the quick-action start/block/hold names are *pointers*
+into the user's `statuses` list, so each can go stale when the list is edited.
+The codebase grew a family of resolvers for that — and then called them at the
+point of use. `resolveCompletionStatus(this.plugin.settings.statuses, this.plugin.
+settings.completionStatus)` appeared **verbatim at eight sites** (TaskWriter ×6,
+TaskStore, TaskDetail), and `statuses[0] ?? 'Active'` was hand-inlined at seven
+more *despite* `resolveEmergencyStatus` existing for exactly that.
+
+The tell that nobody knew what was authoritative: `main.ts` read
+`settings.completionStatus` raw in one place while eight others didn't trust it
+enough to skip the resolver. **Both were right and both were unnecessary** —
+`normalizeSettingsFromSources` re-resolves every pointer, and it runs on load, on
+*every* `saveSettings()`, and on external settings change. The re-resolutions
+were idempotent no-ops on an already-resolved value.
+
+New pure module `settings/statusPolicy`, read via `TTasksPlugin.statusPolicy`.
+The getter caches on settings *identity*, which is self-invalidating because all
+three assignments to `this.settings` go through `normalizeSettingsFromSources`
+and that returns a fresh object — worth caching because `fileToTask` needs the
+policy once per file and a vault load runs it thousands of times.
+
+`hold` is `string | null`, not `''`. That was the one thing to preserve rather
+than flatten: `resolveOptionalStatus` deliberately refuses the `valid[0]` fallback
+because a vault with no Hold would otherwise resolve `holdStatus` to "Active",
+treat every active task as impeded, and cascade a bogus Hold across the whole
+graph. Making it a nullable field puts that in the type instead of a comment, and
+`ImpedimentStatuses.holdStatus` widened to match. The `blocked ? block : hold`
+ternary that appeared twice in `taskImpediment` became `impedingStatusName()`,
+which documents why its `?? ''` is unreachable (`ownKind` won't produce a `held`
+state unless a Hold status is configured).
+
+The four resolvers are **no longer exported from `src/settings.ts`**. They belong
+to normalization; consumers get a policy. `settings.test.ts` imports them from
+`./settings/defaults` directly now, and `isSystemStatus` — dead before this work,
+superseded by `policy.isSystem` — went with them.
+
+Full gate green (1760 tests). Verified in the rig as byte-identical PNGs across
+list/kanban/agenda/graph/detail/modal × desktop/mobile × dark/light; the fixture
+set includes the Hold cascade, so `policy.hold` is on the verified path.
+
+**Caught by the rig, not by the tests:** `test-rig/fixtures.ts` builds its own
+plugin mock, and it needed `statusPolicy` too — the rig went blank (never reached
+`data-rig-ready`) until it got one. The unit-test fakes had the same gap and the
+type-checker found those; the rig's mock is untyped, so only running it did.
+That's the second harness to teach, and it's now a CLAUDE.md rule.
+
+**Left alone deliberately:** `quickActionsSettingsSection.ts` and
+`SettingsTab.ts` still do `statuses.includes(x) ? x : (statuses[0] ?? '')` for
+their dropdown display values. Those are at the normalization boundary rather
+than in a consumer, the branch is dead given the invariant above, and the
+settings tab is the one surface the rig cannot verify — so changing it would be
+unverifiable churn.
+
 ## 2026-08-06 — Badge colours resolve to a `BadgePalette`, not raw maps
 
 Same shape as the `TaskRef` work below, found by asking where else the codebase

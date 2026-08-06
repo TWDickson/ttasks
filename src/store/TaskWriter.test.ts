@@ -1,4 +1,5 @@
 import { writable, get } from 'svelte/store';
+import { buildStatusPolicy } from '../settings/statusPolicy';
 import { TFile } from 'obsidian';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { buildTaskFrontmatter, TaskWriter } from './TaskWriter';
@@ -73,6 +74,8 @@ function makeWriterForUpdateTest(initialFrontmatter: Record<string, unknown>, se
 			statuses: ['Active', 'In Progress', 'Done'],
 			completionStatus: 'Done',
 		},
+		// Mirrors TTasksPlugin.statusPolicy: resolved from this fake's settings.
+		get statusPolicy() { return buildStatusPolicy(this.settings); },
 		app: {
 			vault: {
 				getAbstractFileByPath: vi.fn((path: string) => (path === file.path ? file : null)),

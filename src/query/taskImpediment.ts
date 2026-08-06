@@ -52,10 +52,16 @@ export interface ImpedimentState {
 }
 
 export interface ImpedimentStatuses {
-	/** Configured Blocked status name (`quickActions.blockStatus`). */
+	/** Configured Blocked status name (`StatusPolicy.block`). */
 	blockStatus: string;
-	/** Configured Hold status name (`quickActions.holdStatus`). */
-	holdStatus: string;
+	/**
+	 * Configured Hold status name, or `null`/`''` when the vault has none —
+	 * absence is meaningful and must not be filled in with a fallback. A vault
+	 * with no Hold that resolved this to the first status would treat every
+	 * Active task as impeded and cascade a bogus Hold across the whole graph.
+	 * See `StatusPolicy.hold`.
+	 */
+	holdStatus: string | null;
 }
 
 interface Contribution {
@@ -202,12 +208,22 @@ export interface ImpedimentLabel {
  * rather than being dropped, so the tooltip never silently under-reports what's
  * holding the task up — and never passes a filename off as a name.
  */
+/**
+ * The blocking status' name for an impediment kind. A `held` state only exists
+ * when a Hold status is configured — `ownKind` checks before assigning it — so
+ * the `?? ''` is unreachable. It's here because the compiler can't see that
+ * invariant, not because a blank name is a case worth rendering.
+ */
+function impedingStatusName(kind: ImpedimentKind, statuses: ImpedimentStatuses): string {
+	return (kind === 'blocked' ? statuses.blockStatus : statuses.holdStatus) ?? '';
+}
+
 export function describeImpediment(
 	state: ImpedimentState,
 	statuses: ImpedimentStatuses,
 	index: TaskRefIndex,
 ): ImpedimentLabel {
-	const statusName = state.kind === 'blocked' ? statuses.blockStatus : statuses.holdStatus;
+	const statusName = impedingStatusName(state.kind, statuses);
 	const label = `${statusName} upstream`;
 	const names = state.causes.flatMap((path) => {
 		const ref = resolveTaskRef(path, index);
@@ -248,7 +264,7 @@ export function buildImpedimentBadges(
 	const badges = new Map<string, ImpedimentBadge>();
 	for (const [path, state] of impediments) {
 		if (!isUpstreamImpediment(state)) continue;
-		const statusName = state.kind === 'blocked' ? statuses.blockStatus : statuses.holdStatus;
+		const statusName = impedingStatusName(state.kind, statuses);
 		badges.set(path, {
 			...describeImpediment(state, statuses, index),
 			kind: state.kind,
