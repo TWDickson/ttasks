@@ -43,10 +43,17 @@ Opens the "Jump to task" fuzzy switcher over open tasks. Optional `query=`
 pre-fills the search box, so external tools get a "find a task" entry point
 without knowing file paths. Selecting a result opens board + detail.
 
+`query=` also accepts a task **hash** — the `a1b2c3` prefix of the filename.
+Hash hits are resolved by exact prefix and ranked above the fuzzy results;
+prefix the query with `#` to match the hash only. This gives an external tool a
+stable handle that survives renames, without having to pass a full vault path.
+
 ```
 obsidian://ttasks?action=jump
 obsidian://ttasks?action=jump&query=roof
 obsidian://ttasks?action=search&query=roof
+obsidian://ttasks?action=jump&query=a1b2c3
+obsidian://ttasks?action=jump&query=%23a1b2
 ```
 
 ### `new-task`

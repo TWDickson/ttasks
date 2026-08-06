@@ -97,6 +97,7 @@ describe('architecture boundaries', () => {
 			'src/views/detailHeaderActions.ts',
 			'src/query/taskReadiness.ts',
 			'src/query/taskImpediment.ts',
+			'src/query/hashSearch.ts',
 		]) {
 			const content = readWorkspaceFile(relativePath);
 

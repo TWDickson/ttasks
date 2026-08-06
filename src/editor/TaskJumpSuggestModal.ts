@@ -2,6 +2,16 @@ import { FuzzySuggestModal, type FuzzyMatch } from 'obsidian';
 import type { App } from 'obsidian';
 import type { Task } from '../types';
 import { PRIORITY_COLORS } from '../constants';
+import { parseSearchTerm } from '../query/hashSearch';
+
+/**
+ * Wrap an exact (non-fuzzy) hit in the FuzzyMatch shape the modal expects.
+ * `matches` is empty because there are no name ranges to highlight — the hit
+ * came from the id, and `renderSuggestion` draws the name unhighlighted anyway.
+ */
+function asExactMatch(item: Task): FuzzyMatch<Task> {
+	return { item, match: { score: 0, matches: [] } };
+}
 
 /**
  * "Jump to task" navigator — fuzzy-matches over task names (with area/labels
@@ -38,6 +48,31 @@ export class TaskJumpSuggestModal extends FuzzySuggestModal<Task> {
 		// Name first so it dominates fuzzy ranking; area/labels let queries
 		// like "roof home" still find the task.
 		return [item.name, item.area ?? '', ...item.labels].join(' ').trim();
+	}
+
+	/**
+	 * Hash-prefix search, layered over Obsidian's fuzzy scoring.
+	 *
+	 * The id is deliberately kept out of `getItemText`: fuzzy matching is
+	 * subsequence-based, so folding six hex characters into the match text
+	 * would let a query like "ace" hit ids it has no business hitting. Instead
+	 * a hash query is resolved by exact prefix here, and those hits are placed
+	 * ahead of the ordinary fuzzy results.
+	 */
+	getSuggestions(query: string): FuzzyMatch<Task>[] {
+		const term = parseSearchTerm(query);
+		if (!term?.idPrefix) return super.getSuggestions(query);
+
+		const prefix = term.idPrefix;
+		const hits = this.getItems().filter(t => t.id.toLowerCase().startsWith(prefix));
+
+		// The `#` sigil means "id only" — never fall through to name matching.
+		if (term.idOnly) return hits.map(item => asExactMatch(item));
+		if (hits.length === 0) return super.getSuggestions(query);
+
+		const seen = new Set(hits.map(t => t.path));
+		const fuzzy = super.getSuggestions(query).filter(m => !seen.has(m.item.path));
+		return [...hits.map(item => asExactMatch(item)), ...fuzzy];
 	}
 
 	renderSuggestion(match: FuzzyMatch<Task>, el: HTMLElement): void {

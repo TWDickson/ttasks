@@ -12,6 +12,7 @@ import type {
 } from './types';
 import { addDaysLocal, localDateString } from '../utils/dateUtils';
 import { AGENDA_BUCKET_ORDER, type AgendaBucketKey } from './agendaBuckets';
+import { filterBySearch } from './hashSearch';
 import { PRIORITIES } from '../constants';
 import { sortReadyFirst } from './taskReadiness';
 
@@ -155,18 +156,11 @@ function evalGroup(task: Task, group: FilterGroup): boolean {
 
 /**
  * Filters a task list using a FilterSpec (recursive AND/OR tree).
- * Optional `search` string pre-filters on name + notes (case-insensitive).
+ * Optional `search` string pre-filters on name + notes (case-insensitive), and
+ * on the task's hash id prefix — see `hashSearch.ts` for the term grammar.
  */
 export function applyFilter(tasks: Task[], spec: FilterSpec, search?: string): Task[] {
-	let result = tasks;
-
-	if (search && search.trim()) {
-		const lower = search.trim().toLowerCase();
-		result = result.filter(t =>
-			t.name.toLowerCase().includes(lower) ||
-			t.notes.toLowerCase().includes(lower)
-		);
-	}
+	const result = search ? filterBySearch(tasks, search) : tasks;
 
 	return result.filter(t => evalGroup(t, spec));
 }

@@ -359,6 +359,7 @@
 						class="tt-search-input"
 						type="text"
 						placeholder="Search tasks…"
+						title="Search name and notes. Type a task's hash (a1b2c3), or #a1b2 to match the hash only."
 						bind:value={$searchQuery}
 					/>
 					{#if $searchQuery}

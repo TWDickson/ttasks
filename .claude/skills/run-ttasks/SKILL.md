@@ -38,6 +38,11 @@ One-shot driver: opens a rig URL, runs commands left-to-right, exits.
 Starts the vite dev server on :5199 itself if it isn't running.
 Screenshots land in `test-rig/shots/` (gitignored).
 
+**Working in a worktree? Set `TTASKS_RIG_PORT`.** A rig already running from
+another worktree answers on :5199, and the driver will happily reuse it — you'd
+then be verifying that worktree's code, with nothing to indicate it. Check with
+`pgrep -fl vite` if a result looks wrong.
+
 ```bash
 # click the first task row → detail pane opens → screenshot it
 node .claude/skills/run-ttasks/driver.mjs '/?view=list' \

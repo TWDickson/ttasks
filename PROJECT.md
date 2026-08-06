@@ -24,8 +24,8 @@ narrative to `HISTORY.md` once the thread closes.
 
 | | |
 | --- | --- |
-| Version | `0.1.1` (GitHub release; not on the community list — deliberate) |
-| Tests | **1645 passing, 128 files** (`npm run check` = lint → build → test) |
+| Version | `0.1.2` (GitHub release; not on the community list — deliberate) |
+| Tests | **1705 passing, 130 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -133,7 +133,25 @@ log-partial-on-stop.
 - `[ ]` **GP2 residue** ⚖ (minor) — Blocked/Cycle count pills now hide at zero;
   if Taylor prefers them always visible it's a two-line revert.
 
-### 5. Open feedback items
+### 5. Search
+
+- `[x]` **Search by task hash prefix** — *done 2026-08-05.* Bare hex ≥ 3 chars
+  ORs an id-prefix match onto name/notes; `#a1b2` matches the id only. One pure
+  module (`src/query/hashSearch.ts`) behind `applyFilter`, so board, Smart Lists,
+  archive, the jump switcher, and `ttasks://?action=search` all share it. See
+  `HISTORY.md` for the reasoning behind the 3-char floor.
+- `[ ]` **The filter-bar search box is too narrow to use** ⚖ — *found 2026-08-05
+  while rig-verifying the above; pre-existing, not caused by it.* `.tt-search-wrap`
+  is `flex: 1 1 0%` in a bar of fixed-width controls, so it settles at ~135 px on
+  a 1040 px bar and shrinks further to ~75 px once "Clear" / "Show Completed"
+  appear. On phone width it collapses to the magnifier icon alone. Consequence:
+  the placeholder truncates, typed queries scroll out of view, and there's
+  nowhere to hint at the `#hash` syntax (it's on a `title` tooltip for now).
+  Needs a taste call on the fix — give the search a `min-width` and let the
+  selects shrink, move it to its own row, or make it an expanding icon-button on
+  narrow viewports.
+
+### 6. Open feedback items
 
 - `[ ]` **Status / Priority badges: selected vs. regular hard to distinguish,
   worse in dark mode** ⚖ — likely a colour-spine follow-on (badges went

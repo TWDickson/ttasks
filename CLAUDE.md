@@ -43,6 +43,12 @@ machine-local caches, borrowed from the main worktree automatically. `rig:shots`
 refuses to write PNGs against stubbed CSS, so an unstyled screenshot can't be
 mistaken for a real one.
 
+**Running the rig from a worktree:** the rig serves on port 5199, and a rig left
+running in *another* worktree will answer there — so you can verify a change
+against a different branch's code without any error surfacing. Set
+`TTASKS_RIG_PORT` to get your own (the skill driver passes `--strictPort`, so a
+collision fails loudly rather than drifting to the next free port).
+
 ## Architecture
 
 - **Plugin owns a configurable folder** — all task/project `.md` files live in one

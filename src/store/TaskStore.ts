@@ -3,7 +3,7 @@ import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskPriority, TaskRecordType } from '../types';
 import { resolveCompletionStatus } from '../settings';
-import { ensureMdExt } from '../utils/pathUtils';
+import { ensureMdExt, splitTaskBasename } from '../utils/pathUtils';
 import { toCalendarDate } from '../utils/dateUtils';
 import {
 	toFrontmatterBoolean,
@@ -294,9 +294,7 @@ export class TaskStore {
 			return null;
 		}
 
-		const dashIdx = file.basename.indexOf('-');
-		const id = dashIdx >= 0 ? file.basename.substring(0, dashIdx) : file.basename;
-		const slug = dashIdx >= 0 ? file.basename.substring(dashIdx + 1) : '';
+		const { id, slug } = splitTaskBasename(file.basename);
 
 		const content = await this.app.vault.cachedRead(file);
 		const fmEndOffset = cache?.frontmatterPosition?.end?.offset;

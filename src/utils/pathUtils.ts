@@ -35,3 +35,23 @@ export function pathLeaf(path: string): string {
 	const leaf = path.split('/').pop() ?? path;
 	return stripMdExt(leaf).replace(/^[a-f0-9]+-/, '');
 }
+
+/**
+ * Split a task filename into its `{id}-{slug}` halves at the first dash.
+ * The id is the task's stable identity — it survives renames, and it's what
+ * hash-prefix search matches on.
+ *
+ * A basename with no dash is treated as all id and no slug, which is what
+ * `TaskStore` has always done for hand-created notes.
+ */
+export function splitTaskBasename(basename: string): { id: string; slug: string } {
+	const dashIdx = basename.indexOf('-');
+	if (dashIdx < 0) return { id: basename, slug: '' };
+	return { id: basename.substring(0, dashIdx), slug: basename.substring(dashIdx + 1) };
+}
+
+/** The `{id}` half of a task's filename, given its full vault path. */
+export function taskIdFromPath(path: string): string {
+	const leaf = path.split('/').pop() ?? path;
+	return splitTaskBasename(stripMdExt(leaf)).id;
+}

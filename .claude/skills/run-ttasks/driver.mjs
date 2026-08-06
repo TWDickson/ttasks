@@ -31,7 +31,11 @@ const skillDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(skillDir, '../../..');
 const rigDir = path.join(root, 'test-rig');
 const shotsDir = path.join(rigDir, 'shots');
-const BASE = 'http://localhost:5199';
+// Port is overridable because a rig started from another worktree will happily
+// answer on :5199, and the driver would then drive that worktree's code — a
+// silent wrong-branch verification. Set TTASKS_RIG_PORT to get your own.
+const PORT = process.env.TTASKS_RIG_PORT || '5199';
+const BASE = `http://localhost:${PORT}`;
 
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
@@ -50,7 +54,7 @@ async function ensureServer() {
 	console.error('starting vite dev server…');
 	const child = spawn(
 		process.platform === 'win32' ? 'npx.cmd' : 'npx',
-		['vite', '--config', path.join(rigDir, 'vite.config.mts')],
+		['vite', '--config', path.join(rigDir, 'vite.config.mts'), '--port', PORT, '--strictPort'],
 		{ cwd: root, stdio: 'ignore', shell: true },
 	);
 	for (let i = 0; i < 60; i++) {
@@ -58,7 +62,7 @@ async function ensureServer() {
 		if (await serverUp()) return child;
 	}
 	child.kill();
-	throw new Error('vite dev server did not come up on :5199');
+	throw new Error(`vite dev server did not come up on :${PORT}`);
 }
 
 async function main() {

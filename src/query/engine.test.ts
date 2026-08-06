@@ -364,6 +364,38 @@ describe('applyFilter', () => {
 			const tasks = [makeTask({ notes: 'See ticket #123' }), makeTask({ notes: '' })];
 			expect(applyFilter(tasks, { logic: 'and', conditions: [] }, 'ticket')).toHaveLength(1);
 		});
+
+		it('filters by hash prefix under the # sigil, ignoring name and notes', () => {
+			const tasks = [
+				makeTask({ id: 'a1b2c3', name: 'Fix roof' }),
+				makeTask({ id: '999999', name: 'Mentions a1b2c3' }),
+			];
+			const result = applyFilter(tasks, { logic: 'and', conditions: [] }, '#a1b');
+			expect(result.map(t => t.name)).toEqual(['Fix roof']);
+		});
+
+		it('ORs a bare hash prefix with the name/notes match', () => {
+			const tasks = [
+				makeTask({ id: 'a1b2c3', name: 'Fix roof' }),
+				makeTask({ id: '999999', name: 'Mentions a1b2c3' }),
+				makeTask({ id: '888888', name: 'Unrelated' }),
+			];
+			const result = applyFilter(tasks, { logic: 'and', conditions: [] }, 'a1b2c3');
+			expect(result.map(t => t.name)).toEqual(['Fix roof', 'Mentions a1b2c3']);
+		});
+
+		it('still applies filter conditions on top of a hash search', () => {
+			const tasks = [
+				makeTask({ id: 'a1b2c3', name: 'Fix roof', status: 'Done' }),
+				makeTask({ id: 'a1b2ff', name: 'Fix gutter', status: 'Active' }),
+			];
+			const result = applyFilter(
+				tasks,
+				{ logic: 'and', conditions: [{ field: 'status', operator: 'is', value: 'Active' }] },
+				'#a1b2',
+			);
+			expect(result.map(t => t.name)).toEqual(['Fix gutter']);
+		});
 	});
 });
 

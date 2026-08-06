@@ -12,6 +12,45 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-05 — Search by task hash prefix
+
+- **The hash is now a first-class search key.** A task's `{6hex}` filename
+  prefix is the only identity it has that survives a rename, and it already
+  leaks into share exports and `ttasks://` links — but nothing could find a task
+  by it. The search box now matches on it.
+- **Two entry forms, because they answer different needs** (Taylor's call).
+  A bare all-hex term of **≥ 3 characters** ORs an id-prefix match on top of the
+  usual name/notes match, so pasting a hash just works with no syntax to learn.
+  A **`#`-prefixed** term (`#a1b2`) matches the id *only*, suppressing name and
+  notes — the escape hatch for when a hash also appears in a task's text.
+- **The 3-character floor is the whole reason the bare form is usable.** At
+  three hex digits a stray collision is ~1 in 4096 per task; at one or two it
+  would drag unrelated tasks in on every keystroke. Below the floor a bare term
+  stays pure text search — the sigil still works there, since it's explicit.
+- **A non-hex `#` term falls back to a literal text search** (`#bug`, and
+  Obsidian tags generally), so the sigil never silently eats a query it can't
+  serve.
+- **One pure module, `src/query/hashSearch.ts`**, owns the grammar; `applyFilter`
+  delegates to it, which means the board, Smart Lists, and the protocol's
+  `action=search` all inherited the behaviour without individual wiring. The
+  archive view — which had its own inline name-only filter — was pointed at the
+  same helper.
+- **The jump switcher keeps the id out of its fuzzy text on purpose.** Obsidian's
+  fuzzy matcher is subsequence-based, so folding six hex characters into
+  `getItemText` would let a query like "ace" hit ids it has no business hitting.
+  `getSuggestions` resolves hash queries by exact prefix instead and ranks those
+  hits above the fuzzy results.
+- **Incidental:** `splitTaskBasename`/`taskIdFromPath` moved to `pathUtils` so
+  the `{id}-{slug}` split has one definition (`TaskStore` and `ArchiveService`
+  had it inline); `ArchivedTaskSummary` gained an `id`.
+- **Rig note:** the driver hardcoded port 5199, so a rig left running in another
+  worktree silently answers — the first verification pass was reading a different
+  branch's code. `TTASKS_RIG_PORT` now overrides it, with `--strictPort` so a
+  collision fails loudly instead of drifting to another port.
+- Tests 1645 → **1705**.
+
+---
+
 ## 2026-08-02 — Docs consolidated; Node moved off EOL runtimes
 
 - **Four live docs became two.** `BACKLOG.md` (1332 lines), `ROADMAP.md` (1032),
@@ -424,7 +463,7 @@ Condensed; full detail in git.
   35-line re-export shim; `TaskDetail.svelte` 1381 → 721 lines.
 
 Test-count trajectory: 553 (2026-05-14) → 961 → 1060 → 1114 → 1241 → 1261 →
-1436 → 1511 → 1616 → **1645**.
+1436 → 1511 → 1616 → 1645 → **1705**.
 
 ---
 

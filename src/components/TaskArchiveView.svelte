@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import type TTasksPlugin from '../main';
 	import type { ArchivedTaskSummary } from '../store/ArchiveService';
+	import { filterBySearch } from '../query/hashSearch';
 
 	export let plugin: TTasksPlugin;
 
@@ -33,9 +34,8 @@
 		return `${name} ${year}`;
 	}
 
-	$: filtered = search.trim()
-		? allTasks.filter(t => t.name.toLowerCase().includes(search.trim().toLowerCase()))
-		: allTasks;
+	// Archived summaries carry no notes, so this matches on name + hash prefix.
+	$: filtered = filterBySearch(allTasks, search);
 
 	$: groups = (() => {
 		const map = new Map<string, ArchivedTaskSummary[]>();
@@ -75,6 +75,7 @@
 			class="tt-archive-search"
 			type="text"
 			placeholder="Search archive…"
+			title="Search by name. Type a task's hash (a1b2c3), or #a1b2 to match the hash only."
 			bind:value={search}
 		/>
 		<span class="tt-archive-count">

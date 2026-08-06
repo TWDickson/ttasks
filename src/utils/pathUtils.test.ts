@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ensureMdExt, pathLeaf, stripMdExt } from './pathUtils';
+import { ensureMdExt, pathLeaf, splitTaskBasename, stripMdExt, taskIdFromPath } from './pathUtils';
 
 // ── ensureMdExt ───────────────────────────────────────────────────────────────
 //
@@ -93,5 +93,46 @@ describe('pathLeaf', () => {
 
 	it('works on a path with no extension', () => {
 		expect(pathLeaf('Planner/Tasks/deadbeef-slug')).toBe('slug');
+	});
+});
+
+// ── splitTaskBasename / taskIdFromPath ────────────────────────────────────────
+//
+// Contract: split `{id}-{slug}` at the FIRST dash, so a slug containing dashes
+// stays whole. A basename with no dash is all id and no slug.
+
+describe('splitTaskBasename', () => {
+	it('splits at the first dash', () => {
+		expect(splitTaskBasename('a1b2c3-buy-milk')).toEqual({ id: 'a1b2c3', slug: 'buy-milk' });
+	});
+
+	it('treats a basename with no dash as all id', () => {
+		expect(splitTaskBasename('inbox')).toEqual({ id: 'inbox', slug: '' });
+	});
+
+	it('yields an empty slug for a trailing dash', () => {
+		expect(splitTaskBasename('a1b2c3-')).toEqual({ id: 'a1b2c3', slug: '' });
+	});
+
+	it('yields an empty id for a leading dash', () => {
+		expect(splitTaskBasename('-orphan')).toEqual({ id: '', slug: 'orphan' });
+	});
+
+	it('handles an empty basename', () => {
+		expect(splitTaskBasename('')).toEqual({ id: '', slug: '' });
+	});
+});
+
+describe('taskIdFromPath', () => {
+	it('extracts the id from a full vault path', () => {
+		expect(taskIdFromPath('Planner/Tasks/a1b2c3-buy-milk.md')).toBe('a1b2c3');
+	});
+
+	it('works without a folder or an extension', () => {
+		expect(taskIdFromPath('a1b2c3-buy-milk')).toBe('a1b2c3');
+	});
+
+	it('returns the whole leaf when there is no dash', () => {
+		expect(taskIdFromPath('Planner/Tasks/inbox.md')).toBe('inbox');
 	});
 });

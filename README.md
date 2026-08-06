@@ -67,6 +67,12 @@ built in a visual editor or raw JSON.
 operations, multi-select, keyboard navigation, and quick actions (desktop
 commands plus a mobile hold menu).
 
+**Search** — the search box matches task names and notes, and also matches a
+task's **hash** — the `a1b2c3` prefix of its filename, which is the one piece of
+identity that survives a rename. Paste a hash and it just works; prefix it with
+`#` (`#a1b2`) to match the hash *only*, ignoring names and notes. The same
+grammar works in the archive search and the "Jump to task" switcher.
+
 **Dates & recurrence** — start/due dates, estimated days, `status_changed`
 tracking, reminders with snooze and per-task overrides, and recurring tasks with
 correct month-end behaviour (a "31st of the month" schedule stays on the 31st

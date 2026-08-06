@@ -5,10 +5,13 @@ import { localDateString } from '../utils/dateUtils';
 import { archiveEligible, deriveArchiveFolder, getArchivePath, isArchivedPath } from './archiveUtils';
 import { safeRead, ensureFolderPath } from '../utils/vaultSafe';
 import { buildRestoreInput } from './taskRestore';
+import { splitTaskBasename } from '../utils/pathUtils';
 import { ARCHIVE_HISTORY_MAX_ENTRIES } from '../constants';
 
 export interface ArchivedTaskSummary {
 	path: string;
+	/** The `{hex}` half of the filename — the task's stable id, for hash search. */
+	id: string;
 	name: string;
 	status: string;
 	completed: string | null;
@@ -112,6 +115,7 @@ export class ArchiveService {
 					const n = parts.length;
 					results.push({
 						path: child.path,
+						id: splitTaskBasename(child.basename).id,
 						name: String(fm.name),
 						status: typeof fm.status === 'string' ? fm.status : '',
 						completed: typeof fm.completed === 'string' ? fm.completed : null,
