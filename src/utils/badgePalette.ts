@@ -1,27 +1,25 @@
 /**
- * Resolved badge colours.
+ * Resolved identity colours.
  *
  * `areaColors` / `labelColors` / `statusColors` are `Record<string, string>`
  * maps in settings, so the views used to hold the raw maps and look a colour up
- * at every render. That made "is a colour configured?" a policy each call site
- * re-derived, twice over — once for the class and once for the style:
+ * at every render — making "is a colour configured?" a policy each call site
+ * re-derived, with its own optional chain and its own fallback.
  *
- *     class:tt-badge-tinted={!!areaColors?.[task.area]}
- *     style={getBadgeStyle(areaColors?.[task.area])}
- *
- * …with `getBadgeStyle` copy-pasted into each component that needed it, which is
- * the same failure mode as a shared-looking CSS class defined inside one
- * component's `<style>` block.
- *
- * A `TaskBadge` resolves that once. Once you hold a badge, `badge.text`,
- * `badge.tinted` and `badge.style` are the answer — no map, no optional chain,
- * no per-site fallback. This mirrors `taskRef.ts`: build the index once, resolve
- * O(1), and let the resolved object carry the "it wasn't there" case instead of
- * leaving a `null` every caller must remember to check.
+ * A palette resolves that once. Once you hold a `ResolvedColor`, `color` is the
+ * answer and `null` means the user hasn't set one — no map, no per-site policy.
+ * Same move as `taskRef.ts`: resolve at the edge, hand the UI an object.
  *
  * Resolution is memoised per palette, so a board of 500 rows sharing three areas
- * allocates three badges — and the *same* three objects each render, which keeps
+ * allocates three objects — and the *same* three each render, which keeps
  * Svelte's change detection from seeing churn that isn't there.
+ *
+ * **Where these colours actually land** (the colour-spine model): an area's
+ * colour is the card/row left edge, a status' colour drives graph nodes, kanban
+ * column headers and the impediment badge, and a label's colour only tints its
+ * control in the create modal. Area and label *badges* are deliberately neutral
+ * pills that read no colour at all — see `.tt-badge-cat` in styles.css. Don't
+ * reintroduce a colour there without changing the spine model first.
  */
 
 /** The colour maps a palette reads. A subset of `TTasksSettings`. */
@@ -31,15 +29,11 @@ export interface BadgeColorSettings {
 	statusColors?: Record<string, string> | null;
 }
 
-/** A render-ready badge: text plus everything needed to colour it. */
-export interface TaskBadge {
-	/** The text to render. */
-	text: string;
+/** One resolved colour, plus its ready-to-render inline form. */
+export interface ResolvedColor {
 	/** The configured colour, or `null` when the user hasn't set one. */
 	color: string | null;
-	/** `color !== null`. Drives `class:tt-badge-tinted`. */
-	tinted: boolean;
-	/** Inline style carrying `--tt-badge-color`, or `''` when untinted. */
+	/** Inline style carrying `--tt-badge-color`, or `''` when unset. */
 	style: string;
 }
 
@@ -52,12 +46,12 @@ export interface TaskBadge {
 export const DEFAULT_STATUS_ACCENT = 'var(--interactive-accent)';
 
 export interface BadgePalette {
-	/** Badge for an area name. */
-	area(name: string): TaskBadge;
-	/** Badge for a label value. */
-	label(name: string): TaskBadge;
-	/** Badge for a status name. */
-	status(name: string): TaskBadge;
+	/** An area's configured colour. Tints its control in the create modal. */
+	area(name: string): ResolvedColor;
+	/** A label's configured colour. Tints its control in the create modal. */
+	label(name: string): ResolvedColor;
+	/** A status' colour. Drives kanban headers and the impediment badge. */
+	status(name: string): ResolvedColor;
 	/**
 	 * The colour-spine value for a task's area — `undefined` (not null) so it
 	 * drops straight into `style:--tt-area-color`, which omits the property
@@ -79,21 +73,21 @@ function lookup(source: Record<string, string>, name: string): string | undefine
 	return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
-function makeBadge(text: string, color: string | undefined): TaskBadge {
-	if (!color) return { text, color: null, tinted: false, style: '' };
-	return { text, color, tinted: true, style: `--tt-badge-color:${color};` };
+function makeColor(color: string | undefined): ResolvedColor {
+	if (!color) return { color: null, style: '' };
+	return { color, style: `--tt-badge-color:${color};` };
 }
 
 /** One memoised resolver over a single colour map. */
-function badgeResolver(colors: Record<string, string> | null | undefined): (name: string) => TaskBadge {
+function colorResolver(colors: Record<string, string> | null | undefined): (name: string) => ResolvedColor {
 	const source = colors ?? {};
-	const cache = new Map<string, TaskBadge>();
-	return (name: string): TaskBadge => {
+	const cache = new Map<string, ResolvedColor>();
+	return (name: string): ResolvedColor => {
 		const cached = cache.get(name);
 		if (cached) return cached;
-		const badge = makeBadge(name, lookup(source, name));
-		cache.set(name, badge);
-		return badge;
+		const resolved = makeColor(lookup(source, name));
+		cache.set(name, resolved);
+		return resolved;
 	};
 }
 
@@ -102,16 +96,16 @@ function badgeResolver(colors: Record<string, string> | null | undefined): (name
  * raw colour maps. Cheap to build — the per-name work is deferred to first use.
  */
 export function buildBadgePalette(settings: BadgeColorSettings | null | undefined): BadgePalette {
-	const area = badgeResolver(settings?.areaColors);
-	const label = badgeResolver(settings?.labelColors);
-	const status = badgeResolver(settings?.statusColors);
+	const area = colorResolver(settings?.areaColors);
+	const label = colorResolver(settings?.labelColors);
+	const status = colorResolver(settings?.statusColors);
 
 	return {
 		area,
 		label,
 		status,
-		// Derived from the same resolution as the badge, so a spine and its badge
-		// can never disagree about whether a colour is configured.
+		// Derived from the same resolution the callers see, so the spine and a
+		// status accent can never disagree about whether a colour is configured.
 		areaSpine: (name) => (name ? area(name).color ?? undefined : undefined),
 		statusAccent: (name) => status(name).color ?? DEFAULT_STATUS_ACCENT,
 	};

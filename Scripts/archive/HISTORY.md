@@ -12,6 +12,53 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-06 — Area/label badges are one neutral pill, colour-configured or not
+
+Taylor, on the leftover flagged in the `BadgePalette` entry: *"Lets get rid of
+the dead code if it's no longer needed."* Removing it turned up a real defect —
+the code wasn't dead, it was **conditionally applying styling that had nothing to
+do with the colour it was keyed on**.
+
+`.tt-badge-cat` had no base rule of its own. So an area badge got its appearance
+from whether a colour happened to be configured:
+
+| | background | border |
+| --- | --- | --- |
+| area **with** a colour | `--background-secondary` | `--background-modifier-border` |
+| area **without** one | `--background-modifier-border` | `transparent` |
+
+…and neither branch used the colour, because `.tt-badge-cat.tt-badge-tinted`
+overrode all three of `.tt-badge-tinted`'s declarations back to neutral. Labels
+were the same story one notch quieter: `.tt-badge-type` already set the secondary
+background, so only the *border* appeared or vanished with the colour.
+
+Visible in the rig's own fixtures, which is how it was confirmed: `docs` is the
+one label with no configured colour, and it rendered as bare text next to
+`feature` / `bug` / `research` pills on every other row. Nobody had set out to
+style it differently — it just fell through.
+
+Fixed by giving area and label the same pill unconditionally (`.tt-badge-cat,
+.tt-badge-type`), and deleting `.tt-badge-tinted`, both compound overrides, and
+`.tt-badge-type.tt-badge-tinted::before { content: none }` — which cancelled a
+`::before` that no rule anywhere defines. `--tt-badge-color` survives with
+exactly one consumer, `.tt-badge-impediment`, which is the only badge that
+legitimately reads a configured colour.
+
+The render sites collapse to `<span class="tt-badge tt-badge-cat">{task.area}</span>`.
+With no colour to resolve there, `TaskBadge.text` and `.tinted` lost their last
+consumers, so the type is now `ResolvedColor { color, style }` — the palette
+resolves *colours*, and the only badge that renders one is the impediment.
+
+Rig sweep: list / kanban / agenda change (as intended), graph and the create
+modal are byte-identical, both themes, desktop and mobile. This is the first
+change in the three-part sweep that *should* move pixels, and it moves exactly
+the ones predicted.
+
+**Still open, still a design call:** the three tint recipes disagree —
+`.tt-badge-impediment` mixes at 10%/32%/55%, `applyOptionStyle` at 18%/60%,
+`applyAreaTint` at 10%/42%. Untouched here because each is a deliberate weight in
+its own context, and unifying them is a visual decision, not a cleanup.
+
 ## 2026-08-06 — Status pointers resolve to a `StatusPolicy`, not per-site calls
 
 Second half of the same sweep as the entry below, and the deeper of the two.
@@ -121,13 +168,8 @@ change broke nothing — added it. Full gate green (1748 tests). Verified in the
 rig as **byte-identical PNGs** across list/kanban/agenda/graph × desktop/mobile ×
 dark/light: a pure refactor should change no pixels, and it changed none.
 
-**Noted, not acted on:** `.tt-badge-cat.tt-badge-tinted` and
-`.tt-badge-type.tt-badge-tinted` each override all three tint declarations back
-to neutral, so the tint on area and label badges is currently dead — the spine
-carries area identity and labels are neutral pills by design. The mechanism is
-kept (it's now one line, and the colour data is honest); whether to delete it is
-a design call. Relatedly, the three surviving tint recipes disagree — `.tt-badge-tinted`
-mixes at 18%/42%, `applyOptionStyle` at 18%/60%, `applyAreaTint` at 10%/42%.
+**Noted, acted on the same day — see the entry below.** The area/label tint
+overrides looked like dead code from here; they were something worse.
 
 ## 2026-08-05 — Relationships resolve to `TaskRef`s, not paths
 

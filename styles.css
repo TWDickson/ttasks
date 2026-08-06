@@ -198,20 +198,16 @@
 	white-space: nowrap;
 }
 
-/* Shared tinted primitive (still used for the label dot mix below and kept for
-   any future tinted badge). Area badges override this to neutral — their colour
-   is carried by the card/row spine. */
-.tt-badge-tinted {
-	background: color-mix(in srgb, var(--tt-badge-color) 18%, var(--background-primary));
-	border-color: color-mix(in srgb, var(--tt-badge-color) 42%, var(--background-modifier-border));
-	color: var(--tt-badge-color);
-}
-
-/* Area badge: neutral text — the area's colour lives on the spine, not here. */
-.tt-badge-cat.tt-badge-tinted {
+/* Area and label badges are the same neutral pill. Area colour lives on the
+   spine and labels carry none at all, so neither badge reads its configured
+   colour — and therefore neither may *look* different for having one. These
+   used to be `.tt-badge-cat.tt-badge-tinted` / `.tt-badge-type.tt-badge-tinted`,
+   which meant an uncoloured area or label silently fell through to the plain
+   `.tt-badge` grey with no border while a coloured one got this treatment. */
+.tt-badge-cat,
+.tt-badge-type {
 	background: var(--background-secondary);
 	border-color: var(--background-modifier-border);
-	color: var(--text-muted);
 }
 
 /* Dates are the one semantic exception. Softened from solid slabs to tints so
@@ -249,21 +245,6 @@
 	border: 1px dashed var(--background-modifier-border);
 	color: var(--text-muted);
 	font-style: italic;
-}
-
-.tt-badge-type {
-	background: var(--background-secondary);
-}
-
-/* Labels are neutral text pills — no colour in the spine model. */
-.tt-badge-type.tt-badge-tinted {
-	background: var(--background-secondary);
-	border-color: var(--background-modifier-border);
-	color: var(--text-muted);
-}
-
-.tt-badge-type.tt-badge-tinted::before {
-	content: none;
 }
 
 .tt-badge-dep {

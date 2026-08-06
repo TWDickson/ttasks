@@ -236,8 +236,7 @@
 
 								<div class="tt-card-meta">
 									{#if task.area && isFieldEnabled(kanbanCardFields, 'area')}
-										{@const areaBadge = palette.area(task.area)}
-										<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={areaBadge.tinted} style={areaBadge.style}>{areaBadge.text}</span>
+										<span class="tt-badge tt-badge-cat">{task.area}</span>
 									{/if}
 									{#if impedimentBadges}
 										{@const impediment = impedimentBadges.get(task.path)}
@@ -264,8 +263,7 @@
 									{/if}
 									{#if isFieldEnabled(kanbanCardFields, 'labels')}
 										{#each task.labels as label (label)}
-											{@const labelBadge = palette.label(label)}
-											<span class="tt-badge tt-badge-type" class:tt-badge-tinted={labelBadge.tinted} style={labelBadge.style}>{labelBadge.text}</span>
+											<span class="tt-badge tt-badge-type">{label}</span>
 										{/each}
 									{/if}
 									{#if isFieldEnabled(kanbanCardFields, 'depCount')}

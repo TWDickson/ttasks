@@ -45,8 +45,6 @@
 
 	$: dateBadge = getTaskDateBadge(task, $today);
 	$: inferredDue = schedule ? resolveInferredDueDate(task, schedule.get(task.path)) : null;
-	$: areaBadge = task.area ? palette.area(task.area) : null;
-	$: labelBadges = task.labels.map((label) => palette.label(label));
 
 	function handleOpen(): void {
 		if (isCapturedTask(task)) {
@@ -145,8 +143,8 @@
 			{#if isFromPreviousDay}
 				<span class="tt-badge tt-badge-previous-day">from yesterday</span>
 			{/if}
-			{#if areaBadge}
-				<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={areaBadge.tinted} style={areaBadge.style}>{areaBadge.text}</span>
+			{#if task.area}
+				<span class="tt-badge tt-badge-cat">{task.area}</span>
 			{/if}
 			{#if impediment}
 				<span
@@ -168,8 +166,8 @@
 					title="Projected finish, inferred from dependency chain"
 				>~{formatHumanDate(inferredDue, $today)}</span>
 			{/if}
-			{#each labelBadges as badge (badge.text)}
-				<span class="tt-badge tt-badge-type" class:tt-badge-tinted={badge.tinted} style={badge.style}>{badge.text}</span>
+			{#each task.labels as label (label)}
+				<span class="tt-badge tt-badge-type">{label}</span>
 			{/each}
 		</div>
 	</button>

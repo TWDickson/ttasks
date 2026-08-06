@@ -2,28 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { buildBadgePalette, DEFAULT_STATUS_ACCENT } from './badgePalette';
 
 describe('buildBadgePalette', () => {
-	it('resolves a configured colour into a tinted badge', () => {
+	it('resolves a configured colour', () => {
 		const palette = buildBadgePalette({ areaColors: { Work: '#f59e0b' } });
 
 		expect(palette.area('Work')).toEqual({
-			text: 'Work',
 			color: '#f59e0b',
-			tinted: true,
 			style: '--tt-badge-color:#f59e0b;',
 		});
 	});
 
-	it('resolves an unconfigured name into an untinted badge, not a null', () => {
+	it('resolves an unconfigured name to a null colour, not an absent object', () => {
 		const palette = buildBadgePalette({ areaColors: { Work: '#f59e0b' } });
 
-		// The name still renders — only the colour is absent. This is the case each
+		// The caller always gets an object; `null` is the "no colour set" case each
 		// call site used to re-derive with `!!colors?.[name]`.
-		expect(palette.area('Home')).toEqual({
-			text: 'Home',
-			color: null,
-			tinted: false,
-			style: '',
-		});
+		expect(palette.area('Home')).toEqual({ color: null, style: '' });
 	});
 
 	it('keeps the three colour maps separate', () => {
@@ -40,14 +33,14 @@ describe('buildBadgePalette', () => {
 
 	it('tolerates absent settings and absent maps', () => {
 		for (const palette of [buildBadgePalette(null), buildBadgePalette(undefined), buildBadgePalette({})]) {
-			expect(palette.area('Work').tinted).toBe(false);
+			expect(palette.area('Work').color).toBeNull();
 			expect(palette.label('bug').style).toBe('');
 			expect(palette.status('Active').color).toBeNull();
 		}
 	});
 
-	it('returns the same badge object for repeated lookups', () => {
-		// 500 rows sharing three areas should allocate three badges, and hand Svelte
+	it('returns the same object for repeated lookups', () => {
+		// 500 rows sharing three areas should allocate three objects, and hand Svelte
 		// an unchanged reference rather than churn it re-renders on.
 		const palette = buildBadgePalette({ areaColors: { Work: '#f59e0b' } });
 
@@ -73,11 +66,11 @@ describe('buildBadgePalette', () => {
 			expect(palette.areaSpine('Home')).toBeUndefined();
 		});
 
-		it('agrees with the badge about whether a colour exists', () => {
+		it('agrees with the resolver about whether a colour exists', () => {
 			const palette = buildBadgePalette({ areaColors: { Work: '#f59e0b', Home: '' } });
 
 			for (const area of ['Work', 'Home', 'Errands']) {
-				expect(palette.areaSpine(area) !== undefined).toBe(palette.area(area).tinted);
+				expect(palette.areaSpine(area)).toBe(palette.area(area).color ?? undefined);
 			}
 		});
 	});
@@ -111,8 +104,8 @@ describe('buildBadgePalette', () => {
 				areaColors: { Bad: 42 as unknown as string, Blank: '' },
 			});
 
-			expect(palette.area('Bad').tinted).toBe(false);
-			expect(palette.area('Blank').tinted).toBe(false);
+			expect(palette.area('Bad').color).toBeNull();
+			expect(palette.area('Blank').color).toBeNull();
 		});
 	});
 });

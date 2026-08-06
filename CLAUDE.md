@@ -129,12 +129,15 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
 - **Resolve colours to a `BadgePalette`, don't pass colour maps into the UI.**
   `areaColors` / `labelColors` / `statusColors` are settings maps; build one
   palette per settings change (`buildBadgePalette`, `src/utils/badgePalette.ts`)
-  and pass *that*. A `TaskBadge` carries `text` / `color` / `tinted` / `style`,
-  so a render site never re-derives "is a colour configured?" — and never does it
-  twice, once for the class and once for the style. Use `areaSpine()` for the
-  colour spine and `statusAccent()` where `color-mix()` needs a guaranteed value.
-  Priority is a closed union with a total colour map: call `priorityColor()`, and
-  don't add a `?? None` fallback — it's unreachable.
+  and pass *that*. A `ResolvedColor` carries `color` (`null` when unset) and
+  `style`, so a render site never re-derives "is a colour configured?". Use
+  `areaSpine()` for the colour spine and `statusAccent()` where `color-mix()`
+  needs a guaranteed value. Priority is a closed union with a total colour map:
+  call `priorityColor()`, and don't add a `?? None` fallback — it's unreachable.
+  **Area and label badges take no colour at all** — they're neutral pills
+  (`.tt-badge-cat` / `.tt-badge-type`), because area identity lives on the spine
+  and labels carry none. A badge that reads no colour must not *look* different
+  for having one configured; that asymmetry was a real bug, not a style choice.
 - **Read status pointers off `plugin.statusPolicy`, don't re-resolve them.**
   `completionStatus` and the quick-action start/block/hold names are pointers
   into the user's `statuses` list, and `normalizeSettingsFromSources` already
