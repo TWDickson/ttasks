@@ -25,7 +25,7 @@ narrative to `HISTORY.md` once the thread closes.
 | | |
 | --- | --- |
 | Version | `0.1.2` (GitHub release; not on the community list — deliberate) |
-| Tests | **1705 passing, 130 files** (`npm run check` = lint → build → test) |
+| Tests | **1718 passing, 131 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -269,7 +269,9 @@ items below track.
   bypasses `styles.css`, can't be overridden predictably by theme snippets, and
   briefly FOUCs on view open. Switch to `css: 'external'` and concatenate onto
   `styles.css` at build. **Do it before `styles.css` becomes a public API for
-  theme authors.**
+  theme authors.** *(2026-08-05: the title system and `.tt-chip-warning` moved
+  out of scoped blocks into `styles.css` — see HISTORY. That shrinks what's
+  trapped behind the injection, but the mechanism is unchanged and PB-4 stands.)*
 
 *Already publication-clean (PB-5):* no network calls, no telemetry, no
 Node/Electron imports in `src`, `isDesktopOnly: false` matches mobile support,

@@ -36,6 +36,8 @@
 	--tt-button-radius: var(--button-radius, var(--radius-m, 8px));
 	--tt-border-width: var(--input-border-width, var(--border-width, 1px));
 	--tt-font-label: 0.72rem;
+	--tt-font-title: 0.9rem;
+	--tt-font-title-sm: 0.82rem;
 }
 
 /* Sidebar leaf containers (nav rail left, task detail right). The leaf's
@@ -121,6 +123,46 @@
 	color: var(--text-muted);
 	padding: 0 var(--tt-space-3, 12px) var(--tt-space-1, 4px);
 	margin: 0;
+}
+
+/* ── Task titles ────────────────────────────────────────────────────────────
+   One primitive for every place a task or project name is rendered. Each view
+   used to define its own name class in scoped CSS (five font sizes, four
+   weights, the truncation triad copy-pasted six times), so the same task read
+   differently depending on where you looked at it. Components now carry layout
+   only — flex, width, line clamping — and opt into a size/weight variant. */
+/* Deliberately no line-height: single-line rows are the common case and a
+   loosened one costs list density. Wrapping contexts set their own. */
+.tt-title {
+	font-size: var(--tt-font-title, 0.9rem);
+	font-weight: 500;
+	color: var(--text-normal);
+	min-width: 0;
+}
+
+.tt-title-sm {
+	font-size: var(--tt-font-title-sm, 0.82rem);
+}
+
+/* Graph nodes sit on a busy canvas and need more presence than a list row. */
+.tt-title-strong {
+	font-weight: 700;
+}
+
+/* Single-line truncation. Opt in — wrapping contexts (kanban cards) must not
+   get it, and mobile list rows drop it in favour of a 2-line clamp. */
+.tt-truncate {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* A link whose target isn't in the store. Pairs with the `Missing task (id)`
+   label from utils/taskLabel so a broken link reads as broken instead of
+   passing for a real name. Lives here because four components render it. */
+.tt-chip-warning {
+	border-color: color-mix(in srgb, var(--color-orange) 48%, var(--background-modifier-border));
+	background: color-mix(in srgb, var(--color-orange) 12%, var(--background-primary));
 }
 
 /* Task list container + soft separators between rows */

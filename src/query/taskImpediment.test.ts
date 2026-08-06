@@ -315,14 +315,18 @@ describe('describeImpediment', () => {
 		expect(described.tooltip).toBe('Blocked upstream — waiting on: Ship the API, Sign the contract');
 	});
 
-	it('degrades an unknown cause to its filename rather than dropping it', () => {
+	// An unknown cause is still reported — the tooltip must never under-report
+	// what's holding a task up. But it's reported as a missing link carrying its
+	// id, not as a filename dressed up as a name (see utils/taskLabel).
+	it('degrades an unknown cause to its task id rather than dropping it', () => {
 		const described = describeImpediment(
 			{ kind: 'blocked', source: 'upstream', causes: ['Tasks/abc123-hidden-task.md'] },
 			STATUSES,
 			new Map(),
 		);
 
-		expect(described.tooltip).toContain('abc123-hidden-task');
+		expect(described.tooltip).toBe('Blocked upstream — waiting on: Missing task (abc123)');
+		expect(described.tooltip).not.toContain('hidden-task');
 	});
 
 	it('omits the waiting-on clause when there are no causes', () => {

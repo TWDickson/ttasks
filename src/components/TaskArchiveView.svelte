@@ -99,7 +99,7 @@
 				<ul class="tt-archive-list">
 					{#each group.tasks as task (task.path)}
 						<li class="tt-archive-item">
-							<div class="tt-archive-item-name">{task.name}</div>
+							<div class="tt-archive-item-name tt-title tt-title-sm tt-truncate">{task.name}</div>
 							<div class="tt-archive-item-meta">
 								{#if task.area}<span class="tt-archive-area">{task.area}</span>{/if}
 								<span class="tt-archive-date" title="Completion date">
@@ -201,14 +201,9 @@
 		background: var(--background-modifier-hover);
 	}
 
+	/* Typography and truncation come from .tt-title / .tt-truncate. */
 	.tt-archive-item-name {
 		flex: 1;
-		min-width: 0;
-		font-size: 0.88rem;
-		color: var(--text-normal);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
 	.tt-archive-item-meta {

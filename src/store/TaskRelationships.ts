@@ -7,7 +7,8 @@ import { withConcurrencyLimit } from '../utils/concurrency';
 
 // ── Pure helpers (exported for testing) ─────────────────────────────────────
 
-export interface BlocksEntry { path: string; name: string }
+/** `name` is null when the source note has no usable `name:` frontmatter. */
+export interface BlocksEntry { path: string; name: string | null }
 
 /**
  * Builds the reverse index: for each depended-on path, which tasks block it.
@@ -68,7 +69,10 @@ export class TaskRelationships {
 		for (const file of files) {
 			const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
 			if (!fm) continue;
-			const name: string = fm.name ?? file.basename;
+			// No `name:` means the note can't tell us what it's called. Write an
+			// un-aliased link rather than seeding `blocks` with its filename —
+			// that alias would then render as a title everywhere it's read back.
+			const name: string | null = typeof fm.name === 'string' && fm.name.trim() ? fm.name : null;
 			const deps = this.resolveWikiLinkPaths(fm.depends_on, file.path);
 			for (const dep of deps) {
 				const depClean = dep.replace(/\.md$/, '');
@@ -207,7 +211,7 @@ export class TaskRelationships {
 			.filter((v): v is string => v !== null);
 	}
 
-	private buildAliasedTaskLink(pathWithoutExt: string, alias: string, sourcePath: string): string {
+	private buildAliasedTaskLink(pathWithoutExt: string, alias: string | null, sourcePath: string): string {
 		const cleanPath = stripMdExt(pathWithoutExt);
 		return buildAliasedLink({
 			targetPathWithoutExt: cleanPath,

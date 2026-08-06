@@ -53,6 +53,8 @@ describe('architecture boundaries', () => {
 		for (const relativePath of [
 			'src/utils/dateUtils.ts',
 			'src/utils/frontmatterValue.ts',
+			'src/utils/pathUtils.ts',
+			'src/utils/taskLabel.ts',
 		]) {
 			const content = readWorkspaceFile(relativePath);
 

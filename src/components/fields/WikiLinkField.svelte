@@ -2,6 +2,7 @@
 	import type { FieldDefinition, FieldContext } from '../../schema/types';
 	import type { Task } from '../../types';
 	import { sortDependencyFirst } from '../../utils/dependencySort';
+	import { resolveTaskLabel } from '../../utils/taskLabel';
 
 	export let definition: FieldDefinition;
 	export let value: string | string[] | null = [];
@@ -54,11 +55,13 @@
 		onBlur?.();
 	};
 
-	const getTaskLabel = (path: string): string => {
-		const task = options.find((t) => t.path === path || t.path.replace(/\.md$/, '') === path);
-		if (task) return task.name;
-		return path.split('/').pop() || path;
-	};
+	const findOption = (path: string): Task | undefined =>
+		options.find((t) => t.path === path || t.path.replace(/\.md$/, '') === path);
+
+	const getTaskLabel = (path: string): string =>
+		resolveTaskLabel(path, () => findOption(path)?.name).text;
+
+	const isMissing = (path: string): boolean => !resolveTaskLabel(path, () => findOption(path)?.name).resolved;
 </script>
 
 <div class="tt-field tt-field-wikilink">
@@ -76,7 +79,7 @@
 		<div class="tt-wikilink-chips">
 			{#each values as path}
 				{@const label = getTaskLabel(path)}
-				<span class="tt-chip tt-chip-wikilink">
+				<span class="tt-chip tt-chip-wikilink" class:tt-chip-warning={isMissing(path)}>
 					{label}
 					{#if !readonly}
 						<button

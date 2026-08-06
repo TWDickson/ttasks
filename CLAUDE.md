@@ -112,6 +112,14 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
 - Settings accessed via `this.plugin.settings.tasksFolder`
 - Dates are **local calendar dates**; `dateUtils.ts` documents the hybrid
   local-date/UTC-arithmetic policy. No bare `new Date()` outside the boundary.
+- **Never derive a display name from a file path.** A task's title comes from
+  its `name` frontmatter and nowhere else. To label a link, use
+  `resolveTaskLabel` (`src/utils/taskLabel.ts`), which renders an unresolvable
+  target as `Missing task (id)` and reports `resolved: false` so the UI can mark
+  it broken. Falling back to the filename makes a dangling link look identical
+  to a healthy one and hides the underlying data defect. The same applies when
+  *writing*: pass `alias: null` to `buildAliasedLink` rather than inventing one,
+  so a fake title never lands in frontmatter.
 
 ## Architecture rules
 
@@ -147,9 +155,16 @@ golden path on iOS or a narrow-viewport browser.
   `--tt-space-*` / `--tt-control-*` inside a component's `<style>` block.
 - **Shared primitives live in `styles.css`** as plugin-global classes: `.tt-label`,
   `.tt-divider`, `.tt-field-group`, `.tt-badge` (+variants), `.tt-count`,
-  `.tt-group-heading`, `.tt-empty`, and the button system `.tt-btn` /
-  `.tt-btn-primary` / `.tt-btn-danger` / `.tt-btn-sm`. Svelte scoped styles carry
-  layout only — don't copy these rules into components.
+  `.tt-group-heading`, `.tt-empty`, `.tt-chip-warning`, the title system
+  `.tt-title` / `.tt-title-sm` / `.tt-title-strong` / `.tt-truncate`, and the
+  button system `.tt-btn` / `.tt-btn-primary` / `.tt-btn-danger` / `.tt-btn-sm`.
+  Svelte scoped styles carry layout only — don't copy these rules into
+  components. A shared-looking class defined *inside* one component's `<style>`
+  block is the bug, not the fix: it silently no-ops everywhere else.
+- **Every task/project name renders through `.tt-title`.** Don't give a name its
+  own font-size/weight in scoped CSS — pick a variant. `.tt-title` sets no
+  `line-height` on purpose (single-line rows are the common case and it costs
+  density); wrapping contexts set their own.
 - **Inputs**: background `--background-modifier-form-field`; focus
   `--background-modifier-border-focus`; radius `--tt-control-radius`.
 - **Never hardcode white/hex text on user-configured colours** — tint the surface

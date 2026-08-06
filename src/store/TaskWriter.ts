@@ -289,10 +289,8 @@ export class TaskWriter {
 		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(depPathWithoutExt + '.md'));
 		if (!(depFile instanceof TFile)) return;
 
-		const depTask = this.getTaskByPath(depPathWithoutExt);
-		const depName = depTask?.name ?? depPathWithoutExt.split('/').pop() ?? depPathWithoutExt;
-		const selfTask = this.getTaskByPath(taskPath);
-		const selfName = selfTask?.name ?? taskPath.replace(/\.md$/, '').split('/').pop() ?? taskPath;
+		const depName = this.getTaskByPath(depPathWithoutExt)?.name ?? null;
+		const selfName = this.getTaskByPath(taskPath)?.name ?? null;
 		const depLink = this.buildAliasedTaskLink(depPathWithoutExt, depName, file.path);
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
@@ -335,8 +333,7 @@ export class TaskWriter {
 				fm.parent_task = null;
 				return;
 			}
-			const parent = this.getTaskByPath(parentPath);
-			const name = parent?.name ?? parentPath.split('/').pop() ?? parentPath;
+			const name = this.getTaskByPath(parentPath)?.name ?? null;
 			fm.parent_task = this.buildAliasedTaskLink(parentPath, name, file.path);
 		});
 	}
@@ -574,7 +571,7 @@ export class TaskWriter {
 		});
 	}
 
-	private async addToBlocks(depPath: string, thisPath: string, thisName: string): Promise<void> {
+	private async addToBlocks(depPath: string, thisPath: string, thisName: string | null): Promise<void> {
 		const fullPath = depPath.endsWith('.md') ? depPath : depPath + '.md';
 		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(fullPath));
 		if (!(depFile instanceof TFile)) return;
@@ -609,7 +606,7 @@ export class TaskWriter {
 		return buildTaskFrontmatter(task, (p) => this.resolveNameForPath(p));
 	}
 
-	private buildAliasedTaskLink(pathWithoutExt: string, alias: string, sourcePath: string): string {
+	private buildAliasedTaskLink(pathWithoutExt: string, alias: string | null, sourcePath: string): string {
 		const cleanPath = stripMdExt(pathWithoutExt);
 		return buildAliasedLink({
 			targetPathWithoutExt: cleanPath,
@@ -623,10 +620,14 @@ export class TaskWriter {
 		});
 	}
 
-	private resolveNameForPath(pathWithoutExt: string): string {
-		const match = this.getTaskByPath(pathWithoutExt);
-		if (match) return match.name;
-		return pathWithoutExt.split('/').pop()?.replace(/^[a-f0-9]+-/, '') ?? pathWithoutExt;
+	/**
+	 * The task's name, or `null` when the store doesn't know the path. Callers
+	 * pass the result straight to `buildAliasedTaskLink`, which writes an
+	 * un-aliased `[[path]]` for `null` rather than deriving a title from the
+	 * filename.
+	 */
+	private resolveNameForPath(pathWithoutExt: string): string | null {
+		return this.getTaskByPath(pathWithoutExt)?.name ?? null;
 	}
 
 	private completionStatus(): string {
@@ -646,13 +647,16 @@ export class TaskWriter {
 // Pure helpers — exported for testing
 // ---------------------------------------------------------------------------
 
-export function buildTaskFrontmatter(task: Task, resolveName: (pathWithoutExt: string) => string): string {
+export function buildTaskFrontmatter(task: Task, resolveName: (pathWithoutExt: string) => string | null): string {
 	const esc = (s: string) => String(s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 	const strOrNull = (s: string | null | undefined) => s ? `"${esc(s)}"` : 'null';
 	const link = (p: string | null) => {
 		if (!p) return 'null';
 		const clean = p.replace(/\.md$/, '');
-		return `'[[${clean}|${resolveName(clean)}]]'`;
+		// An unresolvable target gets a bare link — never an alias derived from
+		// its filename, which would read as a title the task doesn't have.
+		const name = resolveName(clean);
+		return name ? `'[[${clean}|${name}]]'` : `'[[${clean}]]'`;
 	};
 	const depsStr = task.depends_on.length
 		? `\n${task.depends_on.map(d => `  - ${link(d)}`).join('\n')}`

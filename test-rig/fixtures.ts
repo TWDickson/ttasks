@@ -185,7 +185,11 @@ export function buildFixtureTasks(): Task[] {
 		area: 'Krusty Krab',
 		priority: 'Medium',
 		labels: ['docs'],
-		depends_on: [stripMd(delegated.path)],
+		// The second dep points at a note that isn't in the store — a link left
+		// dangling by a delete or a move out of the tasks folder. It must render
+		// as `Missing task (a1b2c3)` with the warning chip treatment, never as the
+		// slug `deleted-supplier-quote` dressed up as a real title.
+		depends_on: [stripMd(delegated.path), 'Tasks/a1b2c3-deleted-supplier-quote'],
 		due_date: isoDaysFromToday(12),
 	});
 

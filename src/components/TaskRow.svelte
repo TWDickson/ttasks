@@ -137,7 +137,7 @@
 				style={`background:${PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.None}`}
 				title={`Priority: ${task.priority}`}
 			></span>
-			<span class="tt-task-name">{task.name}</span>
+			<span class="tt-task-name tt-title tt-truncate">{task.name}</span>
 		</div>
 		<div class="tt-task-meta">
 			{#if isCaptured}
@@ -389,11 +389,8 @@
 		visibility: hidden;
 	}
 
+	/* Typography and truncation come from .tt-title / .tt-truncate. */
 	.tt-task-name {
-		font-size: 0.9rem;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 		flex: 1;
 	}
 
@@ -427,7 +424,10 @@
 			flex-wrap: wrap;
 		}
 
-		.tt-task-name {
+		/* Narrow viewports get two clamped lines instead of one ellipsised one.
+		Compounded with .tt-truncate so this reliably outranks the global
+		primitive rather than depending on Svelte's scoping to win. */
+		.tt-task-name.tt-truncate {
 			white-space: normal;
 			overflow: visible;
 			text-overflow: unset;

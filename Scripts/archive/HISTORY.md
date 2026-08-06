@@ -12,6 +12,72 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-05 — Bare titles never leak from paths; one title primitive
+
+Taylor: *"in some sections you can see bare task titles or project titles being
+exposed — that means something in our model is broken and we're not using the
+classes properly."* Two distinct defects, swept across the whole codebase.
+
+**1. A path was never allowed to become a title.** Every link label resolved as
+`task?.name ?? pathLeaf(path)`. `pathLeaf` strips the folder, the `.md`, and the
+`{hex}-` prefix, so a dangling link rendered `scrape-the-barnacles` — which
+reads exactly like a real title. A broken relationship was therefore
+*indistinguishable from a working one*, and the underlying data defect (a
+deleted note, a note moved out of the tasks folder) stayed invisible forever.
+
+- New pure module `src/utils/taskLabel.ts`. `resolveTaskLabel` returns
+  `{ text, resolved }`; an unresolvable path becomes **`Missing task (a1b2c3)`**.
+  We surface the **task id** and nothing else, because the id is the one thing a
+  dangling link still genuinely carries — it survives renames, and it's what the
+  hash-prefix search shipped earlier today matches on. So the label is
+  *actionable*: paste the hash into search to find what happened.
+- A filename that doesn't follow `{hex}-{slug}` contributes no id at all
+  (`Missing task`), rather than echoing its name back as a pseudo-title.
+- A **blank `name:`** field counts as unresolved too — same defect, same signal.
+- Fixed at seven UI sites: detail relationships (chips + tree), `WikiLinkField`,
+  the graph's hybrid-timeline anchors, both graph lane labels, the impediment
+  tooltip, and the create-modal dependency chips. All pair the label with
+  `.tt-chip-warning` so a broken link *looks* broken.
+- **The writers were corrupting the vault, not just the view.** `TaskWriter` and
+  `TaskRelationships` synthesized an alias from the filename and wrote
+  `[[path|scrape-the-barnacles]]` into frontmatter, baking a fake title into the
+  data where Obsidian's own views would render it. `buildAliasedLink` now takes
+  `alias: string | null` and emits a bare `[[path]]` when the name is unknown —
+  honestly broken, and repairable later once the target resolves.
+- **`pathLeaf` is deleted.** It had zero remaining callers and it was the whole
+  footgun; leaving it invites the next recurrence. `pathUtils.ts` carries a note
+  pointing at `resolveTaskLabel` in its place.
+- Left alone deliberately: `taskJsonExport`'s basename fallback fires for links
+  *outside a filtered export* (a scoping boundary, not a broken link) and is part
+  of the AI paste-back contract; `fileScanner` / `promoteTaskToTTasks` derive a
+  name for external notes that genuinely have none.
+
+**2. There was no shared title primitive — ten components each invented one.**
+Every task/project name did carry a class, but *not one of them was defined in
+`styles.css`*; all ten lived in component-scoped `<style>` blocks. The result
+was five font sizes (0.8/0.82/0.88/0.9/0.92rem), four weights (unset/500/600/700)
+and the truncation triad copy-pasted six times — so the same task read
+differently depending on which view you looked at it in.
+
+- Added `.tt-title` (+ `.tt-title-sm`, `.tt-title-strong`) and `.tt-truncate` to
+  `styles.css` as plugin-global primitives, plus `--tt-font-title{,-sm}` tokens.
+  Components now carry layout only, per the design-system rule in `CLAUDE.md`.
+- **`.tt-title` deliberately sets no `line-height`.** The first cut set 1.4 and
+  grew every list row ~3px; single-line rows are the common case and density
+  matters more than the convenience. Wrapping contexts (kanban cards, graph
+  nodes, timeline bars) set their own.
+- `.tt-chip-warning` was itself only defined inside `TaskDetailRelationships`'s
+  scoped styles — the same bug in miniature, and it would have silently no-oped
+  in the three other components that now use it. Promoted to `styles.css`.
+- The mobile 2-line clamp is written as `.tt-task-name.tt-truncate` so it
+  outranks the global primitive on specificity rather than relying on Svelte's
+  scoping hash to win by accident.
+
+Rig fixtures gained a permanently-dangling dependency so the broken-link state is
+visible in the rig instead of only in tests.
+
+---
+
 ## 2026-08-05 — Search by task hash prefix
 
 - **The hash is now a first-class search key.** A task's `{6hex}` filename

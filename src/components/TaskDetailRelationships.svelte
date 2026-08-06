@@ -7,7 +7,7 @@
 	import { sortDependencyFirst } from '../utils/dependencySort';
 	import { MAX_REL_TREE_DEPTH, MAX_REL_TREE_NODES } from '../constants';
 	import { normalizeTaskPath, findLinkedTask, resolveLinkedTaskPath } from './taskDetailLinks';
-	import { pathLeaf } from '../utils/pathUtils';
+	import { resolveTaskLabel } from '../utils/taskLabel';
 	import WikiLinkField from './fields/WikiLinkField.svelte';
 	import { icon } from '../utils/icon';
 
@@ -24,8 +24,11 @@
 
 	const linkedTask = (pathLike: string | null | undefined): Task | null => findLinkedTask(pathLike, tasks);
 	const resolveTaskPath = (pathLike: string | null | undefined): string | null => resolveLinkedTaskPath(pathLike, tasks);
+	// A dangling link renders as `Missing task (id)`, never as its own filename —
+	// see utils/taskLabel. Chips pair this with `tt-chip-warning` so the broken
+	// link is visible as broken rather than passing for a real name.
 	const taskLabelFromPath = (pathLike: string | null | undefined): string =>
-		findLinkedTask(pathLike, tasks)?.name ?? pathLeaf(normalizeTaskPath(pathLike) ?? 'Unknown');
+		resolveTaskLabel(normalizeTaskPath(pathLike), () => findLinkedTask(pathLike, tasks)?.name).text;
 
 	function openLinkedPath(pathLike: string): void {
 		const resolved = resolveTaskPath(pathLike);
@@ -204,7 +207,7 @@
 
 					<div class="tt-rel-center tt-rel-center-selected">
 						<span class="tt-rel-center-tag">Selected</span>
-						<span class="tt-rel-center-name">{task.name}</span>
+						<span class="tt-rel-center-name tt-title tt-title-sm">{task.name}</span>
 					</div>
 
 					{#each downstreamTreeLevels as level}
@@ -345,11 +348,6 @@
 	.tt-chip-rel {
 		font-weight: 400;
 		font-size: 0.78rem;
-	}
-
-	.tt-chip-warning {
-		border-color: color-mix(in srgb, var(--color-orange) 48%, var(--background-modifier-border));
-		background: color-mix(in srgb, var(--color-orange) 12%, var(--background-primary));
 	}
 
 	.tt-chip-blocking {
@@ -555,11 +553,11 @@
 		color: var(--text-faint);
 	}
 
+	/* Size and colour from .tt-title-sm; this one sits centred in the tree and
+	carries a touch more weight than a list row to mark it as the subject. */
 	.tt-rel-center-name {
-		font-size: 0.8rem;
 		font-weight: 600;
 		text-align: center;
-		color: var(--text-normal);
 	}
 
 	.tt-rel-issues {

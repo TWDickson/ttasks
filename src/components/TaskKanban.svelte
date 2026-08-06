@@ -231,7 +231,7 @@
 										style="background:{PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.None}"
 										title="Priority: {task.priority}"
 									></span>
-									<span class="tt-card-name">{task.name}</span>
+									<span class="tt-card-name tt-title">{task.name}</span>
 								</div>
 
 								{#if task.status === blockStatus && task.blocked_reason}
@@ -553,11 +553,11 @@
 		visibility: hidden;
 	}
 
+	/* Typography comes from .tt-title; cards wrap rather than truncate, so they
+	set the line-height the primitive deliberately leaves alone. */
 	.tt-card-name {
-		font-size: 0.9rem;
 		line-height: 1.4;
 		word-break: break-word;
-		font-weight: 500;
 	}
 
 	.tt-kanban-card.is-active .tt-card-name {

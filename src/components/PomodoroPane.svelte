@@ -109,7 +109,7 @@
 
 			{#if picked}
 				<div class="tt-pomo-picked">
-					<span class="tt-pomo-picked-name">{picked.name}</span>
+					<span class="tt-pomo-picked-name tt-title tt-title-sm tt-truncate">{picked.name}</span>
 					<button type="button" class="tt-pomo-picked-clear" on:click={onClearPickedTask} aria-label="Clear chosen task" use:icon={'x'}></button>
 				</div>
 			{:else}
@@ -303,10 +303,9 @@
 		font-size: var(--font-ui-small);
 	}
 
+	/* Sizing and truncation from .tt-title / .tt-truncate; the accent colour is
+	this pane's own signal that a task is currently picked. */
 	.tt-pomo-picked-name {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 		color: var(--text-accent);
 	}
 

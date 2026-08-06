@@ -26,15 +26,13 @@ export function stripMdExt(path: string): string {
 	return path.endsWith('.md') ? path.slice(0, -3) : path;
 }
 
-/**
- * Reduce a task path to a display-ish leaf: strip the folder, the `.md`
- * extension, and the `{hex}-` filename prefix TTasks prepends to task notes.
- * Used as a fallback label when a task's `name` is unavailable.
+/*
+ * `pathLeaf` used to live here: it reduced a task path to its slug and was used
+ * as a fallback label wherever a task's `name` couldn't be resolved. That made
+ * every dangling link render a plausible-looking title, so broken relationships
+ * were invisible in the UI. It's deliberately gone — use `resolveTaskLabel`
+ * from utils/taskLabel, which reports an unresolvable link as such.
  */
-export function pathLeaf(path: string): string {
-	const leaf = path.split('/').pop() ?? path;
-	return stripMdExt(leaf).replace(/^[a-f0-9]+-/, '');
-}
 
 /**
  * Split a task filename into its `{id}-{slug}` halves at the first dash.

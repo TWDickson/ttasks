@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ensureMdExt, pathLeaf, splitTaskBasename, stripMdExt, taskIdFromPath } from './pathUtils';
+import { ensureMdExt, splitTaskBasename, stripMdExt, taskIdFromPath } from './pathUtils';
 
 // ── ensureMdExt ───────────────────────────────────────────────────────────────
 //
@@ -65,34 +65,6 @@ describe('stripMdExt', () => {
 		const path = 'Planner/Tasks/abc123-slug';
 		expect(stripMdExt(ensureMdExt(path))).toBe(path);
 		expect(ensureMdExt(stripMdExt(path + '.md'))).toBe(path + '.md');
-	});
-});
-
-// ── pathLeaf ──────────────────────────────────────────────────────────────────
-//
-// Contract: strip the folder, the trailing `.md`, and the leading `{hex}-`
-// filename prefix, yielding a fallback display label.
-
-describe('pathLeaf', () => {
-	it('strips folder, .md, and the hex prefix', () => {
-		expect(pathLeaf('Planner/Tasks/a1b2c3-buy-milk.md')).toBe('buy-milk');
-	});
-
-	it('handles a bare filename with no folder', () => {
-		expect(pathLeaf('a1b2c3-buy-milk.md')).toBe('buy-milk');
-	});
-
-	it('leaves a slug without a hex prefix intact', () => {
-		expect(pathLeaf('Planner/Tasks/buy-milk.md')).toBe('buy-milk');
-	});
-
-	it('only strips a leading hex-digit prefix, not arbitrary words', () => {
-		// "notes" contains non-hex letters, so it is not treated as a prefix.
-		expect(pathLeaf('Planner/notes-2024.md')).toBe('notes-2024');
-	});
-
-	it('works on a path with no extension', () => {
-		expect(pathLeaf('Planner/Tasks/deadbeef-slug')).toBe('slug');
 	});
 });
 

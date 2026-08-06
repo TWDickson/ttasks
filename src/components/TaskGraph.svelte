@@ -26,6 +26,8 @@
 	import { splitHolidayCalendar } from '../settings/holidays';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
 	import { icon } from '../utils/icon';
+	import { ensureMdExt } from '../utils/pathUtils';
+	import { resolveTaskLabel } from '../utils/taskLabel';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
@@ -101,6 +103,10 @@
 
 	$: tasks = flattenTaskGroups($groups);
 	$: tasksByPath = new Map(tasks.map((task) => [task.path, task]));
+	// An anchor whose task isn't loaded reads as `Missing task (id)`; we never
+	// print its filename, which would look like a title it doesn't have.
+	$: anchorLabel = (path: string): string =>
+		resolveTaskLabel(path, (p) => tasksByPath.get(ensureMdExt(p))?.name).text;
 	// All project records, name-sorted — the source list for the GP3 filter menu.
 	$: graphProjects = tasks
 		.filter((task) => task.type === 'project')
@@ -995,7 +1001,7 @@
 												checked={!hiddenProjectPaths.has(project.path)}
 												on:change={() => toggleProjectVisibility(project.path)}
 											/>
-											<span class="tt-graph-project-filter-name">{project.name}</span>
+											<span class="tt-graph-project-filter-name tt-title tt-title-sm tt-truncate">{project.name}</span>
 										</label>
 									{/each}
 								</div>
@@ -1155,7 +1161,7 @@
 								<span class="tt-graph-priority-dot"></span>
 								<span class="tt-graph-status">{node.task.status}</span>
 							</div>
-							<div class="tt-graph-name">{node.task.name}</div>
+							<div class="tt-graph-name tt-title tt-title-strong">{node.task.name}</div>
 							<div class="tt-graph-meta">
 								<span>{subtitle(node)}</span>
 							{#if node.task.is_complete && node.task.completed}
@@ -1285,7 +1291,7 @@
 										on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
 										on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
 									>
-										<span class="tt-overview-title">{item.task.name}</span>
+										<span class="tt-overview-title tt-title tt-title-sm tt-truncate">{item.task.name}</span>
 									</button>
 								{/each}
 							</div>
@@ -1330,15 +1336,15 @@
 										class:is-active={$activeTaskPath === item.path}
 										style={underdefinedCardStyle(item)}
 										tabindex="0"
-										aria-label="{item.task.name} — follows {item.anchorPath.replace(/\.md$/, '').split('/').pop()}"
+										aria-label="{item.task.name} — follows {anchorLabel(item.anchorPath)}"
 										aria-pressed={$activeTaskPath === item.path}
 										on:click={() => onOpen(item.path)}
 										on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(item.path); } }}
 										on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
 										on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
 									>
-										<span class="tt-hybrid-underdefined-name">{item.task.name}</span>
-										<span class="tt-hybrid-underdefined-anchor">after {item.anchorPath.replace(/\.md$/, '').split('/').pop()}</span>
+										<span class="tt-hybrid-underdefined-name tt-title tt-title-sm tt-truncate">{item.task.name}</span>
+										<span class="tt-hybrid-underdefined-anchor">after {anchorLabel(item.anchorPath)}</span>
 									</button>
 								{/each}
 							</div>
@@ -1619,10 +1625,9 @@
 		margin: 0;
 	}
 
+	/* Truncation and typography come from .tt-truncate / .tt-title. */
 	.tt-graph-project-filter-name {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		min-width: 0;
 	}
 
 	.tt-graph-note {
@@ -1844,12 +1849,10 @@
 	}
 
 	.tt-hybrid-underdefined-name {
+		/* Two lines of text inside a short bar — tighter than the default 1.4. */
 		line-height: 1.05;
 		display: block;
 		width: 100%;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
 	.tt-hybrid-underdefined-anchor {
@@ -1993,10 +1996,6 @@
 	.tt-overview-title {
 		display: block;
 		width: 100%;
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
 	.tt-overview-bar.is-done {
@@ -2499,12 +2498,10 @@
 	/* Content budget inside the fixed 122px card (102px after padding):
 	top row ~13px + 3-line name ~52px + meta ~14px + two 6px gaps = ~91px. */
 	.tt-graph-name {
-		font-size: 0.92rem;
-		font-weight: 700;
-		color: var(--text-normal);
+		/* Size/weight/colour from .tt-title + .tt-title-strong. The tight
+		line-height is load-bearing for the 3-line budget above. */
 		line-height: 1.18;
 		width: 100%;
-		min-width: 0;
 		word-break: break-word;
 		overflow-wrap: break-word;
 		max-height: 3.6em;

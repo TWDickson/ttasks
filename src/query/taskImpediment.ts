@@ -26,6 +26,7 @@
  */
 import type { Task } from '../types';
 import { normalizeTaskPath } from '../store/graph/taskGraph';
+import { resolveTaskLabelFromMap } from '../utils/taskLabel';
 
 export type ImpedimentKind = 'blocked' | 'held';
 
@@ -196,9 +197,10 @@ export interface ImpedimentLabel {
  * than being hardcoded, so a vault that renamed Blocked to "Escalated" reads
  * "Escalated upstream".
  *
- * `nameByPath` resolves causes to task names; an unknown path degrades to its
- * filename rather than being dropped, so the tooltip never silently under-reports
- * what's holding the task up.
+ * `nameByPath` resolves causes to task names; an unknown path degrades to
+ * `Missing task (id)` rather than being dropped, so the tooltip never silently
+ * under-reports what's holding the task up — and never passes a filename off as
+ * a name (see utils/taskLabel).
  */
 export function describeImpediment(
 	state: ImpedimentState,
@@ -207,16 +209,11 @@ export function describeImpediment(
 ): ImpedimentLabel {
 	const statusName = state.kind === 'blocked' ? statuses.blockStatus : statuses.holdStatus;
 	const label = `${statusName} upstream`;
-	const names = state.causes.map((path) => nameByPath.get(path) ?? basename(path));
+	const names = state.causes.map((path) => resolveTaskLabelFromMap(path, nameByPath).text);
 	const tooltip = names.length > 0
 		? `${label} — waiting on: ${names.join(', ')}`
 		: label;
 	return { label, tooltip };
-}
-
-function basename(path: string): string {
-	const file = path.split('/').pop() ?? path;
-	return file.replace(/\.md$/, '');
 }
 
 /** A render-ready badge for one task. */
