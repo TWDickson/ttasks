@@ -12,6 +12,66 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-06 — Badge colours resolve to a `BadgePalette`, not raw maps
+
+Same shape as the `TaskRef` work below, found by asking where else the codebase
+re-derived something it could hold as an object. Taylor: *"are there any parts of
+our code where a similar option could drop in?"*
+
+`areaColors` / `labelColors` / `statusColors` are `Record<string, string>` maps in
+settings, so the views held the raw maps and looked a colour up at every render —
+making "is a colour configured?" a policy each site re-derived, **twice over**,
+once for the class and once for the style:
+
+```svelte
+class:tt-badge-tinted={!!areaColors?.[task.area]}
+style={getBadgeStyle(areaColors?.[task.area])}
+```
+
+`getBadgeStyle` was copy-pasted verbatim into `TaskRow` and `TaskKanban` — the TS
+version of the shared-looking-class-in-one-component bug. `taskImpediment.ts`
+even documented its `color` field as shaped to fit "the components' existing
+`getBadgeStyle` helpers", *plural*: the comment named the duplication.
+
+New pure module `utils/badgePalette`. A `TaskBadge` carries `text` / `color` /
+`tinted` / `style`, so once you hold one there is no map, no optional chain and
+no per-site fallback. `buildBadgePalette(settings)` is built once in `TaskBoard`
+and threaded down as **one prop replacing three**, through list, kanban, agenda,
+graph, `GraphExpandModal` and `CreateTaskModal` (which had three private getters
+of its own). Resolution is memoised per palette, so 500 rows sharing three areas
+allocate three badges — and the *same* three objects each render, which keeps
+Svelte from seeing churn that isn't there.
+
+`areaSpine()` and `statusAccent()` derive from the same resolution as the badge,
+so a spine and its badge can't disagree about whether a colour exists, and the
+graph's five `?? 'var(--interactive-accent)'` fallbacks collapse to one place
+(`color-mix()` drops the whole declaration on an invalid argument rather than
+degrading, so that fallback has to exist — it just doesn't have to exist five
+times). `ImpedimentBadge` now carries a ready-to-render `style` instead of a
+`color`, which retires the last reason for `getBadgeStyle`.
+
+`priorityColor()` joins `PRIORITY_COLORS` in `constants.ts`: five sites wrote
+`PRIORITY_COLORS[p] ?? PRIORITY_COLORS.None`, and since `fileToTask` coerces the
+frontmatter value through `PRIORITIES`, that `??` was unreachable at all five — a
+fallback nobody could delete because nobody owned the resolution.
+
+One hardening the single resolver earned: lookups are own-property and
+string-valued only. These maps are keyed by user frontmatter, so an area named
+`constructor` previously resolved through the prototype to a function.
+
+`buildImpedimentBadges` had no test coverage at all, which is why its signature
+change broke nothing — added it. Full gate green (1748 tests). Verified in the
+rig as **byte-identical PNGs** across list/kanban/agenda/graph × desktop/mobile ×
+dark/light: a pure refactor should change no pixels, and it changed none.
+
+**Noted, not acted on:** `.tt-badge-cat.tt-badge-tinted` and
+`.tt-badge-type.tt-badge-tinted` each override all three tint declarations back
+to neutral, so the tint on area and label badges is currently dead — the spine
+carries area identity and labels are neutral pills by design. The mechanism is
+kept (it's now one line, and the colour data is honest); whether to delete it is
+a design call. Relatedly, the three surviving tint recipes disagree — `.tt-badge-tinted`
+mixes at 18%/42%, `applyOptionStyle` at 18%/60%, `applyAreaTint` at 10%/42%.
+
 ## 2026-08-05 — Relationships resolve to `TaskRef`s, not paths
 
 Follow-on to the entry below, from Taylor's question: *"shouldn't the UI always

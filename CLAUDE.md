@@ -126,6 +126,15 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
   per chip. The same applies when *writing*: pass `alias: null` to
   `buildAliasedLink` rather than inventing one, so a fake title never lands in
   frontmatter.
+- **Resolve colours to a `BadgePalette`, don't pass colour maps into the UI.**
+  `areaColors` / `labelColors` / `statusColors` are settings maps; build one
+  palette per settings change (`buildBadgePalette`, `src/utils/badgePalette.ts`)
+  and pass *that*. A `TaskBadge` carries `text` / `color` / `tinted` / `style`,
+  so a render site never re-derives "is a colour configured?" — and never does it
+  twice, once for the class and once for the style. Use `areaSpine()` for the
+  colour spine and `statusAccent()` where `color-mix()` needs a guaranteed value.
+  Priority is a closed union with a total colour map: call `priorityColor()`, and
+  don't add a `?? None` fallback — it's unreachable.
 
 ## Architecture rules
 

@@ -7,6 +7,7 @@
 	import type { TaskGroup } from '../query/types';
 	import type { ResolvedTaskDate } from '../store/taskSchedule';
 	import type { ImpedimentBadge } from '../query/taskImpediment';
+	import type { BadgePalette } from '../utils/badgePalette';
 	import { buildListRows, labelForGroup, type ListSection, type ListHierarchyMode } from './viewAdapters';
 	export let plugin: TTasksPlugin;
 	export let viewId = '';
@@ -15,8 +16,8 @@
 	export let impedimentBadges: Map<string, ImpedimentBadge> | undefined = undefined;
 	export let statuses: string[];
 	export let hierarchy: ListHierarchyMode = 'tree';
-	export let areaColors: Record<string, string>;
-	export let labelColors: Record<string, string>;
+	/** Resolved area/label/status colours. See utils/badgePalette. */
+	export let palette: BadgePalette;
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
@@ -101,8 +102,7 @@
 								{schedule}
 								impediment={impedimentBadges?.get(row.task.path)}
 								active={$activeTaskPath === row.task.path}
-								{areaColors}
-								{labelColors}
+								{palette}
 								{onOpen}
 								indent={row.depth}
 								expandable={row.expandable}

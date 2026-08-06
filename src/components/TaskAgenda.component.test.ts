@@ -5,6 +5,7 @@ import { writable, type Writable } from 'svelte/store';
 import TaskAgenda from './TaskAgenda.svelte';
 import type { Task } from '../types';
 import type { TaskGroup } from '../query/types';
+import { buildBadgePalette } from '../utils/badgePalette';
 
 function buildTask(overrides: Partial<Task> = {}): Task {
 	return {
@@ -48,8 +49,7 @@ function renderAgenda(groupList: TaskGroup[]) {
 		props: {
 			plugin,
 			groups,
-			areaColors: {},
-			labelColors: {},
+			palette: buildBadgePalette({}),
 			activeTaskPath,
 			onOpen: vi.fn(),
 		},

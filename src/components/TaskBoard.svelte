@@ -33,6 +33,7 @@
 	import { buildToolbarFilterConditions, hasActiveToolbarFilters, supportsDateRangeFilter } from './boardFilters';
 	import { buildImpedimentBadges, computeImpediments } from '../query/taskImpediment';
 	import { buildTaskRefIndex } from '../utils/taskRef';
+	import { buildBadgePalette } from '../utils/badgePalette';
 	import type { FilterCondition, GroupField, SortField } from '../query/types';
 	import { GROUP_FIELDS, SORT_FIELDS } from '../query/queryEditor';
 	import {
@@ -293,9 +294,10 @@
 	// ──────────────────────────────────────────────────────────────────────────
 
 	$: configuredStatuses = plugin.settings.statuses ?? ['Active'];
-	$: configuredStatusColors = plugin.settings.statusColors ?? {};
-	$: configuredCategoryColors = plugin.settings.areaColors ?? {};
-	$: configuredTaskTypeColors = plugin.settings.labelColors ?? {};
+	// One palette for every renderer, rebuilt only when the colour maps change —
+	// so a row, its kanban card and its graph node can't resolve a colour
+	// differently. See utils/badgePalette.
+	$: palette = buildBadgePalette(plugin.settings);
 	$: configuredBlockStatus = plugin.settings.quickActions?.blockStatus ?? 'Blocked';
 	$: configuredHoldStatus = plugin.settings.quickActions?.holdStatus ?? '';
 
@@ -307,7 +309,7 @@
 		computeImpediments($tasks, impedimentStatuses),
 		impedimentStatuses,
 		buildTaskRefIndex($tasks),
-		configuredStatusColors,
+		palette,
 	);
 
 	$: if ($focusedTaskPath && !$tasks.some((task) => task.path === $focusedTaskPath)) {
@@ -324,7 +326,7 @@
 		new GraphExpandModal(plugin.app, {
 			plugin,
 			groups: groupedTasks,
-			statusColors: configuredStatusColors,
+			palette,
 			activeTaskPath,
 			defaultGraphMode: mode,
 			onOpen: (path) => {
@@ -489,8 +491,7 @@
 						{impedimentBadges}
 						statuses={configuredStatuses}
 						hierarchy={currentView.presentation.hierarchy}
-						areaColors={configuredCategoryColors}
-						labelColors={configuredTaskTypeColors}
+						{palette}
 						{activeTaskPath}
 						focusedTaskPath={$focusedTaskPath}
 						onOpen={(path) => {
@@ -520,11 +521,9 @@
 						{plugin}
 						groups={groupedTasks}
 						statuses={configuredStatuses}
-						statusColors={configuredStatusColors}
+						{palette}
 						blockStatus={configuredBlockStatus}
 						{impedimentBadges}
-						areaColors={configuredCategoryColors}
-						labelColors={configuredTaskTypeColors}
 						kanbanCardFields={plugin.settings.kanbanCardFields}
 						{activeTaskPath}
 						store={plugin.taskStore}
@@ -539,7 +538,7 @@
 						{plugin}
 						groups={groupedTasks}
 						defaultGraphMode={currentView.presentation.graphMode}
-						statusColors={configuredStatusColors}
+						{palette}
 						{activeTaskPath}
 						onOpen={(path) => {
 							focusedTaskPath.set(path);
@@ -556,8 +555,7 @@
 						groups={groupedTasks}
 						{schedule}
 						{impedimentBadges}
-						areaColors={configuredCategoryColors}
-						labelColors={configuredTaskTypeColors}
+						{palette}
 						{activeTaskPath}
 						onOpen={(path) => {
 							focusedTaskPath.set(path);

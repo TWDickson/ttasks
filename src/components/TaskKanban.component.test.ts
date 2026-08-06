@@ -6,6 +6,7 @@ import TaskKanban from './TaskKanban.svelte';
 import type { Task } from '../types';
 import type { TaskGroup } from '../query/types';
 import type { KanbanCardField } from './kanbanCardFields';
+import { buildBadgePalette } from '../utils/badgePalette';
 
 function buildTask(overrides: Partial<Task> = {}): Task {
 	return {
@@ -71,9 +72,7 @@ function renderKanban(options: {
 			plugin,
 			groups,
 			statuses: ['Active', 'Blocked'],
-			statusColors: {},
-			areaColors: {},
-			labelColors: {},
+			palette: buildBadgePalette({}),
 			blockStatus: 'Blocked',
 			kanbanCardFields: options.kanbanCardFields ?? ['area', 'dueDate', 'labels', 'depCount'],
 			activeTaskPath,

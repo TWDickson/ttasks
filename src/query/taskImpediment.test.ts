@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
-import { computeImpediments, describeImpediment, isUpstreamImpediment, type ImpedimentStatuses } from './taskImpediment';
+import { buildImpedimentBadges, computeImpediments, describeImpediment, isUpstreamImpediment, type ImpedimentStatuses } from './taskImpediment';
 import { buildTaskRefIndex } from '../utils/taskRef';
+import { buildBadgePalette } from '../utils/badgePalette';
 
 const STATUSES: ImpedimentStatuses = { blockStatus: 'Blocked', holdStatus: 'Hold' };
 
@@ -351,5 +352,52 @@ describe('isUpstreamImpediment', () => {
 		expect(isUpstreamImpediment({ kind: 'blocked', source: 'upstream', causes: [] })).toBe(true);
 		expect(isUpstreamImpediment({ kind: 'blocked', source: 'self', causes: [] })).toBe(false);
 		expect(isUpstreamImpediment(undefined)).toBe(false);
+	});
+});
+
+describe('buildImpedimentBadges', () => {
+	function badgesFor(tasks: Task[], palette = buildBadgePalette({ statusColors: { Blocked: '#ef4444', Hold: '#f59e0b' } })) {
+		return buildImpedimentBadges(
+			computeImpediments(tasks, STATUSES),
+			STATUSES,
+			buildTaskRefIndex(tasks),
+			palette,
+		);
+	}
+
+	it('badges only the tasks that inherited an impediment', () => {
+		// a is Blocked itself — its own status field already says so, so it gets no
+		// badge; b and c inherit one.
+		const badges = badgesFor(chain('Blocked'));
+
+		expect([...badges.keys()].sort()).toEqual(['b.md', 'c.md']);
+	});
+
+	it('carries the blocking status colour as a ready-to-render style', () => {
+		const badges = badgesFor(chain('Blocked'));
+
+		expect(badges.get('b.md')?.style).toBe('--tt-badge-color:#ef4444;');
+	});
+
+	it('uses the hold colour for a held impediment', () => {
+		const badges = badgesFor(chain('Hold'));
+
+		expect(badges.get('b.md')?.kind).toBe('held');
+		expect(badges.get('b.md')?.style).toBe('--tt-badge-color:#f59e0b;');
+	});
+
+	it('emits an empty style when the blocking status has no configured colour', () => {
+		// Not a fallback colour: `.tt-badge-impediment` degrades to a readable
+		// neutral on its own, which an invented colour here would override.
+		const badges = badgesFor(chain('Blocked'), buildBadgePalette({}));
+
+		expect(badges.get('b.md')?.style).toBe('');
+	});
+
+	it('keeps the label and tooltip from describeImpediment', () => {
+		const badges = badgesFor(chain('Blocked'));
+
+		expect(badges.get('b.md')?.label).toBe('Blocked upstream');
+		expect(badges.get('b.md')?.tooltip).toBe('Blocked upstream — waiting on: a.md');
 	});
 });

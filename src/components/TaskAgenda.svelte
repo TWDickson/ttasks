@@ -6,14 +6,15 @@
 	import type { TaskGroup } from '../query/types';
 	import type { ResolvedTaskDate } from '../store/taskSchedule';
 	import type { ImpedimentBadge } from '../query/taskImpediment';
+	import type { BadgePalette } from '../utils/badgePalette';
 	import { AGENDA_BUCKET_LABELS, AGENDA_BUCKET_COLORS, isAgendaBucketKey } from '../query/agendaBuckets';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
 	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
 	export let impedimentBadges: Map<string, ImpedimentBadge> | undefined = undefined;
-	export let areaColors: Record<string, string>;
-	export let labelColors: Record<string, string>;
+	/** Resolved area/label/status colours. See utils/badgePalette. */
+	export let palette: BadgePalette;
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
@@ -56,8 +57,7 @@
 							{schedule}
 							impediment={impedimentBadges?.get(task.path)}
 							active={$activeTaskPath === task.path}
-							{areaColors}
-							{labelColors}
+							{palette}
 							{onOpen}
 							onContextMenu={onContextMenu}
 						/>

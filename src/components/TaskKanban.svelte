@@ -6,7 +6,8 @@
 	import type { ImpedimentBadge } from '../query/taskImpediment';
 	import type TaskStore from '../store/TaskStore';
 	import type TTasksPlugin from '../main';
-	import { PRIORITY_COLORS } from '../constants';
+	import { priorityColor } from '../constants';
+	import type { BadgePalette } from '../utils/badgePalette';
 	import { labelForGroup } from './viewAdapters';
 	import { getTaskDateBadge } from './taskDateMeta';
 	import { buildDepCountBadge, isFieldEnabled, type KanbanCardField } from './kanbanCardFields';
@@ -16,9 +17,8 @@
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
 	export let statuses: string[];
-	export let statusColors: Record<string, string>;
-	export let areaColors: Record<string, string>;
-	export let labelColors: Record<string, string>;
+	/** Resolved area/label/status colours. See utils/badgePalette. */
+	export let palette: BadgePalette;
 	export let blockStatus = 'Blocked';
 	/** Derived upstream Blocked/Hold cascade (#8), keyed by task path. */
 	export let impedimentBadges: Map<string, ImpedimentBadge> | undefined = undefined;
@@ -28,7 +28,7 @@
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 
-	type Column = { id: TaskStatus; label: string; accent?: string };
+	type Column = { id: TaskStatus; label: string; accent: string | null };
 
 	let activeColumn: TaskStatus = statuses?.[0] ?? 'Active';
 	let draggingPath: string | null = null;
@@ -49,7 +49,7 @@
 		return (statuses ?? []).map(status => ({
 			id: status as TaskStatus,
 			label: labelForGroup(status),
-			accent: statusColors?.[status],
+			accent: palette.status(status).color,
 			tasks: tasksByStatus.get(status) ?? [],
 		}));
 	})();
@@ -125,10 +125,6 @@
 	function onDragEnd() {
 		draggingPath = null;
 		dragOverCol = null;
-	}
-
-	function getBadgeStyle(color: string | undefined): string {
-		return color ? `--tt-badge-color:${color};` : '';
 	}
 
 	function getColumnLabelId(colId: TaskStatus): string {
@@ -213,7 +209,7 @@
 								class="tt-kanban-card"
 								class:is-active={$activeTaskPath === task.path}
 								class:is-dragging={draggingPath === task.path}
-								style:--tt-area-color={task.area && areaColors?.[task.area] ? areaColors[task.area] : undefined}
+								style:--tt-area-color={palette.areaSpine(task.area)}
 								draggable="true"
 								role="button"
 								tabindex="0"
@@ -228,7 +224,7 @@
 									<span
 										class="tt-priority-dot"
 										class:is-none={task.priority === 'None'}
-										style="background:{PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.None}"
+										style="background:{priorityColor(task.priority)}"
 										title="Priority: {task.priority}"
 									></span>
 									<span class="tt-card-name tt-title">{task.name}</span>
@@ -240,14 +236,15 @@
 
 								<div class="tt-card-meta">
 									{#if task.area && isFieldEnabled(kanbanCardFields, 'area')}
-										<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!areaColors?.[task.area]} style={getBadgeStyle(areaColors?.[task.area])}>{task.area}</span>
+										{@const areaBadge = palette.area(task.area)}
+										<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={areaBadge.tinted} style={areaBadge.style}>{areaBadge.text}</span>
 									{/if}
 									{#if impedimentBadges}
 										{@const impediment = impedimentBadges.get(task.path)}
 										{#if impediment}
 											<span
 												class="tt-badge tt-badge-impediment"
-												style={getBadgeStyle(impediment.color)}
+												style={impediment.style}
 												title={impediment.tooltip}
 											>{impediment.label}</span>
 										{/if}
@@ -267,7 +264,8 @@
 									{/if}
 									{#if isFieldEnabled(kanbanCardFields, 'labels')}
 										{#each task.labels as label (label)}
-											<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!labelColors?.[label]} style={getBadgeStyle(labelColors?.[label])}>{label}</span>
+											{@const labelBadge = palette.label(label)}
+											<span class="tt-badge tt-badge-type" class:tt-badge-tinted={labelBadge.tinted} style={labelBadge.style}>{labelBadge.text}</span>
 										{/each}
 									{/if}
 									{#if isFieldEnabled(kanbanCardFields, 'depCount')}

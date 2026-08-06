@@ -4,6 +4,7 @@ import TaskGraph from '../components/TaskGraph.svelte';
 import type TTasksPlugin from '../main';
 import type { Task } from '../types';
 import type { TaskGroup } from '../query/types';
+import type { BadgePalette } from '../utils/badgePalette';
 
 type GraphMode = 'dependency' | 'overview';
 
@@ -16,7 +17,7 @@ type GraphMode = 'dependency' | 'overview';
 export interface GraphExpandProps {
 	plugin: TTasksPlugin;
 	groups: Readable<TaskGroup[]>;
-	statusColors: Record<string, string>;
+	palette: BadgePalette;
 	activeTaskPath: Writable<string | null>;
 	defaultGraphMode: GraphMode;
 	onOpen: (path: string) => void;

@@ -8,7 +8,7 @@
 	import { computeEdgePath, sortIncomingEdges, sortOutgoingEdges } from '../store/graph/graphEdgeRouting';
 	import { computeGraphQualityMetrics } from '../store/graph/graphQualityMetrics';
 	import { buildLaneHeaders } from '../store/graph/graphLaneLayout';
-	import { PRIORITY_COLORS } from '../constants';
+	import { priorityColor } from '../constants';
 	import { flattenTaskGroups } from './viewAdapters';
 	import { buildTaskSchedule } from '../store/taskSchedule';
 	import { formatHumanDate } from './taskDateMeta';
@@ -27,10 +27,12 @@
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
 	import { icon } from '../utils/icon';
 	import { buildTaskRefIndex, resolveTaskRef, taskRefName } from '../utils/taskRef';
+	import type { BadgePalette } from '../utils/badgePalette';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
-	export let statusColors: Record<string, string>;
+	/** Resolved area/label/status colours. See utils/badgePalette. */
+	export let palette: BadgePalette;
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
@@ -795,10 +797,10 @@
 	);
 
 	function nodeStyle(node: TaskGraphNode): string {
-		const accent = statusColors?.[node.task.status] ?? 'var(--interactive-accent)';
+		const accent = palette.statusAccent(node.task.status);
 		// Fixed height: the layout engine spaces rows assuming node.height, so the
 		// card must never grow past it — content clamps/ellipsizes instead.
-		return `left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px;--tt-node-accent:${accent};--tt-priority-accent:${PRIORITY_COLORS[node.task.priority] ?? PRIORITY_COLORS.None};`;
+		return `left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px;--tt-node-accent:${accent};--tt-priority-accent:${priorityColor(node.task.priority)};`;
 	}
 
 	function subtitle(node: TaskGraphNode): string {
@@ -887,13 +889,13 @@
 	}
 
 	function definedBarStyle(item: { leftPercent: number; widthPercent: number; row: number; task: Task }): string {
-		const accent = statusColors?.[item.task.status] ?? 'var(--interactive-accent)';
+		const accent = palette.statusAccent(item.task.status);
 		const rowTop = HYBRID_TRACK_PADDING + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
 		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;top:${rowTop}px;--tt-bar-accent:${accent};`;
 	}
 
 	function underdefinedCardStyle(item: { leftPercent: number; widthPercent: number; row: number; task: Task }): string {
-		const accent = statusColors?.[item.task.status] ?? 'var(--interactive-accent)';
+		const accent = palette.statusAccent(item.task.status);
 		const rowTop = HYBRID_TRACK_PADDING + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
 		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;top:${rowTop}px;--tt-bar-accent:${accent};`;
 	}
@@ -1251,7 +1253,7 @@
 							<h4 class="tt-overview-category-title">Defined Track</h4>
 							<div class="tt-track-status-summary">
 								{#each definedStatusSummary as summary (summary.status)}
-									<span class="tt-track-status-chip" style={`--tt-chip-accent:${statusColors?.[summary.status] ?? 'var(--interactive-accent)'};`}>
+									<span class="tt-track-status-chip" style={`--tt-chip-accent:${palette.statusAccent(summary.status)};`}>
 										{summary.status} {summary.count}
 									</span>
 								{/each}
@@ -1305,7 +1307,7 @@
 							<h4 class="tt-overview-category-title">Underdefined Track</h4>
 							<div class="tt-track-status-summary">
 								{#each underdefinedStatusSummary as summary (summary.status)}
-									<span class="tt-track-status-chip" style={`--tt-chip-accent:${statusColors?.[summary.status] ?? 'var(--interactive-accent)'};`}>
+									<span class="tt-track-status-chip" style={`--tt-chip-accent:${palette.statusAccent(summary.status)};`}>
 										{summary.status} {summary.count}
 									</span>
 								{/each}

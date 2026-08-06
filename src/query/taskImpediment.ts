@@ -27,6 +27,7 @@
 import type { Task } from '../types';
 import { normalizeTaskPath } from '../store/graph/taskGraph';
 import { resolveTaskRef, taskRefName, type TaskRefIndex } from '../utils/taskRef';
+import type { BadgePalette } from '../utils/badgePalette';
 
 export type ImpedimentKind = 'blocked' | 'held';
 
@@ -222,11 +223,12 @@ export function describeImpediment(
 export interface ImpedimentBadge extends ImpedimentLabel {
 	kind: ImpedimentKind;
 	/**
-	 * Configured colour of the blocking status. `undefined` (not null) so it drops
-	 * straight into the components' existing `getBadgeStyle(color?: string)`
-	 * helpers, which then emit no custom property and let the CSS fall back.
+	 * Inline style carrying the blocking status' configured colour, or `''` when
+	 * that status has none — in which case `.tt-badge-impediment` falls back to a
+	 * readable neutral via its own `--tt-impediment-color` default. Resolved here
+	 * rather than in the views so both renderers can't drift apart.
 	 */
-	color: string | undefined;
+	style: string;
 }
 
 /**
@@ -241,7 +243,7 @@ export function buildImpedimentBadges(
 	impediments: Map<string, ImpedimentState>,
 	statuses: ImpedimentStatuses,
 	index: TaskRefIndex,
-	statusColors: Record<string, string> | null | undefined,
+	palette: BadgePalette,
 ): Map<string, ImpedimentBadge> {
 	const badges = new Map<string, ImpedimentBadge>();
 	for (const [path, state] of impediments) {
@@ -250,7 +252,7 @@ export function buildImpedimentBadges(
 		badges.set(path, {
 			...describeImpediment(state, statuses, index),
 			kind: state.kind,
-			color: statusColors?.[statusName],
+			style: palette.status(statusName).style,
 		});
 	}
 	return badges;

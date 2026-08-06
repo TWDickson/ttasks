@@ -3,19 +3,20 @@
 	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import type { ExternalTask } from '../integration/types';
-	import { PRIORITY_COLORS } from '../constants';
+	import { priorityColor } from '../constants';
 	import { getTaskDateBadge, formatHumanDate } from './taskDateMeta';
 	import { canShowInlineReopen } from './taskRowActions';
 	import { resolveInferredDueDate, type ResolvedTaskDate } from '../store/taskSchedule';
 	import type { ImpedimentBadge } from '../query/taskImpediment';
+	import type { BadgePalette } from '../utils/badgePalette';
 	import { icon } from '../utils/icon';
 
 	export let plugin: TTasksPlugin;
 	export let task: Task;
 	export let viewId = '';
 	export let active = false;
-	export let areaColors: Record<string, string>;
-	export let labelColors: Record<string, string>;
+	/** Resolved area/label/status colours. See utils/badgePalette. */
+	export let palette: BadgePalette;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 	export let onRestore: ((path: string) => Promise<void>) | undefined = undefined;
@@ -44,10 +45,8 @@
 
 	$: dateBadge = getTaskDateBadge(task, $today);
 	$: inferredDue = schedule ? resolveInferredDueDate(task, schedule.get(task.path)) : null;
-
-	function getBadgeStyle(color: string | undefined): string {
-		return color ? `--tt-badge-color:${color};` : '';
-	}
+	$: areaBadge = task.area ? palette.area(task.area) : null;
+	$: labelBadges = task.labels.map((label) => palette.label(label));
 
 	function handleOpen(): void {
 		if (isCapturedTask(task)) {
@@ -97,7 +96,7 @@
 	class:is-keyboard-focused={keyboardFocused}
 	data-task-path={task.path}
 	style:padding-left={indent > 0 ? `${indent * 20}px` : undefined}
-	style:--tt-area-color={task.area && areaColors?.[task.area] ? areaColors[task.area] : undefined}
+	style:--tt-area-color={palette.areaSpine(task.area)}
 >
 	{#if selectable}
 		{#if !isCaptured}
@@ -134,7 +133,7 @@
 			<span
 				class="tt-priority-dot"
 				class:is-none={task.priority === 'None'}
-				style={`background:${PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.None}`}
+				style={`background:${priorityColor(task.priority)}`}
 				title={`Priority: ${task.priority}`}
 			></span>
 			<span class="tt-task-name tt-title tt-truncate">{task.name}</span>
@@ -146,13 +145,13 @@
 			{#if isFromPreviousDay}
 				<span class="tt-badge tt-badge-previous-day">from yesterday</span>
 			{/if}
-			{#if task.area}
-				<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={!!areaColors?.[task.area]} style={getBadgeStyle(areaColors?.[task.area])}>{task.area}</span>
+			{#if areaBadge}
+				<span class="tt-badge tt-badge-cat" class:tt-badge-tinted={areaBadge.tinted} style={areaBadge.style}>{areaBadge.text}</span>
 			{/if}
 			{#if impediment}
 				<span
 					class="tt-badge tt-badge-impediment"
-					style={getBadgeStyle(impediment.color)}
+					style={impediment.style}
 					title={impediment.tooltip}
 				>{impediment.label}</span>
 			{/if}
@@ -169,8 +168,8 @@
 					title="Projected finish, inferred from dependency chain"
 				>~{formatHumanDate(inferredDue, $today)}</span>
 			{/if}
-			{#each task.labels as label (label)}
-				<span class="tt-badge tt-badge-type" class:tt-badge-tinted={!!labelColors?.[label]} style={getBadgeStyle(labelColors?.[label])}>{label}</span>
+			{#each labelBadges as badge (badge.text)}
+				<span class="tt-badge tt-badge-type" class:tt-badge-tinted={badge.tinted} style={badge.style}>{badge.text}</span>
 			{/each}
 		</div>
 	</button>

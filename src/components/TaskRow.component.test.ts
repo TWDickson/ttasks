@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import TaskRow from './TaskRow.svelte';
 import type { Task } from '../types';
+import { buildBadgePalette } from '../utils/badgePalette';
 
 function buildTask(overrides: Partial<Task> = {}): Task {
 	return {
@@ -62,8 +63,7 @@ function renderRow(props: Partial<{
 			task: props.task ?? buildTask(),
 			viewId: 'list',
 			active: false,
-			areaColors: {},
-			labelColors: {},
+			palette: buildBadgePalette({}),
 			onOpen,
 			onContextMenu: undefined,
 			onRestore: undefined,

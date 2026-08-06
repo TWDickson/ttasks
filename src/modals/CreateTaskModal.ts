@@ -4,11 +4,12 @@ import type TTasksPlugin from '../main';
 import type { TaskPriority, TaskRecordType, TaskStatus } from '../types';
 import { resolveEmergencyStatus } from '../settings';
 import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
-import { PRIORITY_COLORS } from '../constants';
+import { priorityColor } from '../constants';
 import { localDateString } from '../utils/dateUtils';
 import { sortDependencyFirst } from '../utils/dependencySort';
 import { missingTaskLabel } from '../utils/taskLabel';
 import { taskRefName } from '../utils/taskRef';
+import { buildBadgePalette, type BadgePalette } from '../utils/badgePalette';
 import { getFieldOptions, getOptionColor } from './modalFieldHelpers';
 import { taskFields } from '../schema/taskFields';
 import { withCurrentOption } from './chipSelection';
@@ -106,16 +107,16 @@ export class CreateTaskModal extends Modal {
 		return (statusOptions.length > 0 ? statusOptions : ['Active']) as TaskStatus[];
 	}
 
-	private get statusColors(): Record<string, string> {
-		return this.plugin.settings.statusColors ?? {};
-	}
+	/**
+	 * Resolved area/label/status colours, shared with the views. Built on first
+	 * use and cached — settings can't change while the modal is open. See
+	 * utils/badgePalette.
+	 */
+	private cachedPalette: BadgePalette | null = null;
 
-	private get areaColors(): Record<string, string> {
-		return this.plugin.settings.areaColors ?? {};
-	}
-
-	private get labelColors(): Record<string, string> {
-		return this.plugin.settings.labelColors ?? {};
+	private get palette(): BadgePalette {
+		this.cachedPalette ??= buildBadgePalette(this.plugin.settings);
+		return this.cachedPalette;
 	}
 
 	onOpen() {
@@ -289,7 +290,7 @@ export class CreateTaskModal extends Modal {
 		}
 		if (this.formValues.area) areaSelect.value = this.formValues.area;
 		const applyAreaTint = () => {
-			const color = this.formValues.area ? this.areaColors[this.formValues.area] : undefined;
+			const color = this.formValues.area ? this.palette.area(this.formValues.area).color : null;
 			if (!color) {
 				areaSelect.style.removeProperty('background');
 				areaSelect.style.removeProperty('border-color');
@@ -368,7 +369,7 @@ export class CreateTaskModal extends Modal {
 		if (this.formValues.labels[0]) labelsSelect.value = this.formValues.labels[0];
 		const applyLabelTint = () => {
 			const selectedLabel = this.formValues.labels[0] ?? '';
-			const color = selectedLabel ? this.labelColors[selectedLabel] : undefined;
+			const color = selectedLabel ? this.palette.label(selectedLabel).color : null;
 			if (!color) {
 				labelsSelect.style.removeProperty('background');
 				labelsSelect.style.removeProperty('border-color');
@@ -709,7 +710,7 @@ export class CreateTaskModal extends Modal {
 
 	private applyOptionStyle(btn: HTMLButtonElement, value: string, field: any) {
 		const color = getOptionColor(value, field, this.plugin.settings)
-			?? (field.name === 'priority' ? PRIORITY_COLORS[value as TaskPriority] : undefined);
+			?? (field.name === 'priority' ? priorityColor(value as TaskPriority) : undefined);
 		if (!color) return;
 		// Tint the surface and keep the color as text so any user-configured color
 		// stays readable in both themes (never hardcode white on it).

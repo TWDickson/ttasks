@@ -37,6 +37,16 @@ export const PRIORITY_COLORS: Record<TaskPriority, string> = {
 	None:   'var(--text-faint)',
 };
 
+/**
+ * The colour for a priority — always a string, so call sites need no fallback.
+ * `PRIORITIES` covers the whole `TaskPriority` union and `fileToTask` coerces
+ * the frontmatter value through it, so the map is total by construction; the
+ * `?? None` this replaced at five sites was unreachable at all five.
+ */
+export function priorityColor(priority: TaskPriority): string {
+	return PRIORITY_COLORS[priority] ?? PRIORITY_COLORS.None;
+}
+
 export const REMINDER_POLL_INTERVAL_MS = 5 * 60 * 1_000;
 export const NOTICE_DURATION_MS = 8_000;
 export const AUTO_ARCHIVE_CHECK_INTERVAL_MS = 60 * 60 * 1_000;

@@ -25,7 +25,7 @@ narrative to `HISTORY.md` once the thread closes.
 | | |
 | --- | --- |
 | Version | `0.1.2` (GitHub release; not on the community list — deliberate) |
-| Tests | **1731 passing, 131 files** (`npm run check` = lint → build → test) |
+| Tests | **1748 passing, 132 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |

@@ -1,7 +1,7 @@
 import { FuzzySuggestModal, type FuzzyMatch } from 'obsidian';
 import type { App } from 'obsidian';
 import type { Task } from '../types';
-import { PRIORITY_COLORS } from '../constants';
+import { priorityColor } from '../constants';
 import { parseSearchTerm } from '../query/hashSearch';
 
 /**
@@ -82,7 +82,7 @@ export class TaskJumpSuggestModal extends FuzzySuggestModal<Task> {
 		const main = el.createDiv({ cls: 'tt-jump-suggest-main' });
 		const dot = main.createSpan({ cls: 'tt-priority-dot' });
 		if (task.priority === 'None') dot.addClass('is-none');
-		dot.style.background = PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.None;
+		dot.style.background = priorityColor(task.priority);
 		dot.title = `Priority: ${task.priority}`;
 		main.createSpan({ text: task.name, cls: 'tt-jump-suggest-title' });
 
