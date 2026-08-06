@@ -14,7 +14,7 @@
 	import { isBlockedStatus } from '../schema/fieldVisibility';
 	import type { FieldComponentProps } from '../schema/fieldAdapters';
 	import { deriveTaskDetailFieldProps } from './taskDetailFieldProps';
-	import { resolveLinkedTaskPath } from './taskDetailLinks';
+	import { buildTaskRefIndex, resolveTaskRef } from '../utils/taskRef';
 	import { deriveTaskDetailOptionState } from './taskDetailOptions';
 	import { createTaskDetailSaveController, normalizeDateValue } from './taskDetailSaveController';
 	import { confirmModal } from '../modals/confirmModal';
@@ -405,14 +405,10 @@
 		.filter(t => t.type === 'project' && t.path !== task?.path)
 		.sort((a, b) => a.name.localeCompare(b.name));
 
-	function openLinkedPath(pathLike: string): void {
-		const resolved = resolveLinkedTaskPath(pathLike, $tasks);
-		if (!resolved) return;
-		activeTaskPath.set(resolved);
-	}
-
 	function openParentProject(): void {
-		openLinkedPath(parent_task_path);
+		const ref = resolveTaskRef(parent_task_path, buildTaskRefIndex($tasks));
+		if (!ref) return;
+		activeTaskPath.set(ref.path);
 	}
 
 	function openTaskFromRelationships(path: string): void {

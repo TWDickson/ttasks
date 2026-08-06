@@ -26,8 +26,7 @@
 	import { splitHolidayCalendar } from '../settings/holidays';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
 	import { icon } from '../utils/icon';
-	import { ensureMdExt } from '../utils/pathUtils';
-	import { resolveTaskLabel } from '../utils/taskLabel';
+	import { buildTaskRefIndex, resolveTaskRef, taskRefName } from '../utils/taskRef';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
@@ -105,8 +104,11 @@
 	$: tasksByPath = new Map(tasks.map((task) => [task.path, task]));
 	// An anchor whose task isn't loaded reads as `Missing task (id)`; we never
 	// print its filename, which would look like a title it doesn't have.
-	$: anchorLabel = (path: string): string =>
-		resolveTaskLabel(path, (p) => tasksByPath.get(ensureMdExt(p))?.name).text;
+	$: refIndex = buildTaskRefIndex(tasks);
+	$: anchorLabel = (path: string): string => {
+		const ref = resolveTaskRef(path, refIndex);
+		return ref ? taskRefName(ref) : '';
+	};
 	// All project records, name-sorted — the source list for the GP3 filter menu.
 	$: graphProjects = tasks
 		.filter((task) => task.type === 'project')

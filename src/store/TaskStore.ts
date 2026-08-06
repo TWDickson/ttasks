@@ -3,7 +3,8 @@ import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput, TaskPriority, TaskRecordType } from '../types';
 import { resolveCompletionStatus } from '../settings';
-import { ensureMdExt, splitTaskBasename } from '../utils/pathUtils';
+import { ensureMdExt, splitTaskBasename, taskIdFromPath } from '../utils/pathUtils';
+import { normalizeRefPath, type TaskRef } from '../utils/taskRef';
 import { toCalendarDate } from '../utils/dateUtils';
 import {
 	toFrontmatterBoolean,
@@ -69,6 +70,21 @@ export class TaskStore {
 
 	getAll(): Task[] {
 		return get(this.tasks);
+	}
+
+	/**
+	 * Resolve a stored link to a `TaskRef`. Prefer this over `getByPath` when the
+	 * result is going to be displayed: it makes the unresolvable case an explicit
+	 * variant instead of an `undefined` a call site can forget to handle. Returns
+	 * `null` only for an absent link.
+	 */
+	resolveRef(pathLike: string | null | undefined): TaskRef | null {
+		const normalized = normalizeRefPath(pathLike);
+		if (!normalized) return null;
+		const task = this.getByPath(normalized);
+		return task
+			? { kind: 'task', path: task.path, task }
+			: { kind: 'missing', path: normalized, id: taskIdFromPath(normalized) };
 	}
 
 	// ── Load ────────────────────────────────────────────────────────────────────

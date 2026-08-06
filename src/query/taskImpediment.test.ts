@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
 import { computeImpediments, describeImpediment, isUpstreamImpediment, type ImpedimentStatuses } from './taskImpediment';
+import { buildTaskRefIndex } from '../utils/taskRef';
 
 const STATUSES: ImpedimentStatuses = { blockStatus: 'Blocked', holdStatus: 'Hold' };
 
@@ -282,7 +283,12 @@ describe('computeImpediments', () => {
 });
 
 describe('describeImpediment', () => {
-	const names = new Map([['Tasks/a.md', 'Ship the API'], ['Tasks/b.md', 'Sign the contract']]);
+	// Causes now resolve through a ref index, so the tooltip reads names off real
+	// Task objects rather than a parallel path->name map.
+	const names = buildTaskRefIndex([
+		makeTask({ path: 'Tasks/a.md', name: 'Ship the API' }),
+		makeTask({ path: 'Tasks/b.md', name: 'Sign the contract' }),
+	]);
 
 	it('names the blocking status from settings, not a hardcoded string', () => {
 		const described = describeImpediment(
@@ -322,7 +328,7 @@ describe('describeImpediment', () => {
 		const described = describeImpediment(
 			{ kind: 'blocked', source: 'upstream', causes: ['Tasks/abc123-hidden-task.md'] },
 			STATUSES,
-			new Map(),
+			buildTaskRefIndex([]),
 		);
 
 		expect(described.tooltip).toBe('Blocked upstream — waiting on: Missing task (abc123)');

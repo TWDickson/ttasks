@@ -6,8 +6,15 @@
 	import { detectDependencyCyclePaths } from '../store/graph/taskGraphDates';
 	import { sortDependencyFirst } from '../utils/dependencySort';
 	import { MAX_REL_TREE_DEPTH, MAX_REL_TREE_NODES } from '../constants';
-	import { normalizeTaskPath, findLinkedTask, resolveLinkedTaskPath } from './taskDetailLinks';
-	import { resolveTaskLabel } from '../utils/taskLabel';
+	import {
+		buildTaskRefIndex,
+		normalizeRefPath,
+		resolveTaskRef,
+		resolveTaskRefs,
+		taskRefName,
+		type TaskRef,
+		type TaskRefIndex,
+	} from '../utils/taskRef';
 	import WikiLinkField from './fields/WikiLinkField.svelte';
 	import { icon } from '../utils/icon';
 
@@ -18,28 +25,20 @@
 	export let onRemoveDependency: (path: string) => Promise<void>;
 	export let onOpenTask: (path: string) => void;
 
-	// ── Link helpers ────────────────────────────────────────────────────────────
-	// Resolution logic lives in taskDetailLinks; these thin closures just bind the
-	// current `tasks` array so call sites stay terse.
+	// ── Link resolution ─────────────────────────────────────────────────────────
+	// Stored links are paths, so they're resolved to `TaskRef`s once here and the
+	// markup below works in objects: a `kind: 'task'` ref reads its title straight
+	// off `ref.task.name`, and a `kind: 'missing'` ref is a state the template has
+	// to handle rather than a null someone can forget to check.
 
-	const linkedTask = (pathLike: string | null | undefined): Task | null => findLinkedTask(pathLike, tasks);
-	const resolveTaskPath = (pathLike: string | null | undefined): string | null => resolveLinkedTaskPath(pathLike, tasks);
-	// A dangling link renders as `Missing task (id)`, never as its own filename —
-	// see utils/taskLabel. Chips pair this with `tt-chip-warning` so the broken
-	// link is visible as broken rather than passing for a real name.
-	const taskLabelFromPath = (pathLike: string | null | undefined): string =>
-		resolveTaskLabel(normalizeTaskPath(pathLike), () => findLinkedTask(pathLike, tasks)?.name).text;
+	$: refIndex = buildTaskRefIndex(tasks);
 
-	function openLinkedPath(pathLike: string): void {
-		const resolved = resolveTaskPath(pathLike);
-		if (!resolved) return;
-		onOpenTask(resolved);
+	function openLinkedRef(ref: TaskRef): void {
+		onOpenTask(ref.path);
 	}
 
-	function showLinkedHoverPreview(event: MouseEvent, pathLike: string): void {
-		const resolved = resolveTaskPath(pathLike);
-		if (!resolved) return;
-		plugin.triggerTaskHoverPreview(resolved, event);
+	function showRefHoverPreview(event: MouseEvent, ref: TaskRef): void {
+		plugin.triggerTaskHoverPreview(ref.path, event);
 	}
 
 	// ── Relationship tree ───────────────────────────────────────────────────────
@@ -48,12 +47,10 @@
 
 	interface RelationshipTreeNode {
 		key: string;
-		path: string;
+		ref: TaskRef;
 		label: string;
 		depth: number;
 		direction: RelationshipDirection;
-		task: Task | null;
-		isMissing: boolean;
 		isBlocked: boolean;
 	}
 
@@ -62,47 +59,41 @@
 		nodes: RelationshipTreeNode[];
 	}
 
-	function normalizeTaskPaths(paths: string[]): string[] {
-		const seen = new Set<string>();
-		const normalized: string[] = [];
-		for (const path of paths) {
-			const next = resolveTaskPath(path);
-			if (!next || seen.has(next)) continue;
-			seen.add(next);
-			normalized.push(next);
-		}
-		return normalized;
-	}
-
-	function buildRelationshipTree(startPaths: string[], direction: RelationshipDirection): RelationshipTreeNode[] {
-		const queue = normalizeTaskPaths(startPaths).map((path) => ({ path, depth: 1 }));
+	// `index` is threaded through explicitly rather than closed over so Svelte
+	// sees it as a dependency of the reactive statements below — closing over it
+	// would leave the tree stale when the task list changes.
+	function buildRelationshipTree(
+		startPaths: string[],
+		direction: RelationshipDirection,
+		index: TaskRefIndex,
+	): RelationshipTreeNode[] {
+		const queue = resolveTaskRefs(startPaths, index).map((ref) => ({ ref, depth: 1 }));
 		const visited = new Set<string>();
 		const result: RelationshipTreeNode[] = [];
 
 		while (queue.length > 0 && result.length < MAX_REL_TREE_NODES) {
 			const current = queue.shift();
-			if (!current || visited.has(current.path)) continue;
-			visited.add(current.path);
+			if (!current || visited.has(current.ref.path)) continue;
+			visited.add(current.ref.path);
 
-			const linked = linkedTask(current.path);
+			const linked = current.ref.kind === 'task' ? current.ref.task : null;
 			result.push({
-				key: `${direction}:${current.path}`,
-				path: current.path,
-				label: taskLabelFromPath(current.path),
+				key: `${direction}:${current.ref.path}`,
+				ref: current.ref,
+				label: taskRefName(current.ref),
 				depth: current.depth,
 				direction,
-				task: linked,
-				isMissing: !linked,
 				isBlocked: direction === 'upstream' && !!linked && !linked.is_complete,
 			});
 
+			// A missing ref is a leaf — there's no task to read further links off.
 			if (!linked || current.depth >= MAX_REL_TREE_DEPTH) continue;
 
-			const nextPaths = normalizeTaskPaths(direction === 'upstream' ? linked.depends_on : linked.blocks)
-				.sort((a, b) => taskLabelFromPath(a).localeCompare(taskLabelFromPath(b)));
-			for (const nextPath of nextPaths) {
-				if (!visited.has(nextPath)) {
-					queue.push({ path: nextPath, depth: current.depth + 1 });
+			const nextRefs = resolveTaskRefs(direction === 'upstream' ? linked.depends_on : linked.blocks, index)
+				.sort((a, b) => taskRefName(a).localeCompare(taskRefName(b)));
+			for (const nextRef of nextRefs) {
+				if (!visited.has(nextRef.path)) {
+					queue.push({ ref: nextRef, depth: current.depth + 1 });
 				}
 			}
 		}
@@ -120,14 +111,25 @@
 		const depths = [...grouped.keys()].sort((a, b) => (descending ? b - a : a - b));
 		return depths.map((depth) => ({
 			depth,
-			nodes: (grouped.get(depth) ?? []).sort((a, b) => a.label.localeCompare(b.label) || a.path.localeCompare(b.path)),
+			nodes: (grouped.get(depth) ?? []).sort((a, b) => a.label.localeCompare(b.label) || a.ref.path.localeCompare(b.ref.path)),
 		}));
 	}
 
 	// ── Reactive derived state ──────────────────────────────────────────────────
 
-	$: dependencyTasks = task.depends_on.map((dep) => linkedTask(dep)).filter((dep): dep is Task => !!dep);
-	$: missingDependencies = task.depends_on.filter((dep) => !linkedTask(dep));
+	// Entries keep the *stored* link string alongside the resolved ref: removal
+	// matches against what's actually written in frontmatter, so substituting the
+	// canonical path here could fail to find the entry to delete.
+	$: dependencyEntries = task.depends_on
+		.map((dep) => ({ dep, ref: resolveTaskRef(dep, refIndex) }))
+		.filter((entry): entry is { dep: string; ref: TaskRef } => entry.ref !== null);
+	$: blockedByRefs = task.blocks
+		.map((dep) => resolveTaskRef(dep, refIndex))
+		.filter((ref): ref is TaskRef => ref !== null);
+
+	$: dependencyRefs = dependencyEntries.map((entry) => entry.ref);
+	$: dependencyTasks = dependencyRefs.flatMap((ref) => (ref.kind === 'task' ? [ref.task] : []));
+	$: missingDependencies = dependencyRefs.filter((ref) => ref.kind === 'missing');
 	$: openDependencies = dependencyTasks.filter((dep) => !dep.is_complete);
 
 	$: cyclePaths = detectDependencyCyclePaths(tasks);
@@ -139,13 +141,13 @@
 		...(openDependencies.length > 0 ? [`Blocked by ${openDependencies.length} unfinished task(s) — cannot start yet.`] : []),
 	];
 
-	$: upstreamTree = buildRelationshipTree(task.depends_on, 'upstream');
-	$: downstreamTree = buildRelationshipTree(task.blocks, 'downstream');
+	$: upstreamTree = buildRelationshipTree(task.depends_on, 'upstream', refIndex);
+	$: downstreamTree = buildRelationshipTree(task.blocks, 'downstream', refIndex);
 	$: upstreamTreeLevels = groupTreeLevels(upstreamTree, true);
 	$: downstreamTreeLevels = groupTreeLevels(downstreamTree, false);
 
 	$: availableDependencies = tasks
-		.filter((t) => t.type === 'task' && t.path !== task.path && !task.depends_on.some((d) => normalizeTaskPath(d) === t.path))
+		.filter((t) => t.type === 'task' && t.path !== task.path && !task.depends_on.some((d) => normalizeRefPath(d) === t.path))
 		.sort((a, b) => sortDependencyFirst(a, b, task.parent_task));
 
 	const addBlockerFieldDefinition: FieldDefinition = {
@@ -193,10 +195,10 @@
 								{#each level.nodes as node (node.key)}
 									<button
 										class="tt-chip tt-chip-rel tt-rel-tree-chip"
-										class:tt-chip-warning={node.isMissing}
+										class:tt-chip-warning={node.ref.kind === 'missing'}
 										class:tt-chip-blocking={node.isBlocked}
-										on:click={() => openLinkedPath(node.path)}
-										on:mouseenter={(event) => showLinkedHoverPreview(event, node.path)}
+										on:click={() => openLinkedRef(node.ref)}
+										on:mouseenter={(event) => showRefHoverPreview(event, node.ref)}
 									>
 										{node.label}
 									</button>
@@ -217,8 +219,9 @@
 								{#each level.nodes as node (node.key)}
 									<button
 										class="tt-chip tt-chip-rel tt-rel-tree-chip"
-										on:click={() => openLinkedPath(node.path)}
-										on:mouseenter={(event) => showLinkedHoverPreview(event, node.path)}
+										class:tt-chip-warning={node.ref.kind === 'missing'}
+										on:click={() => openLinkedRef(node.ref)}
+										on:mouseenter={(event) => showRefHoverPreview(event, node.ref)}
 									>
 										{node.label}
 									</button>
@@ -236,20 +239,20 @@
 					<span class="tt-rel-heading-icon" use:icon={'pause'}></span>
 					Blocked by
 				</div>
-				{#if task.depends_on.length === 0}
+				{#if dependencyEntries.length === 0}
 					<div class="tt-rel-empty">None</div>
 				{:else}
 					<div class="tt-chips">
-						{#each task.depends_on as dep}
+						{#each dependencyEntries as { dep, ref } (dep)}
 							<span class="tt-chip-group">
 								<button
 									class="tt-chip tt-chip-rel"
-									class:tt-chip-warning={!linkedTask(dep)}
-									class:tt-chip-blocking={!!linkedTask(dep) && !linkedTask(dep)?.is_complete}
-									on:click={() => openLinkedPath(dep)}
-									on:mouseenter={(event) => showLinkedHoverPreview(event, dep)}
+									class:tt-chip-warning={ref.kind === 'missing'}
+									class:tt-chip-blocking={ref.kind === 'task' && !ref.task.is_complete}
+									on:click={() => openLinkedRef(ref)}
+									on:mouseenter={(event) => showRefHoverPreview(event, ref)}
 								>
-									{taskLabelFromPath(dep)}
+									{taskRefName(ref)}
 								</button>
 								<button
 									class="tt-chip-remove"
@@ -276,17 +279,18 @@
 					<span class="tt-rel-heading-icon" use:icon={'arrow-right'}></span>
 					Unblocks
 				</div>
-				{#if task.blocks.length === 0}
+				{#if blockedByRefs.length === 0}
 					<div class="tt-rel-empty">None</div>
 				{:else}
 					<div class="tt-chips">
-						{#each task.blocks as dep}
+						{#each blockedByRefs as ref (ref.path)}
 							<button
 								class="tt-chip tt-chip-rel"
-								on:click={() => openLinkedPath(dep)}
-								on:mouseenter={(event) => showLinkedHoverPreview(event, dep)}
+								class:tt-chip-warning={ref.kind === 'missing'}
+								on:click={() => openLinkedRef(ref)}
+								on:mouseenter={(event) => showRefHoverPreview(event, ref)}
 							>
-								{taskLabelFromPath(dep)}
+								{taskRefName(ref)}
 							</button>
 						{/each}
 					</div>

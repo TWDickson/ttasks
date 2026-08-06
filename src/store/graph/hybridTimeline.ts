@@ -1,5 +1,5 @@
 import type { Task } from '../../types';
-import { resolveTaskLabel } from '../../utils/taskLabel';
+import { missingTaskLabel } from '../../utils/taskLabel';
 import { DAY_MS, addDays, normalizeTimelineRange, parseIsoDate } from './graphTimeline';
 import { normalizeTaskPath, resolveOwningProjectPath, dedupePaths } from './taskGraph';
 import {
@@ -125,7 +125,7 @@ function createTimelineGroupingResolver(
 			const project = allTaskByPath.get(owningProjectPath);
 			return {
 				key: `project:${owningProjectPath}`,
-				label: resolveTaskLabel(owningProjectPath, () => project?.name).text,
+				label: project ? project.name : missingTaskLabel(owningProjectPath),
 			};
 		};
 	}

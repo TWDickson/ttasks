@@ -113,13 +113,19 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
 - Dates are **local calendar dates**; `dateUtils.ts` documents the hybrid
   local-date/UTC-arithmetic policy. No bare `new Date()` outside the boundary.
 - **Never derive a display name from a file path.** A task's title comes from
-  its `name` frontmatter and nowhere else. To label a link, use
-  `resolveTaskLabel` (`src/utils/taskLabel.ts`), which renders an unresolvable
-  target as `Missing task (id)` and reports `resolved: false` so the UI can mark
-  it broken. Falling back to the filename makes a dangling link look identical
-  to a healthy one and hides the underlying data defect. The same applies when
-  *writing*: pass `alias: null` to `buildAliasedLink` rather than inventing one,
-  so a fake title never lands in frontmatter.
+  its `name` frontmatter and nowhere else — `TaskStore.fileToTask` refuses to
+  build a `Task` with a blank `name`, so **any `Task` you hold has a real
+  title** and `task.name` needs no fallback.
+- **Resolve links to `TaskRef`s, don't carry paths into the UI.**
+  `parent_task` / `depends_on` / `blocks` are stored as path strings, so use
+  `buildTaskRefIndex` + `resolveTaskRef` (`src/utils/taskRef.ts`), or
+  `TaskStore.resolveRef` for a one-off. A `kind: 'task'` ref reads
+  `ref.task.name` directly; a `kind: 'missing'` ref is a variant the compiler
+  makes you handle, rendered as `Missing task (id)` with `.tt-chip-warning`.
+  Resolution is O(1) through the index — don't reintroduce an `Array.find` scan
+  per chip. The same applies when *writing*: pass `alias: null` to
+  `buildAliasedLink` rather than inventing one, so a fake title never lands in
+  frontmatter.
 
 ## Architecture rules
 

@@ -7,7 +7,8 @@ import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYP
 import { PRIORITY_COLORS } from '../constants';
 import { localDateString } from '../utils/dateUtils';
 import { sortDependencyFirst } from '../utils/dependencySort';
-import { resolveTaskLabel } from '../utils/taskLabel';
+import { missingTaskLabel } from '../utils/taskLabel';
+import { taskRefName } from '../utils/taskRef';
 import { getFieldOptions, getOptionColor } from './modalFieldHelpers';
 import { taskFields } from '../schema/taskFields';
 import { withCurrentOption } from './chipSelection';
@@ -410,11 +411,12 @@ export class CreateTaskModal extends Modal {
 		const renderDepsChips = () => {
 			depsChipsEl.empty();
 			for (const depPath of this.formValues.depends_on) {
-				const dep = resolveTaskLabel(depPath, (p) => this.plugin.taskStore.getByPath(p)?.name);
-				const chipCls = dep.resolved
+				const ref = this.plugin.taskStore.resolveRef(depPath);
+				const chipCls = ref && ref.kind === 'task'
 					? 'tt-modal-chip tt-chip-active'
 					: 'tt-modal-chip tt-chip-active tt-chip-warning';
-				const chip = depsChipsEl.createEl('span', { cls: chipCls, text: dep.text });
+				const label = ref ? taskRefName(ref) : missingTaskLabel(depPath);
+				const chip = depsChipsEl.createEl('span', { cls: chipCls, text: label });
 				const removeBtn = chip.createEl('span', { text: ' ×', cls: 'tt-modal-chip-remove' });
 				removeBtn.addEventListener('click', () => {
 					this.formValues.depends_on = this.formValues.depends_on.filter((d: string) => d !== depPath);

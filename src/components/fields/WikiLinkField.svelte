@@ -2,7 +2,7 @@
 	import type { FieldDefinition, FieldContext } from '../../schema/types';
 	import type { Task } from '../../types';
 	import { sortDependencyFirst } from '../../utils/dependencySort';
-	import { resolveTaskLabel } from '../../utils/taskLabel';
+	import { buildTaskRefIndex, resolveTaskRef, taskRefName, type TaskRef } from '../../utils/taskRef';
 
 	export let definition: FieldDefinition;
 	export let value: string | string[] | null = [];
@@ -55,13 +55,13 @@
 		onBlur?.();
 	};
 
-	const findOption = (path: string): Task | undefined =>
-		options.find((t) => t.path === path || t.path.replace(/\.md$/, '') === path);
-
-	const getTaskLabel = (path: string): string =>
-		resolveTaskLabel(path, () => findOption(path)?.name).text;
-
-	const isMissing = (path: string): boolean => !resolveTaskLabel(path, () => findOption(path)?.name).resolved;
+	// Chips render from resolved refs, so a selected value that isn't in `options`
+	// shows as an explicit missing link instead of falling back to its filename.
+	// `path` is kept alongside the ref because removal matches the stored value.
+	$: refIndex = buildTaskRefIndex(options);
+	$: chipEntries = values
+		.map((path) => ({ path, ref: resolveTaskRef(path, refIndex) }))
+		.filter((entry): entry is { path: string; ref: TaskRef } => entry.ref !== null);
 </script>
 
 <div class="tt-field tt-field-wikilink">
@@ -77,10 +77,9 @@
 	{#if isMulti}
 		<!-- Multi-select mode: chips + dropdown -->
 		<div class="tt-wikilink-chips">
-			{#each values as path}
-				{@const label = getTaskLabel(path)}
-				<span class="tt-chip tt-chip-wikilink" class:tt-chip-warning={isMissing(path)}>
-					{label}
+			{#each chipEntries as { path, ref } (path)}
+				<span class="tt-chip tt-chip-wikilink" class:tt-chip-warning={ref.kind === 'missing'}>
+					{taskRefName(ref)}
 					{#if !readonly}
 						<button
 							type="button"

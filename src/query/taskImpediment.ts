@@ -26,7 +26,7 @@
  */
 import type { Task } from '../types';
 import { normalizeTaskPath } from '../store/graph/taskGraph';
-import { resolveTaskLabelFromMap } from '../utils/taskLabel';
+import { resolveTaskRef, taskRefName, type TaskRefIndex } from '../utils/taskRef';
 
 export type ImpedimentKind = 'blocked' | 'held';
 
@@ -197,19 +197,21 @@ export interface ImpedimentLabel {
  * than being hardcoded, so a vault that renamed Blocked to "Escalated" reads
  * "Escalated upstream".
  *
- * `nameByPath` resolves causes to task names; an unknown path degrades to
- * `Missing task (id)` rather than being dropped, so the tooltip never silently
- * under-reports what's holding the task up — and never passes a filename off as
- * a name (see utils/taskLabel).
+ * Causes resolve through `index`; an unknown path degrades to `Missing task (id)`
+ * rather than being dropped, so the tooltip never silently under-reports what's
+ * holding the task up — and never passes a filename off as a name.
  */
 export function describeImpediment(
 	state: ImpedimentState,
 	statuses: ImpedimentStatuses,
-	nameByPath: Map<string, string>,
+	index: TaskRefIndex,
 ): ImpedimentLabel {
 	const statusName = state.kind === 'blocked' ? statuses.blockStatus : statuses.holdStatus;
 	const label = `${statusName} upstream`;
-	const names = state.causes.map((path) => resolveTaskLabelFromMap(path, nameByPath).text);
+	const names = state.causes.flatMap((path) => {
+		const ref = resolveTaskRef(path, index);
+		return ref ? [taskRefName(ref)] : [];
+	});
 	const tooltip = names.length > 0
 		? `${label} — waiting on: ${names.join(', ')}`
 		: label;
@@ -238,7 +240,7 @@ export interface ImpedimentBadge extends ImpedimentLabel {
 export function buildImpedimentBadges(
 	impediments: Map<string, ImpedimentState>,
 	statuses: ImpedimentStatuses,
-	nameByPath: Map<string, string>,
+	index: TaskRefIndex,
 	statusColors: Record<string, string> | null | undefined,
 ): Map<string, ImpedimentBadge> {
 	const badges = new Map<string, ImpedimentBadge>();
@@ -246,7 +248,7 @@ export function buildImpedimentBadges(
 		if (!isUpstreamImpediment(state)) continue;
 		const statusName = state.kind === 'blocked' ? statuses.blockStatus : statuses.holdStatus;
 		badges.set(path, {
-			...describeImpediment(state, statuses, nameByPath),
+			...describeImpediment(state, statuses, index),
 			kind: state.kind,
 			color: statusColors?.[statusName],
 		});

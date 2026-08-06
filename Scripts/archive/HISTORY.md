@@ -12,6 +12,52 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-05 — Relationships resolve to `TaskRef`s, not paths
+
+Follow-on to the entry below, from Taylor's question: *"shouldn't the UI always
+grab the name from the class for the task?"* Yes — and the model already
+guarantees it works. `Task.name` is a non-optional `string`, and
+`TaskStore.fileToTask` returns `null` rather than building a `Task` with a blank
+`name`. So **any `Task` in hand has a real title**; there was never a naming
+question to answer.
+
+The previous fix made the *fallback* honest but left the underlying shape: the
+UI held path strings and re-resolved them at every render, so "this link doesn't
+resolve" stayed an easily-forgotten null at ~31 call sites.
+
+- New pure module `src/utils/taskRef.ts`. `TaskRef` is
+  `{ kind: 'task'; task: Task }` or `{ kind: 'missing'; path; id }` — the
+  failure is now a variant the compiler forces each site to handle, not a null
+  it can skip. `taskRefName` is the **single** place the missing placeholder
+  gets formatted; `taskLabel.ts` is reduced to formatting it.
+- **The missing variant is kept, not filtered away.** A link can legitimately
+  point outside the current task set (a filtered board, a note moved out of the
+  folder). Dropping those would silently under-report what's blocking a task —
+  the same failure mode in a new outfit.
+- `buildTaskRefIndex` replaces the per-chip `Array.find` scans with an O(1)
+  lookup. `byLeaf` buckets are arrays so the short-wikilink fallback
+  (`[[abc123-slug]]` from a sibling note) keeps its first-match-wins behaviour,
+  and the suffix must land on a folder boundary so `Tasks/a.md` can't claim
+  `Other/Tasks/a.md`.
+- **Stored link strings are kept alongside the refs** in the two editable lists.
+  Removal matches what's actually written in frontmatter, so substituting the
+  canonical resolved path could fail to find the entry to delete.
+- Fixed a latent staleness bug in passing: the relationship tree closed over
+  `tasks`, so Svelte didn't treat it as a dependency of the reactive statements.
+  The index is now threaded through as a parameter.
+- `taskDetailLinks.ts` is deleted — `findLinkedTask` / `resolveLinkedTaskPath`
+  are fully superseded; their contracts moved into `taskRef.test.ts`.
+  `resolveTaskLabel` / `resolveTaskLabelFromMap` went with them.
+- `describeImpediment` / `buildImpedimentBadges` now take a `TaskRefIndex`
+  instead of a parallel `path -> name` map, so the tooltip reads names off real
+  `Task` objects.
+- `TaskStore.resolveRef` covers store-backed callers that have no task array.
+
+Verified in the rig: the missing-link chip, the multi-level dependency tree, and
+the graph all render identically to before.
+
+---
+
 ## 2026-08-05 — Bare titles never leak from paths; one title primitive
 
 Taylor: *"in some sections you can see bare task titles or project titles being

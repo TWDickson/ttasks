@@ -32,6 +32,7 @@
 	import { buildBoardQuery, type ListGroupOverride, type ListSortOverride } from './boardQuery';
 	import { buildToolbarFilterConditions, hasActiveToolbarFilters, supportsDateRangeFilter } from './boardFilters';
 	import { buildImpedimentBadges, computeImpediments } from '../query/taskImpediment';
+	import { buildTaskRefIndex } from '../utils/taskRef';
 	import type { FilterCondition, GroupField, SortField } from '../query/types';
 	import { GROUP_FIELDS, SORT_FIELDS } from '../query/queryEditor';
 	import {
@@ -305,7 +306,7 @@
 	$: impedimentBadges = buildImpedimentBadges(
 		computeImpediments($tasks, impedimentStatuses),
 		impedimentStatuses,
-		new Map($tasks.map((task) => [task.path, task.name])),
+		buildTaskRefIndex($tasks),
 		configuredStatusColors,
 	);
 

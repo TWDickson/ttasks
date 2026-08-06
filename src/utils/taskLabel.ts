@@ -10,9 +10,11 @@
  *
  * Instead we surface the one thing a dangling link genuinely still carries: the
  * task id. It's stable across renames and it's what hash-prefix search matches
- * on, so `Missing task (6d1f2a)` is a label you can act on. Callers get
- * `resolved: false` alongside it so the UI can mark the link as broken rather
- * than styling it like a name.
+ * on, so `Missing task (6d1f2a)` is a label you can act on.
+ *
+ * This module only *formats* that placeholder. Resolution lives in `taskRef.ts`
+ * — `taskRefName` is the single caller, reached whenever a `TaskRef` turns out
+ * to be the `missing` variant.
  */
 
 import { taskIdFromPath } from './pathUtils';
@@ -23,13 +25,6 @@ export const MISSING_TASK_LABEL = 'Missing task';
 /** TTasks names task files `{6hex}-{slug}.md`; only that shape is a real id. */
 const TASK_ID_PATTERN = /^[0-9a-f]{4,}$/i;
 
-export interface TaskLabel {
-	/** Safe to render. Either a real name, or the missing-link placeholder. */
-	text: string;
-	/** False when `text` is a placeholder rather than a task's actual name. */
-	resolved: boolean;
-}
-
 /**
  * The placeholder for an unresolvable path, including its task id when the
  * filename follows the `{hex}-{slug}` convention. A path that doesn't (a plain
@@ -39,30 +34,4 @@ export interface TaskLabel {
 export function missingTaskLabel(path: string | null | undefined): string {
 	const id = taskIdFromPath((path ?? '').trim());
 	return TASK_ID_PATTERN.test(id) ? `${MISSING_TASK_LABEL} (${id})` : MISSING_TASK_LABEL;
-}
-
-/**
- * Resolve `path` to a display label via `resolveName`, which returns the task's
- * `name` or a nullish value if the path is unknown. Blank names count as
- * unresolved — an empty `name` field is the same data defect as a missing note.
- */
-export function resolveTaskLabel(
-	path: string | null | undefined,
-	resolveName: (path: string) => string | null | undefined,
-): TaskLabel {
-	const clean = (path ?? '').trim();
-	if (!clean) return { text: MISSING_TASK_LABEL, resolved: false };
-
-	const name = resolveName(clean);
-	if (name && name.trim()) return { text: name.trim(), resolved: true };
-
-	return { text: missingTaskLabel(clean), resolved: false };
-}
-
-/** `resolveTaskLabel` for the common case of a `path -> name` map. */
-export function resolveTaskLabelFromMap(
-	path: string | null | undefined,
-	nameByPath: Map<string, string>,
-): TaskLabel {
-	return resolveTaskLabel(path, (p) => nameByPath.get(p));
 }

@@ -1,6 +1,6 @@
 import type { Task } from '../../types';
 import { ensureMdExt } from '../../utils/pathUtils';
-import { resolveTaskLabel } from '../../utils/taskLabel';
+import { missingTaskLabel } from '../../utils/taskLabel';
 import { parseWikiLink } from '../../utils/wikiLink';
 import { optimizeLaneBandOrder } from './graphCrossingOptimizer';
 import { parseIsoDate } from '../../utils/dateUtils';
@@ -620,7 +620,8 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	}
 	const laneLabelOf = (key: string): string => {
 		const projectPath = key.startsWith(SATELLITE_LANE_PREFIX) ? key.slice(SATELLITE_LANE_PREFIX.length) : key;
-		return resolveTaskLabel(projectPath, (p) => allTaskByPath.get(p)?.name).text;
+		const project = allTaskByPath.get(projectPath);
+		return project ? project.name : missingTaskLabel(projectPath);
 	};
 	const laneKeysSorted = [...laneAssignments.keys()].sort((left, right) => {
 		if (left === null) return 1;
