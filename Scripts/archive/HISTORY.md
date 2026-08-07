@@ -12,6 +12,58 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-07 — Ghost sidebar tabs, and the deferred-view trap behind them (0.1.3)
+
+Reported from the phone: TTasks sidebar buttons showing as Obsidian's
+missing-item ghost icons, with a *second*, live TTasks entry appearing beside
+them once the plugin loaded.
+
+**Two bugs stacked.** Obsidian persists every sidebar leaf into the workspace
+layout and restores it on launch whether or not the owning plugin is loaded, so
+with TTasks disabled on a device our leaves come back as dead placeholder tabs.
+`registerView` does not retroactively revive them — it only affects leaves
+created *after* it runs. That produced the ghosts. Separately, `onLayoutReady`
+called `ensureSideLeaf(pomodoro)` on **every** launch, which put a live tab next
+to each ghost and also re-added a Pomodoro tab the user had deliberately closed.
+
+The second half was squarely an anti-pattern the API notes for 1.7.2 name in so
+many words: *"`onUserEnable` … If your plugin has a custom view, this is a good
+place to initialize it rather than recreating the view in `Plugin#onload`."*
+The one-shot moved there, which still satisfies #15's discoverability goal
+without re-running forever. `views/leafHygiene.ts` handles the cleanup: it
+reapplies a ghost's *persisted* view state to rebuild the real view in place,
+then collapses each of our types to one leaf, keeping the earliest so the user's
+sidebar order survives. Both halves are scoped strictly to view types we own —
+another plugin's dead tab isn't ours to touch, and a leaf Obsidian has already
+stripped of its type is indistinguishable from an ordinary empty tab.
+
+**The sweep that followed matters more than the original bug.** Asked whether we
+contravened the API guidance anywhere else, the answer was four more places, one
+of them with teeth:
+
+- `TaskWriter.isFileOpenInEditor` reached through `(leaf.view as any).file.path`.
+  Our `minAppVersion` is 1.7.2 — the release that made background tabs deferred —
+  so a `DeferredView` with no `.file` is the *common* case, not an edge one. A
+  note open in a background tab therefore read as closed, skipping the settle
+  delay before `vault.process()` rewrites the whole body, and could drop
+  unflushed editor state. `views/openFileLeaves.ts` reads the view state instead.
+- `TaskBoardView` gated its shortcuts on the deprecated `workspace.activeLeaf`.
+- `QueryEditorModal` had three `innerHTML = '✕'` glyph buttons, against both
+  Obsidian's guidance and our own setIcon rule.
+- `ScanEngine` left debounce timers armed across unload.
+
+**The lesson worth keeping:** `leaf.view` is the wrong thing to read about a leaf
+you did not just open. Since deferred views landed, the *view state* is the only
+representation that's populated whether or not the view is loaded — both fixes
+here are the same move, and a third instance will look the same.
+
+Verification is honest about its limits: all of this is unit-tested and rig-green,
+but the machine doing the work has no Obsidian and no vault, so the ghost-revival
+path and the QueryEditor icons still want an on-device eyeball. Tracked in
+`PROJECT.md` under the mobile sweep.
+
+---
+
 ## 2026-08-06 — CI covers the rig: type-check + a mount smoke test
 
 Follow-on to the `StatusPolicy` entry, where the rig broke and nothing in the
