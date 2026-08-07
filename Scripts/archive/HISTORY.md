@@ -55,7 +55,23 @@ of them with teeth:
 **The lesson worth keeping:** `leaf.view` is the wrong thing to read about a leaf
 you did not just open. Since deferred views landed, the *view state* is the only
 representation that's populated whether or not the view is loaded — both fixes
-here are the same move, and a third instance will look the same.
+here are the same move, and a third instance would look the same.
+
+So it's enforced rather than just written down: `architectureBoundaries.test.ts`
+now fails on any `.view as …` cast in shipped source, pointing at
+`openFileLeaves.ts`. The cast is the tell — `leaf.view.getViewType()` stays legal
+(a DeferredView reports its type honestly), as does handing `leaf.view` to
+something that duck-types it, which is why the ban is on the assertion and not on
+touching `.view` at all. The guard was checked by reintroducing the old
+`TaskWriter` line and confirming it failed by name.
+
+**Also, while in there:** the graph's fullscreen modal drew its own collapse
+button pinned top-right, and hid `Modal`'s close button with `display: none` —
+except the system button was showing anyway on device, so the two controls sat on
+top of each other. `Modal` already provides a close control, so ours is gone
+along with the rule hiding the system one, and `TaskGraph`'s `isFullscreen` prop
+went with it (nothing could set it true any more). The two `innerHTML = ''`
+clears in `CreateTaskModal` and `TaskDetailNotes` became `.empty()`.
 
 Verification is honest about its limits: all of this is unit-tested and rig-green,
 but the machine doing the work has no Obsidian and no vault, so the ghost-revival

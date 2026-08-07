@@ -30,7 +30,7 @@ export interface GraphExpandProps {
  * pop-out windows (`moveLeafToPopout`) are desktop-only and throw on mobile, so
  * a `Modal` is the one mechanism that works on both platforms. Obsidian modals
  * now implement `HistoryHandler` (1.10+), so the phone back gesture closes this
- * for free, alongside the in-graph collapse button and Esc.
+ * for free, alongside `Modal`'s own close button and Esc.
  */
 export class GraphExpandModal extends Modal {
 	private component: TaskGraph | null = null;
@@ -60,10 +60,9 @@ export class GraphExpandModal extends Modal {
 					this.close();
 					window.requestAnimationFrame(() => this.graphProps.onOpen(path));
 				},
-				// This instance IS the fullscreen surface: its toggle collapses back
-				// to the board rather than opening another modal.
-				isFullscreen: true,
-				onToggleFullscreen: () => this.close(),
+				// No collapse button of our own: `Modal` already renders a close
+				// control, and ours pinned itself to the same top-right corner, so the
+				// two sat on top of each other.
 			},
 		});
 	}

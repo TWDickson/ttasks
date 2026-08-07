@@ -37,10 +37,10 @@
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 	// GP1: fullscreen expand. When `onToggleFullscreen` is set the graph shows a
-	// maximize/collapse button. `isFullscreen` flips it to a collapse affordance
-	// (set true by GraphExpandModal, which hosts a second instance edge-to-edge).
+	// maximize button. The fullscreen instance inside GraphExpandModal leaves this
+	// unset — closing is `Modal`'s own close button, Esc, or the phone back
+	// gesture, and a second control of ours landed on top of the first.
 	export let onToggleFullscreen: (() => void) | undefined = undefined;
-	export let isFullscreen = false;
 
 	type GraphMode = 'dependency' | 'overview';
 	export let defaultGraphMode: GraphMode = 'dependency';
@@ -927,10 +927,10 @@
 		<button
 			type="button"
 			class="tt-graph-expand"
-			aria-label={isFullscreen ? 'Collapse graph' : 'Expand graph to full screen'}
+			aria-label="Expand graph to full screen"
 			on:click={() => onToggleFullscreen?.()}
 		>
-			<span class="tt-graph-expand-icon" use:icon={isFullscreen ? 'minimize-2' : 'maximize-2'}></span>
+			<span class="tt-graph-expand-icon" use:icon={'maximize-2'}></span>
 		</button>
 	{/if}
 	<div class="tt-graph-toolbar">

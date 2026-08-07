@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 function readWorkspaceFile(relativePath: string): string {
 	return readFileSync(resolve(process.cwd(), relativePath), 'utf8');
+}
+
+/** Every shipped source file under `src/` — tests, mocks and fixtures excluded. */
+function sourceFiles(dir = 'src'): string[] {
+	return readdirSync(resolve(process.cwd(), dir), { withFileTypes: true }).flatMap((entry) => {
+		const path = join(dir, entry.name);
+		if (entry.isDirectory()) return entry.name === '__mocks__' ? [] : sourceFiles(path);
+		if (/\.(test|spec|contract\.test)\.ts$/.test(entry.name)) return [];
+		if (entry.name === 'test-setup.ts') return [];
+		return /\.(ts|svelte)$/.test(entry.name) ? [path] : [];
+	});
 }
 
 describe('architecture boundaries', () => {
@@ -64,6 +75,25 @@ describe('architecture boundaries', () => {
 			expect(content).not.toContain("from 'obsidian'");
 			expect(content).not.toContain('from "obsidian"');
 		}
+	});
+
+	/* Since deferred views landed in Obsidian 1.7.2 — our minAppVersion — a leaf
+	   that isn't in the foreground holds a `DeferredView` placeholder rather than
+	   the real view, so anything you reach for by casting (`file`, `editor`,
+	   `getState()`) is simply absent. That produced two separate bugs before it
+	   was understood: sidebar tabs we failed to recognise and duplicated, and a
+	   body rewrite that skipped its editor-settle delay for a note open in a
+	   background tab. The answer both times was the leaf's *view state*, which is
+	   populated whether or not the view is loaded.
+
+	   `leaf.view.getViewType()` stays legal — a DeferredView reports its type
+	   honestly — and so does passing `leaf.view` somewhere that duck-types it.
+	   The cast is the tell, so the cast is what's banned. */
+	it('no source file casts leaf.view to reach past a DeferredView', () => {
+		const offenders = sourceFiles()
+			.filter((path) => /\.view\s+as\s+/.test(readWorkspaceFile(path)));
+
+		expect(offenders, 'read leaf.getViewState() instead — see src/views/openFileLeaves.ts').toEqual([]);
 	});
 
 	it('BoardStateService stays pure and free of Obsidian imports', () => {

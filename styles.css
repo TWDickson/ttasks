@@ -1502,10 +1502,6 @@
 	overflow: hidden;
 }
 
-.tt-graph-fullscreen-modal .modal-close-button {
-	display: none;
-}
-
 .is-phone .tt-graph-fullscreen-modal.modal {
 	width: 100vw;
 	max-width: 100vw;

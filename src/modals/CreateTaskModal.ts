@@ -572,7 +572,7 @@ export class CreateTaskModal extends Modal {
 
 		const renderNotes = async () => {
 			if (!this.notesRenderComponent) return;
-			notesPreview.innerHTML = '';
+			notesPreview.empty();
 			if (!this.formValues.notes.trim()) {
 				notesPreview.createDiv({ cls: 'tt-notes-empty', text: 'No notes yet — click to add.' });
 				return;

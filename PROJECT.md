@@ -93,7 +93,13 @@ sweep, not a new fix.
   used the deprecated `workspace.activeLeaf`; `QueryEditorModal` had three
   `innerHTML = '✕'` glyph buttons; `ScanEngine` left debounce timers armed across
   unload. Only the QueryEditor icon swap is UI-facing and the rig has no scene for
-  that modal — worth an eyeball next time it's open.
+  that modal — worth an eyeball next time it's open. The deferred-view lesson is
+  now enforced by a boundary test, not just journalled.
+- `[x]` **Graph fullscreen modal had two close buttons** — reported 2026-08-07
+  with a screenshot. Our collapse button was pinned to the same top-right corner
+  as `Modal`'s own close control, which we were hiding via `display: none` but
+  which showed on device regardless. Ours removed, the hide rule removed, and
+  `TaskGraph`'s now-unsettable `isFullscreen` prop removed with them.
 
 ### 2. Pomodoro (native) — core complete, sign-off owed
 

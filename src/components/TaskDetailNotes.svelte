@@ -37,7 +37,7 @@
 		if (!markdown.trim()) {
 			// Plain styled placeholder — never fake markdown like '_No notes yet._'
 			if (renderSeq === previewRenderSeq) {
-				target.innerHTML = '';
+				target.empty();
 				const empty = target.createDiv({ cls: 'tt-notes-empty' });
 				empty.setText('No notes yet — click to add.');
 			}
