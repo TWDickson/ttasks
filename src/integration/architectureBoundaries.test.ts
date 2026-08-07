@@ -100,6 +100,7 @@ describe('architecture boundaries', () => {
 			'src/store/reminderPreview.ts',
 			'src/settings/holidays.ts',
 			'src/views/detailHeaderActions.ts',
+			'src/views/leafHygiene.ts',
 			'src/query/taskReadiness.ts',
 			'src/query/taskImpediment.ts',
 			'src/query/hashSearch.ts',

@@ -73,6 +73,17 @@ sweep, not a new fix.
   `label │ control`, squeezing controls on the narrow drawer. Below 768 px it now
   collapses to one column plus `overflow-x: hidden` on the detail leaf.
   Rig-verified dark + light at phone width.
+- `[~]` **Ghost sidebar tabs, and a duplicate beside each one** 🔎 — reported
+  2026-08-07. Obsidian restores our sidebar leaves from `workspace-mobile.json`
+  whether or not the plugin is loaded; with it disabled they come back as dead
+  placeholder-icon tabs, and `registerView` does not retroactively revive them.
+  On top of that, `onLayoutReady` was calling `ensureSideLeaf(pomodoro)` on
+  *every* launch — the anti-pattern the Obsidian 1.7.2 API notes call out — so a
+  fresh tab appeared next to the ghost, and a tab the user closed came back.
+  Fix: the one-shot moved to `Plugin.onUserEnable()`, plus `views/leafHygiene.ts`
+  reapplies a ghost's persisted view state to rebuild the real view and collapses
+  duplicates to one leaf per type. Unit-tested; needs an on-device pass (disable
+  the plugin → relaunch → re-enable → expect one live tab, no ghost).
 
 ### 2. Pomodoro (native) — core complete, sign-off owed
 

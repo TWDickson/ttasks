@@ -21,6 +21,7 @@ import { TaskDetailView, TASK_DETAIL_VIEW_TYPE } from './views/TaskDetailView';
 import { PomodoroView, TASK_POMODORO_VIEW_TYPE } from './views/PomodoroView';
 import { createBoardStateService, type BoardStateStores } from './store/BoardStateService';
 import { resolveTaskViewId } from './views/viewRegistry';
+import { repairPluginLeaves } from './views/leafHygiene';
 import { CreateTaskModal } from './modals/CreateTaskModal';
 import { FocusUntilModal } from './modals/FocusUntilModal';
 import { ShareSyncModal } from './modals/ShareSyncModal';
@@ -359,11 +360,42 @@ export default class TTasksPlugin extends Plugin {
 			this.startReminderServiceWhenReady();
 			// Scheduled auto-archive: check once on load, then hourly.
 			this.startAutoArchive();
-			// Ensure the Pomodoro pane has a tab (and thus a right-sidebar icon)
-			// on every launch — not just after openBoard() runs — so it's
-			// discoverable without first finding the command palette entry (#15).
-			void this.app.workspace.ensureSideLeaf(TASK_POMODORO_VIEW_TYPE, 'right', { reveal: false });
+			void this.repairLeaves();
 		});
+	}
+
+	/**
+	 * One-time setup, run by Obsidian only when the user actually enables the
+	 * plugin — never on a plain launch, and never on an update. Giving the
+	 * Pomodoro pane a tab belongs here and nowhere else: it's what makes the
+	 * feature discoverable without hunting through the command palette (#15),
+	 * but done on every load it silently re-adds a sidebar tab the user closed,
+	 * and re-adds it *beside* any dead tab left over from a session where the
+	 * plugin wasn't loaded. See `views/leafHygiene.ts` for the cleanup half.
+	 */
+	onUserEnable(): void {
+		void this.app.workspace.ensureSideLeaf(TASK_POMODORO_VIEW_TYPE, 'right', { reveal: false });
+	}
+
+	/**
+	 * Revive the dead ("ghost") sidebar tabs Obsidian restores for our view types
+	 * when the plugin wasn't loaded last session, and collapse any duplicates
+	 * that produced. Failure here is cosmetic, so it never blocks startup.
+	 */
+	private async repairLeaves(): Promise<void> {
+		try {
+			const { rehydrated, detached } = await repairPluginLeaves(this.app.workspace, [
+				TASK_BOARD_VIEW_TYPE,
+				TASK_RAIL_VIEW_TYPE,
+				TASK_DETAIL_VIEW_TYPE,
+				TASK_POMODORO_VIEW_TYPE,
+			]);
+			if (rehydrated || detached) {
+				this.log(`leaf repair: rehydrated ${rehydrated}, detached ${detached}`);
+			}
+		} catch (err: unknown) {
+			this.log(`leaf repair failed: ${String(err)}`);
+		}
 	}
 
 	private startReminderServiceWhenReady(): void {
