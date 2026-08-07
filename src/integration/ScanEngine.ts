@@ -95,6 +95,26 @@ export class ScanEngine {
 			if (!path) return;
 			this.removeTasksForFile(path);
 		}));
+
+		plugin.register(() => this.dispose());
+	}
+
+	/**
+	 * Drop every in-flight rescan. `rescanFile` debounces through `setTimeout`, so
+	 * without this an unload leaves timers armed that would wake up and read the
+	 * vault through a torn-down plugin. Pending promises are resolved rather than
+	 * rejected — the callers treat a scan as best-effort, and rejecting here would
+	 * surface unload as a spurious error.
+	 */
+	dispose(): void {
+		for (const timer of this.debounceByFilePath.values()) {
+			globalThis.clearTimeout(timer);
+		}
+		this.debounceByFilePath.clear();
+		for (const resolve of this.pendingResolveByFilePath.values()) {
+			resolve();
+		}
+		this.pendingResolveByFilePath.clear();
 	}
 
 	private isDailyNoteFile(file: TFile): boolean {

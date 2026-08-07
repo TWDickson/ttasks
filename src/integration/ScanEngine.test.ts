@@ -33,6 +33,26 @@ describe('ScanEngine failure handling', () => {
 		vi.useRealTimers();
 	});
 
+	it('dispose cancels in-flight rescans instead of letting them fire after unload', async () => {
+		vi.useFakeTimers();
+		const engine = new ScanEngine();
+		const cachedRead = vi.fn().mockResolvedValue('- [ ] hello');
+		const app = { vault: { cachedRead } } as any;
+
+		const promise = engine.rescanFile(app, { path: 'Daily/2026-05-25.md' } as any, captureConfig, 'Tasks');
+		engine.dispose();
+		await vi.runAllTimersAsync();
+
+		// Resolved, not rejected: callers treat a scan as best-effort, and unload
+		// is not an error worth surfacing to them.
+		await expect(promise).resolves.toBeUndefined();
+		// The debounced body never ran, so the torn-down plugin's vault is untouched.
+		expect(cachedRead).not.toHaveBeenCalled();
+		expect((engine as any).debounceByFilePath.size).toBe(0);
+		expect((engine as any).pendingResolveByFilePath.size).toBe(0);
+		vi.useRealTimers();
+	});
+
 	it('rescanFile clears debounce state on success', async () => {
 		vi.useFakeTimers();
 		const engine = new ScanEngine();

@@ -1632,7 +1632,9 @@
 	color: var(--text-muted);
 	padding: 2px var(--tt-space-1);
 	border-radius: var(--radius-s, 4px);
-	font-size: 12px;
+	/* Sizes the Lucide SVG that setIcon inserts (`svg.svg-icon` reads
+	   --icon-size); these were glyph buttons and carried a font-size instead. */
+	--icon-size: var(--icon-xs);
 	min-width: 28px;
 	min-height: 28px;
 }

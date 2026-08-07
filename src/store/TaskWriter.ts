@@ -18,6 +18,7 @@ import { buildRestoreInput } from './taskRestore';
 import { linkReferencesTaskPath } from './relationshipLinkMatch';
 import { syncCompletionToSource } from '../integration/completionSync';
 import { mutateLinkArray } from '../utils/arrayUtils';
+import { isPathOpenInMarkdownEditor } from '../views/openFileLeaves';
 
 export class TaskWriter {
 	private plugin: TTasksPlugin;
@@ -423,8 +424,7 @@ export class TaskWriter {
 	// ── Helpers ─────────────────────────────────────────────────────────────────
 
 	private isFileOpenInEditor(file: TFile): boolean {
-		return this.app.workspace.getLeavesOfType('markdown')
-			.some(leaf => (leaf.view as any)?.file?.path === file.path);
+		return isPathOpenInMarkdownEditor(this.app.workspace, file.path);
 	}
 
 	private async syncChildrenFromParentChecklist(parentPath: string, body: string): Promise<void> {

@@ -84,6 +84,16 @@ sweep, not a new fix.
   reapplies a ghost's persisted view state to rebuild the real view and collapses
   duplicates to one leaf per type. Unit-tested; needs an on-device pass (disable
   the plugin → relaunch → re-enable → expect one live tab, no ghost).
+  **Shipped in 0.1.3.**
+- `[~]` **Obsidian API-guidance sweep** — prompted by the ghost-tab fix, 2026-08-07.
+  Four contraventions found and fixed: `TaskWriter.isFileOpenInEditor` reached
+  through `leaf.view.file` (the same deferred-view trap — a note open in a
+  *background* tab read as closed, skipping the editor-settle delay before a body
+  rewrite; now `views/openFileLeaves.ts` reads the view state); `TaskBoardView`
+  used the deprecated `workspace.activeLeaf`; `QueryEditorModal` had three
+  `innerHTML = '✕'` glyph buttons; `ScanEngine` left debounce timers armed across
+  unload. Only the QueryEditor icon swap is UI-facing and the rig has no scene for
+  that modal — worth an eyeball next time it's open.
 
 ### 2. Pomodoro (native) — core complete, sign-off owed
 

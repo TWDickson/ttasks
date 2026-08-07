@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Setting } from 'obsidian';
+import { App, Modal, Notice, Setting, setIcon } from 'obsidian';
 import type { FilterCondition, FilterField, FilterGroup, FilterOperator, QuerySpec, SortEntry, SortField } from '../query/types';
 import type { TaskViewRenderer } from '../settings';
 import { coerceQueryForRenderer, isGroupCompatibleWithRenderer } from '../views/viewRegistry';
@@ -290,7 +290,7 @@ export class QueryEditorModal extends Modal {
 					cls: 'tt-qe-del clickable-icon',
 					attr: { 'aria-label': 'Remove condition group' },
 				});
-				removeGroupBtn.innerHTML = '✕';
+				setIcon(removeGroupBtn, 'x');
 				removeGroupBtn.addEventListener('click', () => {
 					const newConditions = group.conditions.filter((_, i) => i !== index);
 					const updatedGroup = { ...group, conditions: newConditions };
@@ -445,7 +445,7 @@ export class QueryEditorModal extends Modal {
 
 		// Delete button
 		const delBtn = row.createEl('button', { cls: 'tt-qe-del clickable-icon', attr: { 'aria-label': 'Remove condition' } });
-		delBtn.innerHTML = '✕';
+		setIcon(delBtn, 'x');
 		delBtn.addEventListener('click', () => {
 			const newConditions = group.conditions.filter((_, i) => i !== index);
 			const updatedGroup = { ...group, conditions: newConditions };
@@ -498,7 +498,7 @@ export class QueryEditorModal extends Modal {
 				});
 
 				const delBtn = row.createEl('button', { cls: 'tt-qe-del clickable-icon', attr: { 'aria-label': 'Remove sort' } });
-				delBtn.innerHTML = '✕';
+				setIcon(delBtn, 'x');
 				delBtn.addEventListener('click', () => {
 					this.query = { ...this.query, sort: this.query.sort.filter((_, i) => i !== index) };
 					renderList();

@@ -54,8 +54,12 @@ export class TaskBoardView extends ItemView {
 		}));
 
 		this.registerDomEvent(document, 'keydown', (e: KeyboardEvent) => {
-			// Only fire when this leaf is the active leaf
-			if (this.app.workspace.activeLeaf !== this.leaf) return;
+			// Only fire when this board is the focused one. `workspace.activeLeaf`
+			// is deprecated; `getActiveViewOfType` is the documented replacement and
+			// answers the same question directly — it returns the active view only
+			// when it's a board, so comparing to `this` picks out this instance
+			// among several open boards.
+			if (this.app.workspace.getActiveViewOfType(TaskBoardView) !== this) return;
 			// Don't intercept when user is typing in an input
 			if (isInputFocused(document.activeElement)) return;
 
