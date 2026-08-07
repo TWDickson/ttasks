@@ -4,10 +4,13 @@
 
 import { get, writable, type Writable } from 'svelte/store';
 import type { Task, TaskPriority, TaskStatus } from '../src/types';
+import type { ExternalTask } from '../src/integration/types';
 import { PomodoroService } from '../src/store/PomodoroService';
 import { DEFAULT_POMODORO_CONFIG } from '../src/integration/pomodoro';
+import type { PomodoroSettings } from '../src/settings/types';
 import { normalizeColorMap } from '../src/settings/defaults';
-import { buildStatusPolicy } from '../src/settings/statusPolicy';
+import { buildStatusPolicy, type StatusPolicy, type StatusPolicySettings } from '../src/settings/statusPolicy';
+import type { BadgeColorSettings } from '../src/utils/badgePalette';
 
 const COMPLETION_STATUS = 'Done';
 
@@ -231,12 +234,26 @@ export function buildFixtureTasks(): Task[] {
 	return [project, wireframes, implement, review, stress, stressChild, apiProject, blocked, apiEndpoints, delegated, awaitingDelegate, today, inbox, done, doneOld];
 }
 
+/**
+ * The rig's settings blob. Mostly opaque — it merges whatever `data.json`
+ * carries — but every field the rig or the components read back is typed against
+ * the plugin's own definitions, so drift fails the type-check here instead of
+ * surfacing as an `unknown` at the use site or a blank page in the browser.
+ */
+export type RigSettings = Record<string, unknown>
+	& StatusPolicySettings
+	& BadgeColorSettings
+	& { pomodoro: PomodoroSettings };
+
 export interface RigPlugin {
 	app: Record<string, unknown>;
 	manifest: { id: string };
-	settings: Record<string, unknown>;
+	settings: RigSettings;
+	/** Mirrors TTasksPlugin.statusPolicy — the views read status pointers off this. */
+	statusPolicy: StatusPolicy;
 	taskStore: Record<string, unknown> & { tasks: Writable<Task[]> };
-	scanEngine: { tasks: Writable<Task[]> };
+	/** Captured (non-TTasks) tasks. Empty in the rig, but must match the real type. */
+	scanEngine: { tasks: Writable<ExternalTask[]> };
 	archiveService: { archiveTask: (path: string) => Promise<void> };
 	pomodoroService: PomodoroService;
 	activeTaskPath: Writable<string | null>;
@@ -362,12 +379,20 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			graphDiagnosticsEnabled: false,
 			overviewGraphShowCompleted: false,
 			overviewGraphGrouping: 'none',
-			pomodoro: { ...DEFAULT_POMODORO_CONFIG, autoStartNext: true, logEnabled: true, logPath: 'ttasks-pomodoro-log.csv' },
+			pomodoro: {
+				...DEFAULT_POMODORO_CONFIG,
+				autoStartNext: true,
+				logPartialOnStop: true,
+				logEnabled: true,
+				logPath: 'ttasks-pomodoro-log.csv',
+			},
 	};
 
 	// Real vault settings win over rig defaults; defaults backfill anything
-	// data.json doesn't carry.
-	const settings = { ...defaultSettings, ...(options.settings ?? {}) };
+	// data.json doesn't carry. The assertion holds because `defaultSettings`
+	// supplies a complete `pomodoro` block and data.json is already normalised by
+	// the plugin before it is ever written.
+	const settings = { ...defaultSettings, ...(options.settings ?? {}) } as RigSettings;
 
 	return {
 		app: {},
@@ -377,14 +402,16 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		// pointers off this rather than re-deriving them from `settings.statuses`.
 		statusPolicy: buildStatusPolicy(settings),
 		taskStore,
-		scanEngine: { tasks: writable<Task[]>([]) },
+		scanEngine: { tasks: writable<ExternalTask[]>([]) },
 		archiveService: {
 			archiveTask: async (path: string) => {
 				tasks.update((all) => all.filter((t) => stripMd(t.path) !== stripMd(path)));
 			},
 		},
 		pomodoroService: new PomodoroService({
-			getConfig: () => ({ ...DEFAULT_POMODORO_CONFIG, autoStartNext: true }),
+			// Reads the rig's own settings, so the service and the settings blob can't
+			// drift apart the way they had (logPartialOnStop was missing here).
+			getConfig: () => settings.pomodoro,
 			logFocus: (focus) => console.info('[rig] pomodoro log', focus),
 			notify: (message: string) => console.info('[rig] pomodoro', message),
 		}),

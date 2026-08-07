@@ -14,6 +14,9 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # The gate is ~2 min; anything near this is hung, not slow. Without it a
+    # wedged run burns the 6-hour default.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -36,3 +39,12 @@ jobs:
       # lint && build (build includes tsc --noEmit) && test — the same gate as local.
       # The build's vault copy is a no-op here: no vault exists on a runner.
       - run: npm run check
+
+      # Boots the rig and asserts every view mounts. Kept out of `npm run check`
+      # so the local loop stays fast and browser-free; `npm run check:all` is the
+      # local equivalent of this job. It catches what `check` structurally
+      # cannot — the rig's plugin mock going stale — because the mount sites cast
+      # through `as never`. Runs on the runner image's preinstalled Chrome; the
+      # rig stubs the Obsidian CSS it can't vendor here, which is fine because
+      # mounting is a JS property, not a visual one.
+      - run: npm run rig:smoke

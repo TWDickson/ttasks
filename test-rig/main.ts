@@ -78,6 +78,19 @@ for (const id of ['list', 'kanban', 'agenda', 'graph', 'timeline', 'today', 'inb
 
 bar.createSpan({ cls: 'rig-bar-spacer' });
 
+/* Must stay at module scope. This lived inside the board-mounting `else` branch
+   below, where a block-scoped function declaration (ES modules are strict) was
+   invisible to the toolbar handler here — so `?detail=1` worked while the
+   "Open detail" button threw a ReferenceError. */
+function openFirstDetail(): void {
+	let first: string | null = null;
+	const unsub = plugin.taskStore.tasks.subscribe((tasks) => {
+		first = tasks.find((t) => t.type === 'task')?.path ?? null;
+	});
+	unsub();
+	if (first) plugin.activeTaskPath.set(first);
+}
+
 const detailBtn = bar.createEl('button', { text: 'Open detail' });
 detailBtn.addEventListener('click', () => openFirstDetail());
 
@@ -235,15 +248,6 @@ new TaskDetail({
 plugin.activeTaskPath.subscribe((path) => {
 	stage.classList.toggle('detail-open', path !== null);
 });
-
-function openFirstDetail(): void {
-	let first: string | null = null;
-	const unsub = plugin.taskStore.tasks.subscribe((tasks) => {
-		first = tasks.find((t) => t.type === 'task')?.path ?? null;
-	});
-	unsub();
-	if (first) plugin.activeTaskPath.set(first);
-}
 
 if (params.get('detail') === '1') openFirstDetail();
 if (params.get('modal') === '1') {

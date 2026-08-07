@@ -12,6 +12,65 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-06 — CI covers the rig: type-check + a mount smoke test
+
+Follow-on to the `StatusPolicy` entry, where the rig broke and nothing in the
+gate noticed. `test-rig/` was covered by **nothing**: `tsconfig.json` included
+only `src/**`, eslint globs only `src/**`, and vitest never touches it. So a
+change to the plugin surface could — and did — leave the rig blank while
+`npm run check` stayed green.
+
+**Type-check first.** Adding `test-rig/**/*.ts` to `tsconfig.json` surfaced seven
+errors, three of them real:
+
+- `openFirstDetail` was declared *inside* the board-mounting `else` branch, so
+  the block-scoped declaration (ES modules are strict) was invisible to the
+  toolbar handler at module scope. `?detail=1` worked, which is why nobody
+  noticed the **"Open detail" button had been throwing a ReferenceError**.
+- The rig's `PomodoroService` got a config missing `logPartialOnStop`, so the rig
+  silently discarded partial sessions on Stop while the real plugin logs them.
+  `getConfig` now reads the rig's own settings blob, so the two can't diverge.
+- `scanEngine.tasks` was typed `Writable<Task[]>` where the board wants
+  `Readable<ExternalTask[]>`.
+
+`RigSettings` is now typed against the plugin's own `PomodoroSettings`,
+`StatusPolicySettings` and `BadgeColorSettings` rather than being opaque.
+`**/*.ts` deliberately excludes the `.mts` build tooling.
+
+**But the type-check does not close the gap, and it's worth being exact about
+why.** Every mount site casts `plugin as never` — `RigPlugin` cannot structurally
+implement `TTasksPlugin`, which extends Obsidian's `Plugin`. Deleting
+`statusPolicy` from *both* `RigPlugin` and the mock, exactly as the original bug
+looked, leaves `tsc` **completely silent**. Verified, not assumed. The type-check
+guards `RigPlugin`'s own contract; it cannot know what the components require.
+
+**So: `npm run rig:smoke`** (`test-rig/smoke.mjs`). Boots the rig headless and
+asserts all nine scenes — one per renderer plus detail/modal/pomodoro — reach
+`data-rig-ready` with no uncaught exception. Re-running the deletion above:
+`tsc` passes, the smoke test fails **8 of 9**. (`pomodoro` survives because it
+doesn't mount the board — which is precisely why the scene list covers every
+renderer rather than sampling one.)
+
+Only `pageerror` is fatal. Console errors are reported but not fatal: the first
+page load 404s on a favicon, and failing a perfect boot over that would have made
+the check untrustworthy within a week.
+
+It tolerates stubbed CSS on purpose — `ensureVendorCss` stubs what a machine
+can't vendor, and mounting is a JS property, not a visual one. That's what makes
+it runnable on CI, where no Obsidian install exists. `rig:shots` still refuses
+stubs, correctly.
+
+Kept **out of** `npm run check` so the local loop stays fast and browser-free;
+`npm run check:all` is the CI equivalent. CI runs `check` then `rig:smoke`, and
+gained `timeout-minutes: 15` — the gate is ~2 minutes, so anything near that is
+hung, and the default is six hours.
+
+**Unverified on a runner:** GitHub Actions was in a major outage when this
+landed, so `rig:smoke` has not yet executed on CI. It relies on the runner
+image's preinstalled Chrome (`browserCandidates()` already lists the Linux paths
+and `BROWSER_ARGS` already adds `--no-sandbox`). If it can't find one, the fix is
+a `CHROME_PATH` env or a setup-chrome step.
+
 ## 2026-08-06 — Area/label badges are one neutral pill, colour-configured or not
 
 Taylor, on the leftover flagged in the `BadgePalette` entry: *"Lets get rid of

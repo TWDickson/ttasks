@@ -13,5 +13,13 @@
     "isolatedModules": true,
     "strictNullChecks": true
   },
-  "include": ["src/**/*.ts", "src/**/*.svelte"]
+  // test-rig is in the type-check on purpose. It builds its own plugin mock
+  // against the real component props, so a change to the plugin surface can
+  // break it while `src` stays green — that happened (statusPolicy, 2026-08-06)
+  // and only showed up as a blank page when the rig was run by hand.
+  // `tsc --noEmit` here has no effect on the shipped bundle (esbuild builds from
+  // its own entry), so this costs nothing but a few seconds in `npm run check`.
+  // `**/*.ts` deliberately excludes the `.mts` build tooling (vite.config.mts,
+  // vault-data-plugin.mts), which is Node-side config rather than rig code.
+  "include": ["src/**/*.ts", "src/**/*.svelte", "test-rig/**/*.ts"]
 }

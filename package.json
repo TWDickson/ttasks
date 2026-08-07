@@ -9,6 +9,7 @@
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
     "lint": "eslint \"src/**/*.{ts,svelte}\"",
     "check": "npm run lint && npm run build && npm run test",
+    "check:all": "npm run check && npm run rig:smoke",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "test": "vitest run",
     "test:board": "vitest run src/integration/boardFocus.test.ts src/integration/boardKeymap.test.ts src/integration/boardViewBehavior.test.ts",
@@ -16,6 +17,7 @@
     "test:components": "vitest run --config vitest.components.config.mts",
     "rig": "vite --config test-rig/vite.config.mts",
     "rig:shots": "node test-rig/shots.mjs",
+    "rig:smoke": "node test-rig/smoke.mjs",
     "rig:sync-css": "node test-rig/sync-css.mjs",
     "rig:browser": "npx @puppeteer/browsers install chromium@latest --path test-rig/.browser"
   },

@@ -32,8 +32,10 @@ thread closes or a decision is worth preserving.
 | --- | --- |
 | `npm run dev` | Watch mode. **Does not touch the vault.** |
 | `npm run build` | Production build **and the deploy step** — copies `main.js` / `manifest.json` / `styles.css` into the vault. |
-| `npm run check` | `lint && build && test` — the full gate, same as CI. |
+| `npm run check` | `lint && build && test` — the fast gate. Browser-free. |
+| `npm run check:all` | `check` + `rig:smoke` — **the full CI equivalent**. |
 | `npm run rig` | Visual rig at localhost:5199. |
+| `npm run rig:smoke` | Boots the rig headless, asserts all 9 views mount. |
 | `npm run rig:shots` | Desktop/mobile × dark/light screenshot matrix. |
 | `npm run rig:sync-css` | Refresh vendored CSS after an Obsidian or theme update. |
 
@@ -150,6 +152,21 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
   no Hold status must not fall back — doing so cascades a bogus Hold across the
   whole dependency graph. Any new plugin *mock* (tests, `test-rig/fixtures.ts`)
   needs a `statusPolicy` alongside its `settings`.
+
+### Keeping the rig honest
+
+`test-rig/` is in the type-check (`tsconfig.json` includes it), so `RigPlugin`
+and the fixtures can't drift from the plugin's own types. But **the type-check
+cannot tell you the rig still works**: every mount site casts `plugin as never`,
+because the mock can't structurally implement `TTasksPlugin`. Add a member to the
+plugin surface that a component reads, forget the mock, and `src` + `tsc` + all
+tests stay green while the rig renders a blank page.
+
+`npm run rig:smoke` is what closes that — it boots all 9 views headless and fails
+on an uncaught exception or a view that never signals `data-rig-ready`. It runs
+in CI, and it tolerates stubbed CSS (mounting is a JS property, not a visual
+one). **When you change what components read off the plugin, update
+`test-rig/fixtures.ts` in the same commit.**
 
 ## Architecture rules
 
