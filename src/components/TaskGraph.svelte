@@ -1153,6 +1153,7 @@
 							class:is-cycle={node.isCycle}
 							class:is-blocked={node.isBlockedChain}
 							class:is-ready={highlightReady && isReadyNode(node)}
+							class:is-traced={traceSets?.nodes.has(node.path)}
 							style={nodeStyle(node)}
 							on:click={() => onNodeClickEvent(node.path)}
 							on:pointerup={(event) => onNodePointerUp(event, node.path)}
@@ -2471,6 +2472,30 @@
 
 	.tt-graph-node.is-cycle {
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-red) 40%, transparent), 0 0 0 2px color-mix(in srgb, var(--color-red) 18%, transparent), 0 10px 24px rgba(var(--mono-rgb-100), 0.12);
+	}
+
+	/* Click-pinned chain tracing, node side. `traceSets` has always carried both
+	halves, but only `.edges` was ever consumed — the node-level signal came from
+	the lane spotlight's `is-dim`, so removing that (2026-07-26) left the trace
+	reading as a few recoloured strokes and nothing else. These rules put the
+	chain back on the nodes themselves. Last among the ring treatments on purpose,
+	matching `.tt-graph-edge.is-traced`: a pin is a deliberate, transient act and
+	outranks the resting cycle/ready rings until it's cleared. Still nothing dims. */
+	.tt-graph-node.is-traced {
+		border-color: color-mix(in srgb, var(--interactive-accent) 58%, var(--background-modifier-border));
+		box-shadow:
+			inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 38%, transparent),
+			0 0 0 2px color-mix(in srgb, var(--interactive-accent) 30%, transparent),
+			0 8px 24px rgba(var(--mono-rgb-100), 0.1);
+	}
+
+	/* The node you actually clicked — the chain's origin. Same accent, turned up,
+	so the trace still tells you where it was cast from. */
+	.tt-graph-node.is-traced.is-active {
+		box-shadow:
+			inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 55%, transparent),
+			0 0 0 3px color-mix(in srgb, var(--interactive-accent) 45%, transparent),
+			0 0 20px color-mix(in srgb, var(--interactive-accent) 26%, transparent);
 	}
 
 	.tt-graph-node-top {

@@ -12,6 +12,36 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-11 — The dependency chain trace, put back on the nodes
+
+Reported as "we've lost the downstream highlighting on the dependency graph."
+The trace had not actually stopped firing — clicking a node still walked the
+full chain and recoloured every edge on it (rig-verified: chains of 1–4 edges,
+isolated tasks correctly trace nothing). What was gone was the *node* half.
+
+`computeTrace` has always returned `{ nodes, edges }`, but only `.edges` was
+ever consumed. The node-level signal came from somewhere else entirely: the lane
+spotlight's `is-dim`, which faded every node **off** the chain. When the GP4
+tint and GP8 spotlight were torn out on 2026-07-26 at Taylor's request, `is-dim`
+went with them — correctly, it was spotlight machinery — and the commit reasoned
+that "the trace now reads by its own accent rather than by dimming everything
+else." On a dense graph it doesn't. Four recoloured strokes among sixty nodes is
+not a highlight, which is why this read as a lost feature rather than a subtler
+one.
+
+Fixed by consuming the half that was already being computed and discarded:
+`.tt-graph-node.is-traced` from `traceSets.nodes`, with `.is-traced.is-active`
+turned up for the clicked origin so the trace still says where it was cast from.
+Placed last among the node ring treatments, matching the existing precedence on
+`.tt-graph-edge.is-traced` — a pin is a deliberate, transient act and outranks
+the resting cycle/ready rings until cleared.
+
+**Nothing dims.** That constraint from 2026-07-26 still holds and the fix
+doesn't reach for it: the chain is marked by what it *is*, not by suppressing
+what it isn't. Verified dark and light in the rig.
+
+---
+
 ## 2026-08-07 — Ghost sidebar tabs, and the deferred-view trap behind them (0.1.3)
 
 Reported from the phone: TTasks sidebar buttons showing as Obsidian's
