@@ -136,6 +136,36 @@ export const BROWSER_ARGS = [
 	...(process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : []),
 ];
 
+/* Puppeteer's default 30s launch budget is the *whole* wait for Chrome to print
+   its DevTools WS endpoint, and on a cold 2-core CI runner that is not a safe
+   margin. Measured on ubuntu-24.04 image 20260810.271.1, first launch of each
+   preinstalled browser: 0.4s, 0.8s, 0.7s, 5.4s — and 20.8s. A runner that is a
+   little busier than that one blows straight through 30s, which is exactly the
+   "Timed out after 30000 ms while waiting for the WS endpoint URL" that failed
+   CI on 2026-08-11 and then passed on a rerun with nothing changed.
+
+   So: a wide budget plus one retry. The retry is what makes this honest rather
+   than just a bigger number — a genuinely broken browser fails twice quickly and
+   still reports, while a slow cold start gets the room it needs. */
+const LAUNCH_TIMEOUT_MS = Number(process.env.TTASKS_LAUNCH_TIMEOUT_MS || 120000);
+
+/** Launch puppeteer against the local browser, tolerating a slow cold start. */
+export async function launchBrowser(puppeteer, options = {}) {
+	const config = {
+		executablePath: findBrowser(),
+		headless: true,
+		args: BROWSER_ARGS,
+		timeout: LAUNCH_TIMEOUT_MS,
+		...options,
+	};
+	try {
+		return await puppeteer.launch(config);
+	} catch (err) {
+		console.warn(`browser launch failed (${String(err.message).split('\n')[0]}) — retrying once`);
+		return await puppeteer.launch(config);
+	}
+}
+
 /** Browser binary for puppeteer-core. Throws with install instructions. */
 export function findBrowser() {
 	const found = resolveWithOverride(

@@ -22,7 +22,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
-import { BROWSER_ARGS, findBrowser, rigDir } from './localPaths.mjs';
+import { launchBrowser, rigDir } from './localPaths.mjs';
 import { ensureVendorCss } from './vendorCss.mjs';
 
 const PORT = process.env.TTASKS_RIG_PORT || '5199';
@@ -78,11 +78,7 @@ async function main() {
 	ensureVendorCss(rigDir);
 
 	const server = await ensureServer();
-	const browser = await puppeteer.launch({
-		executablePath: findBrowser(),
-		headless: true,
-		args: BROWSER_ARGS,
-	});
+	const browser = await launchBrowser(puppeteer);
 
 	const failures = [];
 	try {

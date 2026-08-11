@@ -25,7 +25,7 @@ import { mkdirSync, rmSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
-import { BROWSER_ARGS, findBrowser } from '../../../test-rig/localPaths.mjs';
+import { launchBrowser } from '../../../test-rig/localPaths.mjs';
 
 const skillDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(skillDir, '../../..');
@@ -81,12 +81,7 @@ async function main() {
 	mkdirSync(shotsDir, { recursive: true });
 	const server = await ensureServer();
 	const profileDir = path.join(shotsDir, `.chrome-profile-${Date.now()}`);
-	const browser = await puppeteer.launch({
-		executablePath: findBrowser(),
-		headless: true,
-		userDataDir: profileDir,
-		args: BROWSER_ARGS,
-	});
+	const browser = await launchBrowser(puppeteer, { userDataDir: profileDir });
 
 	try {
 		const page = await browser.newPage();

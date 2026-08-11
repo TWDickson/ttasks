@@ -1,19 +1,25 @@
 /* Screenshot matrix for the visual test rig.
    Usage:  node test-rig/shots.mjs [nameFilter]
-   Starts the vite dev server if it isn't already running on :5199, drives a
-   headless local Chrome/Edge through the shot matrix, and writes PNGs to
+   Starts the vite dev server if it isn't already running, drives a headless
+   local Chrome/Edge through the shot matrix, and writes PNGs to
    test-rig/shots/. Pass a substring to shoot only matching entries,
-   e.g. `node test-rig/shots.mjs mobile`. */
+   e.g. `node test-rig/shots.mjs mobile`.
+
+   Honours TTASKS_RIG_PORT like smoke.mjs and the skill driver do. Without it a
+   rig already running in *another worktree* answers on the default port and
+   these shots would silently picture that branch's code — the failure this repo
+   warns about in CLAUDE.md, and the one screenshots are least able to reveal. */
 
 import { spawn } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
-import { BROWSER_ARGS, findBrowser, rigDir } from './localPaths.mjs';
+import { launchBrowser, rigDir } from './localPaths.mjs';
 import { ensureVendorCss } from './vendorCss.mjs';
 
 const shotsDir = path.join(rigDir, 'shots');
-const BASE = 'http://localhost:5199';
+const PORT = process.env.TTASKS_RIG_PORT || '5199';
+const BASE = `http://localhost:${PORT}`;
 
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
@@ -69,7 +75,9 @@ async function ensureServer() {
 	console.log('starting vite dev server…');
 	const child = spawn(
 		process.platform === 'win32' ? 'npx.cmd' : 'npx',
-		['vite', '--config', path.join(rigDir, 'vite.config.mts')],
+		/* --strictPort so a taken port fails loudly instead of drifting to the next
+		   free one, which would hand us a rig at an address we never checked. */
+		['vite', '--config', path.join(rigDir, 'vite.config.mts'), '--port', PORT, '--strictPort'],
 		{ cwd: path.join(rigDir, '..'), stdio: 'ignore', detached: false, shell: true },
 	);
 	for (let i = 0; i < 60; i++) {
@@ -77,7 +85,7 @@ async function ensureServer() {
 		if (await serverUp()) return child;
 	}
 	child.kill();
-	throw new Error('vite dev server did not come up on :5199');
+	throw new Error(`vite dev server did not come up on :${PORT}`);
 }
 
 async function main() {
@@ -106,12 +114,7 @@ async function main() {
 	mkdirSync(shotsDir, { recursive: true });
 	const server = await ensureServer();
 	const profileDir = path.join(shotsDir, `.chrome-profile-${Date.now()}`);
-	const browser = await puppeteer.launch({
-		executablePath: findBrowser(),
-		headless: true,
-		userDataDir: profileDir,
-		args: BROWSER_ARGS,
-	});
+	const browser = await launchBrowser(puppeteer, { userDataDir: profileDir });
 
 	try {
 		for (const shot of shots) {
