@@ -40,6 +40,26 @@ the resting cycle/ready rings until cleared.
 doesn't reach for it: the chain is marked by what it *is*, not by suppressing
 what it isn't. Verified dark and light in the rig.
 
+**Superseded the next day (2026-08-12).** Rings alone were not enough, and the
+report was precise about why: *"everything else is fully visible and it makes it
+more challenging to pick them out."* A project lane in Taylor's vault runs to 18
+tasks, so marking 3 leaves 15 competing at full strength. Non-chain nodes now
+fade to 0.3 and non-chain edges to 0.14 while a chain is pinned.
+
+This is worth distinguishing from the thing removed on 2026-07-26, because on
+paper it looks like the same idea coming back. What Taylor rejected was
+**ambient** dimming — it fired on hover and on lane rollover, so the graph
+churned as the pointer moved and you couldn't read anything while navigating.
+This fires only on a **deliberate pin** and clears on Esc or a click on empty
+canvas. Dimmed nodes keep full pointer events, so clicking one re-pins from
+there. The distinction that matters is not whether pixels fade, it's whether the
+user asked for it.
+
+`toggleHighlightReady` now clears the pin. "Ready now" and a pinned chain are
+competing lenses that each dim what the other wants to show; left both on their
+opacities multiply and the graph turns to soup. `onNodeClick` already dropped
+ready mode when pinning — this is the same trade in the other direction.
+
 ---
 
 ## 2026-08-07 — Ghost sidebar tabs, and the deferred-view trap behind them (0.1.3)

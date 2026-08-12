@@ -453,8 +453,13 @@
 		return !node.task.is_complete && node.blockedIncomingCount === 0;
 	}
 
+	// "Ready now" and a pinned chain are two competing lenses on the same graph,
+	// and each dims what the other wants to show — left both on, their opacities
+	// multiply and everything turns to soup. `onNodeClick` already drops ready
+	// mode when you pin a chain; this is the same trade in the other direction.
 	function toggleHighlightReady(): void {
 		highlightReady = !highlightReady;
+		if (highlightReady) pinnedTracePath = null;
 	}
 
 	// ── Pan & zoom (dependency mode) ────────────────────────────────────────────
@@ -1082,7 +1087,7 @@
 						{/each}
 					</div>
 				{/if}
-				<div class="tt-graph-stage" class:highlight-ready={highlightReady} style={`width:${layout.width}px;height:${layout.height}px;transform:scale(${dependencyScale});`}>
+				<div class="tt-graph-stage" class:highlight-ready={highlightReady} class:chain-pinned={!!traceSets} style={`width:${layout.width}px;height:${layout.height}px;transform:scale(${dependencyScale});`}>
 					{#if dependencyLaneHeaders.length > 0}
 						<div class="tt-dependency-lanes" style={`--tt-dependency-lane-width:${dependencyLaneWidth}px;transform:translateX(${dependencyLaneStickyOffset}px);`}>
 							{#each dependencyLaneHeaders as lane (lane.key)}
@@ -2487,6 +2492,27 @@
 			inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 38%, transparent),
 			0 0 0 2px color-mix(in srgb, var(--interactive-accent) 30%, transparent),
 			0 8px 24px rgba(var(--mono-rgb-100), 0.1);
+	}
+
+	/* Everything off the pinned chain recedes. Rings alone were not enough: a
+	project lane here runs to 18 tasks, so marking 3 still leaves 15 competing at
+	full strength — reported 2026-08-12 as "everything else is fully visible and
+	it makes it more challenging to pick them out".
+
+	This is not the spotlight that came out on 2026-07-26. That one was ambient —
+	it fired on hover and on lane rollover, so the graph churned as the pointer
+	wandered, which is what made it intolerable. This fires only on a deliberate
+	pin and clears on Esc or a click on empty canvas. Dimmed nodes keep full
+	pointer events, so clicking one re-pins the chain from there.
+
+	Edges go further down than nodes: a node still has to be readable enough to
+	click, while a background edge only has to stay out of the way. */
+	.tt-graph-stage.chain-pinned .tt-graph-node:not(.is-traced) {
+		opacity: 0.3;
+	}
+
+	.tt-graph-stage.chain-pinned .tt-graph-edge:not(.is-traced) {
+		opacity: 0.14;
 	}
 
 	/* The node you actually clicked — the chain's origin. Same accent, turned up,
