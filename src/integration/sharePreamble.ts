@@ -64,6 +64,19 @@ export const GRAPH_RULE =
 	'date or status change ripples to everything downstream, and a project runs as long as its longest ' +
 	'chain. Keep the graph acyclic and say so explicitly when a change moves work that depends on it.';
 
+/**
+ * The one graph fact a model reliably misses: Blocked/Hold are not local. Without
+ * it a reply calls a task workable while its blocker is stuck, or "helpfully"
+ * stamps Blocked down the whole chain — which is wrong twice over, because TTasks
+ * derives downstream impediment from the graph and never stores it (see
+ * `computeImpediments` in src/query/taskImpediment.ts).
+ */
+export const IMPEDIMENT_RULE =
+	'Blocked and Hold travel downstream. Everything that depends on a Blocked task is stuck too; Hold ' +
+	'is the same signal, weaker; where both reach a task it reads as Blocked. TTasks works this out ' +
+	'from the graph itself, so set Blocked or Hold ONLY on the task actually holding things up — never ' +
+	'on the ones queued behind it, and do not treat a task as idle when its blocker is what is stuck.';
+
 /** Told to the model when the data block is TOON rather than JSON. */
 const TOON_FORMAT_RULE =
 	'The data below is TOON, a compact tabular encoding: "tasks[N]{col,col,…}:" gives the row count and ' +
@@ -131,7 +144,7 @@ export function findPreamblePreset(id: SharePreamblePresetId): SharePreamblePres
 }
 
 /**
- * The full preamble text for a preset: its body plus the two rules that apply to
+ * The full preamble text for a preset: its body plus the rules that apply to
  * every preset. Returns '' for the 'none' preset so it truly emits nothing.
  *
  * `validValues` is optional; when supplied, the allowed statuses are spelled out
@@ -144,7 +157,7 @@ export function buildPreambleText(
 	context: PreambleContext = {},
 ): string {
 	if (preset.id === 'none') return '';
-	const parts = [preset.text, GRAPH_RULE, ROUND_TRIP_RULE, NO_NEW_VALUES_RULE];
+	const parts = [preset.text, GRAPH_RULE, IMPEDIMENT_RULE, ROUND_TRIP_RULE, NO_NEW_VALUES_RULE];
 	if (context.payloadFormat === 'toon') parts.push(TOON_FORMAT_RULE);
 	const notesRule = notesPolicyRule(context.notesPolicy ?? 'full');
 	if (notesRule) parts.push(notesRule);

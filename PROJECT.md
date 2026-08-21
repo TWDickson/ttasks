@@ -196,6 +196,21 @@ log-partial-on-stop.
   different shape entirely?
 - `[ ]` **Share/Sync: import command surface** *(deferred)* — a direct
   import-from-clipboard command; today import is the modal's Import tab.
+- `[ ]` **Share/Sync export: the instruction block is ~1,500 tokens** — `meta`
+  (~970) plus the prose preamble (~525). Two big blocks are duplicated on
+  purpose: `GRAPH_RULE` ↔ `meta.graph`, and `NO_NEW_VALUES_RULE` ↔
+  `meta.instructions`/`meta.validValues`, both because "prose is what actually
+  steers the reply" (see the comments in `sharePreamble.ts`). Taylor reports
+  Copilot skimming it. Cutting either duplication is a **judgement call about
+  which surface a given model actually reads**, so it needs Taylor's steer rather
+  than a unilateral trim — the alternative is a shorter `meta` for the
+  `payloadFormat: 'toon'` path only, where the preamble is always present.
+- `[ ]` **A renamed task leaves stale link aliases** — links are stored
+  `[[path|Name]]`, and neither the detail-pane rename nor the new import rename
+  rewrites the alias on inbound `depends_on`/`blocks`/`parent_task` entries. The
+  TTasks UI is unaffected (it resolves through `resolveTaskRef` and reads
+  `ref.task.name`), so this only shows in **native Obsidian views**, where a link
+  renders under the old title. Pre-existing, not introduced by the import path.
 
 ---
 

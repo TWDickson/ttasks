@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	GRAPH_RULE,
+	IMPEDIMENT_RULE,
 	NO_NEW_VALUES_RULE,
 	SHARE_PREAMBLE_PRESETS,
 	buildPreambleText,
@@ -100,6 +101,7 @@ describe('graph framing', () => {
 				continue;
 			}
 			expect(text).toContain(GRAPH_RULE);
+			expect(text).toContain(IMPEDIMENT_RULE);
 			expect(text).toMatch(/depends_on/);
 			expect(text).toMatch(/acyclic/i);
 		}

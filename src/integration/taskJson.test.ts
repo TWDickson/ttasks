@@ -126,6 +126,20 @@ describe('buildTaskJsonDocument — ai mode', () => {
 		expect(AI_IMPORT_META.actions.create).toContain('"type": "project"');
 	});
 
+	// The fact a model most reliably gets wrong: it reads Blocked/Hold as local,
+	// so it either calls a stalled task workable or stamps Blocked down the chain.
+	it('tells the AI that Blocked/Hold propagate downstream and are derived, not written', () => {
+		expect(AI_IMPORT_META.impediments).toMatch(/downstream/i);
+		expect(AI_IMPORT_META.impediments).toMatch(/derives/i);
+		expect(AI_IMPORT_META.impediments).toMatch(/ONLY on the task/);
+	});
+
+	it('tells the AI a ref + name is a retitle, and that a new title without a ref is not', () => {
+		expect(AI_IMPORT_META.rename).toMatch(/retitle/i);
+		expect(AI_IMPORT_META.updatableFields).toContain('name');
+		expect(AI_IMPORT_META.rename).toMatch(/without a ref/i);
+	});
+
 	it('warns that a notes value replaces the whole body, and no longer claims notes are ignored', () => {
 		expect(AI_IMPORT_META.notes).toContain('REPLACES');
 		expect(AI_IMPORT_META.ignoredOnImport).toEqual(['blocks']);
@@ -308,12 +322,31 @@ describe('notes policy', () => {
 	it('warns the receiving AI not to send truncated bodies back', () => {
 		for (const policy of ['summary', 'none'] as const) {
 			const meta = buildTaskJsonDocument([makeTask()], 'ai', AT, undefined, policy).meta;
-			expect(meta?.notesTruncated).toMatch(/Do NOT send "notes" back/i);
 			// …and the default "sending notes replaces the body" contract is
 			// replaced, not left to contradict it.
-			expect(meta?.notes).toMatch(/Do not send "notes" back/i);
+			expect(meta?.notes).toMatch(/Do NOT send "notes" back/i);
 			expect(meta?.notes).not.toContain('REPLACES the whole body');
+			expect(meta?.notesTruncated).toBeTruthy();
 		}
+	});
+
+	// The warning belongs to `notes` and the state to `notesTruncated`. They used
+	// to both carry the full sentence, so the payload repeated "do not send notes
+	// back" three times across two adjacent keys.
+	it('states the notes warning once rather than across both notes keys', () => {
+		for (const policy of ['summary', 'none'] as const) {
+			const meta = buildTaskJsonDocument([makeTask()], 'ai', AT, undefined, policy).meta;
+			expect(meta?.notesTruncated).not.toMatch(/do not send/i);
+			expect(meta?.notesTruncated).not.toContain(meta?.notes ?? '');
+			expect(meta?.notes).not.toContain(meta?.notesTruncated ?? '');
+		}
+	});
+
+	it('keeps notesTruncated a terse statement of what happened to the bodies', () => {
+		const summary = buildTaskJsonDocument([makeTask()], 'ai', AT, undefined, 'summary').meta;
+		expect(summary?.notesTruncated).toContain(String(NOTES_SUMMARY_LENGTH));
+		const none = buildTaskJsonDocument([makeTask()], 'ai', AT, undefined, 'none').meta;
+		expect(none?.notesTruncated).toMatch(/omitted/i);
 	});
 });
 

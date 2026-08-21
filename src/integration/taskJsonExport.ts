@@ -43,9 +43,13 @@ export interface TaskJsonMeta {
 	instructions: string;
 	ref: string;
 	matchedBy: string;
+	/** Why a retitle needs the ref: `name` is both the new title and the fallback match key. */
+	rename: string;
 	actions: Record<'update' | 'create' | 'delete', string>;
 	/** That this is a graph, not a flat list — read before reasoning about order. */
 	graph: string;
+	/** That Blocked/Hold travel downstream, and are derived rather than written. */
+	impediments: string;
 	/** How to express dependency order on the way back. */
 	sequences: string;
 	/** How to set/clear a task's project membership. */
@@ -90,6 +94,7 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		'To send changes back, reply with this same shape — a JSON object with a "tasks" array. ' +
 		'Omit any task you are not changing. On each task you do change, add an "action" key and ' +
 		'include only "ref"/"name" (the match key) plus the fields you are setting — keep it light. ' +
+		'A "name" sent alongside a "ref" is a retitle; see "rename". ' +
 		'For "status", "priority", "area", and "labels", pick ONLY from validValues below. Do not ' +
 		'invent new statuses, priorities, areas, or labels — an unrecognized value is not created, it ' +
 		'is imported as-is and has to be cleaned up by hand. If none of the listed values fits, leave ' +
@@ -98,6 +103,11 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		'Stable unique id. Echo it back to target that exact task; omit it to create a new task. ' +
 		'You can also point a dependency at a task by its ref.',
 	matchedBy: 'ref when present, otherwise type + name (case-insensitive)',
+	rename:
+		'To retitle a task, send its "ref" plus the new "name". The ref is what identifies the task, so ' +
+		'the name is read as the new title. Without a ref there is nothing to match a changed name ' +
+		'against and the entry is treated as a brand-new task instead — so never propose a new title ' +
+		'without the ref.',
 	actions: {
 		update:
 			'Default when "action" is omitted. Sets the fields you include on the matched task; ' +
@@ -114,6 +124,11 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		'only workable once everything it depends on is complete, changing one task\'s dates or status can ' +
 		'move everything downstream of it, and a project\'s real timeline is driven by the longest chain ' +
 		'through it. Do not propose a cycle — the chain must stay acyclic.',
+	impediments:
+		'Blocked and Hold travel downstream. Everything that depends on a Blocked task is stuck too; Hold ' +
+		'is the same signal, weaker; where both reach a task it reads as Blocked. TTasks derives that ' +
+		'downstream state from the graph and never stores it, so set Blocked or Hold ONLY on the task ' +
+		'actually holding things up — never on the ones queued behind it.',
 	sequences:
 		'Order tasks with "depends_on": a task lists the tasks that must finish before it, each by ' +
 		'ref or name. New tasks created in the same reply can be referenced by name, so you can define ' +
@@ -133,7 +148,7 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		'the existing text plus your additions rather than only the new part. Omit "notes" entirely to ' +
 		'leave the body untouched — that is the safe default.',
 	updatableFields: [
-		'status', 'priority', 'area', 'labels', 'blocked_reason', 'assigned_to',
+		'name', 'status', 'priority', 'area', 'labels', 'blocked_reason', 'assigned_to',
 		'source', 'start_date', 'due_date', 'due_time', 'estimated_days',
 		'completed', 'recurrence', 'recurrence_type', 'pomodoro_count', 'focused_minutes',
 		'notes',
@@ -149,16 +164,22 @@ function buildAiImportMeta(validValues?: TaskJsonValidValues, notesPolicy: Notes
 	const meta: TaskJsonMeta = validValues ? { ...AI_IMPORT_META_BASE, validValues } : { ...AI_IMPORT_META_BASE };
 	if (notesPolicy === 'full') return meta;
 
+	// `notesTruncated` is the flag ("was this export cut?"); `notes` is the
+	// instruction. Keeping them disjoint matters: they previously both carried the
+	// full warning, so the payload said "do not send notes back" three times in
+	// two adjacent keys — the kind of repetition that teaches a skimming model to
+	// skip the whole meta block.
 	meta.notesTruncated = notesPolicy === 'summary'
-		? `Note bodies in this export are TRUNCATED to the first ${NOTES_SUMMARY_LENGTH} characters (a trailing ` +
-			'"…" marks a cut body). Do NOT send "notes" back — doing so would replace the real, longer body ' +
-			'with this fragment. Put anything you want added to a body in prose instead.'
-		: 'Note bodies were OMITTED from this export — you are seeing task fields only. Do NOT send "notes" ' +
-			'back; a body you did not see cannot be safely replaced.';
+		? `bodies cut to the first ${NOTES_SUMMARY_LENGTH} characters (a trailing "…" marks a cut body)`
+		: 'bodies omitted entirely — you are seeing task fields only';
 	// The default `notes` contract invites a replacement body, which is exactly
 	// what must not happen here — overwrite it rather than leaving the two
 	// instructions to contradict each other.
-	meta.notes = `Do not send "notes" back in this export. ${meta.notesTruncated}`;
+	meta.notes = notesPolicy === 'summary'
+		? 'Do NOT send "notes" back in this export: the bodies here are truncated, so returning one would ' +
+			'replace the real, longer body with a fragment. Put body edits in prose instead.'
+		: 'Do NOT send "notes" back in this export: the bodies were not included, and a body you did not ' +
+			'see cannot be safely replaced. Put body edits in prose instead.';
 	return meta;
 }
 

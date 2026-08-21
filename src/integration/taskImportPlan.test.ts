@@ -190,6 +190,69 @@ describe('planImport', () => {
 		expect(plan.updates[0].path).toBe(existing.path);
 	});
 
+	// The "suggest better titles" reply: ref + a new name and nothing else. Before
+	// name was updatable this diffed to zero changes and the preview came up empty.
+	it('plans a retitle-only reply as an update', () => {
+		const existing = task({ id: 'ref123', name: 'Old name' });
+		const plan = planImport([parsed({ ref: 'ref123', name: 'New name', action: 'update' })], [existing]);
+		expect(plan.unchangedCount).toBe(0);
+		expect(plan.updates).toHaveLength(1);
+		expect(plan.updates[0].changes).toEqual([{ field: 'name', from: 'Old name', to: 'New name' }]);
+		expect(plan.fieldChangeCounts.name).toBe(1);
+		expect(isEmptyImportPlan(plan)).toBe(false);
+		expect(changesToPatch(plan.updates[0].changes)).toEqual({ name: 'New name' });
+	});
+
+	it('keeps the pre-rename name as the update title so the row reads old → new', () => {
+		const existing = task({ id: 'ref123', name: 'Old name' });
+		const plan = planImport([parsed({ ref: 'ref123', name: 'New name', action: 'update' })], [existing]);
+		expect(plan.updates[0].name).toBe('Old name');
+		const entry = importPlanEntries(plan)[0];
+		expect(entry.title).toBe('Old name');
+		expect(entry.summary).toBe('name → New name');
+	});
+
+	it('does not read a name-matched record as a rename', () => {
+		const plan = planImport([parsed({ name: 'Task', status: 'Done' })], [task({ name: 'Task' })]);
+		expect(plan.updates[0].changes.map((c) => c.field)).toEqual(['status']);
+	});
+
+	// Name matching is case-insensitive, so an AI echoing "apollo" for "Apollo"
+	// must not silently re-case the real title.
+	it('does not re-case a title off a case-insensitive name match', () => {
+		const plan = planImport([parsed({ name: 'apollo', status: 'Hold' })], [task({ name: 'Apollo' })]);
+		expect(plan.updates[0].changes.map((c) => c.field)).toEqual(['status']);
+	});
+
+	// A stale ref falls through to name matching, which makes the name the match
+	// key again — so it can't be read as a retitle either.
+	it('does not rename when an unknown ref falls back to a name match', () => {
+		const plan = planImport(
+			[parsed({ ref: 'gone', name: 'apollo', status: 'Hold' })],
+			[task({ id: 'aaa111', name: 'Apollo' })],
+		);
+		expect(plan.updates[0].changes.map((c) => c.field)).toEqual(['status']);
+	});
+
+	it('treats a ref-less new title as a create, not a rename', () => {
+		const plan = planImport([parsed({ name: 'New name', action: 'auto' })], [task({ name: 'Old name' })]);
+		expect(plan.updates).toHaveLength(0);
+		expect(plan.creates).toHaveLength(1);
+	});
+
+	it('leaves the name alone when a ref-matched record omits it', () => {
+		const existing = task({ id: 'ref123', name: 'Old name' });
+		const plan = planImport([parsed({ ref: 'ref123', name: '', status: 'Done' })], [existing]);
+		expect(plan.updates[0].changes.map((c) => c.field)).toEqual(['status']);
+	});
+
+	it('omits the redundant name row from a create\'s details', () => {
+		const plan = planImport([parsed({ name: 'Fresh', status: 'Active', action: 'create' })], []);
+		const entry = importPlanEntries(plan).find((e) => e.kind === 'create');
+		expect(entry?.title).toBe('Fresh');
+		expect(entry?.details.map((d) => d.label)).toEqual(['status']);
+	});
+
 	it('matches and updates by ref alone, with no name (the AI meta promises this is enough)', () => {
 		const existing = task({ id: 'ref123', name: 'Existing name', status: 'Active' });
 		const plan = planImport([parsed({ ref: 'ref123', name: '', status: 'Done' })], [existing]);

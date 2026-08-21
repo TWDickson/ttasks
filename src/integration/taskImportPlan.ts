@@ -24,9 +24,21 @@
 import type { Task } from '../types';
 import type { ParsedImportTask } from './taskJsonImport';
 
-/** Fields an import may set on an existing task (mirrors TaskWriter.update, minus name/links/notes). */
+/**
+ * Fields an import may set on an existing task (mirrors TaskWriter.update, minus
+ * links/notes).
+ *
+ * `name` is in here even though it doubles as the fallback match key. Leaving it
+ * out meant a reply that only retitled tasks — the literal output of "suggest
+ * better titles" — diffed to zero changes and showed an empty preview. It counts
+ * as a change only on a REF-matched record (see `diffField`): there the ref
+ * identifies the task and the name can only be a new title. On a name-matched
+ * record the name IS the match key, so the only difference it can carry is
+ * casing — treating that as a rename would silently re-case titles off an AI's
+ * incidental capitalisation.
+ */
 export const IMPORT_UPDATABLE_FIELDS = [
-	'status', 'priority', 'area', 'labels',
+	'name', 'status', 'priority', 'area', 'labels',
 	'blocked_reason', 'assigned_to', 'source',
 	'start_date', 'due_date', 'due_time', 'estimated_days', 'completed',
 	'recurrence', 'recurrence_type', 'pomodoro_count', 'focused_minutes',
@@ -126,8 +138,19 @@ function labelsEqual(a: string[], b: string[]): boolean {
 	return b.every((label) => set.has(label));
 }
 
-/** A meaningful change for one field, or null when the parsed value is absent/equal. */
-function diffField(field: ImportUpdatableField, parsed: ParsedImportTask, existing: Task): FieldChange | null {
+/**
+ * A meaningful change for one field, or null when the parsed value is absent/equal.
+ *
+ * `matchedByRef` gates `name` only: a name-matched record's name is the match key
+ * (equal bar casing), never an instruction to retitle.
+ */
+function diffField(
+	field: ImportUpdatableField,
+	parsed: ParsedImportTask,
+	existing: Task,
+	matchedByRef: boolean,
+): FieldChange | null {
+	if (field === 'name' && !matchedByRef) return null;
 	if (field === 'labels') {
 		if (parsed.labels.length === 0) return null; // can't clear via omission
 		return labelsEqual(parsed.labels, existing.labels) ? null : { field, from: [...existing.labels], to: [...parsed.labels] };
@@ -165,16 +188,22 @@ export function planImport(parsed: ParsedImportTask[], existing: Task[]): Import
 		byId.set(task.id, task);
 	}
 
-	/** Resolve a record to an existing task: ref first (exact), then name. */
-	const matchExisting = (record: ParsedImportTask): { match: Task | null; ambiguous: boolean } => {
+	/**
+	 * Resolve a record to an existing task: ref first (exact), then name.
+	 * `byRef` travels with the match because it decides whether the record's
+	 * `name` is a new title or just the match key (see `diffField`).
+	 */
+	const matchExisting = (
+		record: ParsedImportTask,
+	): { match: Task | null; ambiguous: boolean; byRef: boolean } => {
 		if (record.ref) {
 			const byRef = byId.get(record.ref);
-			if (byRef) return { match: byRef, ambiguous: false };
+			if (byRef) return { match: byRef, ambiguous: false, byRef: true };
 		}
 		const matches = byName.get(matchKey(record.type, record.name)) ?? [];
-		if (matches.length === 1) return { match: matches[0], ambiguous: false };
-		if (matches.length > 1) return { match: null, ambiguous: true };
-		return { match: null, ambiguous: false };
+		if (matches.length === 1) return { match: matches[0], ambiguous: false, byRef: false };
+		if (matches.length > 1) return { match: null, ambiguous: true, byRef: false };
+		return { match: null, ambiguous: false, byRef: false };
 	};
 
 	const plan: ImportPlan = {
@@ -210,7 +239,7 @@ export function planImport(parsed: ParsedImportTask[], existing: Task[]): Import
 			linkSources.push({ record, from: { kind: 'new', type: record.type, name: record.name }, existingTask: null });
 			continue;
 		}
-		const { match, ambiguous } = matchExisting(record);
+		const { match, ambiguous, byRef } = matchExisting(record);
 		// Explicit delete — only when it resolves to exactly one existing task.
 		if (record.action === 'delete') {
 			if (match) plan.deletes.push({ path: match.path, name: match.name });
@@ -231,7 +260,7 @@ export function planImport(parsed: ParsedImportTask[], existing: Task[]): Import
 		}
 		const changes: FieldChange[] = [];
 		for (const field of IMPORT_UPDATABLE_FIELDS) {
-			const change = diffField(field, record, match);
+			const change = diffField(field, record, match, byRef);
 			if (change) {
 				changes.push(change);
 				plan.fieldChangeCounts[field] = (plan.fieldChangeCounts[field] ?? 0) + 1;
@@ -430,6 +459,7 @@ export function importPlanEntries(plan: ImportPlan): ImportPlanEntry[] {
 		const { parsed } = create;
 		const details: ImportEntryDetail[] = [];
 		for (const field of IMPORT_UPDATABLE_FIELDS) {
+			if (field === 'name') continue; // already the row's title
 			const value = parsed[field];
 			if (value === null || value === '' || (Array.isArray(value) && value.length === 0)) continue;
 			details.push({ label: field.replace(/_/g, ' '), to: displayValue(value) });

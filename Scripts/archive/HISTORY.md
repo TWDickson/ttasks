@@ -12,6 +12,63 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-21 — The AI bridge couldn't apply a rename
+
+Reported as "I asked for better titles, the AI replied, and the preview sees
+nothing." The reply was well-formed — 16 entries, each `{ref, action: "update",
+name}` — and it parsed cleanly. It just diffed to zero changes.
+
+`IMPORT_UPDATABLE_FIELDS` in `taskImportPlan.ts` listed every writable field
+"minus name/links/notes". So every entry matched its task by ref, found no
+changed field, and fell into `unchangedCount`; `isEmptyImportPlan` was true and
+Apply stayed disabled. **A retitle-only reply was structurally unrepresentable**
+— which matters because "suggest better titles" is one of the things people most
+naturally ask an AI to do with a task list, and the `review` preset invites it.
+
+Fixed by making `name` updatable, but **gated on how the record matched**.
+`name` is load-bearing twice over: it's the new title *and* the fallback match
+key. On a ref-matched record the ref identifies the task, so a differing name can
+only be a new title. On a name-matched record the name *is* the key, and matching
+is case-insensitive — so the only difference it can carry is casing, and treating
+that as a rename would silently re-case titles off an AI's incidental
+capitalisation. Two existing tests caught exactly that when `name` was first
+added unguarded (`Apollo` → `apollo`), which is why `diffField` now takes
+`matchedByRef` and `matchExisting` returns how it matched.
+
+The AI-facing contract was wrong in the same way, so `meta.rename` now states the
+rule the model has to follow: a new title **must** travel with its ref, because
+without one there is nothing to match a changed name against and the entry
+becomes a create instead.
+
+### Blocked/Hold propagation was never in the contract
+
+Separately, Taylor reported Copilot not understanding that Blocked/Hold travel
+downstream. It didn't, because nothing ever told it. `computeImpediments`
+(`src/query/taskImpediment.ts`) has had well-specified semantics since
+2026-07-25 — Blocked propagates, Hold propagates weaker, Blocked wins where they
+meet, and the whole thing is **derived from the graph and never written** — and
+none of it appeared in `meta` or the preamble. `meta.graph` covered ordering and
+acyclicity only.
+
+Added as `IMPEDIMENT_RULE` (its own preamble paragraph, not buried in
+`GRAPH_RULE`) and `meta.impediments`, so it survives the "No preamble" preset.
+The "derived, never written" half is the part that needed saying loudest: a model
+that *does* grasp propagation will helpfully stamp Blocked down the whole chain,
+which is wrong precisely because TTasks computes it.
+
+Also folded `meta.notesTruncated` and `meta.notes` apart. Under a truncating
+notes policy they had both carried the full warning, so the payload said "do not
+send notes back" three times across two adjacent keys — the sort of repetition
+that teaches a skimming model to skip the meta block. `notesTruncated` is now the
+terse flag, `notes` the single instruction.
+
+The broader length complaint is left open in `PROJECT.md`: `GRAPH_RULE` ↔
+`meta.graph` and `NO_NEW_VALUES_RULE` ↔ `meta.instructions` are duplicated
+*deliberately*, documented in `sharePreamble.ts` as "prose is what actually
+steers the reply". Undoing a documented tradeoff is Taylor's call.
+
+---
+
 ## 2026-08-11 — The dependency chain trace, put back on the nodes
 
 Reported as "we've lost the downstream highlighting on the dependency graph."
