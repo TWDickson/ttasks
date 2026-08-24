@@ -1,5 +1,6 @@
 import { Component, MarkdownRenderer, Modal, Notice, setIcon, type App } from 'obsidian';
 import { get } from 'svelte/store';
+import { localDateString } from '../utils/dateUtils';
 import type TTasksPlugin from '../main';
 import type { NotesPolicy, TaskJsonMode } from '../integration/taskJsonExport';
 import { serializeTasksToJson } from '../integration/taskJsonExport';
@@ -51,6 +52,18 @@ const ENTRY_GROUPS: Array<{ kind: ImportEntryKind; label: string }> = [
  * copy or save. Import: paste an (edited) document, review the changes item by
  * item, reject any you don't want, then apply the rest to the vault.
  */
+/**
+ * Completed-work windows. Old finished work is dead weight in an AI export — it
+ * costs tokens and drags the model's attention onto things that are already
+ * done — so this trims it by completion date without dropping history entirely.
+ */
+const COMPLETED_WINDOWS: Array<{ label: string; days: number | null }> = [
+	{ label: 'all time', days: null },
+	{ label: 'last 7 days', days: 7 },
+	{ label: 'last 30 days', days: 30 },
+	{ label: 'last 90 days', days: 90 },
+];
+
 export class ShareSyncModal extends Modal {
 	private tab: ShareTab = 'export';
 	private mode: TaskJsonMode;
@@ -112,6 +125,7 @@ export class ShareSyncModal extends Modal {
 			statuses: [...remembered.statuses],
 			labels: [...remembered.labels],
 			includeCompleted: remembered.includeCompleted,
+			completedWithinDays: remembered.completedWithinDays,
 		};
 		this.preambleText = remembered.customPreamble.trim() !== ''
 			? remembered.customPreamble
@@ -153,6 +167,7 @@ export class ShareSyncModal extends Modal {
 			statuses: [...this.criteria.statuses],
 			labels: [...this.criteria.labels],
 			includeCompleted: this.criteria.includeCompleted,
+			completedWithinDays: this.criteria.completedWithinDays,
 		};
 		void this.plugin.saveSettings();
 	}
@@ -228,8 +243,24 @@ export class ShareSyncModal extends Modal {
 		cb.checked = this.criteria.includeCompleted;
 		cb.id = 'tt-share-completed';
 		completedRow.createEl('label', { text: 'Include completed tasks', attr: { for: 'tt-share-completed' } });
+		// The window only means anything while completed work is included, so it
+		// enables and disables with the checkbox rather than sitting there inert.
+		const windowSelect = completedRow.createEl('select', { cls: 'dropdown tt-share-completed-window' });
+		for (const option of COMPLETED_WINDOWS) {
+			windowSelect.createEl('option', { text: option.label, value: String(option.days ?? '') });
+		}
+		windowSelect.value = String(this.criteria.completedWithinDays ?? '');
+		windowSelect.disabled = !this.criteria.includeCompleted;
+		windowSelect.addEventListener('change', () => {
+			const raw = windowSelect.value;
+			this.criteria.completedWithinDays = raw === '' ? null : Number(raw);
+			this.updateCount();
+			this.rememberExportState();
+		});
+
 		cb.addEventListener('change', () => {
 			this.criteria.includeCompleted = cb.checked;
+			windowSelect.disabled = !cb.checked;
 			this.updateCount();
 			this.rememberExportState();
 		});
@@ -439,7 +470,7 @@ export class ShareSyncModal extends Modal {
 	}
 
 	private selectedTasks() {
-		return filterTasksForExport(get(this.plugin.taskStore.tasks), this.criteria);
+		return filterTasksForExport(get(this.plugin.taskStore.tasks), this.criteria, localDateString());
 	}
 
 	private updateCount(): void {

@@ -1107,6 +1107,14 @@
 	   horizontal scrollbar on every hover. Same fix `.tt-query-editor-modal` uses. */
 	overflow-x: hidden;
 	min-height: 0;
+	/* Themes scale buttons on hover (~1.01). A transformed child contributes to
+	   its scroll container's overflow area, so that fraction of a pixel tips
+	   scrollHeight over clientHeight and flickers a scrollbar on and off as the
+	   pointer crosses the action row. Reserving a couple of pixels absorbs the
+	   scaled edge instead of suppressing the theme's affordance. Measured, not
+	   guessed: without this, hovering "Copy to clipboard" grows scrollHeight
+	   803 -> 804 (test-rig, ?share=1). */
+	padding-bottom: var(--tt-space-1, 4px);
 }
 
 .tt-share-mode {

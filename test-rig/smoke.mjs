@@ -41,6 +41,13 @@ const SCENES = [
 	{ name: 'detail', url: '/?view=list&detail=1' },
 	{ name: 'modal', url: '/?view=list&modal=1' },
 	{ name: 'pomodoro', url: '/?pomo=focus' },
+	/* The Share/Sync modal reads more of the plugin surface than any other
+	   overlay (settings.shareSync, the prompt library, the task store) and was
+	   NOT covered here — a stale fixture crashed it while every scene above and
+	   the whole test suite stayed green. Both tabs, because Import mounts a
+	   different tree from Export. */
+	{ name: 'share-export', url: '/?share=1' },
+	{ name: 'share-import', url: '/?share=import' },
 ];
 
 function sceneUrl(url) {

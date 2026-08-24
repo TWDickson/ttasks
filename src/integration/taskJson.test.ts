@@ -143,6 +143,14 @@ describe('buildTaskJsonDocument — ai mode', () => {
 	// A model reads "groups tasks rather than being worked directly" as "do not
 	// touch", and `rename` used to say "task" throughout — so it declined to
 	// retitle projects, which is the entry whose name matters most.
+	// A blank due date is a scheduling decision, not missing data. Without this the
+	// model fills every one in, which overrides the graph-computed schedule.
+	it('tells the AI that blank dates are deliberate', () => {
+		expect(AI_IMPORT_META.dates).toMatch(/NOT missing data/);
+		expect(AI_IMPORT_META.dates).toMatch(/estimated_days/);
+		expect(AI_IMPORT_META.dates).toMatch(/external deadline/i);
+	});
+
 	it('says projects are renameable, in both the rename and projects contracts', () => {
 		expect(AI_IMPORT_META.rename).toMatch(/tasks AND on projects/i);
 		expect(AI_IMPORT_META.projects).toMatch(/rename, restatus and\s+edit a project/i);

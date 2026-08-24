@@ -49,13 +49,12 @@ export type ShareOutputFormat = 'fenced' | 'separate' | 'json-only';
  * stated in the prose as well as in the document's `meta.validValues`.
  */
 export const NO_NEW_VALUES_RULE =
-	'Use only the statuses, priorities, areas and labels listed in "meta.validValues". Never invent a ' +
-	'new one. If none fits, leave the field alone and say why in prose.';
+	'VALUES: for status, priority, area, labels use only what "meta.validValues" lists. Never invent ' +
+	'one. If none fits, leave the field unchanged and explain in prose.';
 
 const ROUND_TRIP_RULE =
-	'Reply with JSON: { "tasks": [ ... ] }. Include only the entries you are changing, and on each one ' +
-	'only the fields you are changing plus its "ref". "meta" in the data has the full contract and a ' +
-	'worked example — follow it.';
+	'REPLY: JSON only, {"tasks":[...]}. One object per changed entry: its "ref" plus only the fields you ' +
+	'changed. Omit entries you did not change. Copy the shape in "meta.example".';
 
 /**
  * The shape rule. Without it a model reads the export as a flat to-do list and
@@ -65,11 +64,10 @@ const ROUND_TRIP_RULE =
  * actually steers the reply.
  */
 export const GRAPH_RULE =
-	'These are a dependency GRAPH, not a flat list. "depends_on" names what must finish first. "parent" ' +
-	'names the project an entry belongs to. "blocks" is just the reverse of "depends_on". Nothing is ' +
-	'workable until its dependencies are done. Moving one entry\'s dates or status moves everything ' +
-	'downstream of it, and a project takes as long as its longest chain. Never make a cycle. Say so ' +
-	'when a change you propose moves work that depends on it.';
+	'GRAPH: this is a dependency graph, not a list. "depends_on" = must finish first. "parent" = owning ' +
+	'project. "blocks" = reverse of depends_on, read-only. A task is not workable until its depends_on ' +
+	'are done. A project takes as long as its longest chain. Never create a cycle. If a change moves ' +
+	'work downstream, say so.';
 
 /**
  * The one graph fact a model reliably misses: Blocked/Hold are not local. Without
@@ -79,16 +77,30 @@ export const GRAPH_RULE =
  * `computeImpediments` in src/query/taskImpediment.ts).
  */
 export const IMPEDIMENT_RULE =
-	'Blocked and Hold spread downstream. If a task is Blocked, everything depending on it is stuck too. ' +
-	'Hold spreads the same way but is weaker, and Blocked wins if both reach a task. TTasks works this ' +
-	'out by itself. Set Blocked or Hold ONLY on the task that is actually stuck, never on the ones ' +
-	'waiting behind it. A task waiting on a stuck blocker is not idle.';
+	'BLOCKED/HOLD: these spread downstream. If X is Blocked, everything depending on X is stuck too. ' +
+	'Hold spreads the same way, weaker; Blocked beats Hold. TTasks computes this itself. Set Blocked or ' +
+	'Hold ONLY on the task that is actually stuck — never on tasks waiting behind it. A task waiting on ' +
+	'a stuck blocker is not idle.';
+
+/**
+ * Why blank dates are normal. Without this a model reads `due_date: null` as
+ * missing data and fills it in, which is actively harmful: an invented due date
+ * overrides the schedule TTasks computes from the chain and pins everything
+ * downstream of it. `resolveTaskDates` is the behaviour being described —
+ * start = last dependency end + 1 day, end = start + estimated_days.
+ */
+export const DATES_RULE =
+	'DATES: most entries have no dates on purpose. TTasks schedules them from the graph — a task starts ' +
+	'the day after its last dependency ends and runs for "estimated_days" (1 if unset). A blank ' +
+	'"start_date"/"due_date" is NOT missing data. Do not fill blank dates in, and do not report them as ' +
+	'a problem. To make something take longer, set "estimated_days". Set "due_date" ONLY for a real ' +
+	'external deadline — it overrides the computed schedule and pins everything downstream of it.';
 
 /** Told to the model when the data block is TOON rather than JSON. */
 const TOON_FORMAT_RULE =
-	'The data below is TOON, not JSON. "tasks[N]{col,col,…}:" gives the row count and column order, then ' +
-	'one line per entry. In "labels" and "depends_on" one cell holds a list split by " | ". Note bodies ' +
-	'are under "notes", keyed by ref. Reply in JSON, not TOON.';
+	'FORMAT: the data is TOON, not JSON. "tasks[N]{col,col,…}:" gives the row count and column order; ' +
+	'each later line is one entry in that order. "labels" and "depends_on" hold lists in one cell split ' +
+	'by " | ". Note bodies are under "notes", keyed by ref. Reply in JSON, not TOON.';
 
 /** Told to the model when note bodies were shortened or dropped on the way out. */
 function notesPolicyRule(policy: NotesPolicy): string | null {
@@ -115,8 +127,7 @@ export const SHARE_PREAMBLE_PRESETS: SharePreamblePreset[] = [
 		label: 'Review & advise',
 		text:
 			'Below are tasks from my task manager. Review them and tell me what stands out: anything ' +
-			'stale, mis-prioritised, blocked with no reason given, or missing a due date. Then propose ' +
-			'concrete edits.',
+			'stale, mis-prioritised, or blocked with no reason given. Then propose concrete edits.',
 	},
 	{
 		id: 'breakdown',
@@ -151,7 +162,7 @@ export const SHARE_PREAMBLE_PRESETS: SharePreamblePreset[] = [
 			'belong to, and propose a "parent" for any task that clearly belongs to a project but has ' +
 			'none. Rename a project too if its own title is unclear. Keep every rename with its "ref".',
 	},
-	{ id: 'none', label: 'No preamble', text: '' },
+	{ id: 'none', label: 'No prompt (contract only)', text: '' },
 ];
 
 export function findPreamblePreset(id: SharePreamblePresetId): SharePreamblePreset {
@@ -181,7 +192,7 @@ export function buildInteropRules(
 	validValues?: TaskJsonValidValues,
 	context: PreambleContext = {},
 ): string[] {
-	const rules = [GRAPH_RULE, IMPEDIMENT_RULE, ROUND_TRIP_RULE, NO_NEW_VALUES_RULE];
+	const rules = [GRAPH_RULE, IMPEDIMENT_RULE, DATES_RULE, ROUND_TRIP_RULE, NO_NEW_VALUES_RULE];
 	if (context.payloadFormat === 'toon') rules.push(TOON_FORMAT_RULE);
 	const notesRule = notesPolicyRule(context.notesPolicy ?? 'full');
 	if (notesRule) rules.push(notesRule);
@@ -202,9 +213,8 @@ export function presetAsk(preset: SharePreamblePreset): string {
 /**
  * The full preamble: the preset's ask followed by the interop rules.
  *
- * Returns '' for the 'none' preset so it truly emits nothing — an empty ask
- * means the user wants raw data, and shipping the contract alone would be a
- * preamble they explicitly turned off.
+ * The 'none' preset contributes no ask but still carries the interop rules: a
+ * reply has to be applicable whether or not the user wrote a prompt.
  */
 export function buildPreambleText(
 	preset: SharePreamblePreset,
@@ -212,8 +222,11 @@ export function buildPreambleText(
 	context: PreambleContext = {},
 ): string {
 	const ask = presetAsk(preset);
-	if (ask === '') return '';
-	return [ask, ...buildInteropRules(validValues, context)].join('\n\n');
+	const rules = buildInteropRules(validValues, context);
+	// An empty ask means "no instructions of my own", not "no contract" — the
+	// reply still has to come back in a shape the importer accepts, so the
+	// interop half ships regardless.
+	return (ask === '' ? rules : [ask, ...rules]).join('\n\n');
 }
 
 /** One independently copiable chunk of the composed output. */

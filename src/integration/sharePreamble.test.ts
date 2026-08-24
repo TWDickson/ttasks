@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	DATES_RULE,
 	GRAPH_RULE,
 	buildInteropRules,
 	builtinPreset,
@@ -55,8 +56,14 @@ describe('share preamble presets', () => {
 		expect(buildPreambleText(findPreamblePreset('review'))).not.toContain('Valid statuses in this vault');
 	});
 
-	it('emits nothing for the "none" preset', () => {
-		expect(buildPreambleText(findPreamblePreset('none'), VALID_VALUES)).toBe('');
+	// 'none' means "no prompt of my own", not "no contract" — a reply still has to
+	// come back in a shape the importer can apply.
+	it('emits the interop contract but no ask for the "none" preset', () => {
+		const text = buildPreambleText(findPreamblePreset('none'), VALID_VALUES);
+		expect(text).toContain(GRAPH_RULE);
+		expect(text).toContain(DATES_RULE);
+		// No preset body leaked in ahead of it.
+		expect(text.startsWith(GRAPH_RULE)).toBe(true);
 	});
 });
 
@@ -103,10 +110,6 @@ describe('graph framing', () => {
 	it('tells the model the tasks are a dependency graph, in every real preset', () => {
 		for (const preset of SHARE_PREAMBLE_PRESETS) {
 			const text = buildPreambleText(preset, VALID_VALUES);
-			if (preset.id === 'none') {
-				expect(text).toBe('');
-				continue;
-			}
 			expect(text).toContain(GRAPH_RULE);
 			expect(text).toContain(IMPEDIMENT_RULE);
 			expect(text).toMatch(/depends_on/);
@@ -225,5 +228,23 @@ describe('ask / interop split', () => {
 		const rules = buildInteropRules(undefined, {});
 		expect(rules).toContain(GRAPH_RULE);
 		expect(rules).toContain(IMPEDIMENT_RULE);
+	});
+});
+
+
+describe('date advice', () => {
+	// The model kept inventing due dates because a blank one reads as missing
+	// data, and the old 'review' preset literally asked it to hunt for them.
+	it('tells the model blank dates are deliberate and how scheduling works', () => {
+		expect(DATES_RULE).toMatch(/NOT missing data/);
+		expect(DATES_RULE).toMatch(/estimated_days/);
+		expect(DATES_RULE).toMatch(/external deadline/i);
+		expect(buildInteropRules()).toContain(DATES_RULE);
+	});
+
+	it('no bundled prompt asks the model to look for missing due dates', () => {
+		for (const preset of SHARE_PREAMBLE_PRESETS) {
+			expect(preset.text).not.toMatch(/missing a due date/i);
+		}
 	});
 });

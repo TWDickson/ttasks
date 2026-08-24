@@ -119,3 +119,51 @@ describe('isUnfilteredCriteria', () => {
 		expect(isUnfilteredCriteria(crit({ includeCompleted: false }))).toBe(false);
 	});
 });
+
+
+describe('completed-work window', () => {
+	const done = (id: string, completed: string | null): Task =>
+		task({ id, path: `Tasks/${id}.md`, is_complete: true, completed });
+	const TODAY = '2026-08-24';
+
+	it('keeps everything when no window is set', () => {
+		const tasks = [done('a', '2020-01-01'), done('b', '2026-08-20')];
+		const out = filterTasksForExport(tasks, { ...EMPTY_EXPORT_CRITERIA }, TODAY);
+		expect(out).toHaveLength(2);
+	});
+
+	it('drops work completed before the window', () => {
+		const tasks = [done('old', '2026-06-01'), done('recent', '2026-08-20')];
+		const out = filterTasksForExport(tasks, { ...EMPTY_EXPORT_CRITERIA, completedWithinDays: 30 }, TODAY);
+		expect(out.map((t) => t.id)).toEqual(['recent']);
+	});
+
+	it('includes work completed exactly on the cutoff', () => {
+		const tasks = [done('edge', '2026-07-25')];
+		const out = filterTasksForExport(tasks, { ...EMPTY_EXPORT_CRITERIA, completedWithinDays: 30 }, TODAY);
+		expect(out).toHaveLength(1);
+	});
+
+	// Undated history can't be placed in time; treating it as recent would defeat
+	// the point of asking for a window.
+	it('drops completed work with no completion date', () => {
+		const out = filterTasksForExport([done('undated', null)], { ...EMPTY_EXPORT_CRITERIA, completedWithinDays: 30 }, TODAY);
+		expect(out).toHaveLength(0);
+	});
+
+	it('never touches open work', () => {
+		const open = task({ id: 'open', path: 'Tasks/open.md', is_complete: false, completed: null });
+		const out = filterTasksForExport([open], { ...EMPTY_EXPORT_CRITERIA, completedWithinDays: 7 }, TODAY);
+		expect(out.map((t) => t.id)).toEqual(['open']);
+	});
+
+	it('is inert when completed work is excluded outright', () => {
+		const out = filterTasksForExport([done('a', '2026-08-20')], { ...EMPTY_EXPORT_CRITERIA, includeCompleted: false, completedWithinDays: 90 }, TODAY);
+		expect(out).toHaveLength(0);
+	});
+
+	it('counts a window as a constraint for isUnfilteredCriteria', () => {
+		expect(isUnfilteredCriteria({ ...EMPTY_EXPORT_CRITERIA })).toBe(true);
+		expect(isUnfilteredCriteria({ ...EMPTY_EXPORT_CRITERIA, completedWithinDays: 30 })).toBe(false);
+	});
+});

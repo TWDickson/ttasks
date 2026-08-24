@@ -223,4 +223,6 @@ export interface ShareSyncSettings {
 	statuses: string[];
 	labels: string[];
 	includeCompleted: boolean;
+	/** Completed-work window in days; null = all completed work. */
+	completedWithinDays: number | null;
 }

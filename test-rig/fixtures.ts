@@ -11,6 +11,7 @@ import type { PomodoroSettings } from '../src/settings/types';
 import { normalizeColorMap } from '../src/settings/defaults';
 import { buildStatusPolicy, type StatusPolicy, type StatusPolicySettings } from '../src/settings/statusPolicy';
 import type { BadgeColorSettings } from '../src/utils/badgePalette';
+import { SHARE_PREAMBLE_PRESETS } from '../src/integration/sharePreamble';
 
 const COMPLETION_STATUS = 'Done';
 
@@ -364,13 +365,20 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			shareSync: {
 				mode: 'ai',
 				outputFormat: 'fenced',
+				payloadFormat: 'json',
+				notesPolicy: 'full',
 				preamblePreset: 'review',
 				customPreamble: '',
+				// Seeded from the real bundle, not a hand-written stub — the modal
+				// reads this to populate its prompt dropdown, and a stub here would
+				// drift silently the next time a preset is added.
+				preamblePresets: SHARE_PREAMBLE_PRESETS.map((preset) => ({ ...preset })),
 				areas: [],
 				projects: [],
 				statuses: [],
 				labels: [],
 				includeCompleted: true,
+				completedWithinDays: null,
 			},
 			quickActions: { blockStatus: 'Blocked', holdStatus: 'Hold' },
 			fabPosition: 'right',

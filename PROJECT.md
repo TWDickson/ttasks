@@ -204,6 +204,11 @@ log-partial-on-stop.
   (~1,704 → ~1,263 tokens, −26%)** while *adding* the example and an `align`
   preset. The `GRAPH_RULE` ↔ `meta.graph` duplication is retained deliberately:
   `meta` must stand alone under the "No preamble" preset.
+- `[x]` **Share/Sync: hover flickered a scrollbar** — *(2026-08-24)* themes scale
+  buttons on hover (~1.01); a transformed child counts toward its scroll
+  container's overflow area, so the fraction of a pixel tipped `scrollHeight`
+  past `clientHeight`. Rig-measured (803 → 804 on `?share=1`), fixed with 4px of
+  bottom padding on `.modal-content` rather than by suppressing the theme.
 - `[ ]` **AI export prompts: settings UI is unverified visually** — the library
   (tune / add / restore-default) ships in `sharePreambleSettingsSection.ts` and
   is logic-tested, but the Obsidian **Settings tab is not a rig scene**, so it

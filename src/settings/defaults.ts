@@ -134,6 +134,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		statuses: [],
 		labels: [],
 		includeCompleted: true,
+		completedWithinDays: null,
 	},
 };
 
@@ -876,6 +877,15 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 
 		const includeCompleted = asBoolean(shareSync.includeCompleted);
 		if (includeCompleted !== null) target.shareSync.includeCompleted = includeCompleted;
+
+		// null (or anything unparseable) means "no window"; a negative or
+		// non-finite number would silently exclude everything, so it is rejected.
+		const rawWindow = shareSync.completedWithinDays;
+		if (rawWindow === null) {
+			target.shareSync.completedWithinDays = null;
+		} else if (typeof rawWindow === 'number' && Number.isFinite(rawWindow) && rawWindow > 0) {
+			target.shareSync.completedWithinDays = Math.round(rawWindow);
+		}
 	}
 }
 

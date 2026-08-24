@@ -57,6 +57,8 @@ export interface TaskJsonMeta {
 	graph: string;
 	/** That Blocked/Hold travel downstream, and are derived rather than written. */
 	impediments: string;
+	/** That blank dates are deliberate — the schedule comes from the graph. */
+	dates: string;
 	/** How to express dependency order on the way back. */
 	sequences: string;
 	/** How to set/clear a task's project membership. */
@@ -132,6 +134,12 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		'stuck too. Hold spreads the same way but is weaker. If both reach a task, it counts as Blocked. ' +
 		'TTasks derives this by itself. So set Blocked or Hold ONLY on the task that is actually stuck, ' +
 		'never on the ones waiting behind it.',
+	dates:
+		'Most entries have no dates on purpose. TTasks schedules them from the graph: a task starts the ' +
+		'day after its last dependency ends and runs for "estimated_days" (1 if unset). A blank ' +
+		'"start_date" or "due_date" is NOT missing data — do not fill it in and do not flag it. To make ' +
+		'something take longer, set "estimated_days". Set "due_date" ONLY for a real external deadline; ' +
+		'it overrides the computed schedule and pins everything downstream.',
 	sequences:
 		'To order work, send "depends_on" listing what must finish first, by ref or name. Entries you ' +
 		'create in the same reply can be referenced by name. This adds links and keeps existing ones. ' +
