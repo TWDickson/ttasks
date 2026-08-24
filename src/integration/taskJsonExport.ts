@@ -104,10 +104,13 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		'You can also point a dependency at a task by its ref.',
 	matchedBy: 'ref when present, otherwise type + name (case-insensitive)',
 	rename:
-		'To retitle a task, send its "ref" plus the new "name". The ref is what identifies the task, so ' +
-		'the name is read as the new title. Without a ref there is nothing to match a changed name ' +
-		'against and the entry is treated as a brand-new task instead — so never propose a new title ' +
-		'without the ref.',
+		'To retitle a task OR a project, send its "ref" plus the new "name". The ref is what identifies ' +
+		'the entry, so the name is read as the new title. Without a ref there is nothing to match a ' +
+		'changed name against and the entry is treated as a brand-new one instead — so never propose a ' +
+		'new title without the ref. Projects are renamed exactly like tasks: "it groups tasks rather ' +
+		'than being worked directly" describes how a project is *used*, not a rule against editing it. ' +
+		'If a project\'s name is vague or off-vocabulary, retitle it — its tasks follow automatically, ' +
+		'because they point at it by ref rather than by name.',
 	actions: {
 		update:
 			'Default when "action" is omitted. Sets the fields you include on the matched task; ' +
@@ -140,6 +143,9 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		'detach the task from its project.',
 	projects:
 		'A project is an entry with "type": "project" — it groups tasks rather than being worked directly. ' +
+		'That is about how it is used, not a restriction: a project can be renamed, restatused and ' +
+		'edited exactly like a task, and its name is usually the most valuable thing to get right ' +
+		'because every task under it inherits that framing. ' +
 		'Every field above applies to projects too, and they are matched the same way (a project only ever ' +
 		'matches a project). To create one, send "action": "create" with "type": "project", then point its ' +
 		'tasks at it with "parent". Projects do not nest: a project has no "parent" of its own.',

@@ -140,6 +140,15 @@ describe('buildTaskJsonDocument — ai mode', () => {
 		expect(AI_IMPORT_META.rename).toMatch(/without a ref/i);
 	});
 
+	// A model reads "groups tasks rather than being worked directly" as "do not
+	// touch", and `rename` used to say "task" throughout — so it declined to
+	// retitle projects, which is the entry whose name matters most.
+	it('says projects are renameable, in both the rename and projects contracts', () => {
+		expect(AI_IMPORT_META.rename).toMatch(/task OR a project/i);
+		expect(AI_IMPORT_META.projects).toMatch(/can be renamed/i);
+		expect(AI_IMPORT_META.projects).toMatch(/not a restriction/i);
+	});
+
 	it('warns that a notes value replaces the whole body, and no longer claims notes are ignored', () => {
 		expect(AI_IMPORT_META.notes).toContain('REPLACES');
 		expect(AI_IMPORT_META.ignoredOnImport).toEqual(['blocks']);
