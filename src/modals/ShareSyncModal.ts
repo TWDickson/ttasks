@@ -25,11 +25,11 @@ import {
 	type ShareOutputBlock,
 	type ShareOutputFormat,
 	type SharePayloadFormat,
+	type SharePreamblePreset,
 	type SharePreamblePresetId,
-	SHARE_PREAMBLE_PRESETS,
 	buildPreambleText,
 	composeShareOutput,
-	findPreamblePreset,
+	findPresetIn,
 } from '../integration/sharePreamble';
 
 type ShareTab = 'export' | 'import';
@@ -120,10 +120,15 @@ export class ShareSyncModal extends Modal {
 
 	/** The preamble the current settings would produce, unedited. */
 	private generatedPreamble(): string {
-		return buildPreambleText(findPreamblePreset(this.preamblePreset), this.plugin.taskJsonValidValues(), {
+		return buildPreambleText(findPresetIn(this.presetLibrary(), this.preamblePreset), this.plugin.taskJsonValidValues(), {
 			payloadFormat: this.payloadFormat,
 			notesPolicy: this.notesPolicy,
 		});
+	}
+
+	/** The live, user-tunable prompt library (settings-owned). */
+	private presetLibrary(): SharePreamblePreset[] {
+		return this.plugin.settings.shareSync.preamblePresets;
 	}
 
 	/**
@@ -140,6 +145,9 @@ export class ShareSyncModal extends Modal {
 			notesPolicy: this.notesPolicy,
 			preamblePreset: this.preamblePreset,
 			customPreamble: this.preambleText === this.generatedPreamble() ? '' : this.preambleText,
+			// The library is owned by the settings tab, not this modal — carry it
+			// through untouched rather than dropping it on every export tweak.
+			preamblePresets: this.plugin.settings.shareSync.preamblePresets,
 			areas: [...this.criteria.areas],
 			projects: [...this.criteria.projects],
 			statuses: [...this.criteria.statuses],
@@ -334,7 +342,7 @@ export class ShareSyncModal extends Modal {
 		head.createSpan({ cls: 'tt-label', text: 'Message' });
 
 		const select = head.createEl('select', { cls: 'dropdown tt-share-preamble-select' });
-		for (const preset of SHARE_PREAMBLE_PRESETS) {
+		for (const preset of this.presetLibrary()) {
 			select.createEl('option', { text: preset.label, value: preset.id });
 		}
 		select.value = this.preamblePreset;

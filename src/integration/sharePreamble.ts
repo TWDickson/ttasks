@@ -10,7 +10,14 @@
 
 import type { NotesPolicy, TaskJsonValidValues } from './taskJsonExport';
 
-export type SharePreamblePresetId = 'review' | 'breakdown' | 'plan' | 'catchup' | 'none';
+/**
+ * Bundled preset ids. Custom presets get generated ids, so a stored preset id is
+ * a plain string — use `isBuiltinPresetId` rather than assuming the union.
+ */
+export type BuiltinPreamblePresetId = 'review' | 'breakdown' | 'plan' | 'catchup' | 'align' | 'none';
+
+/** Any preset id: a bundled one, or a user-created `custom-*`. */
+export type SharePreamblePresetId = string;
 
 /**
  * Wire format of the data block. 'json' is the round-trip default; 'toon' is a
@@ -42,13 +49,13 @@ export type ShareOutputFormat = 'fenced' | 'separate' | 'json-only';
  * stated in the prose as well as in the document's `meta.validValues`.
  */
 export const NO_NEW_VALUES_RULE =
-	'Do not invent new statuses, priorities, areas, or labels. Use only the values listed in ' +
-	'"meta.validValues" in the data — if none fits, leave the field unchanged and say so in prose.';
+	'Use only the statuses, priorities, areas and labels listed in "meta.validValues". Never invent a ' +
+	'new one. If none fits, leave the field alone and say why in prose.';
 
 const ROUND_TRIP_RULE =
-	'To propose changes, reply with a JSON object in the same shape ({ "tasks": [...] }), including ' +
-	'only the tasks you are changing and only the fields you are changing on each. Read "meta" in the ' +
-	'data for the exact contract (matching by "ref", the "action" key, dependencies, projects).';
+	'Reply with JSON: { "tasks": [ ... ] }. Include only the entries you are changing, and on each one ' +
+	'only the fields you are changing plus its "ref". "meta" in the data has the full contract and a ' +
+	'worked example — follow it.';
 
 /**
  * The shape rule. Without it a model reads the export as a flat to-do list and
@@ -58,11 +65,11 @@ const ROUND_TRIP_RULE =
  * actually steers the reply.
  */
 export const GRAPH_RULE =
-	'These tasks are a dependency GRAPH, not a flat list. "depends_on" names the tasks that must finish ' +
-	'first, "parent" names the project a task belongs to, and "blocks" is just the reverse view of ' +
-	'"depends_on". Reason over the whole graph: nothing is workable until its dependencies are done, a ' +
-	'date or status change ripples to everything downstream, and a project runs as long as its longest ' +
-	'chain. Keep the graph acyclic and say so explicitly when a change moves work that depends on it.';
+	'These are a dependency GRAPH, not a flat list. "depends_on" names what must finish first. "parent" ' +
+	'names the project an entry belongs to. "blocks" is just the reverse of "depends_on". Nothing is ' +
+	'workable until its dependencies are done. Moving one entry\'s dates or status moves everything ' +
+	'downstream of it, and a project takes as long as its longest chain. Never make a cycle. Say so ' +
+	'when a change you propose moves work that depends on it.';
 
 /**
  * The one graph fact a model reliably misses: Blocked/Hold are not local. Without
@@ -72,27 +79,26 @@ export const GRAPH_RULE =
  * `computeImpediments` in src/query/taskImpediment.ts).
  */
 export const IMPEDIMENT_RULE =
-	'Blocked and Hold travel downstream. Everything that depends on a Blocked task is stuck too; Hold ' +
-	'is the same signal, weaker; where both reach a task it reads as Blocked. TTasks works this out ' +
-	'from the graph itself, so set Blocked or Hold ONLY on the task actually holding things up — never ' +
-	'on the ones queued behind it, and do not treat a task as idle when its blocker is what is stuck.';
+	'Blocked and Hold spread downstream. If a task is Blocked, everything depending on it is stuck too. ' +
+	'Hold spreads the same way but is weaker, and Blocked wins if both reach a task. TTasks works this ' +
+	'out by itself. Set Blocked or Hold ONLY on the task that is actually stuck, never on the ones ' +
+	'waiting behind it. A task waiting on a stuck blocker is not idle.';
 
 /** Told to the model when the data block is TOON rather than JSON. */
 const TOON_FORMAT_RULE =
-	'The data below is TOON, a compact tabular encoding: "tasks[N]{col,col,…}:" gives the row count and ' +
-	'column order, then one line per task. In the "labels" and "depends_on" columns a single cell holds a ' +
-	'list separated by " | ", and note bodies live under "notes" keyed by ref rather than in the table. ' +
-	'Reply in JSON, not TOON.';
+	'The data below is TOON, not JSON. "tasks[N]{col,col,…}:" gives the row count and column order, then ' +
+	'one line per entry. In "labels" and "depends_on" one cell holds a list split by " | ". Note bodies ' +
+	'are under "notes", keyed by ref. Reply in JSON, not TOON.';
 
 /** Told to the model when note bodies were shortened or dropped on the way out. */
 function notesPolicyRule(policy: NotesPolicy): string | null {
 	if (policy === 'summary') {
-		return 'Note bodies are TRUNCATED here (a trailing "…" marks a cut body). Do not send "notes" back — ' +
-			'it would overwrite the real body with this fragment. Suggest body edits in prose instead.';
+		return 'Note bodies here are cut short (a trailing "…" marks a cut body). Do NOT send "notes" back — ' +
+			'it would overwrite the real body with this fragment. Put body edits in prose instead.';
 	}
 	if (policy === 'none') {
-		return 'Note bodies are NOT included in this export — you are seeing task fields only. Do not send ' +
-			'"notes" back, and say so if a question really needs the body text.';
+		return 'Note bodies are not included here — you are seeing fields only. Do NOT send "notes" back. ' +
+			'Say so if a question really needs the body text.';
 	}
 	return null;
 }
@@ -108,33 +114,42 @@ export const SHARE_PREAMBLE_PRESETS: SharePreamblePreset[] = [
 		id: 'review',
 		label: 'Review & advise',
 		text:
-			'Below is a set of tasks exported from my task manager. Review them and tell me what stands out: ' +
-			'anything stale, mis-prioritised, blocked without a reason, or missing a due date. ' +
-			'Then propose concrete edits.',
+			'Below are tasks from my task manager. Review them and tell me what stands out: anything ' +
+			'stale, mis-prioritised, blocked with no reason given, or missing a due date. Then propose ' +
+			'concrete edits.',
 	},
 	{
 		id: 'breakdown',
 		label: 'Break down into subtasks',
 		text:
-			'Below is a set of tasks/projects exported from my task manager. Break the larger ones down into ' +
-			'concrete, actionable subtasks. Put each new task under the right project with "parent", and use ' +
-			'"depends_on" to express the order work has to happen in.',
+			'Below are tasks and projects from my task manager. Break the big ones into concrete, ' +
+			'actionable subtasks. Put each new task under the right project with "parent", and use ' +
+			'"depends_on" to say what order the work happens in.',
 	},
 	{
 		id: 'plan',
 		label: 'Plan my week',
 		text:
-			'Below is a set of tasks exported from my task manager. Help me plan: propose a realistic order of ' +
-			'work for the coming week and set "start_date"/"due_date" accordingly. Respect existing ' +
-			'"depends_on" order, and flag anything that looks over-committed rather than silently squeezing it in.',
+			'Below are tasks from my task manager. Propose a realistic order of work for the coming week ' +
+			'and set "start_date" and "due_date" to match. Respect the existing "depends_on" order. Flag ' +
+			'anything over-committed instead of quietly squeezing it in.',
 	},
 	{
 		id: 'catchup',
 		label: 'Status catch-up',
 		text:
-			'Below is a set of tasks exported from my task manager. I will describe what I actually got done; ' +
-			'update the matching tasks (status, completed date, notes-worthy blockers) to reflect it. ' +
-			'Ask me about anything ambiguous instead of guessing.',
+			'Below are tasks from my task manager. I will tell you what I actually got done; update the ' +
+			'matching entries (status, completed date, any blocker worth noting) to match. Ask me about ' +
+			'anything unclear instead of guessing.',
+	},
+	{
+		id: 'align',
+		label: 'Align titles to project vocabulary',
+		text:
+			'Below are projects and tasks from my task manager. The projects are the source of truth for ' +
+			'naming. Rewrite vague or ad-hoc task titles to use the same vocabulary as the project they ' +
+			'belong to, and propose a "parent" for any task that clearly belongs to a project but has ' +
+			'none. Rename a project too if its own title is unclear. Keep every rename with its "ref".',
 	},
 	{ id: 'none', label: 'No preamble', text: '' },
 ];
@@ -151,20 +166,54 @@ export function findPreamblePreset(id: SharePreamblePresetId): SharePreamblePres
  * inline (an AI following prose is more reliable than one that has to go find
  * `meta.validValues` in a long document).
  */
+/**
+ * The interop rules: how to read the data and how to reply. **Not user
+ * configurable**, and deliberately so — they describe the wire contract and the
+ * export's own options (payload format, notes policy, this vault's enums), so a
+ * user editing them would only ever desync the reply from what the importer can
+ * actually apply. They are also partly *dynamic*: the TOON and notes-policy
+ * lines appear only when those options are in play.
+ *
+ * Kept separate from the preset's ask so the two can't bleed into each other —
+ * the settings tab edits asks, and nothing there can reach these.
+ */
+export function buildInteropRules(
+	validValues?: TaskJsonValidValues,
+	context: PreambleContext = {},
+): string[] {
+	const rules = [GRAPH_RULE, IMPEDIMENT_RULE, ROUND_TRIP_RULE, NO_NEW_VALUES_RULE];
+	if (context.payloadFormat === 'toon') rules.push(TOON_FORMAT_RULE);
+	const notesRule = notesPolicyRule(context.notesPolicy ?? 'full');
+	if (notesRule) rules.push(notesRule);
+	if (validValues && validValues.statuses.length > 0) {
+		rules.push(`Valid statuses in this vault: ${validValues.statuses.join(', ')}.`);
+	}
+	return rules;
+}
+
+/**
+ * The ask: what the user wants the agent to *do*. This is the half they own and
+ * tune in settings; `''` for the 'none' preset.
+ */
+export function presetAsk(preset: SharePreamblePreset): string {
+	return preset.id === 'none' ? '' : preset.text.trim();
+}
+
+/**
+ * The full preamble: the preset's ask followed by the interop rules.
+ *
+ * Returns '' for the 'none' preset so it truly emits nothing — an empty ask
+ * means the user wants raw data, and shipping the contract alone would be a
+ * preamble they explicitly turned off.
+ */
 export function buildPreambleText(
 	preset: SharePreamblePreset,
 	validValues?: TaskJsonValidValues,
 	context: PreambleContext = {},
 ): string {
-	if (preset.id === 'none') return '';
-	const parts = [preset.text, GRAPH_RULE, IMPEDIMENT_RULE, ROUND_TRIP_RULE, NO_NEW_VALUES_RULE];
-	if (context.payloadFormat === 'toon') parts.push(TOON_FORMAT_RULE);
-	const notesRule = notesPolicyRule(context.notesPolicy ?? 'full');
-	if (notesRule) parts.push(notesRule);
-	if (validValues && validValues.statuses.length > 0) {
-		parts.push(`Valid statuses in this vault: ${validValues.statuses.join(', ')}.`);
-	}
-	return parts.join('\n\n');
+	const ask = presetAsk(preset);
+	if (ask === '') return '';
+	return [ask, ...buildInteropRules(validValues, context)].join('\n\n');
 }
 
 /** One independently copiable chunk of the composed output. */
@@ -205,4 +254,61 @@ export function composeShareOutput(
 		copyLabel: 'Copy to clipboard',
 		text: `${prose}\n\n\`\`\`${payloadFormat}\n${payload}\n\`\`\``,
 	}];
+}
+
+
+// ── Preset library ───────────────────────────────────────────────────────────
+// The bundled presets above are *defaults*, not the list. Users tune them, add
+// their own, and restore a bundled one they've edited — so the live list lives
+// in settings and this is what keeps it honest against the bundle.
+
+/** Ids of the presets TTasks ships. */
+export const BUILTIN_PRESET_IDS: readonly string[] = SHARE_PREAMBLE_PRESETS.map((preset) => preset.id);
+
+/** True when `id` names a preset TTasks ships (so it can be restored, not deleted). */
+export function isBuiltinPresetId(id: string): boolean {
+	return BUILTIN_PRESET_IDS.includes(id);
+}
+
+/** The shipped definition of a bundled preset, or null for a custom one. */
+export function builtinPreset(id: string): SharePreamblePreset | null {
+	return SHARE_PREAMBLE_PRESETS.find((preset) => preset.id === id) ?? null;
+}
+
+/**
+ * True when a bundled preset has been edited away from what TTasks ships — the
+ * condition for offering "Restore default". Always false for a custom preset,
+ * which has no default to go back to.
+ */
+export function isPresetModified(preset: SharePreamblePreset): boolean {
+	const bundled = builtinPreset(preset.id);
+	if (!bundled) return false;
+	return preset.label !== bundled.label || preset.text !== bundled.text;
+}
+
+/**
+ * Reconcile a stored list against the bundle: every bundled preset is present
+ * (re-seeded if the user's stored list predates it), user edits win, and custom
+ * presets are kept. Bundled order first, then custom in stored order — so adding
+ * a preset in a later release doesn't reshuffle someone's list.
+ */
+export function mergePresetLibrary(stored: SharePreamblePreset[]): SharePreamblePreset[] {
+	const byId = new Map(stored.map((preset) => [preset.id, preset]));
+	const bundled = SHARE_PREAMBLE_PRESETS.map((preset) => byId.get(preset.id) ?? { ...preset });
+	const custom = stored.filter((preset) => !isBuiltinPresetId(preset.id));
+	return [...bundled, ...custom];
+}
+
+/** A fresh, collision-free id for a user-created preset. */
+export function newCustomPresetId(existing: SharePreamblePreset[]): string {
+	const taken = new Set(existing.map((preset) => preset.id));
+	for (let n = 1; ; n += 1) {
+		const id = `custom-${n}`;
+		if (!taken.has(id)) return id;
+	}
+}
+
+/** Look a preset up in a live library, falling back to its first entry. */
+export function findPresetIn(presets: SharePreamblePreset[], id: string): SharePreamblePreset {
+	return presets.find((preset) => preset.id === id) ?? presets[0] ?? SHARE_PREAMBLE_PRESETS[0];
 }

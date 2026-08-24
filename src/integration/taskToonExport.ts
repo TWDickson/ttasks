@@ -55,11 +55,11 @@ const ARRAY_COLUMNS = new Set<ToonColumn>(['labels', 'depends_on']);
 
 /** How the TOON shape differs from the JSON one, stated inside the payload itself. */
 export const TOON_FORMAT_NOTE =
-	'This payload is TOON, not JSON: "tasks[N]{col,col,…}:" declares the row count and the column order, ' +
-	'and each following line is one task with its values in that order. Two columns hold lists flattened ' +
-	`into one cell, separated by "${TOON_LIST_SEPARATOR.trim()}": "labels" and "depends_on" (an empty cell ` +
-	'means none). Note bodies are not in the table — they are under "notes", keyed by the task\'s ref. ' +
-	'REPLY IN JSON, not TOON: send { "tasks": [ … ] } with "labels"/"depends_on" as real JSON arrays.';
+	'This payload is TOON, not JSON. "tasks[N]{col,col,…}:" gives the row count and column order; each ' +
+	'line after it is one entry with its values in that order. Two columns hold lists in a single cell, ' +
+	`split by "${TOON_LIST_SEPARATOR.trim()}": "labels" and "depends_on" (empty cell means none). Note ` +
+	'bodies are not in the table — they are under "notes", keyed by ref. ' +
+	'REPLY IN JSON, not TOON: send { "tasks": [ … ] } with "labels" and "depends_on" as JSON arrays.';
 
 /** The TOON-shaped payload: a flat task table plus a ref-keyed notes sidecar. */
 export interface ToonPayload {

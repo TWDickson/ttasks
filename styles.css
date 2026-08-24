@@ -1230,6 +1230,31 @@
 	line-height: 1.45;
 }
 
+/* Settings: the editable "ask" for each AI export prompt. Sits under its own
+   Setting row, so it spans the full width rather than the control column. */
+.tt-preamble-editor {
+	width: 100%;
+	resize: vertical;
+	font-size: var(--font-ui-smaller);
+	min-height: 72px;
+	line-height: 1.45;
+	margin: 0 0 var(--tt-space-4);
+}
+
+/* Settings: the read-only interop rules. Muted, because they're shown to
+   explain what gets sent — not to invite editing. */
+.tt-preamble-interop {
+	margin: 0;
+	padding-left: var(--tt-space-4);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
+}
+
+.tt-preamble-interop li {
+	margin-bottom: var(--tt-space-2);
+}
+
 .tt-share-summary {
 	margin: var(--tt-space-3, 12px) 0;
 }

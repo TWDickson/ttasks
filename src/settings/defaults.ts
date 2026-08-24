@@ -22,8 +22,8 @@ import type {
 } from '../query/types';
 import { RENDERER_KANBAN, RENDERER_LIST } from '../constants';
 import { normalizeHolidayEntries } from './holidays';
-import { SHARE_PREAMBLE_PRESETS } from '../integration/sharePreamble';
-import type { SharePreamblePresetId } from '../integration/sharePreamble';
+import { SHARE_PREAMBLE_PRESETS, mergePresetLibrary } from '../integration/sharePreamble';
+import type { SharePreamblePreset } from '../integration/sharePreamble';
 export const DEFAULT_STATUSES = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Completed'];
 
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
@@ -128,6 +128,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		notesPolicy: 'full',
 		preamblePreset: 'review',
 		customPreamble: '',
+		preamblePresets: SHARE_PREAMBLE_PRESETS.map((preset) => ({ ...preset })),
 		areas: [],
 		projects: [],
 		statuses: [],
@@ -837,9 +838,32 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 			target.shareSync.notesPolicy = notesPolicy;
 		}
 
+		// The library first — the selected preset is validated against it below, so
+		// a custom preset survives a reload instead of snapping back to 'review'.
+		const storedPresets = Array.isArray(shareSync.preamblePresets) ? shareSync.preamblePresets : null;
+		if (storedPresets !== null) {
+			const cleaned: SharePreamblePreset[] = [];
+			const seen = new Set<string>();
+			for (const raw of storedPresets) {
+				if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+				const entry = raw as Record<string, unknown>;
+				const id = asString(entry.id)?.trim();
+				// A blank label is recoverable (fall back to the id); a blank id is
+				// not — it can't be selected or restored, so drop it.
+				if (!id || seen.has(id)) continue;
+				seen.add(id);
+				cleaned.push({
+					id,
+					label: asString(entry.label)?.trim() || id,
+					text: asString(entry.text) ?? '',
+				});
+			}
+			target.shareSync.preamblePresets = mergePresetLibrary(cleaned);
+		}
+
 		const preamblePreset = asString(shareSync.preamblePreset);
-		if (preamblePreset !== null && SHARE_PREAMBLE_PRESETS.some((preset) => preset.id === preamblePreset)) {
-			target.shareSync.preamblePreset = preamblePreset as SharePreamblePresetId;
+		if (preamblePreset !== null && target.shareSync.preamblePresets.some((preset) => preset.id === preamblePreset)) {
+			target.shareSync.preamblePreset = preamblePreset;
 		}
 
 		const customPreamble = asString(shareSync.customPreamble);

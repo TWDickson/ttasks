@@ -135,18 +135,18 @@ describe('buildTaskJsonDocument — ai mode', () => {
 	});
 
 	it('tells the AI a ref + name is a retitle, and that a new title without a ref is not', () => {
-		expect(AI_IMPORT_META.rename).toMatch(/retitle/i);
+		expect(AI_IMPORT_META.rename).toMatch(/rename/i);
 		expect(AI_IMPORT_META.updatableFields).toContain('name');
-		expect(AI_IMPORT_META.rename).toMatch(/without a ref/i);
+		expect(AI_IMPORT_META.rename).toMatch(/without the ref/i);
 	});
 
 	// A model reads "groups tasks rather than being worked directly" as "do not
 	// touch", and `rename` used to say "task" throughout — so it declined to
 	// retitle projects, which is the entry whose name matters most.
 	it('says projects are renameable, in both the rename and projects contracts', () => {
-		expect(AI_IMPORT_META.rename).toMatch(/task OR a project/i);
-		expect(AI_IMPORT_META.projects).toMatch(/can be renamed/i);
-		expect(AI_IMPORT_META.projects).toMatch(/not a restriction/i);
+		expect(AI_IMPORT_META.rename).toMatch(/tasks AND on projects/i);
+		expect(AI_IMPORT_META.projects).toMatch(/rename, restatus and\s+edit a project/i);
+		expect(AI_IMPORT_META.projects).toMatch(/its name matters most/i);
 	});
 
 	it('warns that a notes value replaces the whole body, and no longer claims notes are ignored', () => {
@@ -364,6 +364,6 @@ describe('graph framing', () => {
 		const meta = buildTaskJsonDocument([makeTask()], 'ai', AT).meta;
 		expect(meta?.graph).toContain('GRAPH');
 		expect(meta?.graph).toContain('depends_on');
-		expect(meta?.graph).toMatch(/acyclic/i);
+		expect(meta?.graph).toMatch(/cycle/i);
 	});
 });

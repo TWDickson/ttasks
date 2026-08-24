@@ -1,7 +1,7 @@
 ﻿import type { GroupField, QuerySpec, SortField } from '../query/types';
 import type { Task } from '../types';
 import type { NotesPolicy, TaskJsonMode } from '../integration/taskJsonExport';
-import type { SharePayloadFormat, ShareOutputFormat, SharePreamblePresetId } from '../integration/sharePreamble';
+import type { SharePayloadFormat, ShareOutputFormat, SharePreamblePreset, SharePreamblePresetId } from '../integration/sharePreamble';
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
 export type TaskViewRenderer = 'list' | 'kanban' | 'agenda' | 'graph' | 'archive';
@@ -211,6 +211,13 @@ export interface ShareSyncSettings {
 	preamblePreset: SharePreamblePresetId;
 	/** User-edited preamble body. Empty means "use the preset's own text". */
 	customPreamble: string;
+	/**
+	 * The live preamble preset library. Seeded from the bundled presets and then
+	 * owned by the user — they tune the wording, add their own, and restore a
+	 * bundled one they've edited. `mergePresetLibrary` reconciles this against the
+	 * bundle on load so a preset added in a later release still appears.
+	 */
+	preamblePresets: SharePreamblePreset[];
 	areas: string[];
 	projects: string[];
 	statuses: string[];

@@ -196,15 +196,20 @@ log-partial-on-stop.
   different shape entirely?
 - `[ ]` **Share/Sync: import command surface** *(deferred)* — a direct
   import-from-clipboard command; today import is the modal's Import tab.
-- `[ ]` **Share/Sync export: the instruction block is ~1,500 tokens** — `meta`
-  (~970) plus the prose preamble (~525). Two big blocks are duplicated on
-  purpose: `GRAPH_RULE` ↔ `meta.graph`, and `NO_NEW_VALUES_RULE` ↔
-  `meta.instructions`/`meta.validValues`, both because "prose is what actually
-  steers the reply" (see the comments in `sharePreamble.ts`). Taylor reports
-  Copilot skimming it. Cutting either duplication is a **judgement call about
-  which surface a given model actually reads**, so it needs Taylor's steer rather
-  than a unilateral trim — the alternative is a shorter `meta` for the
-  `payloadFormat: 'toon'` path only, where the preamble is always present.
+- `[x]` **Share/Sync export: instruction wording tuned for a weak model** —
+  *(2026-08-24)* Taylor's work AI (Copilot) was skimming the block. Rewritten in
+  short declarative sentences with a worked `meta.example` to copy, and the
+  prompt/contract halves split: `presetAsk()` is the user-owned "what to do",
+  `buildInteropRules()` is the export-derived contract. **6,815 → 5,051 chars
+  (~1,704 → ~1,263 tokens, −26%)** while *adding* the example and an `align`
+  preset. The `GRAPH_RULE` ↔ `meta.graph` duplication is retained deliberately:
+  `meta` must stand alone under the "No preamble" preset.
+- `[ ]` **AI export prompts: settings UI is unverified visually** — the library
+  (tune / add / restore-default) ships in `sharePreambleSettingsSection.ts` and
+  is logic-tested, but the Obsidian **Settings tab is not a rig scene**, so it
+  has never been rendered on this headless box. Needs one look on a real vault:
+  the per-prompt textarea width, the disabled state of "Restore default", and
+  the read-only interop list.
 - `[ ]` **A renamed task leaves stale link aliases** — links are stored
   `[[path|Name]]`, and neither the detail-pane rename nor the new import rename
   rewrites the alias on inbound `depends_on`/`blocks`/`parent_task` entries. The

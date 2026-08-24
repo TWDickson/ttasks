@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
 	GRAPH_RULE,
+	buildInteropRules,
+	builtinPreset,
+	isBuiltinPresetId,
+	isPresetModified,
+	mergePresetLibrary,
+	newCustomPresetId,
+	presetAsk,
 	IMPEDIMENT_RULE,
 	NO_NEW_VALUES_RULE,
 	SHARE_PREAMBLE_PRESETS,
@@ -103,7 +110,7 @@ describe('graph framing', () => {
 			expect(text).toContain(GRAPH_RULE);
 			expect(text).toContain(IMPEDIMENT_RULE);
 			expect(text).toMatch(/depends_on/);
-			expect(text).toMatch(/acyclic/i);
+			expect(text).toMatch(/cycle/i);
 		}
 	});
 });
@@ -147,5 +154,76 @@ describe('composeShareOutput — payload format', () => {
 	it('still says JSON when no format is given', () => {
 		const [, data] = composeShareOutput('Message.', '{}', 'separate');
 		expect(data.copyLabel).toBe('Copy JSON');
+	});
+});
+
+
+describe('preset library', () => {
+	const bundled = SHARE_PREAMBLE_PRESETS[0];
+
+	it('knows which presets are bundled', () => {
+		expect(isBuiltinPresetId('review')).toBe(true);
+		expect(isBuiltinPresetId('custom-1')).toBe(false);
+		expect(builtinPreset('review')?.label).toBe(bundled.label);
+		expect(builtinPreset('custom-1')).toBeNull();
+	});
+
+	it('flags a bundled preset as modified only once it differs', () => {
+		expect(isPresetModified({ ...bundled })).toBe(false);
+		expect(isPresetModified({ ...bundled, text: 'reworded' })).toBe(true);
+		expect(isPresetModified({ ...bundled, label: 'Renamed' })).toBe(true);
+		// A custom preset has no default to differ from.
+		expect(isPresetModified({ id: 'custom-1', label: 'Mine', text: 'x' })).toBe(false);
+	});
+
+	it('keeps user edits and custom presets when merging against the bundle', () => {
+		const stored = [
+			{ id: 'review', label: 'My review', text: 'my wording' },
+			{ id: 'custom-1', label: 'Mine', text: 'ask' },
+		];
+		const merged = mergePresetLibrary(stored);
+		expect(merged.find((p) => p.id === 'review')).toEqual(stored[0]);
+		expect(merged.find((p) => p.id === 'custom-1')).toEqual(stored[1]);
+	});
+
+	// A preset added in a later release has to appear for someone whose stored
+	// library predates it, without reshuffling what they already have.
+	it('re-seeds a bundled preset missing from the stored library', () => {
+		const merged = mergePresetLibrary([{ id: 'custom-1', label: 'Mine', text: 'ask' }]);
+		for (const preset of SHARE_PREAMBLE_PRESETS) {
+			expect(merged.some((p) => p.id === preset.id)).toBe(true);
+		}
+		expect(merged[merged.length - 1].id).toBe('custom-1');
+	});
+
+	it('generates a collision-free custom id', () => {
+		expect(newCustomPresetId([])).toBe('custom-1');
+		expect(newCustomPresetId([{ id: 'custom-1', label: '', text: '' }])).toBe('custom-2');
+	});
+});
+
+describe('ask / interop split', () => {
+	it('keeps the interop rules out of the ask', () => {
+		const preset = SHARE_PREAMBLE_PRESETS[0];
+		expect(presetAsk(preset)).toBe(preset.text.trim());
+		expect(presetAsk(preset)).not.toContain(GRAPH_RULE);
+		expect(presetAsk({ id: 'none', label: 'No preamble', text: '' })).toBe('');
+	});
+
+	// The interop half is export-derived, not user-owned: it has to change with
+	// the payload format and notes policy, which is why it isn't a setting.
+	it('varies the interop rules with the export options', () => {
+		const plain = buildInteropRules(undefined, {});
+		const toon = buildInteropRules(undefined, { payloadFormat: 'toon' });
+		expect(toon.length).toBe(plain.length + 1);
+		expect(toon.join(' ')).toMatch(/TOON/);
+		const truncated = buildInteropRules(undefined, { notesPolicy: 'summary' });
+		expect(truncated.join(' ')).toMatch(/cut short/i);
+	});
+
+	it('always carries the graph and impediment rules', () => {
+		const rules = buildInteropRules(undefined, {});
+		expect(rules).toContain(GRAPH_RULE);
+		expect(rules).toContain(IMPEDIMENT_RULE);
 	});
 });

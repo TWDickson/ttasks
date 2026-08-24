@@ -41,11 +41,18 @@ export function applyNotesPolicy(notes: string, policy: NotesPolicy): string {
  */
 export interface TaskJsonMeta {
 	instructions: string;
+	/**
+	 * A worked reply, verbatim. A weak model copies a shape far more reliably than
+	 * it follows a description of one, so this earns its bytes back.
+	 */
+	example: string;
 	ref: string;
 	matchedBy: string;
-	/** Why a retitle needs the ref: `name` is both the new title and the fallback match key. */
+	/** Why a rename needs the ref: `name` is both the new title and the fallback match key. */
 	rename: string;
 	actions: Record<'update' | 'create' | 'delete', string>;
+	/** Stick to this vault's configured enums (split out of `instructions`). */
+	values: string;
 	/** That this is a graph, not a flat list — read before reasoning about order. */
 	graph: string;
 	/** That Blocked/Hold travel downstream, and are derived rather than written. */
@@ -90,69 +97,55 @@ export interface TaskJsonValidValues {
 }
 
 const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
+	// Written for a weak model: short declarative sentences, imperative voice, no
+	// rationale, one worked example. A capable model uses "because" clauses to
+	// generalize; a weak one just needs the rule and a shape to copy.
 	instructions:
-		'To send changes back, reply with this same shape — a JSON object with a "tasks" array. ' +
-		'Omit any task you are not changing. On each task you do change, add an "action" key and ' +
-		'include only "ref"/"name" (the match key) plus the fields you are setting — keep it light. ' +
-		'A "name" sent alongside a "ref" is a retitle; see "rename". ' +
-		'For "status", "priority", "area", and "labels", pick ONLY from validValues below. Do not ' +
-		'invent new statuses, priorities, areas, or labels — an unrecognized value is not created, it ' +
-		'is imported as-is and has to be cleaned up by hand. If none of the listed values fits, leave ' +
-		'the field unchanged and explain why in prose outside the JSON.',
+		'Reply with a JSON object: {"tasks": [ ... ]}. Include only the entries you are changing. ' +
+		'On each one, send its "ref" plus only the fields you are changing. Copy the shape in "example".',
+	example:
+		'{"tasks": [' +
+		'{"ref": "a1b2c3", "action": "update", "name": "A clearer title"}, ' +
+		'{"ref": "d4e5f6", "action": "update", "status": "Blocked", "blocked_reason": "waiting on vendor"}, ' +
+		'{"action": "create", "type": "task", "name": "A new task", "parent": "Some project"}' +
+		']}',
 	ref:
-		'Stable unique id. Echo it back to target that exact task; omit it to create a new task. ' +
-		'You can also point a dependency at a task by its ref.',
-	matchedBy: 'ref when present, otherwise type + name (case-insensitive)',
+		'Each entry\'s unique id. Send it back to change that entry. No ref means create a new entry.',
+	matchedBy: 'ref, or type + name when you send no ref',
 	rename:
-		'To retitle a task OR a project, send its "ref" plus the new "name". The ref is what identifies ' +
-		'the entry, so the name is read as the new title. Without a ref there is nothing to match a ' +
-		'changed name against and the entry is treated as a brand-new one instead — so never propose a ' +
-		'new title without the ref. Projects are renamed exactly like tasks: "it groups tasks rather ' +
-		'than being worked directly" describes how a project is *used*, not a rule against editing it. ' +
-		'If a project\'s name is vague or off-vocabulary, retitle it — its tasks follow automatically, ' +
-		'because they point at it by ref rather than by name.',
+		'To rename something, send its "ref" and the new "name". This works on tasks AND on projects. ' +
+		'Never send a new name without the ref — that creates a new entry instead of renaming.',
 	actions: {
-		update:
-			'Default when "action" is omitted. Sets the fields you include on the matched task; ' +
-			'omitted fields are left unchanged (a field cannot be cleared by omitting it).',
-		create:
-			'Add a new item. Requires "name"; unset fields take TTasks defaults. Set "type": "project" ' +
-			'to create a project rather than a task (see "projects").',
-		delete: 'Remove the matched task. Only "ref" (or "name") is needed.',
+		update: 'Change the matched entry. This is the default. Fields you leave out stay as they are.',
+		create: 'Add a new entry. Needs "name". Add "type": "project" to make a project.',
+		delete: 'Remove the matched entry. Send just the "ref".',
 	},
+	values:
+		'For "status", "priority", "area" and "labels", use only values listed in "validValues". Never ' +
+		'invent one. If nothing fits, leave the field alone and say why in prose outside the JSON.',
 	graph:
-		'This is a dependency GRAPH, not a flat list. Each task may point at the tasks that must finish ' +
-		'before it ("depends_on") and at the project that owns it ("parent"); "blocks" is the reverse of ' +
-		'"depends_on" and is derived, never set. Read the whole set as a graph before advising: a task is ' +
-		'only workable once everything it depends on is complete, changing one task\'s dates or status can ' +
-		'move everything downstream of it, and a project\'s real timeline is driven by the longest chain ' +
-		'through it. Do not propose a cycle — the chain must stay acyclic.',
+		'These entries form a dependency GRAPH. "depends_on" lists what must finish first. "parent" is ' +
+		'the project an entry belongs to. "blocks" is just the reverse of "depends_on" — read it, never ' +
+		'send it. A task cannot start until everything in its "depends_on" is done. Never make a cycle.',
 	impediments:
-		'Blocked and Hold travel downstream. Everything that depends on a Blocked task is stuck too; Hold ' +
-		'is the same signal, weaker; where both reach a task it reads as Blocked. TTasks derives that ' +
-		'downstream state from the graph and never stores it, so set Blocked or Hold ONLY on the task ' +
-		'actually holding things up — never on the ones queued behind it.',
+		'Blocked and Hold spread downstream. If a task is Blocked, everything that depends on it is ' +
+		'stuck too. Hold spreads the same way but is weaker. If both reach a task, it counts as Blocked. ' +
+		'TTasks derives this by itself. So set Blocked or Hold ONLY on the task that is actually stuck, ' +
+		'never on the ones waiting behind it.',
 	sequences:
-		'Order tasks with "depends_on": a task lists the tasks that must finish before it, each by ' +
-		'ref or name. New tasks created in the same reply can be referenced by name, so you can define ' +
-		'a whole chain at once. Adding is additive — existing dependencies are kept. To break a link, ' +
-		'list the task(s) to unlink under "remove_depends_on".',
+		'To order work, send "depends_on" listing what must finish first, by ref or name. Entries you ' +
+		'create in the same reply can be referenced by name. This adds links and keeps existing ones. ' +
+		'To break a link, list it under "remove_depends_on".',
 	parent:
-		'Set a task\'s project with "parent" (a project ref or name — a project you create in the same ' +
-		'reply works too). Omit it to leave the current project unchanged; set "remove_parent": true to ' +
-		'detach the task from its project.',
+		'Send "parent" (a project ref or name) to move an entry into that project. Leave "parent" out to ' +
+		'keep the current project. Send "remove_parent": true to take the entry out of its project.',
 	projects:
-		'A project is an entry with "type": "project" — it groups tasks rather than being worked directly. ' +
-		'That is about how it is used, not a restriction: a project can be renamed, restatused and ' +
-		'edited exactly like a task, and its name is usually the most valuable thing to get right ' +
-		'because every task under it inherits that framing. ' +
-		'Every field above applies to projects too, and they are matched the same way (a project only ever ' +
-		'matches a project). To create one, send "action": "create" with "type": "project", then point its ' +
-		'tasks at it with "parent". Projects do not nest: a project has no "parent" of its own.',
+		'A project is an entry with "type": "project". It groups tasks. You can rename, restatus and ' +
+		'edit a project just like a task — and its name matters most, because every task under it ' +
+		'inherits that framing. A project cannot go inside another project.',
 	notes:
-		'"notes" is the task\'s free-form markdown body. Sending it REPLACES the whole body, so include ' +
-		'the existing text plus your additions rather than only the new part. Omit "notes" entirely to ' +
-		'leave the body untouched — that is the safe default.',
+		'"notes" is the entry\'s markdown body. Sending it REPLACES the whole body. Leave "notes" out to ' +
+		'keep the body as it is. That is the safe default.',
 	updatableFields: [
 		'name', 'status', 'priority', 'area', 'labels', 'blocked_reason', 'assigned_to',
 		'source', 'start_date', 'due_date', 'due_time', 'estimated_days',

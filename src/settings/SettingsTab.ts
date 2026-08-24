@@ -15,6 +15,7 @@ import { renderMigrationSettingsSection } from './migrationSettingsSection';
 import { renderPomodoroSettingsSection } from './pomodoroSettingsSection';
 import { renderQuickActionsSettingsSection } from './quickActionsSettingsSection';
 import { renderRemindersSettingsSection } from './remindersSettingsSection';
+import { renderSharePreambleSettingsSection } from './sharePreambleSettingsSection';
 import { renderViewsSettingsSection } from './viewsSettingsSection';
 import { renderWorkingCalendarSettingsSection } from './workingCalendarSettingsSection';
 
@@ -269,6 +270,14 @@ export class TTasksSettingTab extends PluginSettingTab {
 		const archiveEl = this.group(nav, 'archive', 'Archive');
 		renderArchiveSettingsSection({
 			containerEl: archiveEl,
+			plugin: this.plugin,
+			rerender: () => this.display(),
+		});
+
+		// --- Share / Sync ----------------------------------------------------
+		const shareEl = this.group(nav, 'share', 'AI export');
+		renderSharePreambleSettingsSection({
+			containerEl: shareEl,
 			plugin: this.plugin,
 			rerender: () => this.display(),
 		});
