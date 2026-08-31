@@ -37,7 +37,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 
 function makePorts(overrides: Partial<TaskActionPorts> = {}): TaskActionPorts {
 	return {
-		openTaskDetail: vi.fn(async (_path: string) => {}),
+		openTaskNote: vi.fn(async (_path: string) => {}),
 		runQuickAction: vi.fn(async (_action, _path) => true),
 		convertToProject: vi.fn(async (_path: string) => {}),
 		duplicateTask: vi.fn(async (_path: string) => null),
@@ -64,13 +64,13 @@ describe('runArchiveAndClear', () => {
 });
 
 describe('createTaskContextMenuDeps', () => {
-	it('passes through openTask to openTaskDetail', () => {
+	it('passes through openTask to openTaskNote', () => {
 		const ports = makePorts();
 		const deps = createTaskContextMenuDeps(ports);
 
 		deps.openTask('Tasks/a.md');
 
-		expect(ports.openTaskDetail).toHaveBeenCalledWith('Tasks/a.md');
+		expect(ports.openTaskNote).toHaveBeenCalledWith('Tasks/a.md');
 	});
 
 	it('passes through quick actions', async () => {

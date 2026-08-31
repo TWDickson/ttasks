@@ -3,7 +3,8 @@ import type { Task } from '../types';
 import type { TaskContextMenuDeps } from './contextMenu';
 
 export interface TaskActionPorts {
-	openTaskDetail: (path: string) => Promise<void>;
+	/** Opens the task's note in a new editor tab — the context menu's "Open". */
+	openTaskNote: (path: string) => Promise<void>;
 	runQuickAction: (action: Exclude<QuickActionId, 'none'>, path: string) => Promise<boolean>;
 	convertToProject: (path: string) => Promise<void>;
 	duplicateTask: (path: string) => Promise<Task | null>;
@@ -30,7 +31,7 @@ export async function runArchiveAndClear(path: string, ports: ArchiveActionPorts
 
 export function createTaskContextMenuDeps(ports: TaskActionPorts): TaskContextMenuDeps {
 	return {
-		openTask: (path) => { void ports.openTaskDetail(path); },
+		openTask: (path) => { void ports.openTaskNote(path); },
 		runQuickAction: (action, path) => ports.runQuickAction(action, path),
 		convertToProject: async (path) => {
 			await ports.convertToProject(path);

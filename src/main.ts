@@ -866,7 +866,7 @@ export default class TTasksPlugin extends Plugin {
 
 	private buildContextCallbacks(): TaskContextMenuDeps {
 		return createTaskContextMenuDeps({
-			openTaskDetail: (path) => this.taskStore.openDetail(path),
+			openTaskNote: (path) => this.taskStore.openFile(path),
 			runQuickAction: (action, path) => this.runQuickAction(action, path),
 			convertToProject: (path) => this.taskStore.convertToProject(path),
 			duplicateTask: (path) => this.taskStore.duplicate(path),
