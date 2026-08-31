@@ -32,6 +32,7 @@
 import { encode as toonEncode } from '@toon-format/toon';
 import type { ExportedTask, NotesPolicy, TaskJsonDocument, TaskJsonValidValues } from './taskJsonExport';
 import { buildTaskJsonDocument } from './taskJsonExport';
+import type { DerivedStateContext } from './taskDerivedState';
 import type { Task } from '../types';
 
 /** Separator for array fields flattened into a table cell. */
@@ -45,20 +46,22 @@ export const TOON_LIST_SEPARATOR = ' | ';
  */
 export const TOON_TASK_COLUMNS = [
 	'ref', 'type', 'name', 'area', 'status', 'priority', 'labels', 'parent',
-	'depends_on', 'start_date', 'due_date', 'estimated_days', 'completed',
+	'depends_on', 'impeded', 'impeded_by', 'in_cycle',
+	'start_date', 'due_date', 'scheduled_start', 'scheduled_end',
+	'estimated_days', 'completed',
 	'assigned_to', 'blocked_reason', 'pomodoro_count', 'focused_minutes',
 ] as const;
 
 type ToonColumn = (typeof TOON_TASK_COLUMNS)[number];
 
-const ARRAY_COLUMNS = new Set<ToonColumn>(['labels', 'depends_on']);
+const ARRAY_COLUMNS = new Set<ToonColumn>(['labels', 'depends_on', 'impeded_by']);
 
 /** How the TOON shape differs from the JSON one, stated inside the payload itself. */
 export const TOON_FORMAT_NOTE =
 	'This payload is TOON, not JSON. "tasks[N]{col,col,…}:" gives the row count and column order; each ' +
-	'line after it is one entry with its values in that order. Two columns hold lists in a single cell, ' +
-	`split by "${TOON_LIST_SEPARATOR.trim()}": "labels" and "depends_on" (empty cell means none). Note ` +
-	'bodies are not in the table — they are under "notes", keyed by ref. ' +
+	'line after it is one entry with its values in that order. Three columns hold lists in a single ' +
+	`cell, split by "${TOON_LIST_SEPARATOR.trim()}": "labels", "depends_on" and "impeded_by" (empty ` +
+	'cell means none). Note bodies are not in the table — they are under "notes", keyed by ref. ' +
 	'REPLY IN JSON, not TOON: send { "tasks": [ … ] } with "labels" and "depends_on" as JSON arrays.';
 
 /** The TOON-shaped payload: a flat task table plus a ref-keyed notes sidecar. */
@@ -128,8 +131,11 @@ export function serializeTasksToToon(
 	generatedAt: string,
 	validValues?: TaskJsonValidValues,
 	notesPolicy: NotesPolicy = 'full',
+	derivedContext?: DerivedStateContext,
 ): string {
 	// 'ai' only — the flattening is lossy for the vault-path links a 'full'
 	// export exists to round-trip.
-	return serializeDocumentToToon(buildTaskJsonDocument(tasks, 'ai', generatedAt, validValues, notesPolicy));
+	return serializeDocumentToToon(
+		buildTaskJsonDocument(tasks, 'ai', generatedAt, validValues, notesPolicy, derivedContext),
+	);
 }

@@ -12,6 +12,72 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-31 — The bridge described the graph instead of resolving it
+
+Taylor: *"when we share to other LLMs like my work AI it has trouble
+understanding the flow."* Same complaint as the 2026-08-24 wording pass, which
+had already shortened the instructions by 26% without fixing it — a sign the
+problem wasn't length.
+
+It wasn't. The export was teaching two algorithms and expecting the reader to
+execute them. `meta.impediments` explained that Blocked/Hold propagate
+transitively with Blocked winning; `meta.dates` explained that a task starts the
+day after its last dependency ends and runs for `estimated_days`. Both are
+accurate descriptions of `computeImpediments` and `resolveTaskDates`. Neither is
+something a weak model actually *does*. Copilot reads `status: Active,
+due_date: null` and concludes "workable, and missing a date" — wrong twice, and
+wrong in the direction that produces confident bad advice.
+
+**The fix is to ship the answers.** `src/integration/taskDerivedState.ts`
+materializes both derivations into `ai`-mode exports as `impeded`, `impeded_by`,
+`in_cycle`, `scheduled_start` and `scheduled_end`, each placed next to the raw
+field it explains and omitted when it doesn't apply.
+
+### Why this doesn't contradict "derived, never written"
+
+That rule (backlog #8, 2026-07-25) is about **frontmatter**: a cascaded status
+can't be cleanly un-written when the blocker clears, because you'd have to
+remember what each task's status *was*. An export has no such problem — it is a
+point-in-time projection, regenerated on every copy and discarded after. The
+file stays clean; the wire carries the resolved view. The distinction worth
+keeping is *persistent store* vs *projection*, not *computed* vs *shipped*.
+
+### What the round trip needed: nothing
+
+`IMPORT_UPDATABLE_FIELDS` is a whitelist and `ParsedImportTask` is a fixed shape,
+so a reply echoing `impeded` or `scheduled_start` back was already dropped
+silently. The fields are listed in `meta.ignoredOnImport` so the model is told,
+but no import code changed. Considered and rejected for now: validating a reply
+*against* the graph (flagging "sets Blocked on an already-impeded task", or a
+`due_date` earlier than the chain allows) — `taskImportPlan` has no warnings
+concept, and that's a bigger slice than the comprehension bug warranted.
+
+### The filtered-export trap
+
+Exports are filtered (`taskExportFilter.ts`) and both call sites passed only the
+selection. Impediment and date propagation are properties of the **whole** graph:
+a blocker outside the filter still blocks. Deriving over the selection would have
+reported stuck tasks as workable — silently, and only for filtered exports. So
+`DerivedStateContext.allTasks` is the full store, threaded from
+`plugin.taskDerivedStateContext()`. A side benefit fell out: the link resolver
+now has the full name map, so a `depends_on` pointing outside the selection
+resolves to a real title instead of degrading to its `{6hex}-{slug}` basename —
+a standing violation of "never derive a display name from a file path."
+
+### What it costs
+
+Measured on a synthetic 100-task, 20-chain export: **JSON +20% (~2,150 tokens),
+TOON +7.5% (~350)**. The columnar form absorbs five mostly-empty columns far
+better than pretty-printed JSON absorbs five keys per entry — the clearest
+argument yet for TOON on a large vault. The interop prose *grew* ~56 tokens: the
+new `DERIVED_RULE` costs more than the trims to `IMPEDIMENT_RULE` and
+`DATES_RULE` saved, since both now carry only the write rules ("set Blocked only
+on the task actually stuck", "don't fill blank dates in") and no longer teach the
+mechanism. Bought knowingly: the instruction budget grew slightly and the
+reasoning burden went to zero.
+
+---
+
 ## 2026-08-21 — The AI bridge couldn't apply a rename
 
 Reported as "I asked for better titles, the AI replied, and the preview sees

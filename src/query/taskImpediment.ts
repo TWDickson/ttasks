@@ -214,7 +214,7 @@ export interface ImpedimentLabel {
  * the `?? ''` is unreachable. It's here because the compiler can't see that
  * invariant, not because a blank name is a case worth rendering.
  */
-function impedingStatusName(kind: ImpedimentKind, statuses: ImpedimentStatuses): string {
+export function impedingStatusName(kind: ImpedimentKind, statuses: ImpedimentStatuses): string {
 	return (kind === 'blocked' ? statuses.blockStatus : statuses.holdStatus) ?? '';
 }
 

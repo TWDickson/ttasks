@@ -70,37 +70,48 @@ export const GRAPH_RULE =
 	'work downstream, say so.';
 
 /**
- * The one graph fact a model reliably misses: Blocked/Hold are not local. Without
- * it a reply calls a task workable while its blocker is stuck, or "helpfully"
- * stamps Blocked down the whole chain — which is wrong twice over, because TTasks
- * derives downstream impediment from the graph and never stores it (see
- * `computeImpediments` in src/query/taskImpediment.ts).
+ * The rule that makes the derived fields legible, and the reason the two rules
+ * below are now short. The export used to describe both algorithms and leave the
+ * model to run them; it now ships the resolved answers (see `taskDerivedState`),
+ * so the prose only has to point at them and say "don't recompute, don't return".
+ */
+export const DERIVED_RULE =
+	'ALREADY WORKED OUT: "impeded"/"impeded_by" say an entry is stuck behind something upstream and what ' +
+	'has to clear. "scheduled_start"/"scheduled_end" are the dates its dependency chain implies. ' +
+	'"in_cycle" means it sits in a dependency loop and cannot be scheduled. Absent = does not apply. ' +
+	'Read these instead of working them out yourself, and never send them back.';
+
+/**
+ * The one graph fact a model reliably misses: Blocked/Hold are not local. It no
+ * longer has to *infer* that — `impeded` states it per entry — so what survives
+ * here is the half that governs the reply: don't stamp Blocked down the chain,
+ * and don't mistake an impeded task for an idle one.
  */
 export const IMPEDIMENT_RULE =
-	'BLOCKED/HOLD: these spread downstream. If X is Blocked, everything depending on X is stuck too. ' +
-	'Hold spreads the same way, weaker; Blocked beats Hold. TTasks computes this itself. Set Blocked or ' +
-	'Hold ONLY on the task that is actually stuck — never on tasks waiting behind it. A task waiting on ' +
-	'a stuck blocker is not idle.';
+	'BLOCKED/HOLD: set these ONLY on the entry that is actually stuck, never on the ones waiting behind ' +
+	'it — "impeded" already marks those and TTasks recomputes it. An entry with "impeded" is not idle ' +
+	'and does not need chasing; its blocker does.';
 
 /**
  * Why blank dates are normal. Without this a model reads `due_date: null` as
  * missing data and fills it in, which is actively harmful: an invented due date
  * overrides the schedule TTasks computes from the chain and pins everything
- * downstream of it. `resolveTaskDates` is the behaviour being described —
- * start = last dependency end + 1 day, end = start + estimated_days.
+ * downstream of it. The schedule itself now travels as `scheduled_start`/
+ * `scheduled_end`, so this no longer has to describe `resolveTaskDates` — only
+ * to stop the model treating a blank as a gap.
  */
 export const DATES_RULE =
-	'DATES: most entries have no dates on purpose. TTasks schedules them from the graph — a task starts ' +
-	'the day after its last dependency ends and runs for "estimated_days" (1 if unset). A blank ' +
-	'"start_date"/"due_date" is NOT missing data. Do not fill blank dates in, and do not report them as ' +
-	'a problem. To make something take longer, set "estimated_days". Set "due_date" ONLY for a real ' +
-	'external deadline — it overrides the computed schedule and pins everything downstream of it.';
+	'DATES: most entries have no dates on purpose, and a blank "start_date"/"due_date" is NOT missing ' +
+	'data — "scheduled_start"/"scheduled_end" already say when the chain puts the work. Do not fill ' +
+	'blank dates in, and do not report them as a problem. To make something take longer, set ' +
+	'"estimated_days". Set "due_date" ONLY for a real external deadline — it overrides the computed ' +
+	'schedule and pins everything downstream of it.';
 
 /** Told to the model when the data block is TOON rather than JSON. */
 const TOON_FORMAT_RULE =
 	'FORMAT: the data is TOON, not JSON. "tasks[N]{col,col,…}:" gives the row count and column order; ' +
-	'each later line is one entry in that order. "labels" and "depends_on" hold lists in one cell split ' +
-	'by " | ". Note bodies are under "notes", keyed by ref. Reply in JSON, not TOON.';
+	'each later line is one entry in that order. "labels", "depends_on" and "impeded_by" hold lists in ' +
+	'one cell split by " | ". Note bodies are under "notes", keyed by ref. Reply in JSON, not TOON.';
 
 /** Told to the model when note bodies were shortened or dropped on the way out. */
 function notesPolicyRule(policy: NotesPolicy): string | null {
@@ -192,7 +203,7 @@ export function buildInteropRules(
 	validValues?: TaskJsonValidValues,
 	context: PreambleContext = {},
 ): string[] {
-	const rules = [GRAPH_RULE, IMPEDIMENT_RULE, DATES_RULE, ROUND_TRIP_RULE, NO_NEW_VALUES_RULE];
+	const rules = [GRAPH_RULE, DERIVED_RULE, IMPEDIMENT_RULE, DATES_RULE, ROUND_TRIP_RULE, NO_NEW_VALUES_RULE];
 	if (context.payloadFormat === 'toon') rules.push(TOON_FORMAT_RULE);
 	const notesRule = notesPolicyRule(context.notesPolicy ?? 'full');
 	if (notesRule) rules.push(notesRule);

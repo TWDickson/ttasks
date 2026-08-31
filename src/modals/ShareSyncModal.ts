@@ -485,9 +485,12 @@ export class ShareSyncModal extends Modal {
 		const now = new Date().toISOString();
 		const validValues = this.plugin.taskJsonValidValues();
 		const notesPolicy = this.mode === 'ai' ? this.notesPolicy : 'full';
+		// The whole store, not `tasks` — the derived fields have to see blockers and
+		// dependencies that the export filter left out.
+		const derivedContext = this.plugin.taskDerivedStateContext();
 		return this.effectivePayloadFormat() === 'toon'
-			? serializeTasksToToon(tasks, now, validValues, notesPolicy)
-			: serializeTasksToJson(tasks, this.mode, now, validValues, notesPolicy);
+			? serializeTasksToToon(tasks, now, validValues, notesPolicy, derivedContext)
+			: serializeTasksToJson(tasks, this.mode, now, validValues, notesPolicy, derivedContext);
 	}
 
 	private async copyBlock(index: number): Promise<void> {

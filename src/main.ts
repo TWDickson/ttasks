@@ -36,6 +36,8 @@ import { type CompletedFocus, PomodoroService } from './store/PomodoroService';
 import { type PomodoroLogEntry, formatLogRow, formatNewLogFile } from './integration/pomodoroLog';
 import { pomodoroStatusBarView } from './integration/pomodoroStatusBar';
 import { type NotesPolicy, type TaskJsonMode, type TaskJsonValidValues, serializeTasksToJson } from './integration/taskJsonExport';
+import type { DerivedStateContext } from './integration/taskDerivedState';
+import { splitHolidayCalendar } from './settings/holidays';
 import { serializeTasksToToon } from './integration/taskToonExport';
 import type { SharePayloadFormat } from './integration/sharePreamble';
 import { dispatchProtocolAction, parseProtocolAction } from './integration/protocol';
@@ -747,6 +749,25 @@ export default class TTasksPlugin extends Plugin {
 	 * clipboard when available). Shared by the two whole-set export commands and
 	 * the Share/Sync modal's filtered "Save file" action.
 	 */
+	/**
+	 * The context an 'ai'-mode export needs to materialize its graph-derived fields.
+	 *
+	 * `allTasks` is deliberately the whole store, not the caller's selection: a
+	 * filtered export still has to be told about a blocker outside the filter.
+	 */
+	taskDerivedStateContext(): DerivedStateContext {
+		const holidayCalendar = splitHolidayCalendar(this.settings.holidays);
+		return {
+			allTasks: get(this.taskStore.tasks),
+			statuses: { blockStatus: this.statusPolicy.block, holdStatus: this.statusPolicy.hold },
+			calendarConfig: {
+				holidays: holidayCalendar.holidays,
+				recurringHolidays: holidayCalendar.recurringHolidays,
+				areaWorkweek: this.settings.areaWorkweek,
+			},
+		};
+	}
+
 	/** This vault's configured enum values, embedded in 'ai'-mode export meta. */
 	taskJsonValidValues(): TaskJsonValidValues {
 		return {
@@ -767,9 +788,10 @@ export default class TTasksPlugin extends Plugin {
 		const payloadFormat = mode === 'ai' && options.payloadFormat === 'toon' ? 'toon' : 'json';
 		const notesPolicy = options.notesPolicy ?? 'full';
 		const now = new Date().toISOString();
+		const derivedContext = this.taskDerivedStateContext();
 		const payload = payloadFormat === 'toon'
-			? serializeTasksToToon(tasks, now, this.taskJsonValidValues(), notesPolicy)
-			: serializeTasksToJson(tasks, mode, now, this.taskJsonValidValues(), notesPolicy);
+			? serializeTasksToToon(tasks, now, this.taskJsonValidValues(), notesPolicy, derivedContext)
+			: serializeTasksToJson(tasks, mode, now, this.taskJsonValidValues(), notesPolicy, derivedContext);
 		const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 		const path = `ttasks-export-${mode}-${stamp}.${payloadFormat}`;
 		try {

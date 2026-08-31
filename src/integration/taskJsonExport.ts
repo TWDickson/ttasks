@@ -3,10 +3,14 @@
 // and the timestamp. Two modes:
 //   - 'full': lossless-ish, keeps ids/paths/reverse-index so an import can remap.
 //   - 'ai':   clean & self-contained for pasting into an external AI — drops
-//             vault-internal noise (id, path, blocks) and flattens links to the
-//             human task names, omitting empty/default fields.
+//             vault-internal noise (id, path, blocks), flattens links to the
+//             human task names, omits empty/default fields, and materializes the
+//             graph-derived fields (see taskDerivedState) so the receiving AI
+//             reads the answer instead of having to derive it.
 
 import type { Task } from '../types';
+import type { DerivedStateContext, DerivedTaskState } from './taskDerivedState';
+import { computeDerivedTaskState } from './taskDerivedState';
 
 export type TaskJsonMode = 'full' | 'ai';
 
@@ -55,9 +59,15 @@ export interface TaskJsonMeta {
 	values: string;
 	/** That this is a graph, not a flat list — read before reasoning about order. */
 	graph: string;
-	/** That Blocked/Hold travel downstream, and are derived rather than written. */
+	/**
+	 * That the graph-derived fields are already resolved in the data. This is the
+	 * key that makes `impediments` and `dates` short: they no longer have to teach
+	 * the two algorithms, only the write rules.
+	 */
+	derived: string;
+	/** How to *set* Blocked/Hold on the way back (the reading is done for it). */
 	impediments: string;
-	/** That blank dates are deliberate — the schedule comes from the graph. */
+	/** That blank dates are deliberate — the schedule is already computed. */
 	dates: string;
 	/** How to express dependency order on the way back. */
 	sequences: string;
@@ -129,17 +139,23 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		'These entries form a dependency GRAPH. "depends_on" lists what must finish first. "parent" is ' +
 		'the project an entry belongs to. "blocks" is just the reverse of "depends_on" — read it, never ' +
 		'send it. A task cannot start until everything in its "depends_on" is done. Never make a cycle.',
+	derived:
+		'TTasks has already worked out the graph for you. "impeded" names the status stopping an entry ' +
+		'from upstream and "impeded_by" names what has to clear first. "scheduled_start" and ' +
+		'"scheduled_end" are the dates the dependency chain implies. "in_cycle" means the entry sits in ' +
+		'a dependency loop and cannot be scheduled at all. Each one is left out when it does not apply, ' +
+		'so no "impeded" means nothing upstream is stopping it. Read these. Do not recompute them, and ' +
+		'never send them back — they are ignored.',
 	impediments:
-		'Blocked and Hold spread downstream. If a task is Blocked, everything that depends on it is ' +
-		'stuck too. Hold spreads the same way but is weaker. If both reach a task, it counts as Blocked. ' +
-		'TTasks derives this by itself. So set Blocked or Hold ONLY on the task that is actually stuck, ' +
-		'never on the ones waiting behind it.',
+		'Set Blocked or Hold ONLY on the entry that is actually stuck. Never set it on the entries ' +
+		'waiting behind it: "impeded" already marks those, and TTasks recomputes it from the graph every ' +
+		'time. An entry with "impeded" is not idle and does not need chasing — it needs its blocker cleared.',
 	dates:
-		'Most entries have no dates on purpose. TTasks schedules them from the graph: a task starts the ' +
-		'day after its last dependency ends and runs for "estimated_days" (1 if unset). A blank ' +
-		'"start_date" or "due_date" is NOT missing data — do not fill it in and do not flag it. To make ' +
-		'something take longer, set "estimated_days". Set "due_date" ONLY for a real external deadline; ' +
-		'it overrides the computed schedule and pins everything downstream.',
+		'Most entries have no dates on purpose, and a blank "start_date" or "due_date" is NOT missing ' +
+		'data — "scheduled_start"/"scheduled_end" already show when the chain puts the work. Do not fill ' +
+		'blank dates in and do not flag them. To make something take longer, set "estimated_days". Set ' +
+		'"due_date" ONLY for a real external deadline; it overrides the computed schedule and pins ' +
+		'everything downstream.',
 	sequences:
 		'To order work, send "depends_on" listing what must finish first, by ref or name. Entries you ' +
 		'create in the same reply can be referenced by name. This adds links and keeps existing ones. ' +
@@ -160,7 +176,7 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 		'completed', 'recurrence', 'recurrence_type', 'pomodoro_count', 'focused_minutes',
 		'notes',
 	],
-	ignoredOnImport: ['blocks'],
+	ignoredOnImport: ['blocks', 'impeded', 'impeded_by', 'in_cycle', 'scheduled_start', 'scheduled_end'],
 };
 
 /** Static meta with no `validValues` — the shape used when the caller doesn't supply settings. */
@@ -206,12 +222,22 @@ export interface ExportedTask {
 	parent?: string | null;
 	/** dependencies — human names in 'ai' mode, vault paths in 'full' mode. */
 	depends_on: string[];
+	/** Derived (`taskDerivedState`): configured status impeding this from upstream. */
+	impeded?: string;
+	/** Derived: names of the tasks that have to clear. */
+	impeded_by?: string[];
+	/** Derived: in a dependency cycle, or downstream of one. */
+	in_cycle?: boolean;
 	blocks?: string[];
 	blocked_reason?: string;
 	assigned_to?: string;
 	source?: string;
 	start_date: string | null;
 	due_date: string | null;
+	/** Derived: projected start from the dependency chain. */
+	scheduled_start?: string;
+	/** Derived: projected finish from the chain plus `estimated_days`. */
+	scheduled_end?: string;
 	due_time?: string | null;
 	estimated_days: number | null;
 	workweek_only?: boolean;
@@ -257,9 +283,14 @@ function exportOne(
 	mode: TaskJsonMode,
 	resolveLink: (path: string) => string,
 	notesPolicy: NotesPolicy,
+	derived?: DerivedTaskState,
 ): ExportedTask {
 	const notes = applyNotesPolicy(task.notes, notesPolicy);
 	if (mode === 'ai') {
+		// Each derived field sits beside the raw field it explains — `impeded` next
+		// to the links it comes from, `scheduled_*` next to the blank dates it
+		// accounts for. `pruneUndefined` preserves insertion order, so this is the
+		// order the AI actually reads.
 		return pruneUndefined({
 			ref: task.id,
 			type: task.type,
@@ -270,10 +301,15 @@ function exportOne(
 			labels: [...task.labels],
 			parent: task.parent_task ? resolveLink(task.parent_task) : undefined,
 			depends_on: task.depends_on.map(resolveLink),
+			impeded: derived?.impeded,
+			impeded_by: derived?.impeded_by,
+			in_cycle: derived?.in_cycle,
 			blocked_reason: task.blocked_reason || undefined,
 			assigned_to: task.assigned_to || undefined,
 			start_date: task.start_date,
 			due_date: task.due_date,
+			scheduled_start: derived?.scheduled_start,
+			scheduled_end: derived?.scheduled_end,
 			due_time: task.due_time || undefined,
 			estimated_days: task.estimated_days,
 			completed: task.completed,
@@ -285,7 +321,9 @@ function exportOne(
 		});
 	}
 
-	// 'full' — keep everything, links as vault paths so import can remap.
+	// 'full' — keep everything, links as vault paths so import can remap. No derived
+	// fields: this mode exists to round-trip losslessly, and derived state is not
+	// vault state — emitting it here would invite an importer to treat it as real.
 	return {
 		id: task.id,
 		path: task.path,
@@ -319,17 +357,33 @@ function exportOne(
 	};
 }
 
-/** Build the export document (pure; caller supplies the ISO timestamp). */
+/**
+ * Build the export document (pure; caller supplies the ISO timestamp).
+ *
+ * `derivedContext` carries the **full** vault list, and supplying it does two
+ * things: it materializes the graph-derived fields into 'ai' mode, and it lets a
+ * link that points outside the export selection resolve to a real name instead
+ * of degrading to its `{6hex}-{slug}` basename.
+ */
 export function buildTaskJsonDocument(
 	tasks: Task[],
 	mode: TaskJsonMode,
 	generatedAt: string,
 	validValues?: TaskJsonValidValues,
 	notesPolicy: NotesPolicy = 'full',
+	derivedContext?: DerivedStateContext,
 ): TaskJsonDocument {
-	const nameByPath = new Map(tasks.map((task) => [task.path, task.name]));
+	// Names come from the widest list available: a filtered export still links to
+	// tasks outside itself, and those deserve their real title.
+	const nameByPath = new Map(
+		(derivedContext?.allTasks ?? tasks).map((task) => [task.path, task.name]),
+	);
 	const resolveLink = (path: string): string => nameByPath.get(path) ?? basename(path);
-	const exported = tasks.map((task) => exportOne(task, mode, resolveLink, notesPolicy));
+	// Derived only for 'ai'; 'full' round-trips vault state and derived state isn't it.
+	const derived = derivedContext && mode === 'ai'
+		? computeDerivedTaskState(derivedContext)
+		: undefined;
+	const exported = tasks.map((task) => exportOne(task, mode, resolveLink, notesPolicy, derived?.get(task.path)));
 	return {
 		schemaVersion: TASK_JSON_SCHEMA_VERSION,
 		generatedAt,
@@ -347,6 +401,11 @@ export function serializeTasksToJson(
 	generatedAt: string,
 	validValues?: TaskJsonValidValues,
 	notesPolicy: NotesPolicy = 'full',
+	derivedContext?: DerivedStateContext,
 ): string {
-	return JSON.stringify(buildTaskJsonDocument(tasks, mode, generatedAt, validValues, notesPolicy), null, 2);
+	return JSON.stringify(
+		buildTaskJsonDocument(tasks, mode, generatedAt, validValues, notesPolicy, derivedContext),
+		null,
+		2,
+	);
 }

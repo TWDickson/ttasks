@@ -128,10 +128,26 @@ describe('buildTaskJsonDocument — ai mode', () => {
 
 	// The fact a model most reliably gets wrong: it reads Blocked/Hold as local,
 	// so it either calls a stalled task workable or stamps Blocked down the chain.
-	it('tells the AI that Blocked/Hold propagate downstream and are derived, not written', () => {
-		expect(AI_IMPORT_META.impediments).toMatch(/downstream/i);
-		expect(AI_IMPORT_META.impediments).toMatch(/derives/i);
-		expect(AI_IMPORT_META.impediments).toMatch(/ONLY on the task/);
+	// The *reading* half is now answered by the data (`impeded`), so what the meta
+	// still has to carry is the writing half.
+	it('tells the AI to set Blocked/Hold only on the task that is actually stuck', () => {
+		expect(AI_IMPORT_META.impediments).toMatch(/ONLY on the entry/);
+		expect(AI_IMPORT_META.impediments).toMatch(/never set it on the entries waiting behind it/i);
+		expect(AI_IMPORT_META.impediments).toMatch(/not idle/);
+	});
+
+	// The point of the whole exercise: the derived fields are useless if the model
+	// doesn't know they are answers rather than more input to reason about.
+	it('tells the AI the graph is already worked out, and not to send the answers back', () => {
+		for (const field of ['impeded', 'impeded_by', 'scheduled_start', 'scheduled_end', 'in_cycle']) {
+			expect(AI_IMPORT_META.derived).toContain(`"${field}"`);
+			expect(AI_IMPORT_META.ignoredOnImport).toContain(field);
+		}
+		expect(AI_IMPORT_META.derived).toMatch(/already worked out/i);
+		expect(AI_IMPORT_META.derived).toMatch(/never send them back/i);
+		// Absence is the encoding — a model that reads a missing key as "unknown"
+		// rather than "does not apply" will hedge on every unimpeded task.
+		expect(AI_IMPORT_META.derived).toMatch(/left out when it does not apply/i);
 	});
 
 	it('tells the AI a ref + name is a retitle, and that a new title without a ref is not', () => {
@@ -145,10 +161,11 @@ describe('buildTaskJsonDocument — ai mode', () => {
 	// retitle projects, which is the entry whose name matters most.
 	// A blank due date is a scheduling decision, not missing data. Without this the
 	// model fills every one in, which overrides the graph-computed schedule.
-	it('tells the AI that blank dates are deliberate', () => {
+	it('tells the AI that blank dates are deliberate, and points at the computed ones', () => {
 		expect(AI_IMPORT_META.dates).toMatch(/NOT missing data/);
 		expect(AI_IMPORT_META.dates).toMatch(/estimated_days/);
 		expect(AI_IMPORT_META.dates).toMatch(/external deadline/i);
+		expect(AI_IMPORT_META.dates).toContain('"scheduled_start"/"scheduled_end"');
 	});
 
 	it('says projects are renameable, in both the rename and projects contracts', () => {
@@ -159,7 +176,9 @@ describe('buildTaskJsonDocument — ai mode', () => {
 
 	it('warns that a notes value replaces the whole body, and no longer claims notes are ignored', () => {
 		expect(AI_IMPORT_META.notes).toContain('REPLACES');
-		expect(AI_IMPORT_META.ignoredOnImport).toEqual(['blocks']);
+		expect(AI_IMPORT_META.ignoredOnImport).toEqual([
+			'blocks', 'impeded', 'impeded_by', 'in_cycle', 'scheduled_start', 'scheduled_end',
+		]);
 	});
 
 	it('embeds this vault\'s configured enum values when supplied', () => {

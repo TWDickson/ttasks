@@ -196,6 +196,24 @@ log-partial-on-stop.
   different shape entirely?
 - `[ ]` **Share/Sync: import command surface** *(deferred)* — a direct
   import-from-clipboard command; today import is the modal's Import tab.
+- `[x]` **Share/Sync export: ship the graph's answers, not its algorithm** —
+  *(2026-08-31)* Copilot still mis-read exports after the wording pass, because
+  the wording was the wrong lever: `meta.impediments` and `meta.dates` *described*
+  `computeImpediments` and `resolveTaskDates` and left the model to run both in
+  its head. It doesn't — it reads `status: Active, due_date: null` and says
+  "workable, missing a date". `src/integration/taskDerivedState.ts` now
+  materializes the answers into 'ai'-mode exports: `impeded` / `impeded_by` /
+  `in_cycle` / `scheduled_start` / `scheduled_end`, each omitted when it doesn't
+  apply. **"Derived, never written" is untouched** — that rule is about
+  frontmatter, where a cascade can't be cleanly un-written; an export is a
+  regenerated projection. Import needed no change: `IMPORT_UPDATABLE_FIELDS` is a
+  whitelist, so an echoed-back derived field was already dropped. The context
+  carries the **full** vault list, not the export selection — a filtered export
+  must still see a blocker outside the filter (and dependencies outside it now
+  resolve to real names instead of `{6hex}-{slug}` basenames). **Cost: JSON +20%,
+  TOON +7.5%** on a 100-task dependency-heavy export; interop prose grew ~56
+  tokens (the new `DERIVED_RULE` outweighs the trims to the other two). Bought
+  deliberately — the reasoning burden goes to zero.
 - `[x]` **Share/Sync export: instruction wording tuned for a weak model** —
   *(2026-08-24)* Taylor's work AI (Copilot) was skimming the block. Rewritten in
   short declarative sentences with a worked `meta.example` to copy, and the
