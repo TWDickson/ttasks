@@ -9,8 +9,8 @@ interface FileLike {
 interface AppLike {
 	vault: {
 		getAbstractFileByPath(path: string): unknown;
-		read(file: FileLike): Promise<string>;
-		modify(file: FileLike, content: string): Promise<void>;
+		cachedRead(file: FileLike): Promise<string>;
+		process(file: FileLike, fn: (content: string) => string): Promise<string>;
 	};
 }
 
@@ -84,14 +84,36 @@ export async function syncCompletionToSource(
 	if (!file || typeof (file as FileLike).path !== 'string') return;
 
 	const typedFile = file as FileLike;
-	const content = await app.vault.read(typedFile);
-	const lines = content.split('\n');
-	const linkLine = findTTasksLinkLineFromSource(lines, task.path, typedFile.path, options.resolver);
-	if (linkLine === -1) return;
+	const checked = task.status === completionStatus;
 
-	const nextLine = buildUpdatedSourceLine(lines[linkLine], task.status === completionStatus);
-	if (nextLine === lines[linkLine]) return;
+	// Cheap pre-check so the common "nothing to tick" case doesn't touch the file
+	// at all — an identity write still bumps mtime and re-triggers the scan.
+	const preview = rewriteSource(await app.vault.cachedRead(typedFile), task, typedFile.path, checked, options);
+	if (preview === null) return;
+
+	// The write itself re-derives from the content Obsidian hands the callback, so
+	// an edit landing between the pre-check and here is preserved rather than
+	// clobbered by a whole-file modify() built on the stale read.
+	await app.vault.process(typedFile, (content) => {
+		return rewriteSource(content, task, typedFile.path, checked, options) ?? content;
+	});
+}
+
+/** Returns the updated file content, or null when this source needs no change. */
+function rewriteSource(
+	content: string,
+	task: Task,
+	sourceFilePath: string,
+	checked: boolean,
+	options: CompletionSyncOptions,
+): string | null {
+	const lines = content.split('\n');
+	const linkLine = findTTasksLinkLineFromSource(lines, task.path, sourceFilePath, options.resolver);
+	if (linkLine === -1) return null;
+
+	const nextLine = buildUpdatedSourceLine(lines[linkLine], checked);
+	if (nextLine === lines[linkLine]) return null;
 
 	lines[linkLine] = nextLine;
-	await app.vault.modify(typedFile, lines.join('\n'));
+	return lines.join('\n');
 }

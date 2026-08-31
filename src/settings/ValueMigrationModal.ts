@@ -34,7 +34,7 @@ export class ValueMigrationModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl('h2', { text: this.options.title });
+		this.titleEl.setText(this.options.title);
 		contentEl.createEl('p', { text: this.options.description });
 
 		for (const removedValue of this.options.removedValues) {

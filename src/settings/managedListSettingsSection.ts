@@ -1,4 +1,4 @@
-import { App, Notice, setIcon } from 'obsidian';
+import { App, Notice, Setting, setIcon } from 'obsidian';
 import type TTasksPlugin from '../main';
 import { THEME_SWATCHES, getDefaultThemeColor } from './defaults';
 import { ValueMigrationModal } from './ValueMigrationModal';
@@ -43,7 +43,9 @@ export function renderManagedListSettingSection(params: RenderManagedListSetting
 	const { containerEl, config, plugin, app, rerender } = params;
 	const sectionEl = containerEl.createDiv({ cls: 'tt-managed-list-section' });
 	const headerEl = sectionEl.createDiv({ cls: 'tt-managed-list-section-header' });
-	headerEl.createEl('h3', { text: config.name });
+	// setHeading() rather than a bare <h3>: it's the documented settings-tab
+	// heading and inherits whatever the theme does to section titles.
+	new Setting(headerEl).setName(config.name).setHeading();
 	headerEl.createEl('p', { text: config.description });
 	const legendEl = headerEl.createDiv({ cls: 'tt-managed-list-legend' });
 	legendEl.createDiv({ cls: 'tt-managed-list-legend-label', text: 'Theme swatches:' });

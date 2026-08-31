@@ -396,7 +396,7 @@ export default class TTasksPlugin extends Plugin {
 				this.log(`leaf repair: rehydrated ${rehydrated}, detached ${detached}`);
 			}
 		} catch (err: unknown) {
-			this.log(`leaf repair failed: ${String(err)}`);
+			this.logError(`leaf repair failed: ${String(err)}`);
 		}
 	}
 
@@ -409,7 +409,7 @@ export default class TTasksPlugin extends Plugin {
 				window.clearTimeout(this.reminderStartTimeoutId);
 				this.reminderStartTimeoutId = null;
 			}
-			void this.reminderService.start().catch((err: unknown) => this.log(`reminderService.start failed: ${String(err)}`));
+			void this.reminderService.start().catch((err: unknown) => this.logError(`reminderService.start failed: ${String(err)}`));
 		};
 
 		const resolvedRef = this.app.metadataCache.on('resolved', start);
@@ -612,7 +612,7 @@ export default class TTasksPlugin extends Plugin {
 					await this.taskStore.update(update.path, changesToPatch(update.changes));
 					updated++;
 				} catch (error) {
-					this.log(`import update failed for ${update.path}: ${String(error)}`);
+					this.logError(`import update failed for ${update.path}: ${String(error)}`);
 				}
 			}
 		}
@@ -623,7 +623,7 @@ export default class TTasksPlugin extends Plugin {
 					await this.taskStore.updateNotes(change.path, change.to);
 					renoted++;
 				} catch (error) {
-					this.log(`import notes failed for ${change.path}: ${String(error)}`);
+					this.logError(`import notes failed for ${change.path}: ${String(error)}`);
 				}
 			}
 		}
@@ -639,7 +639,7 @@ export default class TTasksPlugin extends Plugin {
 					createdPath.set(key(entry.parsed.type, entry.parsed.name), task.path);
 					created++;
 				} catch (error) {
-					this.log(`import create failed for ${entry.parsed.name}: ${String(error)}`);
+					this.logError(`import create failed for ${entry.parsed.name}: ${String(error)}`);
 				}
 			}
 		}
@@ -657,7 +657,7 @@ export default class TTasksPlugin extends Plugin {
 					await this.taskStore.addDependency(fromPath, withoutExt(toPath));
 					linked++;
 				} catch (error) {
-					this.log(`import link failed ${fromPath} → ${toPath}: ${String(error)}`);
+					this.logError(`import link failed ${fromPath} → ${toPath}: ${String(error)}`);
 				}
 			}
 		}
@@ -671,7 +671,7 @@ export default class TTasksPlugin extends Plugin {
 					await this.taskStore.removeDependency(fromPath, withoutExt(toPath));
 					unlinked++;
 				} catch (error) {
-					this.log(`import unlink failed ${fromPath} → ${toPath}: ${String(error)}`);
+					this.logError(`import unlink failed ${fromPath} → ${toPath}: ${String(error)}`);
 				}
 			}
 		}
@@ -686,7 +686,7 @@ export default class TTasksPlugin extends Plugin {
 					await this.taskStore.updateParentTask(fromPath, toPath ? withoutExt(toPath) : null);
 					reparented++;
 				} catch (error) {
-					this.log(`import reparent failed for ${fromPath}: ${String(error)}`);
+					this.logError(`import reparent failed for ${fromPath}: ${String(error)}`);
 				}
 			}
 		}
@@ -698,7 +698,7 @@ export default class TTasksPlugin extends Plugin {
 					await this.taskStore.delete(del.path, { prompt: false });
 					deleted++;
 				} catch (error) {
-					this.log(`import delete failed for ${del.path}: ${String(error)}`);
+					this.logError(`import delete failed for ${del.path}: ${String(error)}`);
 				}
 			}
 		}
@@ -853,8 +853,21 @@ export default class TTasksPlugin extends Plugin {
 		}
 	}
 
+	/**
+	 * Dev-only breadcrumb — scan counts, migration tallies, timings. Silent in a
+	 * production build: Obsidian's review guidelines treat unconditional console
+	 * chatter as noise, and none of this is actionable for a user. Real failures
+	 * go to `logError`, which always reports.
+	 */
 	log(msg: string) {
-		console.log(`[TTasks] ${msg}`);
+		if (process.env.NODE_ENV !== 'production') {
+			console.log(`[TTasks] ${msg}`);
+		}
+	}
+
+	/** A failure a user might have to report. Always reaches the console. */
+	logError(msg: string) {
+		console.error(`[TTasks] ${msg}`);
 	}
 
 	showTaskContextMenu(task: Task, event: MouseEvent): void {
@@ -898,7 +911,7 @@ export default class TTasksPlugin extends Plugin {
 	private startAutoArchive(): void {
 		if (this.settings.archive.mode !== 'scheduled') return;
 		const run = () => {
-			void this.archiveService.archiveEligibleTasks(this.settings.archive.daysAfterComplete).catch((err: unknown) => this.log(`auto-archive failed: ${String(err)}`));
+			void this.archiveService.archiveEligibleTasks(this.settings.archive.daysAfterComplete).catch((err: unknown) => this.logError(`auto-archive failed: ${String(err)}`));
 		};
 		run(); // check on startup
 		// Check hourly — registered interval cleaned up automatically on plugin unload

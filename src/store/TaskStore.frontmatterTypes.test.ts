@@ -64,6 +64,7 @@ async function parseFrontmatter(frontmatter: Record<string, unknown>): Promise<T
 		// Mirrors TTasksPlugin.statusPolicy: resolved from this fake's settings.
 		statusPolicy: buildStatusPolicy(FRONTMATTER_TEST_SETTINGS),
 		log: () => undefined,
+		logError: () => undefined,
 		register: () => undefined,
 		registerEvent: () => undefined,
 	} as never;

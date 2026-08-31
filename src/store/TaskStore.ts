@@ -92,7 +92,7 @@ export class TaskStore {
 		const startedAt = Date.now();
 		const folder = this.app.vault.getFolderByPath(this.folderPath);
 		if (!folder) {
-			this.plugin.log(`folder not found — "${this.folderPath}"`);
+			this.plugin.logError(`folder not found — "${this.folderPath}"`);
 			this.tasks.set([]);
 			return;
 		}
@@ -148,7 +148,7 @@ export class TaskStore {
 				if (!file.path.startsWith(this.folderPath + '/')) return;
 				this.syncQueue.dropPath(file.path);
 				this.tasks.update(all => all.filter(t => t.path !== file.path));
-				void this.removeRelationshipReferences(file.path).catch((err: unknown) => this.plugin.log(`removeRelationshipReferences failed: ${String(err)}`));
+				void this.removeRelationshipReferences(file.path).catch((err: unknown) => this.plugin.logError(`removeRelationshipReferences failed: ${String(err)}`));
 			})
 		);
 
@@ -163,7 +163,7 @@ export class TaskStore {
 				// Update relationship references (depends_on, blocks, parent_task)
 				// in other tasks that pointed to the old path.
 				if (oldPath.startsWith(this.folderPath + '/')) {
-					void this.rewriteRelationshipReferences(oldPath, file.path).catch((err: unknown) => this.plugin.log(`rewriteRelationshipReferences failed: ${String(err)}`));
+					void this.rewriteRelationshipReferences(oldPath, file.path).catch((err: unknown) => this.plugin.logError(`rewriteRelationshipReferences failed: ${String(err)}`));
 				}
 			})
 		);
@@ -305,7 +305,8 @@ export class TaskStore {
 		// ['Ship it'], which is truthy but not a usable title.
 		const name = toFrontmatterString(toFrontmatterScalar(fm?.name));
 		if (!fm || name === '') {
-			console.log(`[TTasks] skipping ${file.name} — cache not ready yet`);
+			// One line per file on a cold vault — a breadcrumb, not a failure.
+			this.plugin.log(`skipping ${file.name} — cache not ready yet`);
 			return null;
 		}
 

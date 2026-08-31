@@ -97,7 +97,7 @@ export class QueryEditorModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl('h2', { text: `Edit Smart List: ${this.viewName}` });
+		this.titleEl.setText(`Edit Smart List: ${this.viewName}`);
 
 		// Tab bar
 		const tabBar = contentEl.createDiv({ cls: 'tt-qe-tabs' });
@@ -179,7 +179,7 @@ export class QueryEditorModal extends Modal {
 
 	private renderViewTypeSection(container: HTMLElement) {
 		const section = container.createDiv({ cls: 'tt-qe-section' });
-		section.createEl('h3', { text: 'View Type' });
+		section.createEl('h3', { text: 'View type' });
 
 		new Setting(section)
 			.setName('Smart List name')

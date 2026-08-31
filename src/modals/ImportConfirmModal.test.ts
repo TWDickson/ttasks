@@ -100,9 +100,12 @@ describe('ImportConfirmModal', () => {
 		]) as any;
 		const content = new FakeElement('div');
 		modal.contentEl = content;
+		let title = '';
+		modal.titleEl = { setText: (text: string) => { title = text; } };
 
 		modal.onOpen();
-		expect(content.allText()).toContain('Found 3 tasks across 2 files.');
+		// The count is the modal's title now, not body copy.
+		expect(title).toBe('Found 3 tasks across 2 files.');
 	});
 
 	it('shows first five preview task names with source files', () => {

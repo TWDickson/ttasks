@@ -23,7 +23,7 @@ export class ImportConfirmModal extends Modal {
 		contentEl.empty();
 
 		const fileCount = new Set(this.candidates.map((task) => task.location.filePath)).size;
-		contentEl.createEl('h2', { text: `Found ${this.candidates.length} tasks across ${fileCount} files.` });
+		this.titleEl.setText(`Found ${this.candidates.length} tasks across ${fileCount} files.`);
 		contentEl.createEl('p', {
 			text: 'Each will become a TTasks note. The original checkboxes will be replaced with wiki-links. This cannot be undone.',
 		});

@@ -40,6 +40,7 @@ function createStore(): TaskStore {
 		app: {} as any,
 		settings: { tasksFolder: 'Tasks' },
 		log: () => undefined,
+		logError: () => undefined,
 		register: () => undefined,
 		registerEvent: () => undefined,
 	} as any;

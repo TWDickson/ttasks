@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	safeRead,
-	safeModify,
 	safeProcess,
 	safeLocalStorage,
 	safeLocalStorageSet,
@@ -51,7 +50,7 @@ describe('ensureFolderPath', () => {
 describe('safeRead', () => {
 	it('returns ok + content on success', async () => {
 		const result = await safeRead(
-			{ read: async () => 'abc', modify: async () => {}, process: async () => {} },
+			{ read: async () => 'abc', process: async () => {} },
 			{ path: 'A.md' },
 		);
 		expect(result).toEqual({ ok: true, value: 'abc' });
@@ -59,29 +58,8 @@ describe('safeRead', () => {
 
 	it('returns error result when vault.read throws', async () => {
 		const result = await safeRead(
-			{ read: async () => { throw new Error('read fail'); }, modify: async () => {}, process: async () => {} },
+			{ read: async () => { throw new Error('read fail'); }, process: async () => {} },
 			{ path: 'A.md' },
-		);
-		expect(result.ok).toBe(false);
-		expect(result.error).toBeInstanceOf(Error);
-	});
-});
-
-describe('safeModify', () => {
-	it('returns ok on success', async () => {
-		const result = await safeModify(
-			{ read: async () => '', modify: async () => {}, process: async () => {} },
-			{ path: 'A.md' },
-			'next',
-		);
-		expect(result).toEqual({ ok: true });
-	});
-
-	it('returns error result when vault.modify throws', async () => {
-		const result = await safeModify(
-			{ read: async () => '', modify: async () => { throw new Error('modify fail'); }, process: async () => {} },
-			{ path: 'A.md' },
-			'next',
 		);
 		expect(result.ok).toBe(false);
 		expect(result.error).toBeInstanceOf(Error);
@@ -91,7 +69,7 @@ describe('safeModify', () => {
 describe('safeProcess', () => {
 	it('returns ok on success', async () => {
 		const result = await safeProcess(
-			{ read: async () => '', modify: async () => {}, process: async () => {} },
+			{ read: async () => '', process: async () => {} },
 			{ path: 'A.md' },
 			(c) => c,
 		);
@@ -100,7 +78,7 @@ describe('safeProcess', () => {
 
 	it('returns error result when vault.process throws', async () => {
 		const result = await safeProcess(
-			{ read: async () => '', modify: async () => {}, process: async () => { throw new Error('process fail'); } },
+			{ read: async () => '', process: async () => { throw new Error('process fail'); } },
 			{ path: 'A.md' },
 			(c) => c,
 		);

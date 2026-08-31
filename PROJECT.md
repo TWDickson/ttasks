@@ -20,12 +20,12 @@ narrative to `HISTORY.md` once the thread closes.
 
 ---
 
-## Current state (2026-08-02)
+## Current state (2026-08-31)
 
 | | |
 | --- | --- |
-| Version | `0.1.2` (GitHub release; not on the community list — deliberate) |
-| Tests | **1760 passing, 133 files** (`npm run check` = lint → build → test) |
+| Version | `0.1.10` (GitHub release; not on the community list — deliberate) |
+| Tests | **1823 passing, 136 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -35,9 +35,10 @@ narrative to `HISTORY.md` once the thread closes.
 search/filter, dependency graph, reminders, quick actions, archive/logbook, the
 `area`/`labels` data model, the shared query engine, and Smart Lists all ship.
 
-**Four things gate a public release** — all 🔴 in the Audit section below:
-PB-2 (review-bot flags), MD-1/MD-2 (schema prefix + sparse writes), DT-1
-(midnight-stale queries), and DT-2 (semantically-dead `due_time`).
+**Three and a half things gate a public release** — all 🔴 in the Audit section
+below: MD-1/MD-2 (schema prefix + sparse writes), DT-1 (midnight-stale queries),
+DT-2 (semantically-dead `due_time`), and the one surviving PB-2 bullet
+(`localStorage` namespacing — the rest of the review-bot sweep landed 2026-08-31).
 
 **Two ⚖ calls are waiting on Taylor:** DT-2 (`due_time` real vs. display-only —
 *decided, see below*) and DT-5 (rolling vs. calendar "this week" — *decided, see
@@ -180,6 +181,14 @@ log-partial-on-stop.
 
 ### 6. Open feedback items
 
+- `[x]` **Right-click "Open" opened the side panel, not the note** —
+  *(2026-08-31)* the context menu's Open routed through `openTaskDetail`, which
+  reveals the board + detail pane — the same thing a left click already does, so
+  the menu item was a no-op in practice. It now calls `taskStore.openFile`, i.e.
+  the markdown note in a new editor tab. The port is renamed
+  `openTaskDetail` → `openTaskNote` in `taskActionPorts.ts` so the call site
+  states which of the two "opens" it means. **Left click is unchanged** — it
+  still opens the detail pane, in every renderer.
 - `[ ]` **Status / Priority badges: selected vs. regular hard to distinguish,
   worse in dark mode** ⚖ — likely a colour-spine follow-on (badges went
   monochrome in the V2 work). Needs a taste call on how much contrast the
@@ -282,9 +291,10 @@ items below track.
 
 - **Phase 0 — hygiene.** *Done 2026-07-25/31:* lint fixes, CI (TD-1), `check`
   script (TD-2), `.gitattributes`, the DT-4 comment fix.
-- **Phase 1 — publication scaffolding.** README (last piece of PB-1) →
-  review-bot sweep (PB-2) → manifest description (PB-3). *After this, submission
-  is unblocked whenever Taylor decides.*
+- **Phase 1 — publication scaffolding.** *Done 2026-08-31 apart from one bullet:*
+  README (PB-1), the review-bot sweep (PB-2 — `localStorage` namespacing is all
+  that's left), manifest description (PB-3). *Submission is unblocked whenever
+  Taylor decides.*
 - **Phase 2 — date hardening.** `isIsoDateString` + dedupe sweep → engine `today`
   injection (DT-1) → `due_time` implementation (DT-2) → this-week semantics
   (DT-5) → `new Date()` boundary enforcement (DT-6).
@@ -307,32 +317,46 @@ items below track.
   dev/rig instructions — with six screenshots from the rig matrix in
   `docs/screenshots/`. Submitting to `obsidianmd/obsidian-releases` stays
   **deliberately out of scope** — GitHub releases only, per Taylor.
-- `[ ]` **PB-2 🔴 review-bot flags** — the sweep Obsidian's reviewers run:
-  - **`innerHTML` (5 sites)** — `QueryEditorModal` sets `btn.innerHTML = '✕'`
-    (3×), which also violates the repo's Lucide-only rule; use `setIcon(btn,
-    'x')`. `CreateTaskModal:557` and `TaskDetailNotes.svelte:40` clear with
-    `innerHTML = ''`; use `el.empty()`.
-  - **`app.workspace.activeLeaf`** (`TaskBoardView.ts:58`) — deprecated. Use
-    `getActiveViewOfType(TaskBoardView) === this` or `getMostRecentLeaf()`.
-  - **`vault.modify`** (`completionSync.ts:96`, `vaultSafe.ts:46`) — guidelines
-    require `Vault.process` for read-modify-write. `completionSync` reads via
-    `cachedRead` then modifies — **a real clobber window**, not just a style flag.
-  - **Console noise** — `plugin.log` → `console.log` unconditionally, plus
-    `TaskStore.ts:278` per-file skip logs. Gate behind the `process.env.NODE_ENV`
-    flag `useTaskQuery` already uses. `console.error` for real failures stays.
-  - **`localStorage`** — hand-rolled vault namespacing in
-    `reminderStorage`/`vaultSafe`; Obsidian provides
-    `app.loadLocalStorage()`/`saveLocalStorage()` which namespace per vault
-    including mobile. Swap the backing calls inside `vaultSafe`; call sites
-    unchanged. Per-device semantics for fired reminders are correct — keep them.
-  - **Casing / headings** — UI text must be sentence case (`'Edit Smart List:'`,
-    kanban/settings headings). `managedListSettingsSection.ts:46` uses
-    `createEl('h3')`; convert to `new Setting(el).setName(...).setHeading()`.
-    Modals using `createEl('h2')` should use `this.titleEl.setText(...)`.
-- `[ ]` **PB-3 🟡 manifest polish** — `description` contains "plugin for
-  Obsidian"; the checker flags both words as redundant. Suggested: *"Task
+- `[~]` **PB-2 🔴 review-bot flags** — *swept 2026-08-31; one bullet left.*
+  - `[x]` **`innerHTML` (5 sites)** and `[x]` **`app.workspace.activeLeaf`** — both
+    were **already clean** when re-checked on 2026-08-31; this entry was stale.
+    `innerHTML` survives only in `src/__mocks__/obsidian.ts`, and
+    `TaskBoardView.ts:57` already uses `getActiveViewOfType`.
+  - `[x]` **`vault.modify`** — *(2026-08-31)* `completionSync` was the real one: it
+    read the source note, edited one checkbox line in memory, then wrote the
+    **whole file** back, so any edit the user made in between was silently
+    dropped. Now `vault.process`, with the rewrite re-derived from the content
+    Obsidian hands the callback; a cheap `cachedRead` pre-check keeps the common
+    "nothing to tick" case from touching the file at all (an identity write still
+    bumps mtime and re-triggers the scan). `vaultSafe.safeModify` had **no
+    production callers** and was deleted rather than kept as a flagged wrapper —
+    `VaultLike` no longer declares `modify` at all, so the boundary can't
+    regress. `src/integration/completionSync.test.ts` has a regression test that
+    feeds the callback content the pre-check never saw.
+  - `[x]` **Console noise** — *(2026-08-31)* `plugin.log` is now dev-gated behind
+    `process.env.NODE_ENV`, and a sibling `plugin.logError` always reports. The
+    split matters: **~20 of the ~40 `log()` call sites were failures**
+    ("create failed for…", "import link failed…"), so gating wholesale would have
+    blinded a user's bug report. The `ScanEngine` / `migrationSettingsSection`
+    paths needed no change — they already `console.error` alongside `plugin.log`.
+    `TaskStore.fileToTask`'s per-file skip log is now a gated breadcrumb.
+  - `[ ]` **`localStorage`** — still open, and **not** a quick win: swapping
+    `reminderStorage`/`vaultSafe` onto `app.loadLocalStorage()`/`saveLocalStorage()`
+    changes the key namespace, so it needs a migration for already-stored fired
+    reminders. Per-device semantics are correct — keep them.
+  - `[x]` **Casing / headings** — *(2026-08-31)* `managedListSettingsSection.ts`
+    uses `new Setting(el).setName(…).setHeading()`; the four modals that built a
+    `createEl('h2')` banner (`QueryEditorModal`, `ShareSyncModal`,
+    `ImportConfirmModal`, `ValueMigrationModal`) now set `this.titleEl`; and
+    'View Type' → 'View type'. **"Smart List" is kept capitalized on purpose** —
+    it's a product noun in 26 places including `.setName('Smart List name')`, so
+    sentence-casing just the modal title would half-break the term. Renaming it
+    app-wide is a separate call, not a casing bug.
+- `[x]` **PB-3 🟡 manifest polish** — *(2026-08-31)* `description` is now "Task
   management with kanban, dependency tracking, agenda, and a dependency graph —
-  stored as plain markdown frontmatter."* Optional `fundingUrl`.
+  stored as plain markdown frontmatter." (120 chars), dropping the "plugin" /
+  "for Obsidian" redundancy the checker flags. `fundingUrl` still not set —
+  optional, and Taylor's call.
 - `[ ]` **PB-4 🟡 Svelte CSS is JS-injected** — `esbuild-svelte` runs with
   `css: 'injected'`, so component styles become runtime `<style>` elements,
   contradicting the "all CSS belongs in `styles.css`" rule. Effect: component CSS

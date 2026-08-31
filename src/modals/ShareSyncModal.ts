@@ -178,7 +178,7 @@ export class ShareSyncModal extends Modal {
 		contentEl.empty();
 		this.renderHost.load();
 
-		contentEl.createEl('h2', { text: 'Share / Sync' });
+		this.titleEl.setText('Share / Sync');
 		this.renderTabs(contentEl);
 		this.bodyEl = contentEl.createDiv({ cls: 'tt-share-body' });
 		this.renderActiveTab();

@@ -85,6 +85,7 @@ function makeWriterForUpdateTest(initialFrontmatter: Record<string, unknown>, se
 			},
 		},
 		log: vi.fn(),
+		logError: vi.fn(),
 	};
 
 	const tasks = writable<Task[]>(

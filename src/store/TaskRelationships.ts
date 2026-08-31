@@ -135,7 +135,7 @@ export class TaskRelationships {
 					}
 				});
 			} catch (error) {
-				this.plugin.log(`Failed to rewrite relationships in ${file.path}: ${String(error)}`);
+				this.plugin.logError(`Failed to rewrite relationships in ${file.path}: ${String(error)}`);
 			}
 		}), 5);
 
@@ -183,7 +183,7 @@ export class TaskRelationships {
 					}
 				});
 			} catch (error) {
-				this.plugin.log(`Failed to remove relationships in ${file.path}: ${String(error)}`);
+				this.plugin.logError(`Failed to remove relationships in ${file.path}: ${String(error)}`);
 				return;
 			}
 

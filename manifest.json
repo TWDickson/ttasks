@@ -3,7 +3,7 @@
   "name": "TTasks",
   "version": "0.1.9",
   "minAppVersion": "1.7.2",
-  "description": "A task management plugin for Obsidian with kanban, dependency tracking, and mobile-friendly UI.",
+  "description": "Task management with kanban, dependency tracking, agenda, and a dependency graph — stored as plain markdown frontmatter.",
   "author": "Taylor Dickson",
   "authorUrl": "https://github.com/TWDickson",
   "isDesktopOnly": false

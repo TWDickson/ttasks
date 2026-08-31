@@ -12,6 +12,80 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-31 — Right-click "Open", and the review-bot sweep
+
+Taylor: *"right click open on a task should open the note in a new tab, not the
+side panel."* The context menu's **Open** called `openTaskDetail`, which reveals
+the board plus the detail pane — precisely what a left click on the row already
+does. So the menu item cost a click and changed nothing. It now calls
+`taskStore.openFile` (`getLeaf('tab')`), and the port carrying it is renamed
+`openTaskDetail` → `openTaskNote`, because "open" is ambiguous exactly where
+this bug lived: TTasks has two of them, and the type name should say which.
+Left click is deliberately untouched — the detail pane is the right default for
+a row you're triaging.
+
+That prompted a "what else is cheap?" pass over PB-2, and the answer was more
+than expected.
+
+### The one that could lose data
+
+`syncCompletionToSource` ticks the checkbox in the note a task was captured
+from. It read the whole file, edited one line **in memory**, and wrote the whole
+file back. Anything typed into that note between the read and the write was
+gone — no conflict, no warning, just an older copy of the file landing on top.
+The window is small but the source note is, by construction, a note the user
+works in: a daily note, a meeting note.
+
+`vault.process` closes it — Obsidian re-reads under its own lock and hands the
+callback the current content. The rewrite moved into a pure `rewriteSource()`
+that returns `null` for "no change", which let the same function serve two
+callers: a cheap `cachedRead` **pre-check** that decides whether to write at
+all, and the `process` callback that re-derives the answer from fresh content.
+The pre-check matters because `process` writes whatever it returns — without it,
+every status change on a captured task would rewrite its source note, bump
+mtime, and re-trigger the scan for nothing.
+
+`vaultSafe.safeModify` turned out to have **no production callers at all**, so
+it was deleted rather than left as a flagged wrapper around a call we'd decided
+not to make. `VaultLike` no longer declares `modify`, which is what actually
+stops this regressing — you can't reach for it by accident.
+
+### Gating the logs without going blind
+
+The console-noise flag is trivially "wrap `plugin.log` in a NODE_ENV check" —
+and that would have been a mistake. Roughly **half of the ~40 call sites are
+failure reports**: `create failed for…`, `import link failed…`,
+`archive move failed…`. Silencing those in production removes the only evidence
+a user could paste into a bug report. So `log()` is now dev-gated for
+breadcrumbs (scan counts, migration tallies, timings) and a sibling `logError()`
+always reports; the failure sites moved over. The `ScanEngine` and
+`migrationSettingsSection` paths needed nothing — they already `console.error`
+alongside `plugin.log`, which is why the split was safe to make mechanically.
+
+Adding `logError` to the plugin surface broke four test mocks that had `log` and
+not `logError` — the exact drift `CLAUDE.md` warns about, caught by the suite
+rather than in a vault.
+
+### Two flags that were already fixed
+
+PB-2 listed five `innerHTML` sites and a deprecated `workspace.activeLeaf`.
+Both were clean on inspection: `innerHTML` survives only in the Obsidian test
+mock, and `TaskBoardView` already uses `getActiveViewOfType` with a comment
+explaining why. The audit entry had gone stale — worth noting because a stale
+backlog item costs the same to re-investigate as a real one.
+
+### Where sentence case stops
+
+The heading work was mechanical — `setHeading()` in the settings section, four
+modals moved off a hand-built `<h2>` banner onto `titleEl`, 'View Type' →
+'View type'. But **"Smart List" stays capitalized.** It's a product noun in 26
+places, including a setting named "Smart List name" sitting directly under the
+modal title. Sentence-casing just the title flagged by the audit would have left
+two spellings of the same term three lines apart. Renaming it app-wide is a
+product call, not a casing fix.
+
+---
+
 ## 2026-08-31 — The bridge described the graph instead of resolving it
 
 Taylor: *"when we share to other LLMs like my work AI it has trouble

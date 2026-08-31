@@ -104,8 +104,8 @@ describe('syncCompletionToSource', () => {
 		const app = {
 			vault: {
 				getAbstractFileByPath: vi.fn(),
-				read: vi.fn(),
-				modify: vi.fn(),
+				cachedRead: vi.fn(),
+				process: vi.fn(),
 			},
 		} as any;
 
@@ -118,13 +118,15 @@ describe('syncCompletionToSource', () => {
 		const app = {
 			vault: {
 				getAbstractFileByPath: vi.fn(() => file),
-				read: vi.fn(async () => '- [ ] [[Planner/Tasks/abc123-task|Task]]'),
-				modify: vi.fn(async () => {}),
+				cachedRead: vi.fn(async () => '- [ ] [[Planner/Tasks/abc123-task|Task]]'),
+				process: vi.fn(async (_f: unknown, fn: (c: string) => string) => fn('- [ ] [[Planner/Tasks/abc123-task|Task]]')),
 			},
 		} as any;
 
 		await syncCompletionToSource(buildTask({ status: 'Completed' }), app, 'Completed');
-		expect(app.vault.modify).toHaveBeenCalledWith(file, '- [x] [[Planner/Tasks/abc123-task|Task]]');
+		const [target, rewrite] = app.vault.process.mock.calls[0];
+		expect(target).toBe(file);
+		expect(rewrite('- [ ] [[Planner/Tasks/abc123-task|Task]]')).toBe('- [x] [[Planner/Tasks/abc123-task|Task]]');
 	});
 
 	it('uses resolver fallback in runtime sync when direct path compare does not match', async () => {
@@ -136,15 +138,19 @@ describe('syncCompletionToSource', () => {
 		const app = {
 			vault: {
 				getAbstractFileByPath: vi.fn(() => file),
-				read: vi.fn(async () => '- [ ] [[Encoded/Path|Task]]'),
-				modify: vi.fn(async () => {}),
+				cachedRead: vi.fn(async () => '- [ ] [[Encoded/Path|Task]]'),
+				process: vi.fn(async (_f: unknown, fn: (c: string) => string) => fn('- [ ] [[Encoded/Path|Task]]')),
 			},
 		} as any;
 
 		await syncCompletionToSource(buildTask({ status: 'Completed' }), app, 'Completed', { resolver });
 
-		expect(resolver).toHaveBeenCalledTimes(1);
-		expect(app.vault.modify).toHaveBeenCalledWith(file, '- [x] [[Encoded/Path|Task]]');
+		// Twice: once for the pre-check that decides whether to write at all, once
+		// inside process() against the content Obsidian hands back.
+		expect(resolver).toHaveBeenCalledTimes(2);
+		const [target, rewrite] = app.vault.process.mock.calls[0];
+		expect(target).toBe(file);
+		expect(rewrite('- [ ] [[Encoded/Path|Task]]')).toBe('- [x] [[Encoded/Path|Task]]');
 	});
 
 	it('does not modify source when direct compare fails and no resolver is provided', async () => {
@@ -152,13 +158,32 @@ describe('syncCompletionToSource', () => {
 		const app = {
 			vault: {
 				getAbstractFileByPath: vi.fn(() => file),
-				read: vi.fn(async () => '- [ ] [[Encoded/Path|Task]]'),
-				modify: vi.fn(async () => {}),
+				cachedRead: vi.fn(async () => '- [ ] [[Encoded/Path|Task]]'),
+				process: vi.fn(async (_f: unknown, fn: (c: string) => string) => fn('- [ ] [[Encoded/Path|Task]]')),
 			},
 		} as any;
 
 		await syncCompletionToSource(buildTask({ status: 'Completed' }), app, 'Completed');
 
-		expect(app.vault.modify).not.toHaveBeenCalled();
+		expect(app.vault.process).not.toHaveBeenCalled();
+	});
+	it('preserves edits that land between the pre-check read and the write', async () => {
+		const file = { path: 'Daily/2026-05-25.md' };
+		const app = {
+			vault: {
+				getAbstractFileByPath: vi.fn(() => file),
+				cachedRead: vi.fn(async () => '- [ ] [[Planner/Tasks/abc123-task|Task]]'),
+				process: vi.fn(async (_f: unknown, fn: (c: string) => string) => fn(
+					'# Edited while we were reading\n- [ ] [[Planner/Tasks/abc123-task|Task]]'
+				)),
+			},
+		} as any;
+
+		await syncCompletionToSource(buildTask({ status: 'Completed' }), app, 'Completed');
+
+		// The heading the user typed survives; only the checkbox line changes.
+		await expect(app.vault.process.mock.results[0].value).resolves.toBe(
+			'# Edited while we were reading\n- [x] [[Planner/Tasks/abc123-task|Task]]'
+		);
 	});
 });

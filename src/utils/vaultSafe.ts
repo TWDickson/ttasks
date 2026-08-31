@@ -10,7 +10,9 @@ interface FileLike {
 
 interface VaultLike {
 	read(file: FileLike): Promise<string>;
-	modify(file: FileLike, content: string): Promise<void>;
+	// No modify(): read-modify-write goes through process(), which re-reads under
+	// Obsidian's lock. A whole-file modify() built on an earlier read clobbers
+	// anything the user typed in between.
 	process(file: FileLike, fn: (content: string) => string): Promise<unknown>;
 }
 
@@ -33,21 +35,6 @@ export async function safeRead(
 	} catch (error) {
 		const wrapped = toError(error);
 		logFailure('safeRead', file.path, wrapped);
-		return { ok: false, error: wrapped };
-	}
-}
-
-export async function safeModify(
-	vault: VaultLike,
-	file: FileLike,
-	content: string,
-): Promise<VaultOpResult<void>> {
-	try {
-		await vault.modify(file, content);
-		return { ok: true };
-	} catch (error) {
-		const wrapped = toError(error);
-		logFailure('safeModify', file.path, wrapped);
 		return { ok: false, error: wrapped };
 	}
 }

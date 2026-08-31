@@ -58,7 +58,7 @@ export class ArchiveService {
 		try {
 			await this.ensureFolder(archiveDir);
 		} catch (error) {
-			this.plugin.log(`archive ensureFolder failed: ${String(error)}`);
+			this.plugin.logError(`archive ensureFolder failed: ${String(error)}`);
 			new Notice('Archive failed: could not create archive folder.');
 			return false;
 		}
@@ -66,7 +66,7 @@ export class ArchiveService {
 		try {
 			await this.app.fileManager.renameFile(file, archivePath);
 		} catch (error) {
-			this.plugin.log(`archive move failed: ${String(error)}`);
+			this.plugin.logError(`archive move failed: ${String(error)}`);
 			new Notice('Archive failed: could not move task file.');
 			return false;
 		}
@@ -165,7 +165,7 @@ export class ArchiveService {
 		try {
 			await this.app.fileManager.renameFile(file, destPath);
 		} catch (error) {
-			this.plugin.log(`restore move failed: ${String(error)}`);
+			this.plugin.logError(`restore move failed: ${String(error)}`);
 			new Notice('Restore failed: could not move archived task.');
 			return;
 		}

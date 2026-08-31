@@ -68,6 +68,7 @@ function makePlugin(tasks: Task[]): TTasksPlugin {
 			metadataCache: { getFileCache: vi.fn(() => null) },
 		},
 		log: vi.fn(),
+		logError: vi.fn(),
 	} as unknown as TTasksPlugin;
 }
 

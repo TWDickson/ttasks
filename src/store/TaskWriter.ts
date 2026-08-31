@@ -80,7 +80,7 @@ export class TaskWriter {
 		try {
 			await this.app.vault.create(filePath, this.buildFrontmatter(full) + body + '\n');
 		} catch (error) {
-			this.plugin.log(`create failed for ${filePath}: ${String(error)}`);
+			this.plugin.logError(`create failed for ${filePath}: ${String(error)}`);
 			new Notice('TTasks: failed to create task file. Check vault permissions or disk space.');
 			throw error;
 		}
@@ -90,7 +90,7 @@ export class TaskWriter {
 			try {
 				await this.addToBlocks(depPath, filePath, input.name);
 			} catch (error) {
-				this.plugin.log(`addToBlocks failed for dependency ${depPath}: ${String(error)}`);
+				this.plugin.logError(`addToBlocks failed for dependency ${depPath}: ${String(error)}`);
 			}
 		}
 
@@ -162,7 +162,7 @@ export class TaskWriter {
 				}
 			});
 		} catch (error) {
-			this.plugin.log(`update failed for ${normalizedPath}: ${String(error)}`);
+			this.plugin.logError(`update failed for ${normalizedPath}: ${String(error)}`);
 			new Notice('TTasks: failed to update task file. Check vault permissions or disk space.');
 			return;
 		}
@@ -190,7 +190,7 @@ export class TaskWriter {
 					},
 				);
 			} catch (error) {
-				this.plugin.log(`syncCompletionToSource failed for ${normalizedPath}: ${String(error)}`);
+				this.plugin.logError(`syncCompletionToSource failed for ${normalizedPath}: ${String(error)}`);
 			}
 		}
 	}

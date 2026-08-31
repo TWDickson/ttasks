@@ -1938,9 +1938,11 @@
 .tt-managed-list-section-header {
 	margin-bottom: 10px;
 }
-.tt-managed-list-section-header h3 {
-	margin: 0 0 4px 0;
-	font-size: 1rem;
+/* setHeading() renders a .setting-item; strip its default padding/border so the
+   section card keeps the tight header it had as a bare <h3>. */
+.tt-managed-list-section-header .setting-item {
+	padding: 0 0 4px 0;
+	border-top: none;
 }
 .tt-managed-list-section-header p {
 	margin: 0;
