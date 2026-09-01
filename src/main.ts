@@ -759,7 +759,11 @@ export default class TTasksPlugin extends Plugin {
 		const holidayCalendar = splitHolidayCalendar(this.settings.holidays);
 		return {
 			allTasks: get(this.taskStore.tasks),
-			statuses: { blockStatus: this.statusPolicy.block, holdStatus: this.statusPolicy.hold },
+			statuses: {
+				blockStatus: this.statusPolicy.block,
+				holdStatus: this.statusPolicy.hold,
+				futureStatus: this.statusPolicy.future,
+			},
 			calendarConfig: {
 				holidays: holidayCalendar.holidays,
 				recurringHolidays: holidayCalendar.recurringHolidays,

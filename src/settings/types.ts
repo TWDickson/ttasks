@@ -161,6 +161,12 @@ export interface TTasksSettings {
 	hiddenBuiltinViews: string[];
 	statuses: string[];
 	completionStatus: string;
+	/**
+	 * The status meaning "not near-term yet". Like `quickActions.holdStatus` it
+	 * can be `''` — a vault with no such status must not fall back to one, or
+	 * every task would read Future-upstream. See `StatusPolicy.future`.
+	 */
+	futureStatus: string;
 	statusColors: Record<string, string>;
 	areas: string[];
 	areaColors: Record<string, string>;

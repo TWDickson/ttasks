@@ -304,7 +304,11 @@
 	// Derived Blocked/Hold cascade (#8) — computed from the full task list so a
 	// blocker outside the current filter still impedes, and recomputed rather than
 	// stored so clearing a blocker restores its dependents with no bookkeeping.
-	$: impedimentStatuses = { blockStatus: statusPolicy.block, holdStatus: statusPolicy.hold };
+	$: impedimentStatuses = {
+		blockStatus: statusPolicy.block,
+		holdStatus: statusPolicy.hold,
+		futureStatus: statusPolicy.future,
+	};
 	$: impedimentBadges = buildImpedimentBadges(
 		computeImpediments($tasks, impedimentStatuses),
 		impedimentStatuses,

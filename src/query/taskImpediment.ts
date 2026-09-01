@@ -9,12 +9,17 @@
  * the blocker clears (you'd have to remember what each task's status *was*), so
  * the impediment is recomputed from the graph every time and surfaced as a badge.
  *
- * **Semantics** (Taylor, 2026-07-25):
+ * **Semantics** (Taylor, 2026-07-25; Future added 2026-08-31):
  *   • Blocked — an external impediment: needs escalation, or is impossible right
  *     now. It genuinely propagates: nothing downstream can proceed either.
  *   • Hold — a deliberate pause: awaiting delegated work, or bumped by another
  *     priority. It propagates too, but as the weaker signal.
- *   • **Blocked beats Hold.** Where both reach the same task, it reads Blocked.
+ *   • Future — not near-term yet. Propagates for the same reason the other two
+ *     do: if the thing you're waiting on isn't scheduled to start, neither are
+ *     you, however Active your own status field looks. The weakest of the three,
+ *     because it describes intent rather than an obstacle.
+ *   • **Blocked beats Hold beats Future.** Where several reach the same task, the
+ *     strongest wins.
  *
  * That precedence is what makes the result **order-independent**: a task reachable
  * from both a Blocked and a Held upstream resolves the same regardless of the
@@ -29,10 +34,10 @@ import { normalizeTaskPath } from '../store/graph/taskGraph';
 import { resolveTaskRef, taskRefName, type TaskRefIndex } from '../utils/taskRef';
 import type { BadgePalette } from '../utils/badgePalette';
 
-export type ImpedimentKind = 'blocked' | 'held';
+export type ImpedimentKind = 'blocked' | 'held' | 'future';
 
 /** Strength order. Higher wins when impediments meet. */
-const RANK: Record<ImpedimentKind, number> = { held: 1, blocked: 2 };
+const RANK: Record<ImpedimentKind, number> = { future: 1, held: 2, blocked: 3 };
 
 export interface ImpedimentState {
 	/** The strongest impediment reaching this task. */
@@ -62,6 +67,11 @@ export interface ImpedimentStatuses {
 	 * See `StatusPolicy.hold`.
 	 */
 	holdStatus: string | null;
+	/**
+	 * Configured Future status name, or `null`/`''` when the vault has none.
+	 * Nullable for the same reason as `holdStatus` — see `StatusPolicy.future`.
+	 */
+	futureStatus: string | null;
 }
 
 interface Contribution {
@@ -93,6 +103,7 @@ export function computeImpediments(
 		if (task.is_complete) return null;
 		if (statuses.blockStatus && task.status === statuses.blockStatus) return 'blocked';
 		if (statuses.holdStatus && task.status === statuses.holdStatus) return 'held';
+		if (statuses.futureStatus && task.status === statuses.futureStatus) return 'future';
 		return null;
 	}
 
@@ -209,13 +220,16 @@ export interface ImpedimentLabel {
  * holding the task up — and never passes a filename off as a name.
  */
 /**
- * The blocking status' name for an impediment kind. A `held` state only exists
- * when a Hold status is configured — `ownKind` checks before assigning it — so
- * the `?? ''` is unreachable. It's here because the compiler can't see that
- * invariant, not because a blank name is a case worth rendering.
+ * The blocking status' name for an impediment kind. A `held` or `future` state
+ * only exists when that status is configured — `ownKind` checks before assigning
+ * either — so the `?? ''` is unreachable. It's here because the compiler can't
+ * see that invariant, not because a blank name is a case worth rendering.
  */
 export function impedingStatusName(kind: ImpedimentKind, statuses: ImpedimentStatuses): string {
-	return (kind === 'blocked' ? statuses.blockStatus : statuses.holdStatus) ?? '';
+	const name = kind === 'blocked' ? statuses.blockStatus
+		: kind === 'held' ? statuses.holdStatus
+		: statuses.futureStatus;
+	return name ?? '';
 }
 
 export function describeImpediment(

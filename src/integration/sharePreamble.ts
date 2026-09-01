@@ -82,13 +82,13 @@ export const DERIVED_RULE =
 	'Read these instead of working them out yourself, and never send them back.';
 
 /**
- * The one graph fact a model reliably misses: Blocked/Hold are not local. It no
- * longer has to *infer* that — `impeded` states it per entry — so what survives
- * here is the half that governs the reply: don't stamp Blocked down the chain,
- * and don't mistake an impeded task for an idle one.
+ * The one graph fact a model reliably misses: Blocked/Hold/Future are not local.
+ * It no longer has to *infer* that — `impeded` states it per entry — so what
+ * survives here is the half that governs the reply: don't stamp a status down
+ * the chain, and don't mistake an impeded task for an idle one.
  */
 export const IMPEDIMENT_RULE =
-	'BLOCKED/HOLD: set these ONLY on the entry that is actually stuck, never on the ones waiting behind ' +
+	'BLOCKED/HOLD/FUTURE: set these ONLY on the entry that is actually stuck, never on the ones waiting behind ' +
 	'it — "impeded" already marks those and TTasks recomputes it. An entry with "impeded" is not idle ' +
 	'and does not need chasing; its blocker does.';
 

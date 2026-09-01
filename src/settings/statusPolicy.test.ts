@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { buildStatusPolicy } from './statusPolicy';
 
 const FULL = {
-	statuses: ['Active', 'In Progress', 'Blocked', 'Hold', 'Completed'],
+	statuses: ['Active', 'In Progress', 'Blocked', 'Hold', 'Future', 'Completed'],
 	completionStatus: 'Completed',
 	quickActions: { startStatus: 'In Progress', blockStatus: 'Blocked', holdStatus: 'Hold' },
+	futureStatus: 'Future',
 };
 
 describe('buildStatusPolicy', () => {
@@ -17,6 +18,7 @@ describe('buildStatusPolicy', () => {
 		expect(policy.start).toBe('In Progress');
 		expect(policy.block).toBe('Blocked');
 		expect(policy.hold).toBe('Hold');
+		expect(policy.future).toBe('Future');
 	});
 
 	it('takes the first status as the initial one', () => {
@@ -82,6 +84,32 @@ describe('buildStatusPolicy', () => {
 		});
 	});
 
+	describe('future — absence is a value, not a fallback', () => {
+		it('is null when the vault has no Future status', () => {
+			// Same load-bearing case as hold: Future propagates down dependency
+			// edges, so a bogus fallback would mark the whole graph Future.
+			expect(buildStatusPolicy({ statuses: ['Active', 'Completed'] }).future).toBeNull();
+		});
+
+		it('is null when the configured name is no longer in the list', () => {
+			const policy = buildStatusPolicy({ statuses: ['Active'], futureStatus: 'Later' });
+
+			expect(policy.future).toBeNull();
+		});
+
+		it('honours a renamed future status', () => {
+			const policy = buildStatusPolicy({ statuses: ['Active', 'Later'], futureStatus: 'Later' });
+
+			expect(policy.future).toBe('Later');
+		});
+
+		it('never resolves future to the first status', () => {
+			for (const statuses of [['Active'], ['Active', 'Done'], ['Todo', 'Doing', 'Done']]) {
+				expect(buildStatusPolicy({ statuses }).future).toBeNull();
+			}
+		});
+	});
+
 	describe('isComplete / isSystem', () => {
 		it('matches the resolved completion status, not the literal "Completed"', () => {
 			const policy = buildStatusPolicy({ statuses: ['Active', 'Shipped'], completionStatus: 'Shipped' });
@@ -100,6 +128,7 @@ describe('buildStatusPolicy', () => {
 				expect(policy.initial).toBe('Active');
 				expect(policy.completion).toBe('Active');
 				expect(policy.hold).toBeNull();
+				expect(policy.future).toBeNull();
 			}
 		});
 

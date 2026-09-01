@@ -3,7 +3,7 @@ import type { Task } from '../types';
 import { computeDerivedTaskState } from './taskDerivedState';
 import { buildTaskJsonDocument } from './taskJsonExport';
 
-const STATUSES = { blockStatus: 'Blocked', holdStatus: 'Hold' };
+const STATUSES = { blockStatus: 'Blocked', holdStatus: 'Hold', futureStatus: 'Future' };
 
 function makeTask(overrides: Partial<Task> = {}): Task {
 	return {
@@ -89,7 +89,7 @@ describe('computeDerivedTaskState — impediment', () => {
 		const tasks = chain('Escalated');
 		const derived = computeDerivedTaskState({
 			allTasks: tasks,
-			statuses: { blockStatus: 'Escalated', holdStatus: 'Parked' },
+			statuses: { blockStatus: 'Escalated', holdStatus: 'Parked', futureStatus: 'Future' },
 		});
 
 		expect(derived.get('T/b.md')?.impeded).toBe('Escalated');
@@ -100,7 +100,39 @@ describe('computeDerivedTaskState — impediment', () => {
 	it('derives nothing from Hold when the vault has no Hold status', () => {
 		const derived = computeDerivedTaskState({
 			allTasks: chain('Hold'),
-			statuses: { blockStatus: 'Blocked', holdStatus: null },
+			statuses: { blockStatus: 'Blocked', holdStatus: null, futureStatus: 'Future' },
+		});
+
+		expect(derived.get('T/b.md')?.impeded).toBeUndefined();
+	});
+
+	// Taylor, 2026-08-31: "Future should probably cascade down (ensure our export
+	// handles this)". The export is the whole point — a work AI reading
+	// `status: Active` on a task queued behind unscheduled work will happily tell
+	// you to start it today.
+	it('carries Future downstream as the weakest signal', () => {
+		const derived = computeDerivedTaskState({ allTasks: chain('Future'), statuses: STATUSES });
+
+		expect(derived.get('T/b.md')?.impeded).toBe('Future');
+		expect(derived.get('T/b.md')?.impeded_by).toEqual(['Alpha']);
+		expect(derived.get('T/c.md')?.impeded).toBe('Future');
+	});
+
+	it('prefers Hold over Future where both reach the same task', () => {
+		const future = makeTask({ id: 'f', path: 'T/f.md', name: 'Later', status: 'Future' });
+		const held = makeTask({ id: 'h', path: 'T/h.md', name: 'Held', status: 'Hold' });
+		const target = makeTask({ id: 't', path: 'T/t.md', name: 'Target', depends_on: ['T/f.md', 'T/h.md'] });
+
+		const derived = computeDerivedTaskState({ allTasks: [future, held, target], statuses: STATUSES });
+
+		expect(derived.get('T/t.md')?.impeded).toBe('Hold');
+		expect(derived.get('T/t.md')?.impeded_by).toEqual(['Held']);
+	});
+
+	it('derives nothing from Future when the vault has no Future status', () => {
+		const derived = computeDerivedTaskState({
+			allTasks: chain('Future'),
+			statuses: { blockStatus: 'Blocked', holdStatus: 'Hold', futureStatus: null },
 		});
 
 		expect(derived.get('T/b.md')?.impeded).toBeUndefined();

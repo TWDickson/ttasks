@@ -41,6 +41,7 @@ import {
 export interface StatusPolicySettings {
 	statuses?: string[] | null;
 	completionStatus?: string | null;
+	futureStatus?: string | null;
 	quickActions?: {
 		startStatus?: string | null;
 		blockStatus?: string | null;
@@ -72,6 +73,14 @@ export interface StatusPolicy {
 	 * the type. See `resolveOptionalStatus`.
 	 */
 	readonly hold: string | null;
+	/**
+	 * The status meaning "not near-term yet", or `null` when the vault has none.
+	 *
+	 * Nullable for the same reason as `hold`, and the consequence is the same
+	 * shape: this status propagates down dependency edges, so resolving a missing
+	 * one to the first configured status would mark the entire graph Future.
+	 */
+	readonly future: string | null;
 	/** Whether a status means the task is complete. */
 	isComplete(status: string): boolean;
 	/**
@@ -100,6 +109,7 @@ export function buildStatusPolicy(settings: StatusPolicySettings | null | undefi
 	// sentinel a blank setting uses. Normalise it to null so the absence is a
 	// value callers can't confuse with a real status name.
 	const hold = resolveOptionalStatus(all, quickActions.holdStatus, DEFAULT_SETTINGS.quickActions.holdStatus) || null;
+	const future = resolveOptionalStatus(all, settings?.futureStatus, DEFAULT_SETTINGS.futureStatus) || null;
 
 	return {
 		all,
@@ -108,6 +118,7 @@ export function buildStatusPolicy(settings: StatusPolicySettings | null | undefi
 		start,
 		block,
 		hold,
+		future,
 		isComplete: (status) => status === completion,
 		isSystem: (status) => status === completion,
 	};

@@ -71,6 +71,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	hiddenBuiltinViews: [],
 	statuses: DEFAULT_STATUSES,
 	completionStatus: 'Completed',
+	futureStatus: 'Future',
 	// Theme swatch values, never raw hex — hex is reserved for colours a user picked
 	// from the custom colour input, and the settings UI decides "custom vs swatch" by
 	// comparing against THEME_SWATCHES. Every shipped status is pinned so none of them
@@ -260,6 +261,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		hiddenBuiltinViews: [...(settings.hiddenBuiltinViews ?? [])],
 		statuses: [...settings.statuses],
 		completionStatus: settings.completionStatus,
+		futureStatus: settings.futureStatus,
 		statusColors: { ...settings.statusColors },
 		areas: [...settings.areas],
 		areaColors: { ...settings.areaColors },
@@ -635,6 +637,8 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 
 	const completionStatus = asString(root.completionStatus);
 	if (completionStatus !== null) target.completionStatus = completionStatus;
+	const futureStatus = asString(root.futureStatus);
+	if (futureStatus !== null) target.futureStatus = futureStatus;
 
 	const statusColors = asRecord(root.statusColors);
 	if (statusColors !== null) {
@@ -908,6 +912,7 @@ export function normalizeSettingsFromSources(sources: unknown[]): TTasksSettings
 	merged.captureSourceDefaultDefaults = normalizeCaptureSourceDefaults(merged.captureSourceDefaultDefaults);
 	merged.statuses = normalizeStatuses(merged.statuses);
 	merged.completionStatus = resolveCompletionStatus(merged.statuses, merged.completionStatus);
+	merged.futureStatus = resolveOptionalStatus(merged.statuses, merged.futureStatus, DEFAULT_SETTINGS.futureStatus);
 	merged.quickActions.startStatus = resolveConfiguredStatus(merged.statuses, merged.quickActions.startStatus, DEFAULT_SETTINGS.quickActions.startStatus);
 	merged.quickActions.blockStatus = resolveConfiguredStatus(merged.statuses, merged.quickActions.blockStatus, DEFAULT_SETTINGS.quickActions.blockStatus);
 	merged.quickActions.holdStatus = resolveOptionalStatus(merged.statuses, merged.quickActions.holdStatus, DEFAULT_SETTINGS.quickActions.holdStatus);

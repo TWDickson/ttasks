@@ -275,6 +275,7 @@ async function saveManagedList(params: SaveManagedListParams): Promise<void> {
 	const nextValues = validation.values;
 	const renameMappings = getRenameMappings(items);
 	const currentCompletionStatus = plugin.settings.completionStatus;
+	const currentFutureStatus = plugin.settings.futureStatus;
 	const removedValues = previousValues.filter(
 		(value) => !nextValues.includes(value) && !Object.prototype.hasOwnProperty.call(renameMappings, value)
 	);
@@ -306,6 +307,12 @@ async function saveManagedList(params: SaveManagedListParams): Promise<void> {
 	config.applyColors(validation.colors);
 	if (config.field === 'status') {
 		plugin.settings.completionStatus = renameMappings[currentCompletionStatus] ?? currentCompletionStatus;
+		// Follow a rename rather than letting normalization drop the pointer: an
+		// unresolvable futureStatus resolves to '' and silently switches the
+		// Future cascade off, which looks like the feature breaking.
+		if (currentFutureStatus) {
+			plugin.settings.futureStatus = renameMappings[currentFutureStatus] ?? currentFutureStatus;
+		}
 	}
 	await plugin.saveSettings();
 

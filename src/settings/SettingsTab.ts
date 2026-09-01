@@ -135,6 +135,19 @@ export class TTasksSettingTab extends PluginSettingTab {
 				});
 			});
 
+		new Setting(classificationEl)
+			.setName('Future status')
+			.setDesc('Tasks with this status are not near-term yet, and that propagates: anything depending on one reads "<status> upstream". Leave unset to switch the cascade off.')
+			.addDropdown(dd => {
+				dd.addOption('', '— none —');
+				for (const s of statuses) dd.addOption(s, s);
+				dd.setValue(statuses.includes(this.plugin.settings.futureStatus) ? this.plugin.settings.futureStatus : '');
+				dd.onChange(async (v) => {
+					this.plugin.settings.futureStatus = v;
+					await this.plugin.saveSettings();
+				});
+			});
+
 		renderManagedListSettingSection({
 			containerEl: classificationEl,
 			plugin: this.plugin,

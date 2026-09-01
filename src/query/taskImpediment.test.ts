@@ -4,7 +4,7 @@ import { buildImpedimentBadges, computeImpediments, describeImpediment, isUpstre
 import { buildTaskRefIndex } from '../utils/taskRef';
 import { buildBadgePalette } from '../utils/badgePalette';
 
-const STATUSES: ImpedimentStatuses = { blockStatus: 'Blocked', holdStatus: 'Hold' };
+const STATUSES: ImpedimentStatuses = { blockStatus: 'Blocked', holdStatus: 'Hold', futureStatus: 'Future' };
 
 function makeTask(overrides: Partial<Task> & { path: string }): Task {
 	return {
@@ -228,6 +228,99 @@ describe('computeImpediments', () => {
 		});
 	});
 
+	describe('Future propagation', () => {
+		it('cascades Future down the whole dependency chain', () => {
+			const result = computeImpediments(chain('Future'), STATUSES);
+
+			expect(result.get('a.md')).toMatchObject({ kind: 'future', source: 'self' });
+			expect(result.get('b.md')).toMatchObject({ kind: 'future', source: 'upstream' });
+			expect(result.get('c.md')).toMatchObject({ kind: 'future', source: 'upstream' });
+		});
+
+		it('loses to Hold where both reach the same task', () => {
+			const tasks = [
+				makeTask({ path: 'future.md', status: 'Future' }),
+				makeTask({ path: 'held.md', status: 'Hold' }),
+				makeTask({ path: 'join.md', depends_on: ['future.md', 'held.md'] }),
+			];
+
+			expect(computeImpediments(tasks, STATUSES).get('join.md')).toMatchObject({
+				kind: 'held',
+				causes: ['held.md'],
+			});
+		});
+
+		it('loses to Blocked where both reach the same task', () => {
+			const tasks = [
+				makeTask({ path: 'future.md', status: 'Future' }),
+				makeTask({ path: 'blocked.md', status: 'Blocked' }),
+				makeTask({ path: 'join.md', depends_on: ['future.md', 'blocked.md'] }),
+			];
+
+			expect(computeImpediments(tasks, STATUSES).get('join.md')).toMatchObject({
+				kind: 'blocked',
+				causes: ['blocked.md'],
+			});
+		});
+
+		it('resolves the same regardless of which order the dependencies are listed', () => {
+			const forward = [
+				makeTask({ path: 'future.md', status: 'Future' }),
+				makeTask({ path: 'held.md', status: 'Hold' }),
+				makeTask({ path: 'join.md', depends_on: ['future.md', 'held.md'] }),
+			];
+			const reversed = [
+				makeTask({ path: 'future.md', status: 'Future' }),
+				makeTask({ path: 'held.md', status: 'Hold' }),
+				makeTask({ path: 'join.md', depends_on: ['held.md', 'future.md'] }),
+			];
+
+			expect(computeImpediments(forward, STATUSES).get('join.md'))
+				.toEqual(computeImpediments(reversed, STATUSES).get('join.md'));
+		});
+
+		it('stops at a completed Future task', () => {
+			const tasks = [
+				makeTask({ path: 'a.md', status: 'Future', is_complete: true }),
+				makeTask({ path: 'b.md', depends_on: ['a.md'] }),
+			];
+
+			expect(computeImpediments(tasks, STATUSES).size).toBe(0);
+		});
+
+		it('an unconfigured future status cascades nothing', () => {
+			// Same guard as Hold: a vault with no Future status must not have every
+			// task read Future-upstream.
+			const tasks = [
+				makeTask({ path: 'a.md', status: 'Future' }),
+				makeTask({ path: 'b.md', depends_on: ['a.md'] }),
+			];
+
+			expect(computeImpediments(tasks, { blockStatus: 'Blocked', holdStatus: 'Hold', futureStatus: null }).size).toBe(0);
+		});
+
+		it('badges the downstream task with the configured status name', () => {
+			const tasks = [
+				makeTask({ path: 'a.md', name: 'Phase 2 kickoff', status: 'Later' }),
+				makeTask({ path: 'b.md', depends_on: ['a.md'] }),
+			];
+			const statuses: ImpedimentStatuses = { blockStatus: 'Blocked', holdStatus: 'Hold', futureStatus: 'Later' };
+			const impediments = computeImpediments(tasks, statuses);
+
+			const badges = buildImpedimentBadges(
+				impediments,
+				statuses,
+				buildTaskRefIndex(tasks),
+				buildBadgePalette({}),
+			);
+
+			expect(badges.get('b.md')?.label).toBe('Later upstream');
+			expect(badges.get('b.md')?.tooltip).toContain('Phase 2 kickoff');
+			// The task that *is* Future says so in its own status field.
+			expect(badges.has('a.md')).toBe(false);
+		});
+	});
+
 	describe('status configuration', () => {
 		it('honours renamed statuses', () => {
 			const tasks = [
@@ -235,7 +328,7 @@ describe('computeImpediments', () => {
 				makeTask({ path: 'b.md', depends_on: ['a.md'] }),
 			];
 
-			const result = computeImpediments(tasks, { blockStatus: 'Escalated', holdStatus: 'Parked' });
+			const result = computeImpediments(tasks, { blockStatus: 'Escalated', holdStatus: 'Parked', futureStatus: 'Future' });
 			expect(result.get('b.md')).toMatchObject({ kind: 'blocked' });
 		});
 
@@ -247,12 +340,12 @@ describe('computeImpediments', () => {
 				makeTask({ path: 'b.md', depends_on: ['a.md'] }),
 			];
 
-			expect(computeImpediments(tasks, { blockStatus: 'Blocked', holdStatus: '' }).size).toBe(0);
+			expect(computeImpediments(tasks, { blockStatus: 'Blocked', holdStatus: '', futureStatus: 'Future' }).size).toBe(0);
 		});
 
 		it('does not treat an empty status string as a match', () => {
 			const tasks = [makeTask({ path: 'a.md', status: '' })];
-			expect(computeImpediments(tasks, { blockStatus: '', holdStatus: '' }).size).toBe(0);
+			expect(computeImpediments(tasks, { blockStatus: '', holdStatus: '', futureStatus: 'Future' }).size).toBe(0);
 		});
 	});
 
@@ -294,7 +387,7 @@ describe('describeImpediment', () => {
 	it('names the blocking status from settings, not a hardcoded string', () => {
 		const described = describeImpediment(
 			{ kind: 'blocked', source: 'upstream', causes: ['Tasks/a.md'] },
-			{ blockStatus: 'Escalated', holdStatus: 'Parked' },
+			{ blockStatus: 'Escalated', holdStatus: 'Parked', futureStatus: 'Future' },
 			names,
 		);
 
