@@ -238,8 +238,11 @@ export function buildHybridTimeline(
 		const leftPercent  = (leftDays / spanDays) * 100;
 		const widthPercent = Math.max(2.4, (durationDays / spanDays) * 100);
 
-		let localRow = 0;
-		while (localRow < groupRows.length && leftDays <= groupRows[localRow]) localRow += 1;
+		// One row per task, rather than first-fit packing several non-overlapping
+		// bars onto one row. The pinned name column names a *row*, so a packed row
+		// holding three tasks has nothing it can honestly say. Costs vertical
+		// space; buys a chart you can read left-to-right like a gantt.
+		const localRow = groupRows.length;
 		groupRows[localRow] = leftDays + durationDays;
 		definedRowEndsByGroup.set(group.key, groupRows);
 
@@ -304,8 +307,8 @@ export function buildHybridTimeline(
 			underGroupLabels.set(group.key, group.label);
 		}
 		const groupRows = underRowEndsByGroup.get(group.key) ?? [];
-		let localRow = 0;
-		while (localRow < groupRows.length && leftPercent <= groupRows[localRow]) localRow += 1;
+		// One row per task here too — same reason as the defined track.
+		const localRow = groupRows.length;
 		groupRows[localRow] = leftPercent + widthPercent + 1.25;
 		underRowEndsByGroup.set(group.key, groupRows);
 

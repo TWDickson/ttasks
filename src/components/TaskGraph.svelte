@@ -64,7 +64,13 @@
 	const HYBRID_ROW_HEIGHT = 34;
 	const HYBRID_ROW_GAP = 8;
 	const HYBRID_TRACK_PADDING = 8;
-	const HYBRID_SIDEBAR_WIDTH = 110; // must match .tt-hybrid-lane-sidebar width
+	/* Vertical room reserved above the first row when the tracks are grouped, so
+		a group's caption has somewhere to sit that isn't on top of the first bar
+		of that group. Zero when there's nothing to caption. */
+	const HYBRID_GROUP_LABEL_SPACE = 15;
+	const HYBRID_SIDEBAR_WIDTH = 220;
+	/* On a phone, 220px of name column leaves barely any chart. */
+	const HYBRID_SIDEBAR_WIDTH_NARROW = 124;
 	let graphMode: GraphMode = defaultGraphMode;
 	let appliedGraphMode: GraphMode = defaultGraphMode;
 	let lastGraphMode: GraphMode = defaultGraphMode;
@@ -382,18 +388,23 @@
 	]);
 	$: overviewRecurringHolidays = new Set<string>(holidayCalendar.recurringHolidays);
 	$: nonWorkingBands = buildTimelineNonWorkingBands(hybridTimeline.rangeStart, hybridTimeline.rangeEnd, overviewHolidayDates, overviewRecurringHolidays);
-	$: definedTrackHeightPx = Math.max(42, hybridTimeline.definedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.definedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
-	$: underdefinedTrackHeightPx = Math.max(42, hybridTimeline.underdefinedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.underdefinedRowCount - 1) * HYBRID_ROW_GAP + HYBRID_TRACK_PADDING * 2);
+	$: isGrouped = hybridTimeline.definedGroups.length > 1 || hybridTimeline.underdefinedGroups.length > 1;
+	$: trackPaddingPx = HYBRID_TRACK_PADDING + (isGrouped ? HYBRID_GROUP_LABEL_SPACE : 0);
+	$: definedTrackHeightPx = Math.max(42, hybridTimeline.definedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.definedRowCount - 1) * HYBRID_ROW_GAP + trackPaddingPx + HYBRID_TRACK_PADDING);
+	$: underdefinedTrackHeightPx = Math.max(42, hybridTimeline.underdefinedRowCount * HYBRID_ROW_HEIGHT + Math.max(0, hybridTimeline.underdefinedRowCount - 1) * HYBRID_ROW_GAP + trackPaddingPx + HYBRID_TRACK_PADDING);
 	$: definedStatusSummary = summarizeByStatus(hybridTimeline.defined.map((item) => item.task));
 	$: underdefinedStatusSummary = summarizeByStatus(hybridTimeline.underdefined.map((item) => item.task));
-	$: definedLaneHeaders = buildLaneHeaders(hybridTimeline.definedGroups, HYBRID_ROW_HEIGHT, HYBRID_ROW_GAP, HYBRID_TRACK_PADDING);
-	$: underdefinedLaneHeaders = buildLaneHeaders(hybridTimeline.underdefinedGroups, HYBRID_ROW_HEIGHT, HYBRID_ROW_GAP, HYBRID_TRACK_PADDING);
-	// When either track shows a lane sidebar, BOTH tracks and the axis reserve
-	// the same gutter — otherwise their percentage bases differ and the axis
-	// "Today" line lands offset from the tracks' today band.
-	$: overviewSidebarPx = definedLaneHeaders.length > 1 || underdefinedLaneHeaders.length > 1
-		? HYBRID_SIDEBAR_WIDTH
-		: 0;
+	$: definedLaneHeaders = buildLaneHeaders(hybridTimeline.definedGroups, HYBRID_ROW_HEIGHT, HYBRID_ROW_GAP, trackPaddingPx);
+	$: underdefinedLaneHeaders = buildLaneHeaders(hybridTimeline.underdefinedGroups, HYBRID_ROW_HEIGHT, HYBRID_ROW_GAP, trackPaddingPx);
+	// The name column is always present now — it's the only place a task's title
+	// is guaranteed readable — so the axis and both tracks always reserve the same
+	// gutter. They must agree: a mismatch shifts their percentage bases apart and
+	// the axis "Today" line lands offset from the tracks' today band. That's why
+	// the width is applied inline from this one value rather than set in CSS,
+	// where a media query could move it without the axis noticing.
+	$: overviewSidebarPx = overviewViewportWidth > 0 && overviewViewportWidth < 560
+		? HYBRID_SIDEBAR_WIDTH_NARROW
+		: HYBRID_SIDEBAR_WIDTH;
 
 	$: if (graphMode !== lastGraphMode) {
 		shouldAutoFocusOverview = graphMode === 'overview';
@@ -883,25 +894,31 @@
 	}
 
 	function groupBandStyle(band: { startRow: number; endRow: number }): string {
-		const top = HYBRID_TRACK_PADDING + band.startRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
+		const top = trackPaddingPx + band.startRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
 		const height = (band.endRow - band.startRow + 1) * HYBRID_ROW_HEIGHT + Math.max(0, band.endRow - band.startRow) * HYBRID_ROW_GAP;
 		return `top:${top}px;height:${height}px;`;
 	}
 
 	function groupLabelStyle(band: { startRow: number }): string {
-		const top = HYBRID_TRACK_PADDING + band.startRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
-		return `top:${top}px;`;
+		const top = trackPaddingPx + band.startRow * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
+		return `top:${top - HYBRID_GROUP_LABEL_SPACE}px;`;
+	}
+
+	/** A name-column row sits at the same vertical offset as its bar. */
+	function nameRowStyle(item: { row: number; task: Task }): string {
+		const rowTop = trackPaddingPx + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
+		return `top:${rowTop}px;height:${HYBRID_ROW_HEIGHT}px;--tt-bar-accent:${palette.statusAccent(item.task.status)};`;
 	}
 
 	function definedBarStyle(item: { leftPercent: number; widthPercent: number; row: number; task: Task }): string {
 		const accent = palette.statusAccent(item.task.status);
-		const rowTop = HYBRID_TRACK_PADDING + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
+		const rowTop = trackPaddingPx + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
 		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;top:${rowTop}px;--tt-bar-accent:${accent};`;
 	}
 
 	function underdefinedCardStyle(item: { leftPercent: number; widthPercent: number; row: number; task: Task }): string {
 		const accent = palette.statusAccent(item.task.status);
-		const rowTop = HYBRID_TRACK_PADDING + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
+		const rowTop = trackPaddingPx + item.row * (HYBRID_ROW_HEIGHT + HYBRID_ROW_GAP);
 		return `left:${item.leftPercent.toFixed(3)}%;width:${item.widthPercent.toFixed(3)}%;top:${rowTop}px;--tt-bar-accent:${accent};`;
 	}
 
@@ -1266,25 +1283,45 @@
 							</div>
 						</div>
 						<div class="tt-hybrid-track-body">
-							<!-- Lane sidebar: named project headers positioned at each band's row -->
-							{#if overviewSidebarPx > 0}
-								<div class="tt-hybrid-lane-sidebar" style={`height:${definedTrackHeightPx}px;transform:translateX(${overviewScrollLeft}px);`} aria-hidden="true">
-									{#each definedLaneHeaders as header (header.key)}
-										<div
-											class="tt-hybrid-lane-header"
-											style={`top:${header.topPx}px;height:${header.heightPx}px;`}
-										>
-											<span class="tt-lane-title">{header.label}</span>
-											<span class="tt-lane-count">{header.taskCount}</span>
-										</div>
-									{/each}
-								</div>
-							{/if}
+							<!-- Pinned name column. `transform: translateX(scrollLeft)` rather
+								than position:sticky — the whole shell is one wide scrolling
+								box, and sticky inside it has no scrollport to stick to. -->
+							<div class="tt-hybrid-lane-sidebar" style={`width:${overviewSidebarPx}px;height:${definedTrackHeightPx}px;transform:translateX(${overviewScrollLeft}px);`}>
+								{#each definedLaneHeaders as header (header.key)}
+									<div class="tt-hybrid-lane-group" style={`top:${header.topPx}px;height:${header.heightPx}px;`} aria-hidden="true"></div>
+								{/each}
+								{#each hybridTimeline.defined as item (item.path)}
+									<button
+										type="button"
+										class="tt-hybrid-name"
+										class:is-active={$activeTaskPath === item.path}
+										class:is-done={item.task.is_complete}
+										style={nameRowStyle(item)}
+										title={item.task.name}
+										on:click={() => onOpen(item.path)}
+										on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
+										on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
+									>
+										<span class="tt-title tt-title-sm tt-truncate">{item.task.name}</span>
+									</button>
+								{/each}
+							</div>
 							<div class="tt-hybrid-track-canvas" style={`height:${definedTrackHeightPx}px;`}>
 								<div class="tt-hybrid-today-band" style={`left:${todayPercent.toFixed(3)}%;width:${dayWidthPercent.toFixed(3)}%;`}></div>
 								{#each hybridTimeline.definedGroups as group (group.key)}
 									<div class="tt-hybrid-group-band" style={groupBandStyle(group)}></div>
 								{/each}
+								{#if hybridTimeline.definedGroups.length > 1}
+									{#each hybridTimeline.definedGroups as group (`label-${group.key}`)}
+										<!-- The group's name rides the left edge of the viewport rather
+											than the start of the band, so it stays readable at any
+											horizontal scroll position. -->
+										<div
+											class="tt-hybrid-group-label"
+											style={`${groupLabelStyle(group)}transform:translateX(${overviewScrollLeft}px);`}
+										>{group.label}</div>
+									{/each}
+								{/if}
 								{#each visibleDefined as item (item.path)}
 									<button
 										type="button"
@@ -1300,9 +1337,9 @@
 										on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(item.path); } }}
 										on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
 										on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
-									>
-										<span class="tt-overview-title tt-title tt-title-sm tt-truncate">{item.task.name}</span>
-									</button>
+									><!-- No label inside the bar: the pinned name column carries the
+										title, and a two-day bar could only ever render "Re…". The
+										accessible name lives on aria-label above. --></button>
 								{/each}
 							</div>
 						</div>
@@ -1320,24 +1357,42 @@
 							</div>
 						</div>
 						<div class="tt-hybrid-track-body">
-							{#if overviewSidebarPx > 0}
-								<div class="tt-hybrid-lane-sidebar" style={`height:${underdefinedTrackHeightPx}px;transform:translateX(${overviewScrollLeft}px);`} aria-hidden="true">
-									{#each underdefinedLaneHeaders as header (header.key)}
-										<div
-											class="tt-hybrid-lane-header"
-											style={`top:${header.topPx}px;height:${header.heightPx}px;`}
-										>
-											<span class="tt-lane-title">{header.label}</span>
-											<span class="tt-lane-count">{header.taskCount}</span>
-										</div>
-									{/each}
-								</div>
-							{/if}
+							<!-- Pinned name column. `transform: translateX(scrollLeft)` rather
+								than position:sticky — the whole shell is one wide scrolling
+								box, and sticky inside it has no scrollport to stick to. -->
+							<div class="tt-hybrid-lane-sidebar" style={`width:${overviewSidebarPx}px;height:${underdefinedTrackHeightPx}px;transform:translateX(${overviewScrollLeft}px);`}>
+								{#each underdefinedLaneHeaders as header (header.key)}
+									<div class="tt-hybrid-lane-group" style={`top:${header.topPx}px;height:${header.heightPx}px;`} aria-hidden="true"></div>
+								{/each}
+								{#each hybridTimeline.underdefined as item (item.path)}
+									<button
+										type="button"
+										class="tt-hybrid-name"
+										class:is-active={$activeTaskPath === item.path}
+										class:is-done={item.task.is_complete}
+										style={nameRowStyle(item)}
+										title={item.task.name}
+										on:click={() => onOpen(item.path)}
+										on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
+										on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
+									>
+										<span class="tt-title tt-title-sm tt-truncate">{item.task.name}</span>
+									</button>
+								{/each}
+							</div>
 							<div class="tt-hybrid-track-canvas" style={`height:${underdefinedTrackHeightPx}px;`}>
 								<div class="tt-hybrid-today-band" style={`left:${todayPercent.toFixed(3)}%;width:${dayWidthPercent.toFixed(3)}%;`}></div>
 								{#each hybridTimeline.underdefinedGroups as group (group.key)}
 									<div class="tt-hybrid-group-band" style={groupBandStyle(group)}></div>
 								{/each}
+								{#if hybridTimeline.underdefinedGroups.length > 1}
+									{#each hybridTimeline.underdefinedGroups as group (`label-${group.key}`)}
+										<div
+											class="tt-hybrid-group-label"
+											style={`${groupLabelStyle(group)}transform:translateX(${overviewScrollLeft}px);`}
+										>{group.label}</div>
+									{/each}
+								{/if}
 								{#each visibleUnderdefined as item (item.path)}
 									<button
 										type="button"
@@ -1353,7 +1408,6 @@
 										on:mouseenter={(event) => showTaskHoverPreview(event, item.task)}
 										on:contextmenu={(event) => handleTaskContextMenu(event, item.task)}
 									>
-										<span class="tt-hybrid-underdefined-name tt-title tt-title-sm tt-truncate">{item.task.name}</span>
 										<span class="tt-hybrid-underdefined-anchor">after {anchorLabel(item.anchorPath)}</span>
 									</button>
 								{/each}
@@ -1780,7 +1834,7 @@
 	}
 
 	.tt-hybrid-lane-sidebar {
-		width: 110px;
+		/* Width comes from overviewSidebarPx inline — see the comment there. */
 		flex-shrink: 0;
 		position: relative;
 		border-right: 1px solid var(--background-modifier-border);
@@ -1790,16 +1844,70 @@
 		z-index: 4;
 	}
 
-	.tt-hybrid-lane-header {
+	/* Group banding behind the names, so a project's rows read as one block. */
+	.tt-hybrid-lane-group {
+		position: absolute;
+		left: 0;
+		right: 0;
+		border-bottom: 1px dashed color-mix(in srgb, var(--background-modifier-border) 60%, transparent);
+		pointer-events: none;
+	}
+
+	/* One row per task, vertically aligned with that task's bar. */
+	.tt-hybrid-name {
 		position: absolute;
 		left: 0;
 		right: 0;
 		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		padding: 0 8px;
-		border-bottom: 1px dashed color-mix(in srgb, var(--background-modifier-border) 60%, transparent);
-		overflow: hidden;
+		align-items: center;
+		justify-content: flex-start;
+		gap: 6px;
+		padding: 0 8px 0 10px;
+		/* The colour spine, same idea as a list row's left edge. */
+		border-left: 3px solid color-mix(in srgb, var(--tt-bar-accent) 70%, transparent);
+		background: none;
+		border-top: none;
+		border-right: none;
+		border-bottom: none;
+		border-radius: 0;
+		box-shadow: none;
+		color: var(--text-normal);
+		font-size: 0.78rem;
+		text-align: left;
+		/* Themes give bare <button> a fixed height; these rows are positioned. */
+		height: auto;
+		cursor: pointer;
+	}
+
+	.tt-hybrid-name:hover {
+		background: var(--background-modifier-hover);
+	}
+
+	.tt-hybrid-name.is-active {
+		background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+	}
+
+	.tt-hybrid-name.is-done {
+		opacity: 0.5;
+		text-decoration: line-through;
+		text-decoration-color: color-mix(in srgb, var(--text-muted) 72%, transparent);
+	}
+
+	/* Pinned to the viewport's left edge inside the canvas, so a group stays
+		named however far the chart is scrolled. */
+	.tt-hybrid-group-label {
+		position: absolute;
+		left: 8px;
+		z-index: 1;
+		padding: 1px 6px;
+		border-radius: var(--radius-s, 4px);
+		background: color-mix(in srgb, var(--background-primary) 82%, transparent);
+		font-size: 0.62rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-faint);
+		pointer-events: none;
 	}
 
 	.tt-lane-title {
@@ -1818,15 +1926,21 @@
 		color: var(--text-faint);
 	}
 
+	/* Only the rounding changes when a lane sidebar precedes the canvas — the
+		sizing below is unconditional. It used to live here, which meant that with
+		a single lane (grouping "None", or one project) the sidebar wasn't
+		rendered, the canvas had no flex-grow inside its flex row, and it
+		collapsed to its 2px of border: every bar positioned at a percentage of
+		nothing, and the whole timeline drew blank. */
 	.tt-hybrid-lane-sidebar + .tt-hybrid-track-canvas {
 		border-radius: 0 var(--radius-m, 8px) var(--radius-m, 8px) 0;
 		border-left: none;
-		flex: 1;
-		min-width: 0;
 	}
 
 	.tt-hybrid-track-canvas {
 		position: relative;
+		flex: 1;
+		min-width: 0;
 		border-radius: var(--radius-m, 8px);
 		border: var(--border-width, 1px) solid var(--background-modifier-border);
 		background: repeating-linear-gradient(
@@ -1856,13 +1970,6 @@
 		align-items: flex-start;
 		flex-direction: column;
 		gap: 1px;
-	}
-
-	.tt-hybrid-underdefined-name {
-		/* Two lines of text inside a short bar — tighter than the default 1.4. */
-		line-height: 1.05;
-		display: block;
-		width: 100%;
 	}
 
 	.tt-hybrid-underdefined-anchor {
@@ -2003,20 +2110,9 @@
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 38%, transparent), 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 18%, transparent);
 	}
 
-	.tt-overview-title {
-		display: block;
-		width: 100%;
-	}
-
 	.tt-overview-bar.is-done {
 		opacity: 0.46;
 		filter: saturate(0.56) contrast(0.92);
-	}
-
-	.tt-overview-bar.is-done .tt-overview-title,
-	.tt-overview-bar.is-done .tt-hybrid-underdefined-name {
-		text-decoration: line-through;
-		text-decoration-color: color-mix(in srgb, var(--text-muted) 72%, transparent);
 	}
 
 	.tt-overview-bar.is-inferred {
