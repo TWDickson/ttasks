@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { flattenWithDepth, buildVisibleItems, getParentPaths } from './taskHierarchy';
+import { flattenWithDepth, buildVisibleItems, getParentPaths, collectDescendantPaths } from './taskHierarchy';
 import type { Task } from '../types';
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
@@ -177,5 +177,46 @@ describe('getParentPaths', () => {
 
 	it('returns empty set for an empty list', () => {
 		expect(getParentPaths([]).size).toBe(0);
+	});
+});
+
+describe('collectDescendantPaths', () => {
+	it('collects children and grandchildren, excluding the root', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/root.md', type: 'project' }),
+			makeTask({ path: 'Tasks/mid.md', type: 'project', parent_task: 'Tasks/root' }),
+			makeTask({ path: 'Tasks/leaf.md', parent_task: 'Tasks/mid' }),
+			makeTask({ path: 'Tasks/elsewhere.md' }),
+		];
+
+		const descendants = collectDescendantPaths(tasks, 'Tasks/root.md');
+
+		expect([...descendants].sort()).toEqual(['Tasks/leaf.md', 'Tasks/mid.md']);
+		expect(descendants.has('Tasks/root.md')).toBe(false);
+	});
+
+	it('matches parents whether or not the link carries .md', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/root.md', type: 'project' }),
+			makeTask({ path: 'Tasks/bare.md', parent_task: 'Tasks/root' }),
+			makeTask({ path: 'Tasks/dotted.md', parent_task: 'Tasks/root.md' }),
+		];
+
+		expect(collectDescendantPaths(tasks, 'Tasks/root.md').size).toBe(2);
+	});
+
+	it('terminates on a pre-existing parent cycle', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/a.md', type: 'project', parent_task: 'Tasks/b' }),
+			makeTask({ path: 'Tasks/b.md', type: 'project', parent_task: 'Tasks/a' }),
+		];
+
+		// The walk must return rather than hang; a vault can already hold a cycle.
+		expect([...collectDescendantPaths(tasks, 'Tasks/a.md')].sort()).toEqual(['Tasks/a.md', 'Tasks/b.md']);
+	});
+
+	it('returns an empty set for a task with no children', () => {
+		const tasks = [makeTask({ path: 'Tasks/lonely.md' })];
+		expect(collectDescendantPaths(tasks, 'Tasks/lonely.md').size).toBe(0);
 	});
 });

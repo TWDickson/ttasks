@@ -107,3 +107,45 @@ export function getParentPaths(items: TaskWithDepth[]): Set<string> {
 	}
 	return parents;
 }
+
+/**
+ * Every task reachable *downward* from `rootPath` via `parent_task`. The root is
+ * absent from the result unless the data already contains a cycle that leads
+ * back to it — which is exactly when a picker most needs it excluded.
+ *
+ * Used to keep a parent picker from offering an option that would close a loop:
+ * a project can be nested under another project, and "A's parent is B, B's
+ * parent is A" has no root, so nothing in that cycle would render as a tree.
+ * `flattenWithDepth` survives it (there's a visited guard), but it survives it
+ * by dropping the pair to depth 0 — the structure the user asked for is silently
+ * not the structure they get. Cheaper to make the choice unavailable.
+ *
+ * Note the path convention mismatch this has to absorb: `Task.path` ends in
+ * `.md`, `Task.parent_task` does not.
+ */
+export function collectDescendantPaths(tasks: Task[], rootPath: string): Set<string> {
+	const childrenOf = new Map<string, Task[]>();
+	for (const task of tasks) {
+		const parentRaw = task.parent_task;
+		if (!parentRaw) continue;
+		const parentPath = parentRaw.endsWith('.md') ? parentRaw : `${parentRaw}.md`;
+		const list = childrenOf.get(parentPath) ?? [];
+		list.push(task);
+		childrenOf.set(parentPath, list);
+	}
+
+	const descendants = new Set<string>();
+	const queue = [rootPath];
+	while (queue.length > 0) {
+		const current = queue.shift()!;
+		for (const child of childrenOf.get(current) ?? []) {
+			// Guard against a pre-existing cycle in the data: a vault edited by hand
+			// (or by an older build) can already contain one, and this walk must
+			// terminate regardless.
+			if (descendants.has(child.path)) continue;
+			descendants.add(child.path);
+			queue.push(child.path);
+		}
+	}
+	return descendants;
+}

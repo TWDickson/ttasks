@@ -14,6 +14,7 @@
 	import type { FieldComponentProps } from '../schema/fieldAdapters';
 	import { deriveTaskDetailFieldProps } from './taskDetailFieldProps';
 	import { buildTaskRefIndex, resolveTaskRef } from '../utils/taskRef';
+	import { collectDescendantPaths } from '../store/taskHierarchy';
 	import { deriveTaskDetailOptionState } from './taskDetailOptions';
 	import { createTaskDetailSaveController, normalizeDateValue } from './taskDetailSaveController';
 	import { confirmModal } from '../modals/confirmModal';
@@ -400,8 +401,16 @@
 	$: completionStatus = getCompletionStatus();
 	$: blockStatus = plugin.statusPolicy.block;
 	$: showBlockedReason = isBlockedStatus(status, blockStatus);
+	// A project can itself sit under a project, so the picker has to exclude more
+	// than just self: anything already beneath this one would close a parent loop.
+	// For a plain task the descendant set is empty, so this costs it nothing.
+	$: parentCandidateExclusions = task
+		? collectDescendantPaths($tasks, task.path)
+		: new Set<string>();
 	$: parentProjectTasks = $tasks
-		.filter(t => t.type === 'project' && t.path !== task?.path)
+		.filter(t => t.type === 'project'
+			&& t.path !== task?.path
+			&& !parentCandidateExclusions.has(t.path))
 		.sort((a, b) => a.name.localeCompare(b.name));
 
 	function openParentProject(): void {
@@ -489,32 +498,33 @@
 			{/if}
 		</div>
 
-		{#if task.type === 'task'}
-			<div class="tt-field-group">
-				<span class="tt-label">Project</span>
-				<div class="tt-parent-task-row">
-					{#if parentTaskFieldProps}
-						<WikiLinkField
-							definition={parentTaskFieldProps.definition}
-							error={parentTaskFieldProps.error}
-							readonly={parentTaskFieldProps.readonly}
-							context={parentTaskFieldProps.context}
-							value={parent_task_path || ''}
-							options={parentProjectTasks}
-							onChange={onParentTaskFieldChange}
-						/>
-					{/if}
-					{#if parent_task_path}
-						<button
-							class="tt-parent-task-open"
-							title="Open parent project"
-							on:click={openParentProject}
-							aria-label="Open parent project"
-						><span use:icon={'arrow-up-right'}></span></button>
-					{/if}
-				</div>
+		<!-- Projects get this field too: sub-projects were always storable in
+			`parent_task` and the list view already nests them, but nothing exposed
+			the choice after creation. -->
+		<div class="tt-field-group">
+			<span class="tt-label">{task.type === 'project' ? 'Parent project' : 'Project'}</span>
+			<div class="tt-parent-task-row">
+				{#if parentTaskFieldProps}
+					<WikiLinkField
+						definition={parentTaskFieldProps.definition}
+						error={parentTaskFieldProps.error}
+						readonly={parentTaskFieldProps.readonly}
+						context={parentTaskFieldProps.context}
+						value={parent_task_path || ''}
+						options={parentProjectTasks}
+						onChange={onParentTaskFieldChange}
+					/>
+				{/if}
+				{#if parent_task_path}
+					<button
+						class="tt-parent-task-open"
+						title="Open parent project"
+						on:click={openParentProject}
+						aria-label="Open parent project"
+					><span use:icon={'arrow-up-right'}></span></button>
+				{/if}
 			</div>
-		{/if}
+		</div>
 
 		<!-- Priority chips -->
 		<div class="tt-field-group">
