@@ -24,8 +24,8 @@ narrative to `HISTORY.md` once the thread closes.
 
 | | |
 | --- | --- |
-| Version | `0.1.10` (GitHub release; not on the community list — deliberate) |
-| Tests | **1823 passing, 136 files** (`npm run check` = lint → build → test) |
+| Version | `0.1.11` (GitHub release; not on the community list — deliberate) |
+| Tests | **1856 passing, 137 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -145,6 +145,24 @@ log-partial-on-stop.
 
 ### 4. Graph polish
 
+- `[x]` **Timeline rendered blank with a single lane** — *(2026-08-31)* found
+  while working on the readability item below. `.tt-hybrid-track-canvas` only got
+  `flex: 1` from a sibling selector on the lane sidebar, which isn't rendered
+  when there's one lane — i.e. **grouping "None", the default**. The canvas
+  collapsed to its 2px of border and every bar sat at a percentage of nothing.
+  The bars were in the DOM the whole time, which is why nothing threw and the
+  rig's mount check stayed green. Sizing is unconditional now.
+- `[x]` **Gantt readability: pinned name column** — *(2026-08-31)* Taylor: *"long
+  running items have their titles displayed all the way to the right and it's
+  impossible to tell what it is without scrolling."* Names now live in a pinned
+  left column, one row per task, aligned with the bar and carrying the status
+  colour as a spine. Required dropping first-fit row packing — a packed row holds
+  several tasks and a name column can't label it honestly — so the track is
+  taller in exchange for being readable. Bars lost their in-bar titles (a two-day
+  bar could only ever render "Re…"). Column width comes from `overviewSidebarPx`
+  inline, **not** CSS: the axis reserves the same gutter, and a media query
+  moving one without the other offsets the "Today" line. 124px under a 560px
+  viewport.
 - `[~]` **GP5 — lane-header focus interaction** — the `+` add-subshape shipped
   (tap → add a task parented to the project, flush to the chip's bottom edge). A
   first rev made the header body a pin toggle that grew the pinned lane to reveal
@@ -177,10 +195,34 @@ log-partial-on-stop.
   nowhere to hint at the `#hash` syntax (it's on a `title` tooltip for now).
   Needs a taste call on the fix — give the search a `min-width` and let the
   selects shrink, move it to its own row, or make it an expanding icon-button on
-  narrow viewports.
+  narrow viewports. **Partly addressed 2026-08-31:** the filter-dropdown work
+  gave `.tt-search-wrap` a 148px `min-width` (four dropdowns had collapsed it to
+  the icon alone) and moved the due-date range into a dropdown, reclaiming ~300px
+  of bar. The desktop case is now usable; the phone-width question is still open.
 
 ### 6. Open feedback items
 
+- `[x]` **Projects can be subprojects but there's no exposed UI** —
+  *(2026-08-31)* `parent_task` was always storable on a project and
+  `flattenWithDepth` already nested recursively; the detail pane gated the field
+  behind `task.type === 'task'`, so the only way to set it was at creation time
+  in the modal (which never gated it). Field now renders for both, labelled
+  "Parent project" on a project. `collectDescendantPaths` keeps the picker from
+  offering an option that closes a parent loop.
+- `[x]` **Future should cascade down** — *(2026-08-31)* third impediment kind
+  alongside Blocked and Held, ranked below both, propagating along `depends_on`
+  exactly as they do. It's a status **pointer** (`settings.futureStatus` →
+  `StatusPolicy.future`), nullable like `hold` for the same reason: a vault
+  without the status must not fall back to one, or the whole graph reads Future.
+  A status rename remaps the pointer. The AI export needed no new plumbing —
+  `impeded`/`impeded_by` carry whichever kind wins — and `IMPEDIMENT_RULE` grew
+  to BLOCKED/HOLD/FUTURE for +2 tokens.
+- `[x]` **Filters should be Excel-style clickable dropdowns** — *(2026-08-31)*
+  `FilterDropdown.svelte`, a checkbox popover with no plugin or store reference.
+  Status and Labels join Priority and Area; the due-date range moved into the
+  same pattern. Toolbar state is `string[]` per field: values OR within a field
+  (a nested `FilterGroup`, which the engine already accepted), AND across fields.
+  Labels uses `contains`/`contains_any` because it's a list on the task.
 - `[x]` **Right-click "Open" opened the side panel, not the note** —
   *(2026-08-31)* the context menu's Open routed through `openTaskDetail`, which
   reveals the board + detail pane — the same thing a left click already does, so

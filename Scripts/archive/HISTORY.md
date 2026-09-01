@@ -12,6 +12,98 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-08-31 — Four papercuts: subprojects, Future, filters, the gantt
+
+Taylor reported four things in one message. Each turned out to be a different
+kind of problem, which is worth recording because the shapes recur.
+
+### One was already built, just not reachable
+
+"Projects can be subprojects but there's no exposed UI." True — and the data
+model, the store, and `flattenWithDepth`'s recursive nesting all supported it
+already. The create modal never gated the parent field either. The single line
+standing in the way was `{#if task.type === 'task'}` around the detail pane's
+Project field, so a project could be given a parent at birth and never after.
+
+What the fix did need was `collectDescendantPaths`: with projects nestable, the
+picker could otherwise offer an option that closes a loop. `flattenWithDepth`
+survives a cycle — it has a visited guard — but it survives by dropping the pair
+to depth 0, so the structure the user asked for silently isn't the one that
+renders. Making the choice unavailable is cheaper than explaining it.
+
+### One was a semantic decision, not a code change
+
+"Future should probably cascade down (ensure our export handles this)" has two
+readings: down the dependency chain, or down from a project to its tasks. Taylor
+picked dependencies, which makes Future a third `ImpedimentKind` — and the
+existing engine took it almost unchanged, because `reduceContributions` already
+takes a max over ranks rather than last-write-wins. Blocked > Hold > Future, and
+the result stays order-independent.
+
+The part that needed care was the *pointer*. Future is a user-renameable status,
+so hardcoding the string would break any vault that renamed it. It's now
+`settings.futureStatus` → `StatusPolicy.future`, nullable exactly like `hold`:
+a vault with no such status must not fall back to one, or every task downstream
+of anything reads Future. And a status **rename** remaps the pointer, matching
+`completionStatus` — without that, normalization drops an unresolvable pointer to
+`''` and the cascade quietly switches off, which presents as the feature being
+broken rather than as a setting being stale.
+
+The export needed nothing: `impeded`/`impeded_by` were already kind-agnostic and
+name the vault's own status. That's the 2026-08-31 bridge work paying off a week
+early — shipping *answers* instead of algorithms means a new kind of answer costs
+zero prose. `IMPEDIMENT_RULE` grew by two tokens.
+
+### One was a control that could only ask the wrong question
+
+The toolbar's Priority and Area filters were native `<select>`s, so they could
+only ever ask "is it exactly this one?". "Blocked or Hold" is a single question a
+user has, and it was unanswerable. The engine was never the limit — `FilterGroup`
+is allowed anywhere a `FilterCondition` is, so multi-select is an OR group and
+needed no new operator. `labels` is the exception: it's a list on the task, so it
+takes `contains`/`contains_any` rather than `is`.
+
+Two details worth keeping. A *single* selection stays a plain `is` condition
+rather than a one-armed OR group, because the spec is user-visible in the Smart
+List JSON editor and a group of one reads like a bug. And Escape is handled on
+`window` in the **capture** phase: the board registers its shortcuts on
+`document`, so a bubble-phase listener would always run second and the board
+would clear the search before the menu ever closed.
+
+Adding four dropdowns collapsed the search box to its magnifier icon, then
+wrapping the bar onto two rows broke the 44px alignment with the detail pane's
+topbar (BUGFIX #7). Folding the due-date range into the same dropdown pattern
+reclaimed ~300px and put it back on one row — the fix and the feature turned out
+to be the same move.
+
+### One was a bug wearing a readability complaint
+
+"The gantt chart is hard to read… impossible to tell what it is without
+scrolling." Before touching labels, the rig showed something worse: **nine bars
+in the DOM and nothing on screen.** `.tt-hybrid-track-canvas` took its `flex: 1`
+from `.tt-hybrid-lane-sidebar + .tt-hybrid-track-canvas` — a sibling selector on
+an element that isn't rendered when there's only one lane, which is the default
+grouping. The canvas collapsed to 2px of border and every bar was positioned at a
+percentage of nothing.
+
+Nothing threw, so `rig:smoke` stayed green: it asserts that views *mount*, and
+this view mounted perfectly. It took looking at a screenshot to see it, which is
+the argument for the screenshot matrix existing at all.
+
+Then the actual request. A pinned name column means rows must be 1:1 with tasks,
+so first-fit packing had to go — a packed row holds three tasks and a column
+can't honestly label it. The chart is taller now and reads left-to-right like a
+gantt. Bars lost their in-bar titles, since the column carries the name and a
+two-day bar could only ever render "Re…".
+
+The column's width is set inline from `overviewSidebarPx` rather than in CSS, and
+that's load-bearing: the axis reserves the same gutter, so a media query moving
+one without the other would shift their percentage bases apart and leave the
+"Today" line offset from the tracks' today band. It narrows to 124px below a
+560px viewport — on a phone, 220px of names left almost no chart.
+
+---
+
 ## 2026-08-31 — Right-click "Open", and the review-bot sweep
 
 Taylor: *"right click open on a task should open the note in a new tab, not the
