@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { createManagedListItem, getRenameMappings, normalizeManagedListValues, resolveAreaOptions } from './managedListUtils';
+import { createManagedListItem, getRenameMappings, normalizeManagedListValues, resolveManagedOptions } from './managedListUtils';
 
-describe('resolveAreaOptions', () => {
+describe('resolveManagedOptions', () => {
 	it('returns settings areas as managed in settings order with no unmanaged for clean data', () => {
-		const result = resolveAreaOptions(['Work', 'Home', 'Errands'], ['Home', 'Work']);
+		const result = resolveManagedOptions(['Work', 'Home', 'Errands'], ['Home', 'Work']);
 		expect(result.managed).toEqual(['Work', 'Home', 'Errands']);
 		expect(result.unmanaged).toEqual([]);
 	});
 
 	it('surfaces observed areas not in settings as sorted, de-duplicated unmanaged values', () => {
-		const result = resolveAreaOptions(['Work'], ['Work', 'Legacy', 'Zeta', 'Legacy', 'Alpha']);
+		const result = resolveManagedOptions(['Work'], ['Work', 'Legacy', 'Zeta', 'Legacy', 'Alpha']);
 		expect(result.managed).toEqual(['Work']);
 		expect(result.unmanaged).toEqual(['Alpha', 'Legacy', 'Zeta']);
 	});
 
 	it('ignores empty observed values', () => {
-		const result = resolveAreaOptions(['Work'], ['', 'Stray']);
+		const result = resolveManagedOptions(['Work'], ['', 'Stray']);
 		expect(result.unmanaged).toEqual(['Stray']);
 	});
 });

@@ -14,7 +14,8 @@
 	import { createTaskQuery } from '../query/useTaskQuery';
 	import { buildTaskSchedule } from '../store/taskSchedule';
 	import { splitHolidayCalendar } from '../settings/holidays';
-	import { resolveAreaOptions } from '../settings/managedListUtils';
+	import { resolveManagedOptions } from '../settings/managedListUtils';
+	import FilterDropdown from './FilterDropdown.svelte';
 	import { canToggleBuiltinCompleted, defaultCompletedVisibility } from './builtinViewCompletionToggle';
 	import { canToggleLogbookRenderer, resolveViewRenderer, toggleLogbookRendererMode } from './logbookViewMode';
 	import TaskArchiveView from './TaskArchiveView.svelte';
@@ -142,8 +143,12 @@
 	}
 
 	// ── Filter state (routed through the query engine) ────────────────────────
-	let filterPriority = '';
-	let filterArea     = '';
+	// Multi-select: each holds the values a user ticked in its dropdown, ORed
+	// within a field and ANDed across fields (see boardFilters.ts).
+	let filterStatus: string[]   = [];
+	let filterPriority: string[] = [];
+	let filterArea: string[]     = [];
+	let filterLabels: string[]   = [];
 	// Date-range filter — only surfaced for the Agenda view, on top of its
 	// existing date-bucket grouping (backlog: "Agenda: date-range filter").
 	let filterDateFrom = '';
@@ -160,15 +165,23 @@
 	)];
 	// Settings is the source of truth; stray/legacy frontmatter areas appear
 	// below a divider as a safety net.
-	$: areaOptions = resolveAreaOptions(plugin.settings.areas ?? [], observedAreas);
+	$: areaOptions = resolveManagedOptions(plugin.settings.areas ?? [], observedAreas);
 	$: hasAreaOptions = areaOptions.managed.length > 0 || areaOptions.unmanaged.length > 0;
 
 	$: dateRangeSupported = supportsDateRangeFilter(currentRenderer);
-	$: hasActiveFilters = hasActiveToolbarFilters(
-		{ priority: filterPriority, area: filterArea, dateFrom: filterDateFrom, dateTo: filterDateTo },
-		currentRenderer,
-		$searchQuery,
-	);
+	$: toolbarFilters = {
+		status: filterStatus,
+		priority: filterPriority,
+		area: filterArea,
+		labels: filterLabels,
+		dateFrom: filterDateFrom,
+		dateTo: filterDateTo,
+	};
+	$: hasActiveFilters = hasActiveToolbarFilters(toolbarFilters, currentRenderer, $searchQuery);
+	// Settings first, then anything only the vault knows about — a task filed
+	// under a since-deleted label still has to be findable.
+	$: observedLabels = [...new Set($tasks.flatMap(t => t.labels ?? []))];
+	$: labelOptions = resolveManagedOptions(plugin.settings.labelValues ?? [], observedLabels);
 	$: canToggleCompletedForCurrentView = canToggleBuiltinCompleted(currentView);
 	$: showCompleted = showCompletedByViewId[currentView.id] ?? defaultCompletedVisibility(currentView);
 	$: currentRenderer = resolveViewRenderer(currentView.id, currentView.renderer, logbookRendererModeByViewId) as RendererType;
@@ -246,10 +259,7 @@
 	$: {
 		const conditions = [
 			...currentBoardQuery.filter.conditions,
-			...buildToolbarFilterConditions(
-				{ priority: filterPriority, area: filterArea, dateFrom: filterDateFrom, dateTo: filterDateTo },
-				currentRenderer,
-			),
+			...buildToolbarFilterConditions(toolbarFilters, currentRenderer),
 		];
 		query.update(q => ({
 			...q,
@@ -266,8 +276,10 @@
 
 	function clearFilters() {
 		searchQuery.set('');
-		filterPriority = '';
-		filterArea     = '';
+		filterStatus   = [];
+		filterPriority = [];
+		filterArea     = [];
+		filterLabels   = [];
 		filterDateFrom = '';
 		filterDateTo   = '';
 	}
@@ -376,46 +388,67 @@
 					{/if}
 				</div>
 
-				<select class="tt-filter-select" bind:value={filterPriority} aria-label="Filter by priority">
-					<option value="">Priority</option>
-					{#each PRIORITIES as p}
-						<option value={p}>{p}</option>
-					{/each}
-				</select>
+				<FilterDropdown
+					label="Status"
+					options={configuredStatuses}
+					selected={filterStatus}
+					on:change={(e) => { filterStatus = e.detail; }}
+				/>
 
-				{#if hasAreaOptions}
-					<select class="tt-filter-select" bind:value={filterArea} aria-label="Filter by area">
-						<option value="">Area</option>
-						{#each areaOptions.managed as a}
-							<option value={a}>{a}</option>
-						{/each}
-						{#if areaOptions.unmanaged.length > 0}
-							<option value="" disabled>──────</option>
-							{#each areaOptions.unmanaged as a}
-								<option value={a}>{a}</option>
-							{/each}
-						{/if}
-					</select>
-				{/if}
+				<FilterDropdown
+					label="Priority"
+					options={PRIORITIES}
+					selected={filterPriority}
+					on:change={(e) => { filterPriority = e.detail; }}
+				/>
+
+				<FilterDropdown
+					label="Area"
+					options={areaOptions.managed}
+					secondaryOptions={areaOptions.unmanaged}
+					selected={filterArea}
+					on:change={(e) => { filterArea = e.detail; }}
+				/>
+
+				<FilterDropdown
+					label="Labels"
+					options={labelOptions.managed}
+					secondaryOptions={labelOptions.unmanaged}
+					selected={filterLabels}
+					on:change={(e) => { filterLabels = e.detail; }}
+				/>
 
 				{#if dateRangeSupported}
-					<div class="tt-filter-date-range" aria-label="Filter by due-date range">
-						<input
-							class="tt-filter-select tt-filter-date"
-							type="date"
-							bind:value={filterDateFrom}
-							aria-label="Due on or after"
-							max={filterDateTo || undefined}
-						/>
-						<span class="tt-filter-date-sep">–</span>
-						<input
-							class="tt-filter-select tt-filter-date"
-							type="date"
-							bind:value={filterDateTo}
-							aria-label="Due on or before"
-							min={filterDateFrom || undefined}
-						/>
-					</div>
+					<!-- Behind a dropdown like the rest: two bare date inputs cost ~300px
+						of the bar, which pushed it onto a second row and broke the
+						44px header alignment with the detail pane's topbar. -->
+					<FilterDropdown label="Due" active={!!(filterDateFrom || filterDateTo)}>
+						<div class="tt-filter-date-range" aria-label="Filter by due-date range">
+							<input
+								class="tt-filter-select tt-filter-date"
+								type="date"
+								bind:value={filterDateFrom}
+								aria-label="Due on or after"
+								max={filterDateTo || undefined}
+							/>
+							<span class="tt-filter-date-sep">–</span>
+							<input
+								class="tt-filter-select tt-filter-date"
+								type="date"
+								bind:value={filterDateTo}
+								aria-label="Due on or before"
+								min={filterDateFrom || undefined}
+							/>
+						</div>
+						{#if filterDateFrom || filterDateTo}
+							<div class="tt-divider"></div>
+							<button
+								type="button"
+								class="tt-btn tt-btn-sm tt-filter-date-clear"
+								on:click={() => { filterDateFrom = ''; filterDateTo = ''; }}
+							>Clear due range</button>
+						{/if}
+					</FilterDropdown>
 				{/if}
 
 				{#if currentRenderer === RENDERER_LIST}
@@ -613,6 +646,8 @@
 	.tt-filter-bar {
 		display: flex;
 		align-items: center;
+		flex-wrap: wrap;
+		row-gap: 4px;
 		gap: 6px;
 		padding: 6px 10px;
 		/* Shared header height so the main-view header border-bottom lines up */
@@ -633,7 +668,10 @@
 		border-radius: var(--tt-control-radius);
 		padding: 0 8px;
 		gap: 6px;
-		min-width: 0;
+		/* Enough to stay a usable search box once four filter dropdowns share the
+			bar; `min-width: 0` let flex collapse it to the icon alone. The bar wraps
+			before the search does. */
+		min-width: 148px;
 		transition: border-color 0.12s;
 	}
 
@@ -676,22 +714,16 @@
 	}
 	.tt-search-clear:hover { color: var(--text-normal); }
 
-	.tt-filter-select {
-		font-size: 0.82rem;
-		padding: 4px 6px;
-		border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
-		border-radius: var(--tt-control-radius);
-		background: var(--dropdown-background, var(--background-modifier-form-field));
-		color: var(--text-normal);
-		cursor: pointer;
-		flex-shrink: 0;
-	}
-
 	.tt-filter-date-range {
 		display: flex;
 		align-items: center;
 		gap: 4px;
 		flex-shrink: 0;
+		padding: 2px;
+	}
+
+	.tt-filter-date-clear {
+		width: 100%;
 	}
 
 	.tt-filter-date {

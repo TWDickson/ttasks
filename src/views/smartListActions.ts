@@ -2,7 +2,7 @@ import { Menu, Notice } from 'obsidian';
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import { QueryEditorModal } from '../modals/QueryEditorModal';
-import { resolveAreaOptions } from '../settings/managedListUtils';
+import { resolveManagedOptions } from '../settings/managedListUtils';
 import { createCustomViewDefinition, resolveTaskViewId } from './viewRegistry';
 
 /**
@@ -15,7 +15,7 @@ function queryEditorOptions(plugin: TTasksPlugin) {
 	const observedAreas = [...new Set(
 		get(plugin.taskStore.tasks).map((t) => t.area).filter((a): a is string => !!a),
 	)];
-	const areaOptions = resolveAreaOptions(plugin.settings.areas ?? [], observedAreas);
+	const areaOptions = resolveManagedOptions(plugin.settings.areas ?? [], observedAreas);
 	return {
 		statuses: plugin.settings.statuses,
 		areas: [...areaOptions.managed, ...areaOptions.unmanaged],

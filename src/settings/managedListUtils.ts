@@ -70,14 +70,18 @@ export interface ResolvedManagedOptions {
 }
 
 /**
- * Reconciles the configured `settings.areas` list with the areas observed on
- * tasks. `managed` is the settings list verbatim; `unmanaged` is any observed
- * area not in settings — stray/legacy frontmatter values — de-duplicated and
- * sorted alphabetically, surfaced as a migration safety net.
+ * Reconciles a configured settings list (areas, labels, …) with the values
+ * actually observed on tasks. `managed` is the settings list verbatim;
+ * `unmanaged` is any observed value not in settings — stray/legacy frontmatter —
+ * de-duplicated and sorted alphabetically, surfaced as a migration safety net.
+ *
+ * Named for the shape rather than the field: areas and labels ask the same
+ * question, and a task filed under a since-deleted value is exactly the one a
+ * filter has to be able to find.
  */
-export function resolveAreaOptions(settingsAreas: string[], observedAreas: string[]): ResolvedManagedOptions {
-	const managed = [...settingsAreas];
-	const managedSet = new Set(settingsAreas);
-	const unmanaged = [...new Set(observedAreas.filter((area) => !!area && !managedSet.has(area)))].sort();
+export function resolveManagedOptions(settingsValues: string[], observedValues: string[]): ResolvedManagedOptions {
+	const managed = [...settingsValues];
+	const managedSet = new Set(settingsValues);
+	const unmanaged = [...new Set(observedValues.filter((value) => !!value && !managedSet.has(value)))].sort();
 	return { managed, unmanaged };
 }

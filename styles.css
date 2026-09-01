@@ -103,6 +103,20 @@
 }
 
 /* Count pill shown next to group/column headings */
+/* Toolbar filter control surface. Plugin-global rather than scoped to TaskBoard
+   because FilterDropdown's trigger button wears it too — a scoped copy in each
+   component is the drift this file exists to prevent. */
+.tt-filter-select {
+	font-size: 0.82rem;
+	padding: 4px 6px;
+	border: var(--input-border-width, var(--border-width, 1px)) solid var(--background-modifier-border);
+	border-radius: var(--tt-control-radius);
+	background: var(--dropdown-background, var(--background-modifier-form-field));
+	color: var(--text-normal);
+	cursor: pointer;
+	flex-shrink: 0;
+}
+
 .tt-count {
 	background: var(--background-modifier-border);
 	border-radius: 999px;

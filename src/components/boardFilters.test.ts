@@ -20,13 +20,13 @@ describe('buildToolbarFilterConditions', () => {
 	});
 
 	it('adds a priority condition when set', () => {
-		expect(buildToolbarFilterConditions({ priority: 'High' }, 'list')).toEqual([
+		expect(buildToolbarFilterConditions({ priority: ['High'] }, 'list')).toEqual([
 			{ field: 'priority', operator: 'is', value: 'High' },
 		]);
 	});
 
 	it('adds an area condition when set', () => {
-		expect(buildToolbarFilterConditions({ area: 'Work' }, 'list')).toEqual([
+		expect(buildToolbarFilterConditions({ area: ['Work'] }, 'list')).toEqual([
 			{ field: 'area', operator: 'is', value: 'Work' },
 		]);
 	});
@@ -51,9 +51,37 @@ describe('buildToolbarFilterConditions', () => {
 		expect(buildToolbarFilterConditions({ dateFrom: '2026-07-01', dateTo: '2026-07-31' }, 'graph')).toEqual([]);
 	});
 
+	it('ORs multiple values for one field, and ANDs across fields', () => {
+		expect(buildToolbarFilterConditions({ status: ['Blocked', 'Hold'], priority: ['High'] }, 'list')).toEqual([
+			{
+				logic: 'or',
+				conditions: [
+					{ field: 'status', operator: 'is', value: 'Blocked' },
+					{ field: 'status', operator: 'is', value: 'Hold' },
+				],
+			},
+			{ field: 'priority', operator: 'is', value: 'High' },
+		]);
+	});
+
+	it('matches a single label with contains, several with contains_any', () => {
+		// labels is a list on the task, so `is` would compare against the whole
+		// array and never match.
+		expect(buildToolbarFilterConditions({ labels: ['bug'] }, 'list')).toEqual([
+			{ field: 'labels', operator: 'contains', value: 'bug' },
+		]);
+		expect(buildToolbarFilterConditions({ labels: ['bug', 'docs'] }, 'list')).toEqual([
+			{ field: 'labels', operator: 'contains_any', value: ['bug', 'docs'] },
+		]);
+	});
+
+	it('ignores an empty value array', () => {
+		expect(buildToolbarFilterConditions({ status: [], priority: [], area: [], labels: [] }, 'list')).toEqual([]);
+	});
+
 	it('combines priority + area + date range', () => {
 		expect(buildToolbarFilterConditions(
-			{ priority: 'High', area: 'Work', dateFrom: '2026-07-01', dateTo: '2026-07-31' },
+			{ priority: ['High'], area: ['Work'], dateFrom: '2026-07-01', dateTo: '2026-07-31' },
 			'kanban',
 		)).toEqual([
 			{ field: 'priority', operator: 'is', value: 'High' },
@@ -73,9 +101,15 @@ describe('hasActiveToolbarFilters', () => {
 		expect(hasActiveToolbarFilters({}, 'agenda', 'foo')).toBe(true);
 	});
 
-	it('is true when priority or area is set', () => {
-		expect(hasActiveToolbarFilters({ priority: 'High' }, 'agenda', '')).toBe(true);
-		expect(hasActiveToolbarFilters({ area: 'Work' }, 'agenda', '')).toBe(true);
+	it('is true when any multi-select field has a selection', () => {
+		expect(hasActiveToolbarFilters({ priority: ['High'] }, 'agenda', '')).toBe(true);
+		expect(hasActiveToolbarFilters({ area: ['Work'] }, 'agenda', '')).toBe(true);
+		expect(hasActiveToolbarFilters({ status: ['Hold'] }, 'agenda', '')).toBe(true);
+		expect(hasActiveToolbarFilters({ labels: ['bug'] }, 'agenda', '')).toBe(true);
+	});
+
+	it('is false when every field holds an empty selection', () => {
+		expect(hasActiveToolbarFilters({ status: [], priority: [], area: [], labels: [] }, 'agenda', '')).toBe(false);
 	});
 
 	it('is true when a date range is set on a renderer that supports it', () => {
