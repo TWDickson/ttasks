@@ -113,7 +113,7 @@
 
 				{#if secondaryOptions.length > 0}
 					{#if options.length > 0}
-						<div class="tt-divider"></div>
+						<hr class="tt-divider" />
 					{/if}
 					{#each secondaryOptions as option (option)}
 						<label class="tt-filter-option">
@@ -128,7 +128,7 @@
 				{/if}
 
 				{#if count > 0}
-					<div class="tt-divider"></div>
+					<hr class="tt-divider" />
 					<button type="button" class="tt-btn tt-btn-sm tt-filter-clear" on:click={clear}>
 						Clear {label.toLowerCase()}
 					</button>

@@ -284,6 +284,57 @@ log-partial-on-stop.
   has never been rendered on this headless box. Needs one look on a real vault:
   the per-prompt textarea width, the disabled state of "Restore default", and
   the read-only interop list.
+- `[x]` **Hover flickered scrollbars all over the UI, not just the share modal**
+  — *(2026-09-06)* the 2026-08-24 share-modal fix treated one symptom of a
+  general problem. Underwater ships `body:not(.no-button) button { transition:
+  all .5s ease-out; &:hover { transform: scale(1.04) } }`, and a transformed
+  child counts toward its scroll container's overflow area — so every hovered
+  row, card, chip and graph node (all bare `<button>`s) nudged scrollWidth /
+  scrollHeight and flickered a scrollbar. Fixed once at the plugin roots in
+  `styles.css` with `transform: none !important`. The `!important` is load-
+  bearing: the theme selector is (0,2,2) because `:not()` takes its argument's
+  specificity, which outranks `.tt-board button:hover` at (0,2,1). The local
+  `.tt-overview-bar:hover { transform: none }` still works (Svelte's scope hash
+  lifts it to (0,3,1)) and is left as in-place documentation.
+  **Rig-verified A/B**, deleting the opt-out rule at runtime to reproduce the
+  pre-fix build: a hovered `.tt-task-btn` went `none` → `matrix(1.04, …)` and
+  **622 → 646.88px** wide; a `.tt-graph-node` went 196×96 → 203.84×99.84. With
+  the rule active neither moves. The scrollbar consequence reproduced too —
+  pre-fix, hovering a rail button tipped `.tt-rail-views` from 0 to **1px** of
+  vertical overflow (the same 803→804 tip as the share modal); post-fix no
+  scroll container gains overflow across all 75 buttons in the scene.
+  Note `.tt-kanban-card` was never affected: it is a `<div role="button">`, so
+  the theme's `button` element selector misses it. That is luck, not design —
+  if it ever becomes a real `<button>` it inherits the bug, and the opt-out.
+- `[x]` **Field-component CSS was seven verbatim copies** — *(2026-09-06)*
+  `.tt-field`, `.tt-field-required`, `.tt-field-error-msg` and the label rule
+  were byte-identical in all seven `src/components/fields/*`, and the label copy
+  was byte-identical to `.tt-label` in `styles.css`. The input control surface
+  was six near-copies under three class names with identical
+  `:focus`/`:disabled`/`.tt-field-error` triples. Moved to `styles.css`; only
+  per-variant deltas (padding, background, font, cursor, `flex`) stay scoped.
+  **−211 lines**, and `TextField.svelte` lost its `<style>` block entirely.
+  Also normalised the three remaining `<div class="tt-divider">` to `<hr>`.
+- `[ ]` **Detail pane suppresses every field's real `<label>`** — found during
+  the 2026-09-06 UI audit. `deriveInlineFieldProps` sets `definition.label = ''`
+  so `TaskDetail` can render its own `<div class="tt-field-group"><span
+  class="tt-label">`. Net effect: two extra elements per field (~32 nodes) and
+  **no control in the detail pane has a programmatic label** — the field
+  components already emit `<label for={definition.name}>`. Fix is a deletion:
+  stop blanking, drop the wrapper and span. Watch `.tt-detail > .tt-field-group`
+  in `styles.css`, which centres the top block and would need rehoming.
+- `[ ]` **Two plugin roots miss the design tokens** —
+  `.tt-graph-fullscreen-modal` and `.tt-pomodoro-view` are not in the token-root
+  list in `styles.css`, so `--tt-space-*` / `--tt-control-*` fall back to their
+  per-use defaults inside them. Mostly a no-op today because the fallbacks
+  mirror the token values, which is exactly why it hasn't been noticed. Both are
+  now covered by the hover-transform opt-out; the token list is still short.
+- `[ ]` **Hand-rolled popovers could be the native Popover API** —
+  `FilterDropdown` and the graph's project filter each carry a window
+  `mousedown` listener plus a capture-phase Escape handler to reimplement
+  light-dismiss. `popover` + `popovertarget` gives both for free and puts the
+  menu in the top layer, which also removes any ancestor-clipping risk in the
+  toolbar. Check the `minAppVersion` Electron floor first.
 - `[ ]` **A renamed task leaves stale link aliases** — links are stored
   `[[path|Name]]`, and neither the detail-pane rename nor the new import rename
   rewrites the alias on inbound `depends_on`/`blocks`/`parent_task` entries. The

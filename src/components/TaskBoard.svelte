@@ -441,7 +441,7 @@
 							/>
 						</div>
 						{#if filterDateFrom || filterDateTo}
-							<div class="tt-divider"></div>
+							<hr class="tt-divider" />
 							<button
 								type="button"
 								class="tt-btn tt-btn-sm tt-filter-date-clear"

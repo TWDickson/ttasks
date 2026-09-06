@@ -40,6 +40,40 @@
 	--tt-font-title-sm: 0.82rem;
 }
 
+/* ── Theme hover-transform opt-out ──────────────────────────────────────────── */
+/* Themes routinely scale bare `button` on hover — Underwater ships
+   `body:not(.no-button) button { transition: all .5s ease-out; &:hover {
+   transform: scale(1.04) } }`. A transformed child counts toward its scroll
+   container's overflow area, so hovering any row, card, chip or graph node
+   inflates scrollWidth/scrollHeight and flickers a scrollbar in and out.
+   That is the same mechanism already patched one-off in two places: the share
+   modal's bottom padding (2026-08-24) and `.tt-overview-bar`'s own
+   `transform: none`. This is the general fix — TTasks signals hover with
+   background and border, never with scale.
+
+   `!important` is required, not defensive: the theme selector
+   `body:not(.no-button) button:hover` is (0,2,2) — `:not()` takes its
+   argument's specificity — which outranks `.tt-board button:hover` at (0,2,1).
+   Same reason the file's other `!important`s exist. A component that ever
+   wants a hover transform needs `!important` too; nothing does today.
+
+   The last two are not token roots (that gap is tracked separately) but host
+   plugin buttons: the fullscreen graph is the worst case, where every node and
+   timeline bar is a <button>. */
+.tt-board button:hover,
+.tt-rail-view button:hover,
+.tt-detail-view button:hover,
+.tt-create-modal button:hover,
+.tt-modal button:hover,
+.tt-query-editor-modal button:hover,
+.tt-share-modal button:hover,
+.tt-settings button:hover,
+.tt-managed-list-section button:hover,
+.tt-graph-fullscreen-modal button:hover,
+.tt-pomodoro-view button:hover {
+	transform: none !important;
+}
+
 /* Sidebar leaf containers (nav rail left, task detail right). The leaf's
    view-content is the scroll container; components inside carry layout. */
 .tt-rail-view {
@@ -100,6 +134,65 @@
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
+}
+
+/* ── Field primitives ───────────────────────────────────────────────────────── */
+/* Every src/components/fields/* wrapper. These four rules were copied verbatim
+   into all seven field components' scoped blocks; the label copy was also a
+   byte-for-byte duplicate of .tt-label above. Shared here so a change lands
+   once — a scoped copy is exactly the silent drift this file prevents. */
+
+.tt-field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--tt-space-1, 4px);
+}
+
+.tt-field-required {
+	color: var(--text-error);
+	margin-left: 0.25rem;
+}
+
+.tt-field-error-msg {
+	font-size: 0.75rem;
+	color: var(--text-error);
+	padding-top: 0.25rem;
+}
+
+/* Control surface shared by the text / select / textarea field inputs. The
+   three differ only in padding, background, font and cursor — those deltas stay
+   in each component's scoped block, which outranks this by specificity. */
+.tt-field-input,
+.tt-field-select-input,
+.tt-field-textarea-input {
+	padding: var(--tt-space-2, 8px) var(--tt-space-3, 12px);
+	border: var(--tt-border-width, 1px) solid var(--background-modifier-border);
+	border-radius: var(--tt-control-radius, var(--radius-m, 8px));
+	background: var(--background-modifier-form-field);
+	color: var(--text-normal);
+	font-size: 0.9rem;
+	transition: border-color 0.12s;
+}
+
+.tt-field-input:focus,
+.tt-field-select-input:focus,
+.tt-field-textarea-input:focus {
+	outline: none;
+	border-color: var(--background-modifier-border-focus);
+}
+
+.tt-field-input:disabled,
+.tt-field-select-input:disabled,
+.tt-field-textarea-input:disabled {
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	cursor: not-allowed;
+}
+
+.tt-field-input.tt-field-error,
+.tt-field-select-input.tt-field-error,
+.tt-field-textarea-input.tt-field-error {
+	border-color: var(--text-error);
 }
 
 /* Count pill shown next to group/column headings */

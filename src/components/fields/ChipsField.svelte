@@ -53,7 +53,7 @@
 
 <div class="tt-field tt-field-chips">
 	{#if definition.label}
-		<span class="tt-field-label">
+		<span class="tt-label">
 			{definition.label}
 			{#if definition.required}
 				<span class="tt-field-required">*</span>
@@ -88,25 +88,6 @@
 </div>
 
 <style>
-	.tt-field {
-		display: flex;
-		flex-direction: column;
-		gap: var(--tt-space-1, 4px);
-	}
-
-	.tt-field-label {
-		font-size: var(--tt-font-label, 0.72rem);
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--text-muted);
-	}
-
-	.tt-field-required {
-		color: var(--text-error);
-		margin-left: 0.25rem;
-	}
-
 	.tt-chips-container {
 		display: flex;
 		flex-wrap: wrap;
@@ -158,11 +139,5 @@
 
 	.tt-chip.tt-chip-readonly {
 		cursor: default;
-	}
-
-	.tt-field-error-msg {
-		font-size: 0.75rem;
-		color: var(--text-error);
-		padding-top: 0.25rem;
 	}
 </style>
