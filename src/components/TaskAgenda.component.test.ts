@@ -41,7 +41,7 @@ function buildTask(overrides: Partial<Task> = {}): Task {
 	};
 }
 
-function renderAgenda(groupList: TaskGroup[]) {
+function renderAgenda(groupList: TaskGroup[], options: { selectable?: boolean; onSelect?: (path: string) => void } = {}) {
 	const groups = writable<TaskGroup[]>(groupList);
 	const activeTaskPath: Writable<string | null> = writable(null);
 	const plugin = { triggerTaskHoverPreview: vi.fn() } as any;
@@ -52,6 +52,8 @@ function renderAgenda(groupList: TaskGroup[]) {
 			palette: buildBadgePalette({}),
 			activeTaskPath,
 			onOpen: vi.fn(),
+			selectable: options.selectable ?? false,
+			onSelect: options.onSelect,
 		},
 	});
 }
@@ -67,5 +69,17 @@ describe('TaskAgenda.svelte', () => {
 		renderAgenda([{ key: 'someday', tasks: [buildTask({ name: 'Future task' })] }]);
 		expect(screen.getByText('someday')).toBeInTheDocument();
 		expect(screen.getByText('Future task')).toBeInTheDocument();
+	});
+
+	// Selection support mirrors TaskList/TaskRow so both views render the same
+	// row shape (with or without the checkbox column) instead of drifting.
+	it('shows a selection checkbox per row when selectable, matching the List view', () => {
+		renderAgenda([{ key: 'today', tasks: [buildTask({ name: 'Selectable task' })] }], { selectable: true });
+		expect(screen.getByRole('checkbox', { name: 'Select task' })).toBeInTheDocument();
+	});
+
+	it('renders no checkbox when not selectable', () => {
+		renderAgenda([{ key: 'today', tasks: [buildTask({ name: 'Plain task' })] }]);
+		expect(screen.queryByRole('checkbox')).toBeNull();
 	});
 });

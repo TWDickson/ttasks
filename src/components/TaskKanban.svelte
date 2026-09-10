@@ -9,13 +9,16 @@
 	import { priorityColor } from '../constants';
 	import type { BadgePalette } from '../utils/badgePalette';
 	import { labelForGroup } from './viewAdapters';
-	import { getTaskDateBadge } from './taskDateMeta';
+	import { getTaskDateBadge, formatHumanDate } from './taskDateMeta';
+	import { resolveInferredDueDate, type ResolvedTaskDate } from '../store/taskSchedule';
 	import { buildDepCountBadge, isFieldEnabled, type KanbanCardField } from './kanbanCardFields';
 	import { deserializeCollapsed, isColumnCollapsed, serializeCollapsed, toggleColumnCollapse } from './kanbanCollapse';
 	import { icon } from '../utils/icon';
 
 	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
+	/** Resolved dependency-chain schedule, used for the projected-date badge (mirrors TaskRow). */
+	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
 	export let statuses: string[];
 	/** Resolved area/label/status colours. See utils/badgePalette. */
 	export let palette: BadgePalette;
@@ -61,6 +64,10 @@
 
 	function getDateBadge(task: Task, todayDate: string) {
 		return getTaskDateBadge(task, todayDate);
+	}
+
+	function getInferredDue(task: Task): string | null {
+		return schedule ? resolveInferredDueDate(task, schedule.get(task.path)) : null;
 	}
 
 	// Resolve a dependency link to its task (via the store, so completed
@@ -259,6 +266,14 @@
 											>
 												{badge.label}
 											</span>
+										{:else}
+											{@const inferredDue = getInferredDue(task)}
+											{#if inferredDue}
+												<span
+													class="tt-badge tt-badge-inferred"
+													title="Projected finish, inferred from dependency chain"
+												>~{formatHumanDate(inferredDue, $today)}</span>
+											{/if}
 										{/if}
 									{/if}
 									{#if isFieldEnabled(kanbanCardFields, 'labels')}

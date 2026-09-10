@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyFilter, applySort, applyGroup, applyQuery } from './engine';
 import type { Task } from '../types';
 import type { FilterSpec, QuerySpec, SortSpec } from './types';
+import type { ResolvedTaskDate } from '../store/graph/taskGraphDates';
 
 beforeEach(() => {
 	vi.useRealTimers();
@@ -719,6 +720,48 @@ describe('applyQuery', () => {
 		const groups = applyQuery(tasks, query);
 
 		expect(groups.map(group => group.key)).toEqual(['today', 'later']);
+	});
+
+	it('buckets a task with no due date into its schedule-inferred bucket, not "no-date"', () => {
+		vi.setSystemTime(new Date('2026-04-29T12:00:00'));
+		const tasks = [
+			makeTask({ path: 'Tasks/inferred.md', due_date: null }),
+			makeTask({ path: 'Tasks/undated.md', due_date: null }),
+		];
+		const query: QuerySpec = {
+			filter: { logic: 'and', conditions: [] },
+			sort: [],
+			group: { kind: 'date_buckets', field: 'due_date', preset: 'agenda' },
+		};
+		const schedule = new Map<string, ResolvedTaskDate>([
+			['Tasks/inferred.md', { start: new Date('2026-04-29T00:00:00'), end: new Date('2026-04-29T00:00:00'), isInferred: true }],
+		]);
+
+		const groups = applyQuery(tasks, query, schedule);
+
+		expect(groups.find(g => g.key === 'today')?.tasks.map(t => t.path)).toEqual(['Tasks/inferred.md']);
+		expect(groups.find(g => g.key === 'no-date')?.tasks.map(t => t.path)).toEqual(['Tasks/undated.md']);
+	});
+
+	it('sorts an undated-but-inferred task by its resolved date rather than always-last', () => {
+		vi.setSystemTime(new Date('2026-04-29T12:00:00'));
+		const tasks = [
+			makeTask({ path: 'Tasks/explicit.md', name: 'Explicit', due_date: '2026-05-02' }),
+			makeTask({ path: 'Tasks/inferred.md', name: 'Inferred', due_date: null }),
+		];
+		const query: QuerySpec = {
+			filter: { logic: 'and', conditions: [] },
+			sort: [{ field: 'due_date', direction: 'asc' }],
+			group: { kind: 'date_buckets', field: 'due_date', preset: 'agenda' },
+		};
+		const schedule = new Map<string, ResolvedTaskDate>([
+			['Tasks/inferred.md', { start: new Date('2026-05-01T00:00:00'), end: new Date('2026-05-01T00:00:00'), isInferred: true }],
+		]);
+
+		const groups = applyQuery(tasks, query, schedule);
+		const thisWeek = groups.find(g => g.key === 'this-week');
+
+		expect(thisWeek?.tasks.map(t => t.name)).toEqual(['Inferred', 'Explicit']);
 	});
 
 	it('defaults grouped queries to sort within each group', () => {

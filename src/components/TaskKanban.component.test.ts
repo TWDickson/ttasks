@@ -6,6 +6,7 @@ import TaskKanban from './TaskKanban.svelte';
 import type { Task } from '../types';
 import type { TaskGroup } from '../query/types';
 import type { KanbanCardField } from './kanbanCardFields';
+import type { ResolvedTaskDate } from '../store/taskSchedule';
 import { buildBadgePalette } from '../utils/badgePalette';
 
 function buildTask(overrides: Partial<Task> = {}): Task {
@@ -46,6 +47,7 @@ function renderKanban(options: {
 	kanbanCardFields?: KanbanCardField[];
 	collapsedColumns?: string[];
 	task?: Task;
+	schedule?: Map<string, ResolvedTaskDate>;
 } = {}) {
 	const task = options.task ?? buildTask();
 	const groups = writable<TaskGroup[]>([
@@ -71,6 +73,7 @@ function renderKanban(options: {
 		props: {
 			plugin,
 			groups,
+			schedule: options.schedule,
 			statuses: ['Active', 'Blocked'],
 			palette: buildBadgePalette({}),
 			blockStatus: 'Blocked',
@@ -117,6 +120,24 @@ describe('TaskKanban.svelte', () => {
 			task: buildTask({ depends_on: ['Tasks/x.md'], blocks: ['Tasks/y.md'] }),
 		});
 		expect(screen.getByTitle('Blocked by 1 open of 1 · Unblocks 1')).toBeInTheDocument();
+	});
+
+	it('shows a projected-finish badge when a task has no due date but a resolved schedule', () => {
+		const task = buildTask({ path: 'Planner/Tasks/inferred.md', due_date: null });
+		const schedule = new Map<string, ResolvedTaskDate>([
+			[task.path, { start: new Date('2026-06-01'), end: new Date('2026-06-05'), isInferred: true }],
+		]);
+		renderKanban({ kanbanCardFields: ['dueDate'], task, schedule });
+		expect(screen.getByTitle('Projected finish, inferred from dependency chain')).toBeInTheDocument();
+	});
+
+	it('omits the projected-finish badge when an explicit due date is already shown', () => {
+		const task = buildTask({ path: 'Planner/Tasks/explicit.md', due_date: '2026-06-10' });
+		const schedule = new Map<string, ResolvedTaskDate>([
+			[task.path, { start: new Date('2026-06-01'), end: new Date('2026-06-10'), isInferred: false }],
+		]);
+		renderKanban({ kanbanCardFields: ['dueDate'], task, schedule });
+		expect(screen.queryByTitle('Projected finish, inferred from dependency chain')).toBeNull();
 	});
 
 	it('hides card body when column starts collapsed', () => {

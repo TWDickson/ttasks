@@ -18,6 +18,9 @@
 	export let activeTaskPath: Writable<string | null>;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
+	export let selectable = false;
+	export let selectedPaths: Set<string> = new Set();
+	export let onSelect: ((path: string) => void) | undefined = undefined;
 
 	// Bucket keys/order/labels/colors live in query/agendaBuckets — the same source
 	// the engine assigns buckets from — so the view can't drift from the engine.
@@ -60,6 +63,9 @@
 							{palette}
 							{onOpen}
 							onContextMenu={onContextMenu}
+							{selectable}
+							selected={selectedPaths.has(task.path)}
+							{onSelect}
 						/>
 					{/each}
 				</ul>

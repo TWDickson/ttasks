@@ -10,7 +10,8 @@ import type {
 	SortSpec,
 	TaskGroup,
 } from './types';
-import { addDaysLocal, localDateString } from '../utils/dateUtils';
+import type { ResolvedTaskDate } from '../store/graph/taskGraphDates';
+import { addDaysLocal, formatDateISO, localDateString } from '../utils/dateUtils';
 import { AGENDA_BUCKET_ORDER, type AgendaBucketKey } from './agendaBuckets';
 import { filterBySearch } from './hashSearch';
 import { PRIORITIES } from '../constants';
@@ -58,15 +59,29 @@ function resolveEqualityValue(value: unknown): unknown {
 
 // ── Field extraction ──────────────────────────────────────────────────────────
 
-function getFieldValue(task: Task, field: string): unknown {
+/**
+ * `due_date` as the rest of the app should see it: the explicit frontmatter
+ * value when set, otherwise the dependency-chain-inferred finish from
+ * `schedule` (see store/taskSchedule.ts). Never written back to a task —
+ * this is a read path only, so the Detail pane's edit fields stay on the raw
+ * field untouched.
+ */
+function effectiveDueDate(task: Task, schedule?: Map<string, ResolvedTaskDate>): string | null {
+	if (task.due_date) return task.due_date;
+	const resolved = schedule?.get(task.path);
+	return resolved ? formatDateISO(resolved.end) : null;
+}
+
+function getFieldValue(task: Task, field: string, schedule?: Map<string, ResolvedTaskDate>): unknown {
+	if (field === 'due_date') return effectiveDueDate(task, schedule);
 	return (task as unknown as Record<string, unknown>)[field] ?? null;
 }
 
 // ── Single condition evaluation ───────────────────────────────────────────────
 
-function evalCondition(task: Task, cond: FilterCondition): boolean {
+function evalCondition(task: Task, cond: FilterCondition, schedule?: Map<string, ResolvedTaskDate>): boolean {
 	const { field, operator, value } = cond;
-	const raw = getFieldValue(task, field);
+	const raw = getFieldValue(task, field, schedule);
 
 	switch (operator) {
 		case 'is':
@@ -138,16 +153,16 @@ function evalCondition(task: Task, cond: FilterCondition): boolean {
 
 // ── Group evaluation (recursive) ─────────────────────────────────────────────
 
-function evalGroup(task: Task, group: FilterGroup): boolean {
+function evalGroup(task: Task, group: FilterGroup, schedule?: Map<string, ResolvedTaskDate>): boolean {
 	if (group.conditions.length === 0) return true;
 
 	if (group.logic === 'and') {
 		return group.conditions.every(c =>
-			'logic' in c ? evalGroup(task, c) : evalCondition(task, c)
+			'logic' in c ? evalGroup(task, c, schedule) : evalCondition(task, c, schedule)
 		);
 	} else {
 		return group.conditions.some(c =>
-			'logic' in c ? evalGroup(task, c) : evalCondition(task, c)
+			'logic' in c ? evalGroup(task, c, schedule) : evalCondition(task, c, schedule)
 		);
 	}
 }
@@ -158,25 +173,29 @@ function evalGroup(task: Task, group: FilterGroup): boolean {
  * Filters a task list using a FilterSpec (recursive AND/OR tree).
  * Optional `search` string pre-filters on name + notes (case-insensitive), and
  * on the task's hash id prefix — see `hashSearch.ts` for the term grammar.
+ * `schedule`, when given, makes any `due_date` condition read the
+ * dependency-chain-inferred date for tasks with no explicit due date.
  */
-export function applyFilter(tasks: Task[], spec: FilterSpec, search?: string): Task[] {
+export function applyFilter(tasks: Task[], spec: FilterSpec, search?: string, schedule?: Map<string, ResolvedTaskDate>): Task[] {
 	const result = search ? filterBySearch(tasks, search) : tasks;
 
-	return result.filter(t => evalGroup(t, spec));
+	return result.filter(t => evalGroup(t, spec, schedule));
 }
 
 /**
  * Sorts a task list by one or more sort keys in order.
  * Priority uses semantic ordering (High → Medium → Low → None).
  * Null date values always sort last regardless of direction.
+ * `schedule`, when given, makes a `due_date` sort key use the
+ * dependency-chain-inferred date for tasks with no explicit due date.
  */
-export function applySort(tasks: Task[], sort: SortSpec): Task[] {
+export function applySort(tasks: Task[], sort: SortSpec, schedule?: Map<string, ResolvedTaskDate>): Task[] {
 	if (sort.length === 0) return [...tasks];
 
 	return [...tasks].sort((a, b) => {
 		for (const { field, direction } of sort) {
-			const av = getFieldValue(a, field);
-			const bv = getFieldValue(b, field);
+			const av = getFieldValue(a, field, schedule);
+			const bv = getFieldValue(b, field, schedule);
 			const mul = direction === 'asc' ? 1 : -1;
 
 			if (field === 'priority') {
@@ -198,13 +217,13 @@ export function applySort(tasks: Task[], sort: SortSpec): Task[] {
 	});
 }
 
-function applyFieldGroup(tasks: Task[], group: FieldGroupSpec): TaskGroup[] {
+function applyFieldGroup(tasks: Task[], group: FieldGroupSpec, schedule?: Map<string, ResolvedTaskDate>): TaskGroup[] {
 	const groupBy = group.field;
 
 	const map = new Map<string, Task[]>();
 
 	for (const task of tasks) {
-		const raw = getFieldValue(task, groupBy);
+		const raw = getFieldValue(task, groupBy, schedule);
 		const key = raw === null
 			? groupBy === 'parent_task' ? 'No Parent'
 			: groupBy === 'area'        ? 'No Area'
@@ -248,23 +267,35 @@ function classifyAgendaBucketByDate(dueDate: string | null): AgendaBucketKey {
  * An active-status task (e.g. "In Progress") always reads as "today" — work
  * underway belongs in today's view regardless of its due date — but an
  * already-overdue task keeps that more urgent signal instead.
+ *
+ * `schedule`, when given, lets a task with no explicit due date bucket by its
+ * dependency-chain-inferred finish instead of always falling to "No Date" —
+ * the same date the row's own `~date` badge is already showing.
  */
-function classifyAgendaBucket(task: Task, activeStatusBucket: string | null | undefined): AgendaBucketKey {
-	const dateBucket = classifyAgendaBucketByDate(task.due_date);
+function classifyAgendaBucket(
+	task: Task,
+	activeStatusBucket: string | null | undefined,
+	schedule?: Map<string, ResolvedTaskDate>,
+): AgendaBucketKey {
+	const dateBucket = classifyAgendaBucketByDate(effectiveDueDate(task, schedule));
 	if (activeStatusBucket && task.status === activeStatusBucket && dateBucket !== 'overdue') {
 		return 'today';
 	}
 	return dateBucket;
 }
 
-function applyAgendaDateBuckets(tasks: Task[], activeStatusBucket: string | null | undefined): TaskGroup[] {
+function applyAgendaDateBuckets(
+	tasks: Task[],
+	activeStatusBucket: string | null | undefined,
+	schedule?: Map<string, ResolvedTaskDate>,
+): TaskGroup[] {
 	const map = new Map<AgendaBucketKey, Task[]>();
 	for (const key of AGENDA_BUCKET_ORDER) {
 		map.set(key, []);
 	}
 
 	for (const task of tasks) {
-		const key = classifyAgendaBucket(task, activeStatusBucket);
+		const key = classifyAgendaBucket(task, activeStatusBucket, schedule);
 		map.get(key)!.push(task);
 	}
 
@@ -277,7 +308,7 @@ function applyAgendaDateBuckets(tasks: Task[], activeStatusBucket: string | null
 	for (const key of AGENDA_BUCKET_ORDER) {
 		const bucketTasks = map.get(key) ?? [];
 		if (bucketTasks.length > 0) {
-			groups.push({ key, tasks: applySort(bucketTasks, bucketSort) });
+			groups.push({ key, tasks: applySort(bucketTasks, bucketSort, schedule) });
 		}
 	}
 
@@ -329,24 +360,32 @@ function applyLogbookDateBuckets(tasks: Task[]): TaskGroup[] {
 /**
  * Groups a task list according to the query grouping strategy.
  * Returns an array of TaskGroup objects in a stable, meaningful order.
+ * `schedule`, when given, makes any `due_date`-keyed grouping (agenda buckets,
+ * or a custom view field-grouped on "Due date") use the dependency-chain-
+ * inferred date for tasks with no explicit due date.
  */
-export function applyGroup(tasks: Task[], group: GroupSpec, activeStatusBucket?: string | null): TaskGroup[] {
+export function applyGroup(
+	tasks: Task[],
+	group: GroupSpec,
+	activeStatusBucket?: string | null,
+	schedule?: Map<string, ResolvedTaskDate>,
+): TaskGroup[] {
 	if (group.kind === 'none') {
 		return [{ key: 'all', tasks }];
 	}
 
 	if (group.kind === 'field') {
-		return applyFieldGroup(tasks, group);
+		return applyFieldGroup(tasks, group, schedule);
 	}
 
 	if (group.kind === 'date_buckets') {
 		if (group.preset === 'logbook') {
 			return applyLogbookDateBuckets(tasks);
 		}
-		return applyAgendaDateBuckets(tasks, activeStatusBucket);
+		return applyAgendaDateBuckets(tasks, activeStatusBucket, schedule);
 	}
 
-	return applyAgendaDateBuckets(tasks, activeStatusBucket);
+	return applyAgendaDateBuckets(tasks, activeStatusBucket, schedule);
 }
 
 /**
@@ -377,25 +416,30 @@ function capGroups(groups: TaskGroup[], limitPerGroup: number | undefined, limit
 
 /**
  * Applies the full QuerySpec: search → filter → sort → group → limit.
+ * `schedule` (dependency-chain-resolved dates, see store/taskSchedule.ts) is
+ * threaded through filter/sort/group so a `due_date`-keyed view reads the
+ * inferred finish for a task with no explicit due date — the same computed
+ * value its row badge already shows. Never mutates a task; the Detail pane
+ * edits the raw field directly and is untouched by this.
  */
-export function applyQuery(tasks: Task[], query: QuerySpec): TaskGroup[] {
-	const filtered = applyFilter(tasks, query.filter, query.search);
+export function applyQuery(tasks: Task[], query: QuerySpec, schedule?: Map<string, ResolvedTaskDate>): TaskGroup[] {
+	const filtered = applyFilter(tasks, query.filter, query.search, schedule);
 	const sortScope: SortScope = query.sortScope ?? (query.group.kind === 'none' ? 'global' : 'within_groups');
 
 	// Global (and always-global ungrouped) mode: sort the flat list, apply the
 	// total row limit, then group. Per-group capping happens after grouping;
 	// the total limit was already applied pre-group, so it is not re-applied.
 	if (query.group.kind === 'none' || sortScope === 'global') {
-		const sorted0 = applySort(filtered, query.sort);
+		const sorted0 = applySort(filtered, query.sort, schedule);
 		const sorted = query.readyFirst ? sortReadyFirst(sorted0, tasks) : sorted0;
 		const limited = query.limit != null ? sorted.slice(0, query.limit) : sorted;
-		const groups = applyGroup(limited, query.group, query.activeStatusBucket);
+		const groups = applyGroup(limited, query.group, query.activeStatusBucket, schedule);
 		return capGroups(groups, query.limitPerGroup, undefined);
 	}
 
 	// Within-groups mode: group first, sort within each group, then cap.
-	const groups = applyGroup(filtered, query.group, query.activeStatusBucket).map((group) => {
-		const sorted = applySort(group.tasks, query.sort);
+	const groups = applyGroup(filtered, query.group, query.activeStatusBucket, schedule).map((group) => {
+		const sorted = applySort(group.tasks, query.sort, schedule);
 		return {
 			key: group.key,
 			tasks: query.readyFirst ? sortReadyFirst(sorted, tasks) : sorted,

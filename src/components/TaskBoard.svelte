@@ -12,7 +12,7 @@
 	import TaskAgenda from './TaskAgenda.svelte';
 	import TaskGraph from './TaskGraph.svelte';
 	import { createTaskQuery } from '../query/useTaskQuery';
-	import { buildTaskSchedule } from '../store/taskSchedule';
+	import { buildTaskSchedule, type ResolvedTaskDate } from '../store/taskSchedule';
 	import { splitHolidayCalendar } from '../settings/holidays';
 	import { resolveManagedOptions } from '../settings/managedListUtils';
 	import FilterDropdown from './FilterDropdown.svelte';
@@ -47,6 +47,7 @@
 	import { promoteTaskToTTasks } from '../integration/promoteTaskToTTasks';
 	import {
 		PRIORITIES,
+		RENDERER_AGENDA,
 		RENDERER_ARCHIVE,
 		RENDERER_GRAPH,
 		RENDERER_KANBAN,
@@ -243,6 +244,12 @@
 		areaWorkweek: plugin.settings.areaWorkweek,
 	};
 	$: schedule = buildTaskSchedule($tasks, { calendarConfig });
+	// `createTaskQuery` needs a store, not a plain reactive value, so its
+	// derived pipeline recomputes whenever the resolved schedule changes —
+	// keeping any due_date-keyed filter/sort/group in sync with the same
+	// computed dates the row badges already show.
+	const scheduleStore = writable<Map<string, ResolvedTaskDate>>(new Map());
+	$: scheduleStore.set(schedule);
 
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
 		filter: currentBoardQuery.filter,
@@ -253,7 +260,7 @@
 		search: currentBoardQuery.search,
 		activeStatusBucket: currentBoardQuery.activeStatusBucket,
 		readyFirst: currentBoardQuery.readyFirst,
-	});
+	}, scheduleStore);
 
 	// Rebuild the filter spec whenever any filter control changes
 	$: {
@@ -543,20 +550,11 @@
 						selectedPaths={$selectedPaths}
 						onSelect={handleSelect}
 					/>
-					{#if $selectedPaths.size > 0}
-						<BatchActionBar
-							selectedCount={$selectedPaths.size}
-							{eligibility}
-							onArchive={batchArchive}
-							onComplete={batchComplete}
-							onDelete={batchDelete}
-							onClear={() => { selectedPaths.set(clearSelection()); }}
-						/>
-					{/if}
 				{:else if currentRenderer === RENDERER_KANBAN}
 					<TaskKanban
 						{plugin}
 						groups={groupedTasks}
+						{schedule}
 						statuses={configuredStatuses}
 						{palette}
 						blockStatus={statusPolicy.block}
@@ -586,7 +584,7 @@
 					/>
 				{:else if currentRenderer === RENDERER_ARCHIVE}
 					<TaskArchiveView {plugin} />
-				{:else}
+				{:else if currentRenderer === RENDERER_AGENDA}
 					<TaskAgenda
 						{plugin}
 						groups={groupedTasks}
@@ -599,6 +597,19 @@
 							plugin.taskStore.openDetail(path);
 						}}
 						onContextMenu={openContextMenu}
+						selectable={true}
+						selectedPaths={$selectedPaths}
+						onSelect={handleSelect}
+					/>
+				{/if}
+				{#if (currentRenderer === RENDERER_LIST || currentRenderer === RENDERER_AGENDA) && $selectedPaths.size > 0}
+					<BatchActionBar
+						selectedCount={$selectedPaths.size}
+						{eligibility}
+						onArchive={batchArchive}
+						onComplete={batchComplete}
+						onDelete={batchDelete}
+						onClear={() => { selectedPaths.set(clearSelection()); }}
 					/>
 				{/if}
 			</div>
