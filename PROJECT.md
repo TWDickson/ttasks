@@ -525,28 +525,12 @@ boundaries, `seed-graph-test-data` dev-gated out of production.
   the 8 duplicate ISO-date regexes (with AR-5); move `formatHumanDate` next to
   `MONTH_ABBR`; enforce no bare `new Date()` outside the boundary.
 - `[x]` **DT-7 🟡 Agenda bucketing/sort and the Kanban badge ignored the
-  dependency-chain-inferred date** — *(2026-09-09)* Agenda's bucket assignment
-  and per-bucket sort, and every `due_date` filter/sort/field-group, read raw
-  `task.due_date` only — a task with no explicit due date but a schedule-
-  resolved finish (via `estimated_days` or a dependency chain) always sat in
-  "No Date" and sorted last, even though its List/Graph row already showed a
-  `~date` projected badge for the same task. Threaded an optional `schedule`
-  map through `applyQuery`/`applyGroup`/`applyFieldGroup`/`applySort`/
-  `applyFilter` (`src/query/engine.ts`); `due_date` now resolves through
-  `effectiveDueDate()` — explicit value wins, else the resolved end date from
-  `store/taskSchedule.ts`. `useTaskQuery`/`createTaskQuery` take the schedule
-  as a store so the derived query recomputes with it; `TaskBoard` feeds its
-  existing `schedule` reactive value in via a small `scheduleStore`. Detail
-  pane is untouched — edit fields still read/write the raw field only.
-  Same sweep: Kanban's due-date badge never got the inferred-date fallback
-  List/Agenda/Graph already had (no `schedule` prop wired to `TaskKanban` at
-  all), so an inferred-only task showed no date badge on its card. Fixed by
-  wiring `schedule` through, same as the others. Separately, Agenda never got
-  the `selectable` checkbox/batch-select wiring List always had, so toggling
-  selection mode reflowed the two views' rows differently (checkbox column
-  present vs. absent — the visible "grow/shrink" difference). Both now share
-  `selectable`/`selectedPaths`/`onSelect` and a single `BatchActionBar` mount
-  in `TaskBoard.svelte`.
+  dependency-chain-inferred date** — *(2026-09-09, shipped 0.1.13)* `due_date`
+  filter/sort/group now resolve through the dependency-chain-inferred finish
+  when no explicit date is set (Detail pane untouched — still raw); Kanban
+  gained the same inferred-badge fallback List/Agenda/Graph already had; and
+  Agenda/List now share the same selection wiring so toggling batch-select
+  doesn't reflow one view's rows and not the other's. See HISTORY.
 
 ### Repeat mechanism (RP) — redesign
 

@@ -12,6 +12,40 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-09-09 — Agenda/Kanban start honoring the inferred date (DT-7)
+
+Taylor's ask: "for our tasks we have inferred dates... views should use the
+computed value" — except the Detail pane, which edits the raw field and always
+will. Audit found the inferred-date badge (`resolveInferredDueDate`, shown on
+List/Graph rows when a task has no explicit `due_date` but a dependency-chain-
+resolved finish) was purely cosmetic: `src/query/engine.ts` classified and
+sorted Agenda buckets off raw `task.due_date` only, so a task with an inferred
+finish sat in "No Date" and sorted last — visibly contradicting the badge on
+its own row. Kanban didn't even have the badge; `TaskBoard.svelte` never passed
+`schedule` to `TaskKanban`, so an inferred-only task showed no date badge on
+its card at all.
+
+Fix threads an optional `schedule` map through `applyQuery` → `applyGroup` /
+`applyFieldGroup` / `applySort` / `applyFilter`, all funneling `due_date`
+through one `effectiveDueDate()`: explicit value wins, otherwise the resolved
+end from `store/taskSchedule.ts`. `useTaskQuery`/`createTaskQuery` take the
+schedule as a store (not a plain value) so the derived query recomputes when
+it changes; `TaskBoard` feeds its existing `schedule` reactive value in via a
+one-line `scheduleStore`, and now also passes `schedule` to `TaskKanban`,
+which gets the same inferred-badge fallback List/Agenda/Graph already had.
+
+Separately flagged in the same conversation: Agenda and the "Active" list view
+render from genuinely different code paths (List rebuilds tree/status sections
+itself; Agenda just renders the query engine's date buckets flat) — but the
+actual bug behind the visible "rows reflow differently" symptom was narrower:
+`TaskAgenda` never received the `selectable` checkbox / batch-select props
+`TaskList` always has, so toggling selection mode added/removed a checkbox
+column in List but never in Agenda. Both views now share
+`selectable`/`selectedPaths`/`onSelect` and a single `BatchActionBar` mount in
+`TaskBoard.svelte`.
+
+Shipped as `0.1.13`.
+
 ## 2026-08-31 — Four papercuts: subprojects, Future, filters, the gantt
 
 Taylor reported four things in one message. Each turned out to be a different
