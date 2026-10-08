@@ -15,5 +15,17 @@
       "Bash(node .claude/skills/run-ttasks/driver.mjs '/?pomo=active&dial=ring-plain' wait 500 shot pomo-ring-plain.png)",
       "Read(//y/Data Engineering/Git Backups/**)"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ]
   }
 }
