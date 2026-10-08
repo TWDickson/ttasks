@@ -24,9 +24,11 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 
 ## Current state (2026-10-08)
 
+> **⏳ Waiting on release 0.1.14** — carries the dependency-picker sort fix (item 14). Cloud sessions can't push the tag (Auto-mode classifier blocks it as a deploy). Run `git push origin 0.1.14` from a local checkout, then do the on-device check: Create modal → "+ Add dependency…" lists same-project tasks first.
+
 | | |
 | --- | --- |
-| Version | `0.1.13` (GitHub release; not on the community list — deliberate) |
+| Version | `0.1.13` published; **`0.1.14` bumped on `main` (52c8fe7), tag `0.1.14` not yet pushed — waiting on release** (not on the community list — deliberate) |
 | Tests | **1862 passing, 137 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
