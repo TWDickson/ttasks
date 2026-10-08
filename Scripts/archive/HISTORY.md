@@ -33,7 +33,10 @@ were no notifications or indicators.
   `Notification` **every time**, not only when the window is unfocused. The
   chime and the OS notification are on by default; Electron's Notification API
   doesn't prompt for permission. iOS gets the Notice and chime only. Obsidian
-  mobile exposes no local-notification API.
+  mobile exposes no local-notification API. A **"Send test"** button in
+  settings reports what happened. Taylor was on 0.1.13, which had no OS
+  notifications at all, and Windows can drop one silently (Focus Assist,
+  per-app setting), so a failure has to be visible to be diagnosed.
 - **Status bar:** `.ttasks-pomo-statusbar`'s `display` beat the shared hide
   class through source order, so idle showed a bare timer icon.
 - **Theme trap, plugin-wide:** app.css's `button:not(.clickable-icon)` (0,1,1)

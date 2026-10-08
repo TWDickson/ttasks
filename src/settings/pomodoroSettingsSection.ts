@@ -1,4 +1,5 @@
-import { Platform, Setting } from 'obsidian';
+import { Notice, Platform, Setting } from 'obsidian';
+import { describeNotificationResult, playChime, showSystemNotification } from '../integration/pomodoroAlert';
 import type TTasksPlugin from '../main';
 
 interface RenderPomodoroSettingsParams {
@@ -118,6 +119,13 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 				.onChange(async (value) => {
 					plugin.settings.pomodoro.systemNotification = value;
 					await plugin.saveSettings();
+				}))
+			.addButton(button => button
+				.setButtonText('Send test')
+				.onClick(async () => {
+					if (plugin.settings.pomodoro.alertSound) playChime();
+					const result = await showSystemNotification('TTasks Pomodoro', 'Test notification — phase alerts will look like this.');
+					new Notice(describeNotificationResult(result), 10_000);
 				}));
 	}
 

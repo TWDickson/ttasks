@@ -45,22 +45,40 @@ export function vibrate(): void {
 	}
 }
 
+/** What happened to a notification request — surfaced by the settings test button. */
+export type SystemNotificationResult = 'shown' | 'unsupported' | 'denied' | 'error';
+
 /**
  * Raise an OS-level notification via the Web Notification API (Electron routes
  * it to the system notification centre). Clicking it runs `onClick` — main uses
- * that to focus the window and reveal the Pomodoro pane. Returns false when the
- * API is missing or permission was denied, so the caller knows nothing showed.
+ * that to focus the window and reveal the Pomodoro pane. 'shown' means the
+ * runtime accepted it; the OS can still suppress it (Windows Focus Assist /
+ * per-app notification settings, macOS Focus), which no API reports.
  */
-export async function showSystemNotification(title: string, body: string, onClick?: () => void): Promise<boolean> {
+export async function showSystemNotification(title: string, body: string, onClick?: () => void): Promise<SystemNotificationResult> {
 	const Api = (globalThis as { Notification?: typeof Notification }).Notification;
-	if (!Api) return false;
+	if (!Api) return 'unsupported';
 	try {
 		if (Api.permission === 'default') await Api.requestPermission();
-		if (Api.permission !== 'granted') return false;
+		if (Api.permission !== 'granted') return 'denied';
 		const n = new Api(title, { body, silent: true });
 		if (onClick) n.onclick = () => { onClick(); n.close(); };
-		return true;
+		return 'shown';
 	} catch {
-		return false;
+		return 'error';
+	}
+}
+
+/** One-line, user-facing explanation of a test-notification result. */
+export function describeNotificationResult(result: SystemNotificationResult): string {
+	switch (result) {
+		case 'shown':
+			return 'Test notification sent. If nothing appeared, your OS is hiding it — on Windows check Focus Assist / Do Not Disturb and Settings → System → Notifications → Obsidian.';
+		case 'denied':
+			return 'Notifications are blocked for Obsidian (permission denied).';
+		case 'unsupported':
+			return 'This device has no notification API — only the in-app notice and chime are available.';
+		case 'error':
+			return 'The notification could not be created. See the developer console for details.';
 	}
 }

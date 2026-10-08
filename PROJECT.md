@@ -342,7 +342,7 @@ settings-tab before/after).
   year/month split), the two modals, the restyled sidebar pane, the status-bar
   item (idle now actually hides), and the phase-end alerts: a sticky Notice,
   a chime, an Android vibration, and a desktop OS notification on every phase end
-  (click → Pomodoro pane). Also eyeball any `tt-btn-primary` (Mark complete, the empty
+  (click → Pomodoro pane). **Start with Settings → Pomodoro → "Send test"** on Windows: it reports shown / denied / unsupported, and "shown" with nothing visible means Focus Assist or Windows' per-app setting is suppressing it. Also eyeball any `tt-btn-primary` (Mark complete, the empty
   list's "+ New task") — the theme-trap fix makes them filled plugin-wide.
 - `[ ]` **Share/Sync sign-off** — the modal in the real shell, both tabs.
 - `[ ]` **Settings tab** — the AI export prompt library (textarea width, the
