@@ -76,4 +76,13 @@ describe('sortDependencyFirst', () => {
 		const b = makeTask({ name: 'Same', parent_task: parent });
 		expect(sortDependencyFirst(a, b, parent)).toBe(0);
 	});
+
+	it('matches across `.md` and extensionless forms of the project path', () => {
+		// Stored tasks carry `.md`; the create modal holds the bare path.
+		const sameProject = makeTask({ name: 'Zebra', parent_task: `${parent}.md` });
+		const other = makeTask({ name: 'Alpha', parent_task: 'Tasks/other.md' });
+		expect(sortDependencyFirst(sameProject, other, parent)).toBeLessThan(0);
+		expect(sortDependencyFirst(other, sameProject, parent)).toBeGreaterThan(0);
+		expect(sortDependencyFirst(sameProject, other, `${parent}.md`)).toBeLessThan(0);
+	});
 });

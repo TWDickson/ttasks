@@ -416,9 +416,12 @@ That still isn't Obsidian itself.
   worse in dark mode** ⚖ — likely a colour-spine follow-on (badges went
   monochrome in V2). Needs a taste call on how much contrast the selected state
   should carry.
-- `[~]` **(14) Dependency-selection dropdown sorting** — *awaiting repro since
-  2026-07-20.* All three pickers already sort via `sortDependencyFirst`
-  (same-project first, then alphabetical). **Close if Taylor has no repro.**
+- `[x]` **(14) Dependency-picker sorting** — *(2026-10-08)* real bug: the
+  comparator did `a.parent_task === currentParentTask`, but stored tasks carry
+  `.md` while the create modal's form value is extensionless, so "same project
+  first" never matched there (the detail pane happened to work). Both sides now
+  go through `normalizeRefPath`. Not addressed: completed/cancelled tasks still
+  appear in the pickers — say if that is the other half of the complaint.
 - `[ ]` **Share/Sync import: from regular notes** 🔎 — the Import tab only
   accepts a pasted JSON export. Needs scoping: "point at a note and parse tasks
   out of it" (adjacent to the checkbox-scan/promote flow) or something else.

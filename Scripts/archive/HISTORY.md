@@ -26,6 +26,11 @@ A read-through of every planning doc against the code. No product change.
   `run-ttasks` skill still described a symlinked vault and 1,261 tests;
   `API_DESIGN.md` cited `TaskStore.ts` line numbers that had drifted and
   proposed a `search` protocol action that already exists.
+- **Item (14), dependency-picker sorting, was a real bug** — see above: the
+  same-project comparison failed across `.md`/extensionless path forms, so the
+  create modal never grouped same-project tasks first. Fixed in
+  `utils/dependencySort.ts`. Also dropped the unreferenced `Scripts/graph-c2/`
+  C2-workshop screenshots (the analysis lives in this file).
 - **Ordering calls changed:** AR-3 now precedes DT-2 (a new field should land in
   the descriptor table once, not be added and then migrated); N7 (Bases) and N3
   (public API) now wait on MD-1, because the `ttask_*` prefix renames every
