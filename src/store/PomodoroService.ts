@@ -48,6 +48,13 @@ export interface PomodoroServiceDeps {
 	logFocus: (focus: CompletedFocus) => void | Promise<void>;
 	/** Surface a short message (wired to Obsidian's Notice in main). */
 	notify: (message: string) => void;
+	/**
+	 * Surface a phase boundary — focus done, break over, target reached. These are
+	 * the moments the user may be looking elsewhere, so main upgrades them to a
+	 * chime + OS notification. One call per boundary, with the whole story in one
+	 * line. Falls back to `notify` when not provided.
+	 */
+	alert?: (message: string) => void;
 	/** Wall-clock source (epoch ms); injectable for tests. Defaults to Date.now. */
 	now?: () => number;
 }
@@ -215,8 +222,13 @@ export class PomodoroService {
 		else this.session.set(ticked);
 	}
 
+	private alert(message: string): void {
+		(this.deps.alert ?? this.deps.notify)(message);
+	}
+
 	private onPhaseComplete(completed: PomodoroSession): void {
 		const config = this.deps.getConfig();
+		let done = `${phaseLabel(completed.mode)} complete`;
 
 		if (shouldLogFocus(completed)) {
 			// Log the phase's actual length — a trailing fill focus is shorter than focusMinutes.
@@ -229,53 +241,48 @@ export class PomodoroService {
 				partial: false,
 			});
 			const target = completed.taskName ? ` to ${completed.taskName}` : '';
-			this.deps.notify(`Focus complete — logged ${minutes}m${target}`);
+			done = `Focus complete — logged ${minutes}m${target}`;
 		}
 
-		if (completed.targetEndMs !== null) {
-			this.handleUntilBoundary(completed, config);
-			return;
-		}
-
-		this.announcePhase(advancePhase(completed, config), config);
+		const then = completed.targetEndMs !== null
+			? this.handleUntilBoundary(completed, config)
+			: this.announcePhase(advancePhase(completed, config), config);
+		this.alert(`${done}. ${then}`);
 	}
 
-	/** Start or arm `next`, honoring the auto-start setting, then publish it. */
-	private announcePhase(next: PomodoroSession, config: PomodoroConfig & { autoStartNext: boolean }): void {
+	/**
+	 * Start or arm `next`, honoring the auto-start setting, then publish it.
+	 * Returns the sentence describing what happens next, for the phase alert.
+	 */
+	private announcePhase(next: PomodoroSession, config: PomodoroConfig & { autoStartNext: boolean }): string {
 		const label = phaseLabel(next.mode);
 		if (config.autoStartNext) {
-			this.deps.notify(`${label} started`);
 			this.publishPhase(next);
-		} else {
-			this.deps.notify(`${label} ready — resume when you are`);
-			this.publishPhase(pauseSession(next));
+			return `${label} started.`;
 		}
+		this.publishPhase(pauseSession(next));
+		return `${label} ready — resume when you are.`;
 	}
 
-	private finishAtTarget(): void {
-		this.deps.notify('Reached your target time — nice work.');
+	private finishAtTarget(): string {
 		this.session.set(null);
 		this.clearTicking();
+		return 'Reached your target time — nice work.';
 	}
 
 	/**
 	 * Decide what runs next in a "focus until X" session. Runs the next full phase
 	 * if it completes before the target; otherwise fills a leftover focus gap with a
 	 * shortened final focus, or stops. A completed fill focus ends the session.
+	 * Returns the sentence describing what happens next, for the phase alert.
 	 */
-	private handleUntilBoundary(completed: PomodoroSession, config: PomodoroConfig & { autoStartNext: boolean }): void {
-		if (completed.isFill) {
-			this.finishAtTarget();
-			return;
-		}
+	private handleUntilBoundary(completed: PomodoroSession, config: PomodoroConfig & { autoStartNext: boolean }): string {
+		if (completed.isFill) return this.finishAtTarget();
 		const remainingMs = Math.max(0, (completed.targetEndMs ?? 0) - this.now());
 		const upcoming = nextMode(completed, config);
 		const fullSec = phaseDurationSec(upcoming, config);
 
-		if (remainingMs >= fullSec * 1000) {
-			this.announcePhase(advancePhase(completed, config), config);
-			return;
-		}
+		if (remainingMs >= fullSec * 1000) return this.announcePhase(advancePhase(completed, config), config);
 
 		const fillMin = upcoming === 'focus' ? fillFocusMinutes(remainingMs / 60_000) : 0;
 		if (fillMin >= 1) {
@@ -289,10 +296,9 @@ export class PomodoroService {
 				isFill: true,
 			};
 			this.publishPhase(fill);
-			this.deps.notify(`${fillMin}m until target — final focus ${config.autoStartNext ? 'started' : 'ready'}.`);
-			return;
+			return `${fillMin}m until target — final focus ${config.autoStartNext ? 'started' : 'ready'}.`;
 		}
 
-		this.finishAtTarget();
+		return this.finishAtTarget();
 	}
 }

@@ -45,151 +45,133 @@
 </script>
 
 <div class="tt-pomo-pane">
-	<button type="button" class="tt-pomo-settings" on:click={onOpenSettings} aria-label="Pomodoro settings" use:icon={'settings'}></button>
-	{#if active}
-		<div class="tt-pomo-active" class:is-break={active.mode !== 'focus'} class:is-paused={!active.running}>
-			<div class="tt-pomo-dial-wrap">
-				{#if showRing}
-					<svg class="tt-pomo-ring" viewBox="0 0 100 100" aria-hidden="true">
-						<circle class="tt-pomo-ring-track" cx="50" cy="50" r={RING_RADIUS} />
+	<button type="button" class="tt-pomo-settings clickable-icon" on:click={onOpenSettings} aria-label="Pomodoro settings" use:icon={'settings'}></button>
+	<div
+		class="tt-pomo-body"
+		class:is-idle={!active}
+		class:is-break={active && active.mode !== 'focus'}
+		class:is-paused={active && !active.running}
+	>
+		<!-- One fixed-size dial for idle and running, so Start doesn't make the
+		layout jump. The phase label sits inside it, under the digits. -->
+		<div class="tt-pomo-dial-wrap" class:has-ring={showRing}>
+			{#if showRing}
+				<svg class="tt-pomo-ring" viewBox="0 0 100 100" aria-hidden="true">
+					<circle class="tt-pomo-ring-track" cx="50" cy="50" r={RING_RADIUS} />
+					{#if active}
 						<circle
 							class="tt-pomo-ring-progress"
 							cx="50" cy="50" r={RING_RADIUS}
 							stroke-dasharray={RING_CIRCUMFERENCE}
 							stroke-dashoffset={ringDashoffset}
 						/>
-					</svg>
-				{/if}
+					{/if}
+				</svg>
+			{/if}
+			<div class="tt-pomo-dial-text">
 				{#if showDigits}
-					<div class="tt-pomo-dial">{formatRemaining(active)}</div>
+					<div class="tt-pomo-dial">{active ? formatRemaining(active) : idleReadout}</div>
 				{/if}
+				<div class="tt-pomo-phase">
+					{#if active}
+						{phaseLabel}{active.isFill ? ' · final' : ''}{active.running ? '' : ' · paused'}
+					{:else}
+						Ready
+					{/if}
+				</div>
 			</div>
-			<div class="tt-pomo-phase">
-				{phaseLabel}{active.isFill ? ' · final' : ''}{active.running ? '' : ' · paused'}
-			</div>
+		</div>
 
+		{#if active}
 			{#if active.taskName && active.taskPath}
-				<button type="button" class="tt-pomo-task" on:click={() => onOpenTask(active.taskPath ?? '')}>
+				<button type="button" class="tt-pomo-link tt-title tt-truncate" on:click={() => onOpenTask(active.taskPath ?? '')}>
 					{active.taskName}
 				</button>
 			{:else}
-				<div class="tt-pomo-task tt-pomo-task-none">Untethered session</div>
+				<div class="tt-pomo-task-none">Untethered session</div>
 			{/if}
-
 			{#if isUntil}
-				<div class="tt-pomo-target">Running until your target time</div>
+				<div class="tt-pomo-meta">Running until your target time</div>
 			{/if}
+		{:else if picked}
+			<div class="tt-pomo-picked">
+				<span class="tt-pomo-picked-name tt-title tt-title-sm tt-truncate">{picked.name}</span>
+				<button type="button" class="tt-pomo-picked-clear clickable-icon" on:click={onClearPickedTask} aria-label="Clear chosen task" use:icon={'x'}></button>
+			</div>
+		{:else}
+			<button type="button" class="tt-pomo-link tt-pomo-pick-task" on:click={onPickTask}>
+				<span class="tt-pomo-link-icon" use:icon={'link'}></span>
+				Choose a task…
+			</button>
+		{/if}
 
-			<div class="tt-pomo-controls">
+		<div class="tt-pomo-controls">
+			{#if active}
 				<button type="button" class="tt-btn tt-btn-primary" on:click={onToggle}>
 					{active.running ? 'Pause' : 'Resume'}
 				</button>
 				<button type="button" class="tt-btn" on:click={onSkip}>Skip</button>
 				<button type="button" class="tt-btn tt-btn-danger" on:click={onStop}>Stop</button>
-			</div>
-
-			{#if active.completedFocus > 0}
-				<div class="tt-pomo-meta">{active.completedFocus} focus session{active.completedFocus === 1 ? '' : 's'} done</div>
-			{/if}
-		</div>
-	{:else}
-		<div class="tt-pomo-idle">
-			<div class="tt-pomo-dial-wrap">
-				{#if showRing}
-					<svg class="tt-pomo-ring tt-pomo-ring-idle" viewBox="0 0 100 100" aria-hidden="true">
-						<circle class="tt-pomo-ring-track" cx="50" cy="50" r={RING_RADIUS} />
-						<circle class="tt-pomo-ring-progress" cx="50" cy="50" r={RING_RADIUS} stroke-dasharray={RING_CIRCUMFERENCE} stroke-dashoffset={0} />
-					</svg>
-				{/if}
-				{#if showDigits}
-					<div class="tt-pomo-dial tt-pomo-dial-idle">{idleReadout}</div>
-				{/if}
-			</div>
-			<p class="tt-pomo-empty">No focus session running.</p>
-
-			{#if picked}
-				<div class="tt-pomo-picked">
-					<span class="tt-pomo-picked-name tt-title tt-title-sm tt-truncate">{picked.name}</span>
-					<button type="button" class="tt-pomo-picked-clear" on:click={onClearPickedTask} aria-label="Clear chosen task" use:icon={'x'}></button>
-				</div>
 			{:else}
-				<button type="button" class="tt-pomo-pick-task" on:click={onPickTask}>
-					<span use:icon={'link'}></span>
-					Choose a task…
-				</button>
-			{/if}
-
-			<div class="tt-pomo-controls">
 				<button type="button" class="tt-btn tt-btn-primary" on:click={onStart}>Start focus</button>
 				<button type="button" class="tt-btn" on:click={onFocusUntil}>Focus until…</button>
-			</div>
+			{/if}
 		</div>
-	{/if}
+
+		{#if active && active.completedFocus > 0}
+			<div class="tt-pomo-meta">{active.completedFocus} focus session{active.completedFocus === 1 ? '' : 's'} done</div>
+		{/if}
+	</div>
 </div>
 
 <style>
 	.tt-pomo-pane {
 		position: relative;
+		padding: var(--tt-space-4) var(--tt-space-3);
+	}
+
+	/* Native icon-button chrome via .clickable-icon; only placement here. */
+	.tt-pomo-settings {
+		position: absolute;
+		top: var(--tt-space-2);
+		right: var(--tt-space-2);
+	}
+
+	.tt-pomo-body {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: var(--tt-space-3, 12px);
-		padding: var(--tt-space-4, 16px) var(--tt-space-3, 12px);
+		gap: var(--tt-space-3);
+		max-width: 320px;
+		margin: 0 auto;
 		text-align: center;
 	}
 
-	.tt-pomo-settings {
-		position: absolute;
-		top: var(--tt-space-2, 8px);
-		right: var(--tt-space-2, 8px);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 28px;
-		height: 28px;
-		padding: 0;
-		border: none;
-		border-radius: var(--tt-button-radius);
-		background: transparent;
-		color: var(--text-faint);
-		cursor: pointer;
-	}
-	.tt-pomo-settings:hover {
-		color: var(--text-normal);
-		background: var(--background-modifier-hover);
-	}
-
-	.tt-pomo-idle,
-	.tt-pomo-active {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: var(--tt-space-3, 12px);
-		width: 100%;
-	}
-
+	/* ── Dial ── */
 	.tt-pomo-dial-wrap {
 		position: relative;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		display: grid;
+		place-items: center;
+		margin-top: var(--tt-space-2);
+	}
+
+	.tt-pomo-dial-wrap.has-ring {
+		width: 184px;
+		height: 184px;
 	}
 
 	.tt-pomo-ring {
-		width: 180px;
-		height: 180px;
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
 		transform: rotate(-90deg);
-	}
-
-	.tt-pomo-ring-idle {
-		width: 140px;
-		height: 140px;
 	}
 
 	.tt-pomo-ring-track,
 	.tt-pomo-ring-progress {
 		fill: none;
-		stroke-width: 6;
+		stroke-width: 4;
 	}
 
 	.tt-pomo-ring-track {
@@ -203,104 +185,94 @@
 	}
 
 	.is-break .tt-pomo-ring-progress {
-		stroke: var(--color-green, var(--text-accent));
+		stroke: var(--color-green);
 	}
 
-	.is-paused .tt-pomo-ring-progress {
-		opacity: 0.6;
-	}
-
-	/* Dial text overlays the ring rather than stacking beneath it. */
-	.tt-pomo-ring + .tt-pomo-dial {
-		position: absolute;
+	.tt-pomo-dial-text {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--tt-space-1);
 	}
 
 	.tt-pomo-dial {
-		font-size: 3.4rem;
-		font-weight: 700;
+		font-size: 3rem;
+		font-weight: 600;
 		line-height: 1;
 		font-variant-numeric: tabular-nums;
-		letter-spacing: 0.02em;
+		letter-spacing: -0.01em;
 		color: var(--text-normal);
 	}
 
-	.tt-pomo-ring-idle + .tt-pomo-dial {
-		font-size: 2.6rem;
+	/* Inside a ring the digits must clear the stroke: ~120px wide in a 184px dial. */
+	.has-ring .tt-pomo-dial {
+		font-size: 2.4rem;
 	}
 
-	.tt-pomo-dial-idle {
+	.is-idle .tt-pomo-dial {
 		color: var(--text-muted);
 	}
 
 	.is-break .tt-pomo-dial {
-		color: var(--color-green, var(--text-accent));
-	}
-
-	.is-paused .tt-pomo-dial {
-		opacity: 0.6;
+		color: var(--color-green);
 	}
 
 	.tt-pomo-phase {
-		font-size: var(--font-ui-small);
+		font-size: var(--font-ui-smaller);
+		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 		color: var(--text-muted);
 	}
 
-	.tt-pomo-task {
+	.is-paused .tt-pomo-dial,
+	.is-paused .tt-pomo-ring-progress {
+		opacity: 0.5;
+	}
+
+	/* ── Task line ── */
+	.tt-pomo-body button.tt-pomo-link {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--tt-space-1);
 		max-width: 100%;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		background: none;
+		height: auto;
+		padding: 2px 6px;
 		border: none;
 		box-shadow: none;
-		padding: 0;
-		font-size: var(--font-ui-medium);
+		background: transparent;
 		color: var(--text-accent);
 		cursor: pointer;
 	}
 
-	.tt-pomo-task-none {
-		color: var(--text-faint);
-		cursor: default;
-	}
-
-	.tt-pomo-target {
-		font-size: var(--font-ui-smaller);
-		color: var(--text-muted);
-	}
-
-	.tt-pomo-empty {
-		margin: 0;
-		color: var(--text-muted);
-		font-size: var(--font-ui-small);
+	.tt-pomo-body button.tt-pomo-link:hover {
+		background: var(--background-modifier-hover);
+		box-shadow: none;
 	}
 
 	.tt-pomo-pick-task {
-		display: flex;
-		align-items: center;
-		gap: var(--tt-space-1, 4px);
-		border: none;
-		background: none;
-		padding: 0;
-		color: var(--text-accent);
 		font-size: var(--font-ui-small);
-		cursor: pointer;
 	}
-	.tt-pomo-pick-task:hover {
-		text-decoration: underline;
+
+	.tt-pomo-link-icon {
+		display: inline-flex;
+		--icon-size: var(--icon-s);
+	}
+
+	.tt-pomo-task-none {
+		font-size: var(--font-ui-small);
+		color: var(--text-faint);
 	}
 
 	.tt-pomo-picked {
 		display: flex;
 		align-items: center;
-		gap: var(--tt-space-2, 8px);
+		gap: var(--tt-space-1);
 		max-width: 100%;
-		padding: 4px 10px;
+		padding: 2px 4px 2px 12px;
 		border-radius: 999px;
 		background: var(--background-modifier-hover);
-		font-size: var(--font-ui-small);
 	}
 
 	/* Sizing and truncation from .tt-title / .tt-truncate; the accent colour is
@@ -310,27 +282,16 @@
 	}
 
 	.tt-pomo-picked-clear {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 16px;
-		height: 16px;
 		flex-shrink: 0;
-		border: none;
-		background: none;
-		padding: 0;
-		color: var(--text-faint);
-		cursor: pointer;
-	}
-	.tt-pomo-picked-clear:hover {
-		color: var(--text-normal);
+		--icon-size: var(--icon-xs);
 	}
 
+	/* ── Controls ── */
 	.tt-pomo-controls {
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
-		gap: var(--tt-space-2, 8px);
+		gap: var(--tt-space-2);
 	}
 
 	.tt-pomo-meta {

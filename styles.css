@@ -26,7 +26,8 @@
 .tt-query-editor-modal,
 .tt-share-modal,
 .tt-settings,
-.tt-managed-list-section {
+.tt-managed-list-section,
+.tt-pomodoro-view {
 	--tt-space-1: var(--size-4-1, 4px);
 	--tt-space-2: var(--size-4-2, 8px);
 	--tt-space-3: var(--size-4-3, 12px);
@@ -57,8 +58,8 @@
    Same reason the file's other `!important`s exist. A component that ever
    wants a hover transform needs `!important` too; nothing does today.
 
-   The last two are not token roots (that gap is tracked separately) but host
-   plugin buttons: the fullscreen graph is the worst case, where every node and
+   The graph modal is not a token root (that gap is tracked separately) but
+   hosts plugin buttons: it is the worst case, where every node and
    timeline bar is a <button>. */
 .tt-board button:hover,
 .tt-rail-view button:hover,
@@ -418,6 +419,28 @@
 .tt-btn-danger:hover:not(:disabled) {
 	background: color-mix(in srgb, var(--color-red) 10%, var(--background-primary));
 	border-color: color-mix(in srgb, var(--color-red) 60%, var(--background-modifier-border));
+}
+
+/* Theme specificity trap: app.css's `button:not(.clickable-icon)` (0,1,1) sets
+   background-color, colour and an --input-shadow ring, beating the single-class
+   rules above — primaries rendered unfilled with a doubled edge. Compound
+   selectors restore the design. */
+button.tt-btn {
+	box-shadow: none;
+}
+
+button.tt-btn-primary {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+button.tt-btn-primary:hover:not(:disabled) {
+	background-color: var(--interactive-accent-hover);
+	box-shadow: none;
+}
+
+button.tt-btn-danger {
+	color: var(--color-red);
 }
 
 .tt-btn-sm {
@@ -2336,4 +2359,10 @@
 
 .ttasks-pomo-statusbar.is-paused {
 	opacity: 0.6;
+}
+
+/* .ttasks-pomo-statusbar sets display above with equal specificity and later
+   order, so the shared hide class alone lost — idle showed a bare timer icon. */
+.ttasks-pomo-statusbar.ttasks-statusbar-hidden {
+	display: none;
 }

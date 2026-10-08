@@ -71,7 +71,10 @@ describe('pomodoro settings normalization', () => {
 			dialStyle: DEFAULT_SETTINGS.pomodoro.dialStyle,
 			autoStartNext: false,
 			logEnabled: DEFAULT_SETTINGS.pomodoro.logEnabled,
-			logPath: DEFAULT_SETTINGS.pomodoro.logPath,
+			logFolder: DEFAULT_SETTINGS.pomodoro.logFolder,
+			logSplit: DEFAULT_SETTINGS.pomodoro.logSplit,
+			alertSound: DEFAULT_SETTINGS.pomodoro.alertSound,
+			systemNotification: DEFAULT_SETTINGS.pomodoro.systemNotification,
 			logPartialOnStop: DEFAULT_SETTINGS.pomodoro.logPartialOnStop,
 		});
 	});
@@ -86,11 +89,20 @@ describe('pomodoro settings normalization', () => {
 
 	it('applies persisted log settings', () => {
 		const merged = normalizeSettingsFromSources([
-			{ pomodoro: { logEnabled: false, logPath: 'logs/pomo.csv', logPartialOnStop: false } },
+			{ pomodoro: { logEnabled: false, logFolder: '/logs/pomo/', logSplit: 'month', logPartialOnStop: false, alertSound: false, systemNotification: false } },
 		]);
 		expect(merged.pomodoro.logEnabled).toBe(false);
-		expect(merged.pomodoro.logPath).toBe('logs/pomo.csv');
+		expect(merged.pomodoro.logFolder).toBe('logs/pomo');
+		expect(merged.pomodoro.logSplit).toBe('month');
+		expect(merged.pomodoro.alertSound).toBe(false);
+		expect(merged.pomodoro.systemNotification).toBe(false);
 		expect(merged.pomodoro.logPartialOnStop).toBe(false);
+	});
+
+	it('ignores an unknown logSplit and the retired logPath', () => {
+		const merged = normalizeSettingsFromSources([{ pomodoro: { logSplit: 'weekly', logPath: 'old.csv' } }]);
+		expect(merged.pomodoro.logSplit).toBe(DEFAULT_SETTINGS.pomodoro.logSplit);
+		expect('logPath' in merged.pomodoro).toBe(false);
 	});
 
 	it('ignores non-numeric fields and keeps the defaults', () => {

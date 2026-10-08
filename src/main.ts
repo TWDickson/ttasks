@@ -33,7 +33,8 @@ import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration
 import { resolveQuickAction } from './integration/quickActions';
 import { ArchiveService } from './store/ArchiveService';
 import { type CompletedFocus, PomodoroService } from './store/PomodoroService';
-import { type PomodoroLogEntry, formatLogRow, formatNewLogFile } from './integration/pomodoroLog';
+import { type PomodoroLogEntry, formatLogRow, formatNewLogFile, pomodoroLogPath } from './integration/pomodoroLog';
+import { playChime, showSystemNotification } from './integration/pomodoroAlert';
 import { pomodoroStatusBarView } from './integration/pomodoroStatusBar';
 import { type NotesPolicy, type TaskJsonMode, type TaskJsonValidValues, serializeTasksToJson } from './integration/taskJsonExport';
 import type { DerivedStateContext } from './integration/taskDerivedState';
@@ -47,7 +48,8 @@ import { TaskLinkSuggestModal } from './editor/TaskLinkSuggestModal';
 import { TaskJumpSuggestModal } from './editor/TaskJumpSuggestModal';
 import { buildAliasedLink } from './integration/relationshipLink';
 import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
-import { localDateString } from './utils/dateUtils';
+import { localDateString, localIsoTimestamp } from './utils/dateUtils';
+import { ensureFolderPath } from './utils/vaultSafe';
 import { createTaskContextMenuDeps } from './integration/taskActionPorts';
 import { ScanEngine } from './integration/ScanEngine';
 import type { ExternalTask } from './integration/types';
@@ -116,6 +118,7 @@ export default class TTasksPlugin extends Plugin {
 			getConfig: () => this.settings.pomodoro,
 			logFocus: (focus) => this.logPomodoroFocus(focus),
 			notify: (message) => { new Notice(message); },
+			alert: (message) => this.alertPomodoroPhase(message),
 		});
 		this.register(() => this.pomodoroService.dispose());
 		this.scanEngine = new ScanEngine();
@@ -518,9 +521,27 @@ export default class TTasksPlugin extends Plugin {
 	 * that task's `pomodoro_count` and adds the focus minutes to `focused_minutes`.
 	 * Wired into PomodoroService via its `logFocus` dep.
 	 */
+	/**
+	 * A phase boundary is the one moment the user may be looking elsewhere, so it
+	 * gets more than the 5s in-app toast: a longer Notice, an optional chime, and
+	 * — on desktop, when Obsidian isn't the focused window — an OS notification
+	 * whose click brings Obsidian forward on the Pomodoro pane.
+	 */
+	private alertPomodoroPhase(message: string): void {
+		const { alertSound, systemNotification } = this.settings.pomodoro;
+		new Notice(message, 10_000);
+		if (alertSound) playChime();
+		if (systemNotification && Platform.isDesktop && !document.hasFocus()) {
+			void showSystemNotification('TTasks Pomodoro', message, () => {
+				window.focus();
+				void this.openPomodoroPane();
+			});
+		}
+	}
+
 	private async logPomodoroFocus(focus: CompletedFocus): Promise<void> {
 		await this.appendPomodoroLog({
-			endedAt: new Date().toISOString(),
+			endedAt: localIsoTimestamp(),
 			mode: focus.mode,
 			minutes: focus.minutes,
 			taskPath: focus.taskPath,
@@ -540,14 +561,19 @@ export default class TTasksPlugin extends Plugin {
 	}
 
 	/**
-	 * Append one session row to the CSV log, creating the file (with header) on
-	 * first use. No-op when logging is disabled. Failures surface a Notice but
-	 * never throw — a log-write hiccup must not break the timer.
+	 * Append one session row to the CSV log, creating the folder and file (with
+	 * header) on first use. The log sits in the tasks folder unless a log folder
+	 * is set, split per year/month by setting. No-op when logging is disabled.
+	 * Failures surface a Notice but never throw — a log-write hiccup must not
+	 * break the timer.
 	 */
 	private async appendPomodoroLog(entry: PomodoroLogEntry): Promise<void> {
-		if (!this.settings.pomodoro.logEnabled) return;
-		const path = this.settings.pomodoro.logPath;
+		const { logEnabled, logFolder, logSplit } = this.settings.pomodoro;
+		if (!logEnabled) return;
+		const folder = logFolder || this.settings.tasksFolder;
+		const path = pomodoroLogPath(folder, logSplit, entry.endedAt.slice(0, 10));
 		try {
+			await ensureFolderPath(this.app.vault, folder);
 			const existing = this.app.vault.getAbstractFileByPath(path);
 			if (existing instanceof TFile) {
 				await this.app.vault.append(existing, `${formatLogRow(entry)}\n`);

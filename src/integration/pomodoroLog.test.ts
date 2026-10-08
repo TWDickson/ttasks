@@ -5,6 +5,7 @@ import {
 	csvEscape,
 	formatLogRow,
 	formatNewLogFile,
+	pomodoroLogPath,
 } from './pomodoroLog';
 
 const base: PomodoroLogEntry = {
@@ -57,5 +58,21 @@ describe('formatNewLogFile', () => {
 		expect(content.startsWith(`${POMODORO_LOG_HEADER}\n`)).toBe(true);
 		expect(content.endsWith('\n')).toBe(true);
 		expect(content.split('\n')).toHaveLength(3); // header, row, trailing ''
+	});
+});
+
+describe('pomodoroLogPath', () => {
+	it('keeps one file when unsplit', () => {
+		expect(pomodoroLogPath('Tasks', 'none', '2026-10-08')).toBe('Tasks/pomodoro-log.csv');
+	});
+
+	it('splits per year and per month from the local date', () => {
+		expect(pomodoroLogPath('Tasks', 'year', '2026-10-08')).toBe('Tasks/pomodoro-log-2026.csv');
+		expect(pomodoroLogPath('Tasks', 'month', '2026-10-08')).toBe('Tasks/pomodoro-log-2026-10.csv');
+	});
+
+	it('tolerates stray slashes and an empty (root) folder', () => {
+		expect(pomodoroLogPath('/Work/Tasks/', 'none', '2026-10-08')).toBe('Work/Tasks/pomodoro-log.csv');
+		expect(pomodoroLogPath('', 'month', '2026-01-31')).toBe('pomodoro-log-2026-01.csv');
 	});
 });

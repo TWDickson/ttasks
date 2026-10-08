@@ -54,7 +54,7 @@ describe('PomodoroPane', () => {
 	it('shows the idle state with start controls when no session runs', () => {
 		const h = renderPane(null);
 		expect(screen.getByText('25:00')).toBeTruthy();
-		expect(screen.getByText('No focus session running.')).toBeTruthy();
+		expect(screen.getByText('Ready')).toBeTruthy();
 		fireEvent.click(screen.getByText('Start focus'));
 		expect(h.onStart).toHaveBeenCalledOnce();
 		fireEvent.click(screen.getByText('Focus until…'));

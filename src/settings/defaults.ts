@@ -114,7 +114,10 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		dialStyle: 'digital',
 		autoStartNext: true,
 		logEnabled: true,
-		logPath: 'ttasks-pomodoro-log.csv',
+		logFolder: '',
+		logSplit: 'none',
+		alertSound: true,
+		systemNotification: true,
 		logPartialOnStop: true,
 	},
 	kanbanCardFields: ['area', 'dueDate', 'labels', 'depCount'] as KanbanCardField[],
@@ -303,7 +306,10 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 			dialStyle: settings.pomodoro?.dialStyle ?? DEFAULT_SETTINGS.pomodoro.dialStyle,
 			autoStartNext: settings.pomodoro?.autoStartNext ?? DEFAULT_SETTINGS.pomodoro.autoStartNext,
 			logEnabled: settings.pomodoro?.logEnabled ?? DEFAULT_SETTINGS.pomodoro.logEnabled,
-			logPath: settings.pomodoro?.logPath ?? DEFAULT_SETTINGS.pomodoro.logPath,
+			logFolder: settings.pomodoro?.logFolder ?? DEFAULT_SETTINGS.pomodoro.logFolder,
+			logSplit: settings.pomodoro?.logSplit ?? DEFAULT_SETTINGS.pomodoro.logSplit,
+			alertSound: settings.pomodoro?.alertSound ?? DEFAULT_SETTINGS.pomodoro.alertSound,
+			systemNotification: settings.pomodoro?.systemNotification ?? DEFAULT_SETTINGS.pomodoro.systemNotification,
 			logPartialOnStop: settings.pomodoro?.logPartialOnStop ?? DEFAULT_SETTINGS.pomodoro.logPartialOnStop,
 		},
 		kanbanCardFields: settings.kanbanCardFields ?? [...DEFAULT_SETTINGS.kanbanCardFields],
@@ -818,8 +824,17 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		const logEnabled = asBoolean(pomodoro.logEnabled);
 		if (logEnabled !== null) target.pomodoro.logEnabled = logEnabled;
 
-		const logPath = asString(pomodoro.logPath);
-		if (logPath !== null && logPath.trim() !== '') target.pomodoro.logPath = logPath.trim();
+		const logFolder = asString(pomodoro.logFolder);
+		if (logFolder !== null) target.pomodoro.logFolder = logFolder.trim().replace(/^\/+|\/+$/g, '');
+
+		const logSplit = asString(pomodoro.logSplit);
+		if (logSplit === 'none' || logSplit === 'year' || logSplit === 'month') target.pomodoro.logSplit = logSplit;
+
+		const alertSound = asBoolean(pomodoro.alertSound);
+		if (alertSound !== null) target.pomodoro.alertSound = alertSound;
+
+		const systemNotification = asBoolean(pomodoro.systemNotification);
+		if (systemNotification !== null) target.pomodoro.systemNotification = systemNotification;
 
 		const logPartialOnStop = asBoolean(pomodoro.logPartialOnStop);
 		if (logPartialOnStop !== null) target.pomodoro.logPartialOnStop = logPartialOnStop;

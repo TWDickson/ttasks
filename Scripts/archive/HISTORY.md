@@ -12,6 +12,34 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-08 — Pomodoro: log location, alerts, pane restyle
+
+Taylor's report: the pane looked bad, the log wasn't where expected, and there
+were no notifications or indicators.
+
+- **Log stays CSV** (Taylor's call: Markdown is a poor data file; CSV is open).
+  It moved from the vault root to the **tasks folder** (or a `logFolder`
+  override), and a `logSplit` setting (none / year / month) changes only the
+  file name, so size is the user's choice. `logPath` is retired; an existing
+  `ttasks-pomodoro-log.csv` at the root is left where it is. Columns are
+  unchanged, but `ended_at` is now **local time with an offset** instead of UTC
+  `toISOString()`, so the date part is the user's day.
+- **Alerts:** the service gained an optional `alert` dep. Each phase boundary
+  makes one combined call ("Focus complete — logged 25m to X. Short break
+  started.") instead of two toasts. Main turns it into a 10s Notice, an optional
+  synthesized chime, and on desktop an OS `Notification` when the window isn't
+  focused. Both are on by default; the Electron Notification API doesn't prompt.
+- **Status bar:** `.ttasks-pomo-statusbar`'s `display` beat the shared hide
+  class through source order, so idle showed a bare timer icon.
+- **Theme trap, plugin-wide:** app.css's `button:not(.clickable-icon)` (0,1,1)
+  outranked `.tt-btn-primary`, so every primary button rendered unfilled with an
+  `--input-shadow` ring. Fixed with compound `button.tt-btn*` rules.
+- **Pane:** one fixed 184px dial for idle and running (the digits had
+  overflowed the 140px idle ring), with the phase label inside it. The idle ring
+  is track-only rather than a full accent circle. The gear and the clear-task
+  button use native `.clickable-icon`, the redundant "No focus session running."
+  is gone, and `.tt-pomodoro-view` is a token root.
+
 ## 2026-10-08 — Planning-docs audit
 
 A read-through of every planning doc against the code. No product change.

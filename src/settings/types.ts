@@ -1,6 +1,7 @@
 ﻿import type { GroupField, QuerySpec, SortField } from '../query/types';
 import type { Task } from '../types';
 import type { NotesPolicy, TaskJsonMode } from '../integration/taskJsonExport';
+import type { PomodoroLogSplit } from '../integration/pomodoroLog';
 import type { SharePayloadFormat, ShareOutputFormat, SharePreamblePreset, SharePreamblePresetId } from '../integration/sharePreamble';
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
@@ -131,8 +132,14 @@ export interface PomodoroSettings {
 	autoStartNext: boolean;
 	/** Append each completed focus session to a CSV log file. */
 	logEnabled: boolean;
-	/** Vault-relative path of the CSV session log. */
-	logPath: string;
+	/** Folder for the CSV session log; '' = the tasks folder. */
+	logFolder: string;
+	/** Split the log into one file per year / month, or keep one file. */
+	logSplit: PomodoroLogSplit;
+	/** Play a short chime when a phase ends. */
+	alertSound: boolean;
+	/** Desktop: also raise an OS notification when a phase ends. */
+	systemNotification: boolean;
 	/**
 	 * When you Stop mid-focus, log the elapsed minutes (as a partial session)
 	 * instead of discarding them. Partial sessions add to `focused_minutes` but do

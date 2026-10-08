@@ -392,7 +392,10 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 				autoStartNext: true,
 				logPartialOnStop: true,
 				logEnabled: true,
-				logPath: 'ttasks-pomodoro-log.csv',
+				logFolder: '',
+				logSplit: 'none',
+				alertSound: false,
+				systemNotification: false,
 			},
 	};
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localDateString, daysBetweenLocal, addDaysLocal, toCalendarDate } from './dateUtils';
+import { localIsoTimestamp, localDateString, daysBetweenLocal, addDaysLocal, toCalendarDate } from './dateUtils';
 
 // ── localDateString ───────────────────────────────────────────────────────────
 //
@@ -203,5 +203,16 @@ describe('toCalendarDate', () => {
 		expect(toCalendarDate(42)).toBeNull();
 		expect(toCalendarDate(true)).toBeNull();
 		expect(toCalendarDate({})).toBeNull();
+	});
+});
+
+describe('localIsoTimestamp', () => {
+	it('uses the local date/time and a matching offset', () => {
+		const d = new Date(2026, 9, 8, 21, 5, 7);
+		const ts = localIsoTimestamp(d);
+		expect(ts.startsWith('2026-10-08T21:05:07')).toBe(true);
+		expect(ts).toMatch(/[+-]\d{2}:\d{2}$/);
+		// Round-trips to the same instant.
+		expect(new Date(ts).getTime()).toBe(d.getTime());
 	});
 });

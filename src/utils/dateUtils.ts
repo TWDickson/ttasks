@@ -34,6 +34,22 @@ export function localDateString(now: Date = new Date()): string {
 }
 
 /**
+ * Local wall-clock instant as ISO-8601 with an explicit UTC offset, e.g.
+ * `2026-10-08T14:25:07-05:00`. Unlike `toISOString()` the date part is the
+ * user's local day, while the offset keeps the instant unambiguous.
+ *
+ * @param now — inject for testing; defaults to `new Date()`
+ */
+export function localIsoTimestamp(now: Date = new Date()): string {
+	const pad = (n: number) => String(n).padStart(2, '0');
+	const offsetMin = -now.getTimezoneOffset();
+	const sign = offsetMin >= 0 ? '+' : '-';
+	const abs = Math.abs(offsetMin);
+	const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+	return `${localDateString(now)}T${time}${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+}
+
+/**
  * Number of calendar days from `from` to `to` (both YYYY-MM-DD strings).
  *
  * The result is an exact integer regardless of DST transitions because the

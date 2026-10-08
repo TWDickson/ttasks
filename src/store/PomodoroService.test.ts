@@ -109,6 +109,20 @@ describe('PomodoroService', () => {
 		service.dispose();
 	});
 
+	it('routes each phase boundary to alert as one combined message', () => {
+		const alert = vi.fn();
+		const { service, notify } = makeService({ alert });
+		service.start('a.md', 'A');
+		notify.mockClear();
+		advanceSeconds(1500);
+		expect(alert).toHaveBeenCalledTimes(1);
+		expect(alert).toHaveBeenCalledWith('Focus complete — logged 25m to A. Short break started.');
+		advanceSeconds(300);
+		expect(alert).toHaveBeenLastCalledWith('Short break complete. Focus started.');
+		expect(notify).not.toHaveBeenCalled();
+		service.dispose();
+	});
+
 	it('runs an untethered session and logs it with null task fields', () => {
 		const { service, logFocus, notify } = makeService();
 		service.start(null, null);
@@ -116,7 +130,7 @@ describe('PomodoroService', () => {
 		expect(notify).toHaveBeenCalledWith(expect.stringContaining('Focus'));
 		advanceSeconds(1500);
 		expect(logFocus).toHaveBeenCalledWith({ taskPath: null, taskName: null, minutes: 25, mode: 'focus', partial: false });
-		expect(notify).toHaveBeenCalledWith('Focus complete — logged 25m');
+		expect(notify).toHaveBeenCalledWith('Focus complete — logged 25m. Short break started.');
 		service.dispose();
 	});
 

@@ -338,8 +338,12 @@ settings-tab before/after).
   feature closes only after a narrow-viewport/iOS pass.
 
 **Desktop Obsidian**
-- `[ ]` **Pomodoro sign-off** — the CSV write, the two modals, the sidebar pane
-  leaf, the status-bar item.
+- `[ ]` **Pomodoro sign-off** — the CSV write (now in the tasks folder, optional
+  year/month split), the two modals, the restyled sidebar pane, the status-bar
+  item (idle now actually hides), and the phase-end alerts: 10s Notice, chime,
+  and an OS notification **only when Obsidian is in the background** (click →
+  Pomodoro pane). Also eyeball any `tt-btn-primary` (Mark complete, the empty
+  list's "+ New task") — the theme-trap fix makes them filled plugin-wide.
 - `[ ]` **Share/Sync sign-off** — the modal in the real shell, both tabs.
 - `[ ]` **Settings tab** — the AI export prompt library (textarea width, the
   disabled "Restore default", read-only interop list) and the settings-tab P7
@@ -487,8 +491,9 @@ critical path except where noted above (AR-3, PB-4).
   for={definition.name}>`). Fix is a deletion: stop blanking, drop the wrapper and
   span. Watch `.tt-detail > .tt-field-group` in `styles.css`, which centres the
   top block and would need rehoming.
-- `[ ]` **Two plugin roots miss the design tokens** — `.tt-graph-fullscreen-modal`
-  and `.tt-pomodoro-view` aren't in the token-root list in `styles.css`, so
+- `[ ]` **A plugin root misses the design tokens** — `.tt-graph-fullscreen-modal`
+  isn't in the token-root list in `styles.css` (`.tt-pomodoro-view` joined it
+  2026-10-08), so
   `--tt-space-*` / `--tt-control-*` fall back to per-use defaults. Mostly a no-op
   today because the fallbacks mirror the token values.
 - `[ ]` **Hand-rolled popovers could be the native Popover API** —

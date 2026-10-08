@@ -1,4 +1,4 @@
-import { Setting } from 'obsidian';
+import { Platform, Setting } from 'obsidian';
 import type TTasksPlugin from '../main';
 
 interface RenderPomodoroSettingsParams {
@@ -100,8 +100,30 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 			}));
 
 	new Setting(containerEl)
+		.setName('Chime when a phase ends')
+		.setDesc('Play a short two-note chime when a focus session or break finishes.')
+		.addToggle(toggle => toggle
+			.setValue(p.alertSound)
+			.onChange(async (value) => {
+				plugin.settings.pomodoro.alertSound = value;
+				await plugin.saveSettings();
+			}));
+
+	if (Platform.isDesktop) {
+		new Setting(containerEl)
+			.setName('System notification when a phase ends')
+			.setDesc('When Obsidian is in the background, also show an OS notification. Clicking it brings you back to the Pomodoro pane.')
+			.addToggle(toggle => toggle
+				.setValue(p.systemNotification)
+				.onChange(async (value) => {
+					plugin.settings.pomodoro.systemNotification = value;
+					await plugin.saveSettings();
+				}));
+	}
+
+	new Setting(containerEl)
 		.setName('Log sessions to CSV')
-		.setDesc('Append every completed focus session (time, minutes, task) to a CSV log file. Append-only, git- and sync-friendly.')
+		.setDesc('Append every completed focus session (time, minutes, task) to a CSV file. Append-only, git- and sync-friendly. Obsidian hides .csv files unless "Detect all file extensions" is on (Settings → Files and links).')
 		.addToggle(toggle => toggle
 			.setValue(p.logEnabled)
 			.onChange(async (value) => {
@@ -110,13 +132,26 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 			}));
 
 	new Setting(containerEl)
-		.setName('Session log path')
-		.setDesc('Vault-relative path of the CSV log. Created on the first logged session.')
+		.setName('Session log folder')
+		.setDesc(`Folder for the log. Leave blank to keep it in your tasks folder (${plugin.settings.tasksFolder}).`)
 		.addText(text => text
-			.setPlaceholder('ttasks-pomodoro-log.csv')
-			.setValue(p.logPath)
+			.setPlaceholder(plugin.settings.tasksFolder)
+			.setValue(p.logFolder)
 			.onChange(async (value) => {
-				const trimmed = value.trim();
-				if (trimmed !== '') { plugin.settings.pomodoro.logPath = trimmed; await plugin.saveSettings(); }
+				plugin.settings.pomodoro.logFolder = value.trim().replace(/^\/+|\/+$/g, '');
+				await plugin.saveSettings();
+			}));
+
+	new Setting(containerEl)
+		.setName('Split the log')
+		.setDesc('Start a new file each year or month to keep each file small. Only the file name changes — pomodoro-log.csv, pomodoro-log-2026.csv, or pomodoro-log-2026-10.csv.')
+		.addDropdown(dd => dd
+			.addOption('none', 'One file')
+			.addOption('year', 'One file per year')
+			.addOption('month', 'One file per month')
+			.setValue(p.logSplit)
+			.onChange(async (value) => {
+				plugin.settings.pomodoro.logSplit = value as typeof p.logSplit;
+				await plugin.saveSettings();
 			}));
 }
