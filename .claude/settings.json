@@ -13,7 +13,9 @@
       "Bash(node .claude/skills/run-ttasks/driver.mjs '/?pomo=active&dial=digital' wait 500 shot pomo-digital.png)",
       "Bash(node .claude/skills/run-ttasks/driver.mjs '/?pomo=active&dial=ring' wait 500 shot pomo-ring.png)",
       "Bash(node .claude/skills/run-ttasks/driver.mjs '/?pomo=active&dial=ring-plain' wait 500 shot pomo-ring-plain.png)",
-      "Read(//y/Data Engineering/Git Backups/**)"
+      "Read(//y/Data Engineering/Git Backups/**)",
+      "Bash(npm version patch)",
+      "Bash(git push origin main --follow-tags)"
     ]
   },
   "hooks": {
