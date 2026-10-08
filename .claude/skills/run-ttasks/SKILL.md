@@ -14,12 +14,12 @@ below are relative to the repo root.
 
 ## Prerequisites
 
-- Node + `npm install` (nothing OS-level; puppeteer-core uses an installed
-  browser — on this Mac it picks Microsoft Edge, falling back per the
-  `BROWSERS` list in the driver).
-- `test-rig/vendor/` is **gitignored**. If missing, regenerate it from the
-  installed Obsidian app + vault theme (requires `/Applications/Obsidian.app`
-  and the vault at `~/Obsidian/Taylor`):
+- Node + `npm ci` (nothing OS-level; puppeteer-core uses an installed
+  browser — on the Mac it picks Microsoft Edge, in a cloud container it finds
+  the pre-installed Chromium, per the `BROWSERS` list in the driver).
+- `test-rig/vendor/` is **gitignored**. If missing, regenerate it. With a local
+  Obsidian install + vault it copies from them; otherwise (server, cloud
+  session) it downloads `app.css` and the Underwater theme from GitHub:
 
 ```bash
 npm run rig:sync-css
@@ -29,7 +29,8 @@ npm run rig:sync-css
 
 ```bash
 npm run build      # tsc --noEmit + esbuild production → main.js
-npx vitest run     # full suite (1261 tests, ~7s)
+npm run check      # lint → build → test (~1.9k tests, ~1 min)
+npm run check:all  # + rig:smoke (11 scenes) — the full CI equivalent
 ```
 
 ## Run (agent path) — drive the rig
@@ -59,7 +60,7 @@ node .claude/skills/run-ttasks/driver.mjs --mobile '/?view=kanban' shot mobile-k
 Commands: `shot <file>` · `click <sel>` · `type <sel> <text>` ·
 `text <sel>` · `count <sel>` · `eval <js>` · `wait <ms>`.
 
-URL params: `view=list|kanban|agenda|graph|today|inbox|logbook` ·
+URL params: `view=list|kanban|agenda|graph|timeline|today|inbox|logbook` ·
 `theme=light|dark` (dark is default) · `data=fixtures` (synthetic stress
 fixtures; default is **live vault data**) · `detail=1` · `modal=1`.
 
@@ -79,17 +80,11 @@ npm run rig                  # vite on http://localhost:5199, Ctrl-C to stop
 
 ## Run (human path) — live Obsidian
 
-The repo is symlinked into the vault:
-`~/Obsidian/Taylor/.obsidian/plugins/ttasks → ~/Projects/ttasks`, and the
-vault has the `hot-reload` community plugin (it watches this plugin because
-the dir contains `.git`). So:
-
-```bash
-npm run dev                  # esbuild watch → main.js; hot-reload picks it up
-```
-
-Then work in the Obsidian app. Useless headless; only needed for what the
-rig can't show (see Gotchas).
+`npm run build` copies `main.js` / `manifest.json` / `styles.css` into the
+vault's plugin folder (a real folder, not a symlink — a symlink pointed Obsidian
+Sync at the whole repo, fixed 2026-07-31). `npm run dev` is watch-only and
+**does not touch the vault**, so use `build` to deploy. Only needed for what the
+rig can't show (see Gotchas); useless headless.
 
 ## Key selectors (verified in the rig)
 

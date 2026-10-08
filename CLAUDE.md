@@ -15,7 +15,7 @@ status document.
   why past decisions went the way they did. Read it when you need the reasoning
   behind existing code.
 - **`API_DESIGN.md`** — the proposed public API (awaiting Taylor's review).
-- **`PROTOCOL.md`** — the `ttasks://` URI handler.
+- **`PROTOCOL.md`** — the `obsidian://ttasks` URI handler.
 - **`test-rig/README.md`** — the visual rig.
 
 Update `PROJECT.md` when work lands; add a dated entry to `HISTORY.md` when a
@@ -35,7 +35,7 @@ thread closes or a decision is worth preserving.
 | `npm run check` | `lint && build && test` — the fast gate. Browser-free. |
 | `npm run check:all` | `check` + `rig:smoke` — **the full CI equivalent**. |
 | `npm run rig` | Visual rig at localhost:5199. |
-| `npm run rig:smoke` | Boots the rig headless, asserts all 9 views mount. |
+| `npm run rig:smoke` | Boots the rig headless, asserts all 11 scenes mount. |
 | `npm run rig:shots` | Desktop/mobile × dark/light screenshot matrix. |
 | `npm run rig:sync-css` | Refresh vendored CSS after an Obsidian or theme update. |
 
@@ -162,7 +162,7 @@ because the mock can't structurally implement `TTasksPlugin`. Add a member to th
 plugin surface that a component reads, forget the mock, and `src` + `tsc` + all
 tests stay green while the rig renders a blank page.
 
-`npm run rig:smoke` is what closes that — it boots all 9 views headless and fails
+`npm run rig:smoke` is what closes that — it boots all 11 scenes (six views, the detail pane, and four overlays) headless and fails
 on an uncaught exception or a view that never signals `data-rig-ready`. It runs
 in CI, and it tolerates stubbed CSS (mounting is a JS property, not a visual
 one). **When you change what components read off the plugin, update
@@ -271,9 +271,10 @@ These live here so a fresh clone — e.g. a cloud session — starts with them.
   resolve to `null`, so the build's vault copy is a silent no-op and anything
   that only shows in the real Obsidian shell (mobile drawers, `Modal` chrome,
   deferred views) can be reasoned about but not observed. In reports, separate
-  "test-green" from "reasoned, unobserved". A cloud clone also has no vendored
-  Obsidian CSS, so rig screenshots are stubbed and `rig:shots` refuses them;
-  `check:all` still passes. The rig has no scene for `QueryEditorModal` or
+  "test-green" from "reasoned, unobserved". A cloud session's SessionStart hook runs
+  `rig:sync-css` (it downloads Obsidian's `app.css` + the theme), so rig
+  screenshots there are styled — but still not Obsidian itself. If that sync
+  fails, shots are stubbed and `rig:shots` refuses them; `check:all` still passes. The rig has no scene for `QueryEditorModal` or
   `GraphExpandModal`.
 - **Run checks from the worktree whose code you're verifying.** From the primary
   checkout, vitest's glob walks into `.claude/worktrees/*` and runs other

@@ -12,6 +12,26 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-08 — Planning-docs audit
+
+A read-through of every planning doc against the code. No product change.
+
+- **`PROJECT.md` reordered around a single critical path** (DT-1 → AR-3 → DT-2 →
+  DT-5 → MD-1/2/3 + RP → MD-4/5), with the on-device checks that had been
+  scattered across four sections folded into one verification queue. Landed work
+  was cut down to one-liners; the narratives it carried moved here.
+- **Stale facts corrected:** the #8 cascade badge (Slice 2) had shipped on rows
+  and kanban cards since 2026-07-31 but was still listed open; `TaskGraph.svelte`
+  is ~2,750 lines, not ~2,125; the rig smoke covers 11 scenes, not 9; the
+  `run-ttasks` skill still described a symlinked vault and 1,261 tests;
+  `API_DESIGN.md` cited `TaskStore.ts` line numbers that had drifted and
+  proposed a `search` protocol action that already exists.
+- **Ordering calls changed:** AR-3 now precedes DT-2 (a new field should land in
+  the descriptor table once, not be added and then migrated); N7 (Bases) and N3
+  (public API) now wait on MD-1, because the `ttask_*` prefix renames every
+  property they would otherwise have to be rewritten for; AR-1 demoted 🔴 → 🟡
+  (the summary never counted it as a release gate).
+
 ## 2026-09-09 — Agenda/Kanban start honoring the inferred date (DT-7)
 
 Taylor's ask: "for our tasks we have inferred dates... views should use the
@@ -45,6 +65,40 @@ column in List but never in Agenda. Both views now share
 `TaskBoard.svelte`.
 
 Shipped as `0.1.13`.
+
+## 2026-09-06 — Hover scaled every button; field CSS was seven copies (0.1.12)
+
+**Hover flickered scrollbars all over the UI.** The 2026-08-24 share-modal fix
+(below) had treated one symptom of a general problem. Underwater ships
+`body:not(.no-button) button { transition: all .5s ease-out; &:hover { transform:
+scale(1.04) } }`, and a transformed child counts toward its scroll container's
+overflow area — so every hovered row, card, chip and graph node (all bare
+`<button>`s) nudged scrollWidth / scrollHeight and flickered a scrollbar. Fixed
+once at the plugin roots in `styles.css` with `transform: none !important`. The
+`!important` is load-bearing: the theme selector is (0,2,2) because `:not()`
+takes its argument's specificity, which outranks `.tt-board button:hover` at
+(0,2,1). The local `.tt-overview-bar:hover { transform: none }` still works
+(Svelte's scope hash lifts it to (0,3,1)) and is left as in-place documentation.
+
+Rig-verified A/B, deleting the opt-out rule at runtime to reproduce the pre-fix
+build: a hovered `.tt-task-btn` went `none` → `matrix(1.04, …)` and **622 →
+646.88px** wide; a `.tt-graph-node` went 196×96 → 203.84×99.84. With the rule
+active neither moves. The scrollbar consequence reproduced too — pre-fix,
+hovering a rail button tipped `.tt-rail-views` from 0 to **1px** of vertical
+overflow; post-fix no scroll container gains overflow across all 75 buttons in
+the scene. `.tt-kanban-card` was never affected: it is a `<div role="button">`,
+so the theme's `button` element selector misses it. That is luck, not design — if
+it ever becomes a real `<button>` it inherits the bug, and the opt-out.
+
+**Field-component CSS was seven verbatim copies.** `.tt-field`,
+`.tt-field-required`, `.tt-field-error-msg` and the label rule were
+byte-identical in all seven `src/components/fields/*`, and the label copy was
+byte-identical to `.tt-label` in `styles.css`. The input control surface was six
+near-copies under three class names with identical `:focus`/`:disabled`/
+`.tt-field-error` triples. Moved to `styles.css`; only per-variant deltas
+(padding, background, font, cursor, `flex`) stay scoped. **−211 lines**, and
+`TextField.svelte` lost its `<style>` block entirely. The three remaining
+`<div class="tt-divider">` became `<hr>`.
 
 ## 2026-08-31 — Four papercuts: subprojects, Future, filters, the gantt
 
@@ -277,6 +331,22 @@ mechanism. Bought knowingly: the instruction budget grew slightly and the
 reasoning burden went to zero.
 
 ---
+
+## 2026-08-24 — Share/Sync wording tuned for a weak model
+
+Taylor's work AI (Copilot) was skimming the export block. Instructions were
+rewritten in short declarative sentences with a worked `meta.example` to copy,
+and the prompt/contract halves split: `presetAsk()` is the user-owned "what to
+do", `buildInteropRules()` is the export-derived contract. **6,815 → 5,051 chars
+(~1,704 → ~1,263 tokens, −26%)** while *adding* the example and an `align`
+preset. The `GRAPH_RULE` ↔ `meta.graph` duplication is retained deliberately:
+`meta` must stand alone under the "No preamble" preset.
+
+Same day: hovering in the Share/Sync modal flickered a scrollbar. Themes scale
+buttons on hover (~1.01); a transformed child counts toward its scroll
+container's overflow area, so the fraction of a pixel tipped `scrollHeight` past
+`clientHeight` (803 → 804 on `?share=1`). Fixed with 4px of bottom padding on
+`.modal-content`. This was the first sighting of what 2026-09-06 fixed properly.
 
 ## 2026-08-21 — The AI bridge couldn't apply a rename
 

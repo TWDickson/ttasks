@@ -1,7 +1,8 @@
 # TTasks — Project Status & Backlog
 
 **The single live document for all open work, every horizon.** Consolidated
-2026-08-02 from the former `BACKLOG.md`, `ROADMAP.md`, and `AUDIT_2026-07.md`.
+2026-08-02 from the former `BACKLOG.md`, `ROADMAP.md`, and `AUDIT_2026-07.md`;
+re-ordered around one critical path on 2026-10-08.
 
 - **This file** — current state, all open work, and the rationale behind it.
 - **`CLAUDE.md`** — conventions, architecture rules, and dev workflow (how to
@@ -9,474 +10,97 @@
 - **`Scripts/archive/HISTORY.md`** — the dated journal of everything shipped,
   plus the closed sweeps. Read it for *why* a past decision went the way it did.
 - **`API_DESIGN.md`** / **`PROTOCOL.md`** — reference specs (public API awaiting
-  review; the `ttasks://` URI handler).
+  review; the `obsidian://ttasks` URI handler).
 
-When an item lands, mark it `[x]` with a dated one-line note, then move the
-narrative to `HISTORY.md` once the thread closes.
+**Housekeeping rule:** when an item lands, mark it `[x]` with a dated one-liner;
+once the thread closes, move the narrative to `HISTORY.md` and leave only the
+one-liner here. Open items keep their full rationale; closed ones don't.
 
 **Status legend:** `[ ]` open · `[~]` in progress · `[x]` done
 **Needs Taylor:** ⚖ a taste/UX call · 🔎 research or scoping first
-**Audit priority:** 🔴 blocks public release · 🟡 should do · 🟢 opportunistic
+**Priority:** 🔴 gates a public release · 🟡 should do · 🟢 opportunistic
 
 ---
 
-## Current state (2026-08-31)
+## Current state (2026-10-08)
 
 | | |
 | --- | --- |
-| Version | `0.1.11` (GitHub release; not on the community list — deliberate) |
+| Version | `0.1.13` (GitHub release; not on the community list — deliberate) |
 | Tests | **1862 passing, 137 files** (`npm run check` = lint → build → test) |
-| CI | Green on push/PR/dispatch, Node **22 + 24** matrix |
+| CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
 | Licence | GPL-3.0-or-later |
 
 **Phases 1–4, 6, and 7 are complete.** Core CRUD, kanban, mobile layouts,
 search/filter, dependency graph, reminders, quick actions, archive/logbook, the
-`area`/`labels` data model, the shared query engine, and Smart Lists all ship.
+`area`/`labels` data model, the shared query engine, Smart Lists, native
+Pomodoro, and Share/Sync all ship.
 
-**Three and a half things gate a public release** — all 🔴 in the Audit section
-below: MD-1/MD-2 (schema prefix + sparse writes), DT-1 (midnight-stale queries),
-DT-2 (semantically-dead `due_time`), and the one surviving PB-2 bullet
-(`localStorage` namespacing — the rest of the review-bot sweep landed 2026-08-31).
+**Four things gate a public release** (all 🔴 below): **DT-1** (midnight-stale
+queries), **DT-2** (semantically-dead `due_time`), **MD-1/MD-2** (schema prefix +
+sparse writes), and **PB-2's last bullet** (`localStorage` namespacing).
+Everything else is 🟡/🟢.
 
-**Two ⚖ calls are waiting on Taylor:** DT-2 (`due_time` real vs. display-only —
-*decided, see below*) and DT-5 (rolling vs. calendar "this week" — *decided, see
-below*). Both now have decisions recorded; they need implementing, not deciding.
-
----
-
-## Now — active threads
-
-### 1. Mobile on-device sweep
-
-Three fixes landed rig-side on 2026-07-19 but could not be confirmed on-device,
-because the phone wasn't receiving fresh builds. **That blocker was root-caused
-and fixed on 2026-07-31** (the vault install was a symlink pointing Obsidian Sync
-at the whole ~1 GB repo; it's a real folder fed by an esbuild copy hook now). The
-fixes are therefore *testable but still unverified* — the outstanding work is a
-sweep, not a new fix.
-
-- `[~]` **GP1-follow: detail drawer opens behind/hidden on mobile** 🔎 — tapping a
-  node in the popped-out fullscreen graph closes the modal, but the detail drawer
-  ends up behind something or off-screen instead of surfacing. The rig can't
-  reproduce it (no Obsidian mobile shell). Fix attempted: `GraphExpandModal`
-  defers the open-task hand-off to a `requestAnimationFrame` *after* `close()` so
-  the modal's history/focus-restore can't land after the drawer reveal, and
-  `openDetailPane()` reveals the right leaf with `active: Platform.isMobile`.
-- `[~]` **Graph node: double-tap-to-open on mobile** 🔎 — tapping a task node
-  needed two taps on iOS. Root cause: the node's hover behaviour (preview + hover
-  `+`) makes WKWebView spend the first tap applying emulated hover and withhold
-  the `click`. Fix: on touch, open from `pointerup`; desktop stays on `click`;
-  Android-safe via a 700 ms ghost-click guard. Also an 8 px press-vs-drag
-  threshold so a stationary tap doesn't start a pan.
-- `[~]` **Detail pane doesn't fit the mobile drawer** 🔎 — the field grid was
-  `label │ control`, squeezing controls on the narrow drawer. Below 768 px it now
-  collapses to one column plus `overflow-x: hidden` on the detail leaf.
-  Rig-verified dark + light at phone width.
-- `[~]` **Ghost sidebar tabs, and a duplicate beside each one** 🔎 — reported
-  2026-08-07. Obsidian restores our sidebar leaves from `workspace-mobile.json`
-  whether or not the plugin is loaded; with it disabled they come back as dead
-  placeholder-icon tabs, and `registerView` does not retroactively revive them.
-  On top of that, `onLayoutReady` was calling `ensureSideLeaf(pomodoro)` on
-  *every* launch — the anti-pattern the Obsidian 1.7.2 API notes call out — so a
-  fresh tab appeared next to the ghost, and a tab the user closed came back.
-  Fix: the one-shot moved to `Plugin.onUserEnable()`, plus `views/leafHygiene.ts`
-  reapplies a ghost's persisted view state to rebuild the real view and collapses
-  duplicates to one leaf per type. Unit-tested; needs an on-device pass (disable
-  the plugin → relaunch → re-enable → expect one live tab, no ghost).
-  **Shipped in 0.1.3.**
-- `[~]` **Obsidian API-guidance sweep** — prompted by the ghost-tab fix, 2026-08-07.
-  Four contraventions found and fixed: `TaskWriter.isFileOpenInEditor` reached
-  through `leaf.view.file` (the same deferred-view trap — a note open in a
-  *background* tab read as closed, skipping the editor-settle delay before a body
-  rewrite; now `views/openFileLeaves.ts` reads the view state); `TaskBoardView`
-  used the deprecated `workspace.activeLeaf`; `QueryEditorModal` had three
-  `innerHTML = '✕'` glyph buttons; `ScanEngine` left debounce timers armed across
-  unload. Only the QueryEditor icon swap is UI-facing and the rig has no scene for
-  that modal — worth an eyeball next time it's open. The deferred-view lesson is
-  now enforced by a boundary test, not just journalled.
-- `[x]` **Graph fullscreen modal had two close buttons** — reported 2026-08-07
-  with a screenshot. Our collapse button was pinned to the same top-right corner
-  as `Modal`'s own close control, which we were hiding via `display: none` but
-  which showed on device regardless. Ours removed, the hide rule removed, and
-  `TaskGraph`'s now-unsettable `isFullscreen` prop removed with them.
-
-### 2. Pomodoro (native) — core complete, sign-off owed
-
-Built native rather than integrating the community Pomodoro plugin (Taylor's
-call), so it's dependency-free and works on mobile. **All core and optional
-slices are done:** the pure state machine, service, detail-pane control, settings
-group, untethered sessions, RFC-4180 CSV session log, "focus until X:XX"
-planning, a dedicated right-sidebar pane, a desktop status-bar countdown, and
-log-partial-on-stop.
-
-- `[ ]` **Live-Obsidian sign-off** — the CSV write, the two modals, the pane
-  leaf, and the status-bar item. The rig can't host Obsidian modals, leaves, or
-  the status bar. Folds into the Visual regression pass.
-- `[ ]` **(15) Pomodoro discoverability** — no obvious way to find the sidebar
-  icon or open the pane. Needs a clearer entry point: ribbon icon,
-  command-palette hint, or an onboarding nudge.
-
-### 3. Status semantics — Blocked vs Hold
-
-- `[~]` **(6) Blocked vs Hold verbiage** — **defined by Taylor 2026-07-25:**
-  - **Blocked** — *"I need to escalate something, or something is just impossible
-    at the current moment."* An **external impediment**: the work cannot move
-    until someone or something outside the task clears it.
-  - **Hold** — *"awaiting a confirmation of delegated work, paused due to some
-    other priority."* A **deliberate pause**: the work *could* proceed but has
-    been consciously set down.
-
-  The distinguishing axis is **can't vs. won't-right-now**, not severity.
-  **Remaining:** reflect this in UI wording/tooltips and in the `blocked_reason`
-  field's copy, which currently only fits the Blocked case.
-- `[ ]` **(8) Cascade to dependents — Slice 2 (UI surfacing).** Slice 1 (engine)
-  landed 2026-07-25: pure `src/query/taskImpediment.ts` walks `depends_on`
-  transitively and returns `path → { kind, source, causes }`. **Blocked beats
-  Hold**, reduced by max rank rather than last-write-wins — which is what makes
-  the result order-independent, so a task reachable from both a Blocked and a
-  Held upstream resolves the same regardless of traversal order. The cascade is
-  **derived, never written** to a dependent (a written status can't be cleanly
-  un-written when the blocker clears). Remaining: a badge on the row / kanban
-  card / detail pane for `source === 'upstream'` tasks with the causes in the
-  tooltip. **Needs a look call first** — the V2 colour-spine model deliberately
-  made badges monochrome, so a new coloured badge would fight it.
-
-### 4. Graph polish
-
-- `[x]` **Timeline rendered blank with a single lane** — *(2026-08-31)* found
-  while working on the readability item below. `.tt-hybrid-track-canvas` only got
-  `flex: 1` from a sibling selector on the lane sidebar, which isn't rendered
-  when there's one lane — i.e. **grouping "None", the default**. The canvas
-  collapsed to its 2px of border and every bar sat at a percentage of nothing.
-  The bars were in the DOM the whole time, which is why nothing threw and the
-  rig's mount check stayed green. Sizing is unconditional now.
-- `[x]` **Gantt readability: pinned name column** — *(2026-08-31)* Taylor: *"long
-  running items have their titles displayed all the way to the right and it's
-  impossible to tell what it is without scrolling."* Names now live in a pinned
-  left column, one row per task, aligned with the bar and carrying the status
-  colour as a spine. Required dropping first-fit row packing — a packed row holds
-  several tasks and a name column can't label it honestly — so the track is
-  taller in exchange for being readable. Bars lost their in-bar titles (a two-day
-  bar could only ever render "Re…"). Column width comes from `overviewSidebarPx`
-  inline, **not** CSS: the axis reserves the same gutter, and a media query
-  moving one without the other offsets the "Today" line. 124px under a 560px
-  viewport.
-- `[~]` **GP5 — lane-header focus interaction** — the `+` add-subshape shipped
-  (tap → add a task parented to the project, flush to the chip's bottom edge). A
-  first rev made the header body a pin toggle that grew the pinned lane to reveal
-  its full vertical title; Taylor felt it was *"not that nice… come back and tune
-  later,"* so both the pin-toggle and the grow were **backed out**. Remaining: a
-  header-focus affordance that feels good, plus the full-title grow reveal.
-- `[ ]` **(12) Drag connectors to create dependency chains** 🔎 — click-and-drag
-  a node's connector (left = depends-on, right = blocks) to link it to another
-  node. Needs interaction-design research: hit targets, drop targets, touch
-  equivalent.
-- `[ ]` **(16) Vertical sort: rank completed items lower** ⚖ — current order
-  reads as priority-based; Taylor's instinct is that completed items should sink
-  regardless of priority. Needs a taste call on the exact rule.
-- `[ ]` **GP2 residue** ⚖ (minor) — Blocked/Cycle count pills now hide at zero;
-  if Taylor prefers them always visible it's a two-line revert.
-
-### 5. Search
-
-- `[x]` **Search by task hash prefix** — *done 2026-08-05.* Bare hex ≥ 3 chars
-  ORs an id-prefix match onto name/notes; `#a1b2` matches the id only. One pure
-  module (`src/query/hashSearch.ts`) behind `applyFilter`, so board, Smart Lists,
-  archive, the jump switcher, and `ttasks://?action=search` all share it. See
-  `HISTORY.md` for the reasoning behind the 3-char floor.
-- `[ ]` **The filter-bar search box is too narrow to use** ⚖ — *found 2026-08-05
-  while rig-verifying the above; pre-existing, not caused by it.* `.tt-search-wrap`
-  is `flex: 1 1 0%` in a bar of fixed-width controls, so it settles at ~135 px on
-  a 1040 px bar and shrinks further to ~75 px once "Clear" / "Show Completed"
-  appear. On phone width it collapses to the magnifier icon alone. Consequence:
-  the placeholder truncates, typed queries scroll out of view, and there's
-  nowhere to hint at the `#hash` syntax (it's on a `title` tooltip for now).
-  Needs a taste call on the fix — give the search a `min-width` and let the
-  selects shrink, move it to its own row, or make it an expanding icon-button on
-  narrow viewports. **Partly addressed 2026-08-31:** the filter-dropdown work
-  gave `.tt-search-wrap` a 148px `min-width` (four dropdowns had collapsed it to
-  the icon alone) and moved the due-date range into a dropdown, reclaiming ~300px
-  of bar. The desktop case is now usable; the phone-width question is still open.
-
-### 6. Open feedback items
-
-- `[x]` **Projects can be subprojects but there's no exposed UI** —
-  *(2026-08-31)* `parent_task` was always storable on a project and
-  `flattenWithDepth` already nested recursively; the detail pane gated the field
-  behind `task.type === 'task'`, so the only way to set it was at creation time
-  in the modal (which never gated it). Field now renders for both, labelled
-  "Parent project" on a project. `collectDescendantPaths` keeps the picker from
-  offering an option that closes a parent loop.
-- `[x]` **Future should cascade down** — *(2026-08-31)* third impediment kind
-  alongside Blocked and Held, ranked below both, propagating along `depends_on`
-  exactly as they do. It's a status **pointer** (`settings.futureStatus` →
-  `StatusPolicy.future`), nullable like `hold` for the same reason: a vault
-  without the status must not fall back to one, or the whole graph reads Future.
-  A status rename remaps the pointer. The AI export needed no new plumbing —
-  `impeded`/`impeded_by` carry whichever kind wins — and `IMPEDIMENT_RULE` grew
-  to BLOCKED/HOLD/FUTURE for +2 tokens.
-- `[x]` **Filters should be Excel-style clickable dropdowns** — *(2026-08-31)*
-  `FilterDropdown.svelte`, a checkbox popover with no plugin or store reference.
-  Status and Labels join Priority and Area; the due-date range moved into the
-  same pattern. Toolbar state is `string[]` per field: values OR within a field
-  (a nested `FilterGroup`, which the engine already accepted), AND across fields.
-  Labels uses `contains`/`contains_any` because it's a list on the task.
-- `[x]` **Right-click "Open" opened the side panel, not the note** —
-  *(2026-08-31)* the context menu's Open routed through `openTaskDetail`, which
-  reveals the board + detail pane — the same thing a left click already does, so
-  the menu item was a no-op in practice. It now calls `taskStore.openFile`, i.e.
-  the markdown note in a new editor tab. The port is renamed
-  `openTaskDetail` → `openTaskNote` in `taskActionPorts.ts` so the call site
-  states which of the two "opens" it means. **Left click is unchanged** — it
-  still opens the detail pane, in every renderer.
-- `[ ]` **Status / Priority badges: selected vs. regular hard to distinguish,
-  worse in dark mode** ⚖ — likely a colour-spine follow-on (badges went
-  monochrome in the V2 work). Needs a taste call on how much contrast the
-  selected state should carry.
-- `[~]` **(14) Dependency-selection dropdown needs better sorting** — investigated
-  2026-07-20 and it **appears already fixed**. The detail-pane "add blocker"
-  picker, the create-task modal, and `WikiLinkField.svelte` all already sort via
-  `sortDependencyFirst` (same-project first, then alphabetical). Needs Taylor's
-  repro — which picker, what ordering was actually seen — before further work.
-- `[ ]` **Share/Sync import: allow importing from notes** 🔎 — the Import tab only
-  accepts a pasted JSON export doc; Taylor wants to import from regular Obsidian
-  notes. Needs scoping: is this "point at a note's raw text and parse tasks out
-  of it" (adjacent to the existing checkbox-scan/promote capture flow), or a
-  different shape entirely?
-- `[ ]` **Share/Sync: import command surface** *(deferred)* — a direct
-  import-from-clipboard command; today import is the modal's Import tab.
-- `[x]` **Share/Sync export: ship the graph's answers, not its algorithm** —
-  *(2026-08-31)* Copilot still mis-read exports after the wording pass, because
-  the wording was the wrong lever: `meta.impediments` and `meta.dates` *described*
-  `computeImpediments` and `resolveTaskDates` and left the model to run both in
-  its head. It doesn't — it reads `status: Active, due_date: null` and says
-  "workable, missing a date". `src/integration/taskDerivedState.ts` now
-  materializes the answers into 'ai'-mode exports: `impeded` / `impeded_by` /
-  `in_cycle` / `scheduled_start` / `scheduled_end`, each omitted when it doesn't
-  apply. **"Derived, never written" is untouched** — that rule is about
-  frontmatter, where a cascade can't be cleanly un-written; an export is a
-  regenerated projection. Import needed no change: `IMPORT_UPDATABLE_FIELDS` is a
-  whitelist, so an echoed-back derived field was already dropped. The context
-  carries the **full** vault list, not the export selection — a filtered export
-  must still see a blocker outside the filter (and dependencies outside it now
-  resolve to real names instead of `{6hex}-{slug}` basenames). **Cost: JSON +20%,
-  TOON +7.5%** on a 100-task dependency-heavy export; interop prose grew ~56
-  tokens (the new `DERIVED_RULE` outweighs the trims to the other two). Bought
-  deliberately — the reasoning burden goes to zero.
-- `[x]` **Share/Sync export: instruction wording tuned for a weak model** —
-  *(2026-08-24)* Taylor's work AI (Copilot) was skimming the block. Rewritten in
-  short declarative sentences with a worked `meta.example` to copy, and the
-  prompt/contract halves split: `presetAsk()` is the user-owned "what to do",
-  `buildInteropRules()` is the export-derived contract. **6,815 → 5,051 chars
-  (~1,704 → ~1,263 tokens, −26%)** while *adding* the example and an `align`
-  preset. The `GRAPH_RULE` ↔ `meta.graph` duplication is retained deliberately:
-  `meta` must stand alone under the "No preamble" preset.
-- `[x]` **Share/Sync: hover flickered a scrollbar** — *(2026-08-24)* themes scale
-  buttons on hover (~1.01); a transformed child counts toward its scroll
-  container's overflow area, so the fraction of a pixel tipped `scrollHeight`
-  past `clientHeight`. Rig-measured (803 → 804 on `?share=1`), fixed with 4px of
-  bottom padding on `.modal-content` rather than by suppressing the theme.
-- `[ ]` **AI export prompts: settings UI is unverified visually** — the library
-  (tune / add / restore-default) ships in `sharePreambleSettingsSection.ts` and
-  is logic-tested, but the Obsidian **Settings tab is not a rig scene**, so it
-  has never been rendered on this headless box. Needs one look on a real vault:
-  the per-prompt textarea width, the disabled state of "Restore default", and
-  the read-only interop list.
-- `[x]` **Hover flickered scrollbars all over the UI, not just the share modal**
-  — *(2026-09-06)* the 2026-08-24 share-modal fix treated one symptom of a
-  general problem. Underwater ships `body:not(.no-button) button { transition:
-  all .5s ease-out; &:hover { transform: scale(1.04) } }`, and a transformed
-  child counts toward its scroll container's overflow area — so every hovered
-  row, card, chip and graph node (all bare `<button>`s) nudged scrollWidth /
-  scrollHeight and flickered a scrollbar. Fixed once at the plugin roots in
-  `styles.css` with `transform: none !important`. The `!important` is load-
-  bearing: the theme selector is (0,2,2) because `:not()` takes its argument's
-  specificity, which outranks `.tt-board button:hover` at (0,2,1). The local
-  `.tt-overview-bar:hover { transform: none }` still works (Svelte's scope hash
-  lifts it to (0,3,1)) and is left as in-place documentation.
-  **Rig-verified A/B**, deleting the opt-out rule at runtime to reproduce the
-  pre-fix build: a hovered `.tt-task-btn` went `none` → `matrix(1.04, …)` and
-  **622 → 646.88px** wide; a `.tt-graph-node` went 196×96 → 203.84×99.84. With
-  the rule active neither moves. The scrollbar consequence reproduced too —
-  pre-fix, hovering a rail button tipped `.tt-rail-views` from 0 to **1px** of
-  vertical overflow (the same 803→804 tip as the share modal); post-fix no
-  scroll container gains overflow across all 75 buttons in the scene.
-  Note `.tt-kanban-card` was never affected: it is a `<div role="button">`, so
-  the theme's `button` element selector misses it. That is luck, not design —
-  if it ever becomes a real `<button>` it inherits the bug, and the opt-out.
-- `[x]` **Field-component CSS was seven verbatim copies** — *(2026-09-06)*
-  `.tt-field`, `.tt-field-required`, `.tt-field-error-msg` and the label rule
-  were byte-identical in all seven `src/components/fields/*`, and the label copy
-  was byte-identical to `.tt-label` in `styles.css`. The input control surface
-  was six near-copies under three class names with identical
-  `:focus`/`:disabled`/`.tt-field-error` triples. Moved to `styles.css`; only
-  per-variant deltas (padding, background, font, cursor, `flex`) stay scoped.
-  **−211 lines**, and `TextField.svelte` lost its `<style>` block entirely.
-  Also normalised the three remaining `<div class="tt-divider">` to `<hr>`.
-- `[ ]` **Detail pane suppresses every field's real `<label>`** — found during
-  the 2026-09-06 UI audit. `deriveInlineFieldProps` sets `definition.label = ''`
-  so `TaskDetail` can render its own `<div class="tt-field-group"><span
-  class="tt-label">`. Net effect: two extra elements per field (~32 nodes) and
-  **no control in the detail pane has a programmatic label** — the field
-  components already emit `<label for={definition.name}>`. Fix is a deletion:
-  stop blanking, drop the wrapper and span. Watch `.tt-detail > .tt-field-group`
-  in `styles.css`, which centres the top block and would need rehoming.
-- `[ ]` **Two plugin roots miss the design tokens** —
-  `.tt-graph-fullscreen-modal` and `.tt-pomodoro-view` are not in the token-root
-  list in `styles.css`, so `--tt-space-*` / `--tt-control-*` fall back to their
-  per-use defaults inside them. Mostly a no-op today because the fallbacks
-  mirror the token values, which is exactly why it hasn't been noticed. Both are
-  now covered by the hover-transform opt-out; the token list is still short.
-- `[ ]` **Hand-rolled popovers could be the native Popover API** —
-  `FilterDropdown` and the graph's project filter each carry a window
-  `mousedown` listener plus a capture-phase Escape handler to reimplement
-  light-dismiss. `popover` + `popovertarget` gives both for free and puts the
-  menu in the top layer, which also removes any ancestor-clipping risk in the
-  toolbar. Check the `minAppVersion` Electron floor first.
-- `[ ]` **A renamed task leaves stale link aliases** — links are stored
-  `[[path|Name]]`, and neither the detail-pane rename nor the new import rename
-  rewrites the alias on inbound `depends_on`/`blocks`/`parent_task` entries. The
-  TTasks UI is unaffected (it resolves through `resolveTaskRef` and reads
-  `ref.task.name`), so this only shows in **native Obsidian views**, where a link
-  renders under the old title. Pre-existing, not introduced by the import path.
+**No ⚖ call blocks any 🔴 item.** DT-2 and DT-5 are *decided* (2026-07-25) and
+only need implementing. The open taste calls are all UI polish (see §C).
 
 ---
 
-## Gated on Taylor (not headless-workable)
+## Critical path
 
-- `[ ]` **N3 public API — review then implement** — `API_DESIGN.md` is written and
-  Taylor's decisions on the five open questions are recorded; implementation
-  ships only after his review of the final doc. **Land AR-3 first** if this
-  becomes imminent — the schema descriptor table changes how API fields are
-  exposed.
-- `[ ]` **N7 Bases compatibility** — needs the live vault with Bases enabled.
-  Ship `Scripts/TTasks.base` (views: Active, Due this week, By area, project
-  rollup), verify aliased wiki-links / `labels` list / quoted date fields resolve,
-  document in the README. **No schema changes** without a written proposal first.
-- `[ ]` **Visual regression pass** — dark/light × desktop/phone sweep. Includes
-  the settings-tab before/after from the P7 overhaul, which the rig doesn't cover.
-  The Pomodoro and Share/Sync live sign-offs fold into this.
-- `[ ]` **C2-F2 mid-column whitespace** ⚖ — a semantic tradeoff: pulling
-  source-only nodes rightward changes what a column *means* and can perturb the
-  0-crossing layout. Full analysis in `HISTORY.md` (C2 workshop).
+One ordering for the release-gating and schema work. Each step is independently
+shippable; dependencies are the arrows.
+
+```mermaid
+flowchart LR
+  DT1["DT-1 🔴<br/>today injection"] --> AR3["AR-3 🟡<br/>field descriptor table"]
+  AR3 --> DT2["DT-2 🔴<br/>due_time reminders"]
+  DT2 --> DT5["DT-5 🟡<br/>calendar weeks"]
+  AR3 --> MD12["MD-1/2 🔴<br/>ttask_* prefix + sparse"]
+  MD12 --> MD3["MD-3 🟡<br/>derive blocks"]
+  MD12 --> RP["RP-2/3 🟡<br/>repeat engine"]
+  MD3 --> MD4["MD-4 🟡<br/>migration script"]
+  RP --> MD4
+  MD4 --> MD5["MD-5 🟢<br/>types.json cleanup"]
+  MD4 --> N7["N7 Bases"]
+  MD4 --> N3["N3 public API"]
+  PB2["PB-2 🔴<br/>localStorage"] -.-> MD4
+  PB4["PB-4 🟡<br/>Svelte CSS external"] -.-> N3
+```
+
+| # | Step | Why here |
+| --- | --- | --- |
+| 1 | **DT-1** engine `today` injection | Independent, user-visible bug, and makes every later date test deterministic (closes TD-5). |
+| 2 | **AR-3** field descriptor table | `due_time` is not settable yet (no `TASK_FIELD_DEFINITIONS` entry). Adding it before AR-3 means adding it and then migrating it. *(Previously sequenced after DT-2 — flipped 2026-10-08.)* |
+| 3 | **DT-2** `due_time` reminders | Decided; needs UI + consumption. |
+| 4 | **DT-5** calendar weeks + week-start setting | Decided. Pairs with the Logbook "Last 7 Days" rename. |
+| 5 | **MD-1 / MD-2** `ttask_*` prefix + sparse writes | The schema change everything downstream depends on. |
+| 6 | **MD-3** derive `blocks` | Deletes the sync machinery; do it in the same schema break, not a second one. |
+| 7 | **RP** `src/repeat/` engine → integration → builder UI | Adds `ttask_repeat_*` keys, so it rides the same break. Folds in DT-4. |
+| 8 | **MD-4** one-shot migration script, then **MD-5** | Converts the vault once; **zero legacy code ships**. Handle `localStorage` (PB-2) before this so the script's cutover is the only one. |
+| 9 | **N7 Bases**, **N3 public API** | Both expose property names. Do them *after* MD-1 or rewrite them. README's data-model section and the API doc examples also change at step 5. |
+| — | **PB-4** Svelte CSS external | Before `styles.css` becomes a public surface for theme authors. Not on the arrows' path; do it any time before N3/publishing. |
+| — | **AR-2** TaskGraph decomposition | Before further graph work (GP5, §C #12, #16). |
+| — | **DT-6 + AR-5** ISO-date / DRY sweep | Opportunistic; ride along with DT-1. |
 
 ---
 
-## Audit 2026-07 — codebase / publication readiness
-
-Full audit performed 2026-07-12 against the live tree. Item IDs: `AR`
-architecture · `DT` dates · `MD` frontmatter/schema hygiene · `RP` repeat
-mechanism · `TD` testing · `PB` publication.
-
-**The audit's overall verdict:** the codebase is in genuinely good shape — better
-than the typical community plugin. Its strongest assets are the **pure-module
-discipline** (`src/query/`, `src/utils/`, `src/integration/` helpers and the store
-decision modules are Obsidian-free and enforced by
-`architectureBoundaries.test.ts` — the single best architectural decision in the
-repo), the **ports pattern** at the plugin boundary keeping `main.ts` thin, the
-fact that **every completion path routes through `decideCompletion`**, and a
-documented date model. The weaknesses cluster in four places, which is what the
-items below track.
-
-### Sequencing (dependency-ordered; each phase independently shippable)
-
-- **Phase 0 — hygiene.** *Done 2026-07-25/31:* lint fixes, CI (TD-1), `check`
-  script (TD-2), `.gitattributes`, the DT-4 comment fix.
-- **Phase 1 — publication scaffolding.** *Done 2026-08-31 apart from one bullet:*
-  README (PB-1), the review-bot sweep (PB-2 — `localStorage` namespacing is all
-  that's left), manifest description (PB-3). *Submission is unblocked whenever
-  Taylor decides.*
-- **Phase 2 — date hardening.** `isIsoDateString` + dedupe sweep → engine `today`
-  injection (DT-1) → `due_time` implementation (DT-2) → this-week semantics
-  (DT-5) → `new Date()` boundary enforcement (DT-6).
-- **Phase 3 — schema reset + repeat redesign.** AR-3 descriptor table → MD-1/MD-2
-  prefix + sparse writes → MD-3 derived `blocks` → `src/repeat/` pure engine →
-  integration → **MD-4 one-off migration script** → dev-command pruning → MD-5
-  registry cleanup → builder UI.
-- **Phase 4 — architecture debt (ongoing, PR-sized).** BoardContext + component
-  decoupling (AR-1/TD-4) → TaskGraph decomposition (AR-2, ahead of further graph
-  work) → ChecklistSyncService (AR-4) → DRY sweep (AR-5) → Svelte CSS extraction
-  (PB-4) → coverage reporting (TD-3).
-
-### Publication readiness (PB) — blocks any public release
-
-- `[x]` **PB-1 🔴 release scaffolding** — *done 2026-08-02.* LICENSE,
-  `versions.json`, `version-bump.mjs`, `.npmrc`, the `version` npm script, and
-  `release.yml` landed 2026-07-31. **`README.md` landed 2026-08-02** covering what
-  it does, install via BRAT, the frontmatter data model, the
-  local-calendar-date policy + timezone-travel caveat, a settings overview, and
-  dev/rig instructions — with six screenshots from the rig matrix in
-  `docs/screenshots/`. Submitting to `obsidianmd/obsidian-releases` stays
-  **deliberately out of scope** — GitHub releases only, per Taylor.
-- `[~]` **PB-2 🔴 review-bot flags** — *swept 2026-08-31; one bullet left.*
-  - `[x]` **`innerHTML` (5 sites)** and `[x]` **`app.workspace.activeLeaf`** — both
-    were **already clean** when re-checked on 2026-08-31; this entry was stale.
-    `innerHTML` survives only in `src/__mocks__/obsidian.ts`, and
-    `TaskBoardView.ts:57` already uses `getActiveViewOfType`.
-  - `[x]` **`vault.modify`** — *(2026-08-31)* `completionSync` was the real one: it
-    read the source note, edited one checkbox line in memory, then wrote the
-    **whole file** back, so any edit the user made in between was silently
-    dropped. Now `vault.process`, with the rewrite re-derived from the content
-    Obsidian hands the callback; a cheap `cachedRead` pre-check keeps the common
-    "nothing to tick" case from touching the file at all (an identity write still
-    bumps mtime and re-triggers the scan). `vaultSafe.safeModify` had **no
-    production callers** and was deleted rather than kept as a flagged wrapper —
-    `VaultLike` no longer declares `modify` at all, so the boundary can't
-    regress. `src/integration/completionSync.test.ts` has a regression test that
-    feeds the callback content the pre-check never saw.
-  - `[x]` **Console noise** — *(2026-08-31)* `plugin.log` is now dev-gated behind
-    `process.env.NODE_ENV`, and a sibling `plugin.logError` always reports. The
-    split matters: **~20 of the ~40 `log()` call sites were failures**
-    ("create failed for…", "import link failed…"), so gating wholesale would have
-    blinded a user's bug report. The `ScanEngine` / `migrationSettingsSection`
-    paths needed no change — they already `console.error` alongside `plugin.log`.
-    `TaskStore.fileToTask`'s per-file skip log is now a gated breadcrumb.
-  - `[ ]` **`localStorage`** — still open, and **not** a quick win: swapping
-    `reminderStorage`/`vaultSafe` onto `app.loadLocalStorage()`/`saveLocalStorage()`
-    changes the key namespace, so it needs a migration for already-stored fired
-    reminders. Per-device semantics are correct — keep them.
-  - `[x]` **Casing / headings** — *(2026-08-31)* `managedListSettingsSection.ts`
-    uses `new Setting(el).setName(…).setHeading()`; the four modals that built a
-    `createEl('h2')` banner (`QueryEditorModal`, `ShareSyncModal`,
-    `ImportConfirmModal`, `ValueMigrationModal`) now set `this.titleEl`; and
-    'View Type' → 'View type'. **"Smart List" is kept capitalized on purpose** —
-    it's a product noun in 26 places including `.setName('Smart List name')`, so
-    sentence-casing just the modal title would half-break the term. Renaming it
-    app-wide is a separate call, not a casing bug.
-- `[x]` **PB-3 🟡 manifest polish** — *(2026-08-31)* `description` is now "Task
-  management with kanban, dependency tracking, agenda, and a dependency graph —
-  stored as plain markdown frontmatter." (120 chars), dropping the "plugin" /
-  "for Obsidian" redundancy the checker flags. `fundingUrl` still not set —
-  optional, and Taylor's call.
-- `[ ]` **PB-4 🟡 Svelte CSS is JS-injected** — `esbuild-svelte` runs with
-  `css: 'injected'`, so component styles become runtime `<style>` elements,
-  contradicting the "all CSS belongs in `styles.css`" rule. Effect: component CSS
-  bypasses `styles.css`, can't be overridden predictably by theme snippets, and
-  briefly FOUCs on view open. Switch to `css: 'external'` and concatenate onto
-  `styles.css` at build. **Do it before `styles.css` becomes a public API for
-  theme authors.** *(2026-08-05: the title system and `.tt-chip-warning` moved
-  out of scoped blocks into `styles.css` — see HISTORY. That shrinks what's
-  trapped behind the injection, but the mechanism is unchanged and PB-4 stands.)*
-
-*Already publication-clean (PB-5):* no network calls, no telemetry, no
-Node/Electron imports in `src`, `isDesktopOnly: false` matches mobile support,
-`processFrontMatter` for all frontmatter mutation, no leaf detaching in
-`onunload`, intervals/events registered for cleanup, `normalizePath` at vault
-boundaries, `seed-graph-test-data` dev-gated out of production.
+## A. Release-gating work
 
 ### Dates (DT)
 
 - `[ ]` **DT-1 🔴 agenda buckets + query results go stale at midnight** — the
-  engine calls `localDateString()` internally and nothing re-runs the query at
-  midnight, so a board left open overnight shows yesterday's Overdue/Today buckets
-  while the row badges (which *do* subscribe to the `today` store) update — a
-  visible inconsistency. **Plan:** make `applyQuery` take `ctx: { today }`, derive
-  `useTaskQuery` from `[tasks, query, today]`, then sweep the remaining
-  `startOfToday()`-at-mount surfaces (`TaskGraph`/`hybridTimeline` today-marker,
-  `TaskBoard`, `TaskDetail`, `statusSummary`). Also makes the engine tests
-  deterministic.
+  engine calls `localDateString()` internally (`src/query/engine.ts`) and nothing
+  re-runs the query at midnight, so a board left open overnight shows yesterday's
+  Overdue/Today buckets while the row badges (which *do* subscribe to the `today`
+  store) update — a visible inconsistency. **Plan:** make `applyQuery` take
+  `ctx: { today }`, derive `useTaskQuery` from `[tasks, query, today]`, then sweep
+  the remaining `startOfToday()`-at-mount surfaces (`TaskGraph`/`hybridTimeline`
+  today-marker, `TaskBoard`, `TaskDetail`, `statusSummary`). Also makes the engine
+  tests deterministic. *(Verified still open 2026-10-08; DT-7 added a `schedule`
+  param to the same call chain, so thread `today` alongside it.)*
 - `[ ]` **DT-2 🔴 `due_time` is stored but semantically dead** — **decided
   2026-07-25 (Taylor): make it real, reminders only.**
   - **Scope is bigger than the audit stated.** `due_time` is persisted, written,
@@ -501,42 +125,61 @@ boundaries, `seed-graph-test-data` dev-gated out of production.
 - `[ ]` **DT-5 🟡 "This week" is a rolling 7 days, not a calendar week** —
   **decided 2026-07-25 (Taylor): real calendar weeks, keeping rolling windows
   where they suit.**
-  - **Current:** `today+1` → Tomorrow, `≤ today+7` → This Week, `≤ today+14` →
-    Next Week. The distortion grows through the week — near-correct on the first
-    day, almost entirely *next* week by Friday. The practical cost is that "what's
-    left this week?" can't be answered, because the bucket refills from the future
-    as the week drains.
+  - **Current** (`engine.ts`, `agendaBuckets.ts`): `today+1` → Tomorrow,
+    `≤ today+7` → This Week, `≤ today+14` → Next Week. The distortion grows
+    through the week — near-correct on the first day, almost entirely *next* week
+    by Friday. The practical cost is that "what's left this week?" can't be
+    answered, because the bucket refills from the future as the week drains.
   - **Target:** calendar-week bucketing plus a new **week-starts-on** setting
-    (Sun/Mon). Matches TickTick/Things.
+    (Sun/Mon). Matches TickTick/Things. *(No such setting exists yet.)*
   - **Rolling stays first-class** (Taylor: *"I do like the idea of having a
     rolling window for some things as well"*). It already exists as the
-    `within_days` filter operator; confirm it's discoverable in the query editor
-    rather than building a second mechanism.
+    `within_days` filter operator (present in the query editor's date operators);
+    confirm it's discoverable rather than building a second mechanism.
   - **Second bucket to align:** the Logbook has its own unrelated `this-week`
-    (completed within the last 7 days, rolling *backwards*) — same label, opposite
-    direction. A look-back window arguably *should* stay rolling, so the likely
-    resolution is to keep the behaviour and **rename it "Last 7 Days"**. Decide
-    alongside the agenda change so they don't drift again.
-- `[~]` **DT-4 🟡 `recurrence.ts` vs. the dateUtils contract** — *partly done
-  2026-07-25.* The wrong doc comment and the duplicated days-in-month clamp are
-  fixed. **Still open:** folding `advanceDate` onto `dateUtils` primitives so the
-  module stops carrying its own parse/format. Planned for the RP redesign.
+    (`LogbookBucketKey` in `engine.ts` — completed within the last 7 days, rolling
+    *backwards*) — same label, opposite direction. A look-back window arguably
+    *should* stay rolling, so the likely resolution is to keep the behaviour and
+    **rename it "Last 7 Days"**. Decide alongside the agenda change so they don't
+    drift again.
+- `[~]` **DT-4 🟡 `recurrence.ts` vs. the dateUtils contract** — the wrong doc
+  comment and the duplicated days-in-month clamp are fixed (2026-07-25).
+  **Still open:** folding `advanceDate` onto `dateUtils` primitives so the module
+  stops carrying its own parse/format. Done as part of the RP redesign.
 - `[ ]` **DT-6 🟢 consolidation + enforcement** — add `isIsoDateString` and sweep
-  the 8 duplicate ISO-date regexes (with AR-5); move `formatHumanDate` next to
-  `MONTH_ABBR`; enforce no bare `new Date()` outside the boundary.
-- `[x]` **DT-7 🟡 Agenda bucketing/sort and the Kanban badge ignored the
-  dependency-chain-inferred date** — *(2026-09-09, shipped 0.1.13)* `due_date`
-  filter/sort/group now resolve through the dependency-chain-inferred finish
-  when no explicit date is set (Detail pane untouched — still raw); Kanban
-  gained the same inferred-badge fallback List/Agenda/Graph already had; and
-  Agenda/List now share the same selection wiring so toggling batch-select
-  doesn't reflow one view's rows and not the other's. See HISTORY.
+  the duplicate ISO-date regexes (8 at audit time; **11 pattern hits in non-test
+  `src` on 2026-10-08**, including `holidays.ts`, `workingCalendarSettingsSection.ts`,
+  `protocol.ts`); move `formatHumanDate` next to `MONTH_ABBR`; enforce no bare
+  `new Date()` outside the boundary (**38 call sites outside tests/mocks today**).
+- `[x]` **DT-7** — agenda/kanban honour the dependency-chain-inferred date
+  *(2026-09-09, 0.1.13; see HISTORY)*.
+
+### Frontmatter / schema hygiene (MD)
+
+- `[ ]` **MD-1 🔴 prefix the schema `ttask_*`** — the plugin's generic property
+  names (`type`, `name`, `status`, `priority`, …) pollute the vault-wide property
+  suggestion pool and collide with other plugins' conventions. *(No `ttask_`
+  keys exist in `src` yet; README's "planned" note is accurate.)*
+- `[ ]` **MD-2 🔴 sparse writes** — stop writing null/empty keys on creation;
+  every task note currently carries the full key set whether used or not.
+- `[ ]` **MD-3 🟡 stop persisting `blocks`** — it's a pure reverse index of
+  `depends_on` and can be derived at load, which deletes the whole sync machinery
+  and the `sync-blocks` command. *(CLAUDE.md and README currently describe
+  `blocks` as auto-maintained; update both when this lands.)*
+- `[ ]` **MD-4 🟡 one-shot vault migration + dev-command pruning** — a standalone
+  `Scripts/migrate-prefixed-schema.mjs`, run once with Obsidian closed, does
+  MD-1/MD-2/MD-3 plus the legacy-recurrence conversion, so **zero legacy code
+  ships**. The dev-phase migration commands then get deleted.
+- `[ ]` **MD-5 🟢 property registry cleanup** — hand-edit the vault's `types.json`
+  (Obsidian closed) to drop the old generic entries; document recommended
+  property types.
 
 ### Repeat mechanism (RP) — redesign
 
 RP-1 (month-end drift) was **fixed 2026-07-25** via a persisted anchor day. The
 remaining two items are resolved by the redesign below, which is specified in
-full because it's the largest single piece of open work.
+full because it's the largest single piece of open work. Nothing under
+`src/repeat/` exists yet.
 
 - `[ ]` **RP-2 🟡 expressiveness** — no "every N", weekday sets, nth-weekday,
   weekday classes, end conditions, or working-day awareness.
@@ -635,54 +278,248 @@ spawned instances carry `ttask_repeat_of` and the dedupe guard matches on that
 link, not `name`; `count` decrements on spawn; `recurrence.ts` is deleted after
 its tests are ported.
 
-### Frontmatter / schema hygiene (MD)
+### Publication leftovers (PB)
 
-- `[ ]` **MD-1 🔴 prefix the schema `ttask_*`** — the plugin's generic property
-  names (`type`, `name`, `status`, `priority`, …) pollute the vault-wide property
-  suggestion pool and collide with other plugins' conventions.
-- `[ ]` **MD-2 🔴 sparse writes** — stop writing null/empty keys on creation;
-  every task note currently carries the full key set whether used or not.
-- `[ ]` **MD-3 🟡 stop persisting `blocks`** — it's a pure reverse index of
-  `depends_on` and can be derived at load, which deletes the whole sync machinery
-  and the `sync-blocks` command.
-- `[ ]` **MD-4 🟡 one-shot vault migration + dev-command pruning** — a standalone
-  `Scripts/migrate-prefixed-schema.mjs`, run once with Obsidian closed, does
-  MD-1/MD-2/MD-3 plus the legacy-recurrence conversion, so **zero legacy code
-  ships**. The dev-phase migration commands then get deleted.
-- `[ ]` **MD-5 🟢 property registry cleanup** — hand-edit the vault's `types.json`
-  (Obsidian closed) to drop the old generic entries; document recommended
-  property types.
+Review-bot sweep, README, release scaffolding, and manifest polish are **done**
+(PB-1/PB-3 2026-08-02/08-31, PB-2 2026-08-31 — see HISTORY). What remains:
 
-### Architecture (AR)
+- `[ ]` **PB-2 🔴 `localStorage` namespacing** — not a quick win: swapping
+  `reminderStorage`/`vaultSafe` onto `app.loadLocalStorage()`/`saveLocalStorage()`
+  changes the key namespace, so it needs a migration for already-stored fired
+  reminders and snoozes. Per-device semantics are correct — keep them. Also
+  touches `CreateTaskModal`'s two mobile-quick-create keys, which read
+  `localStorage` directly. Fold the cutover into the same release as the schema
+  break so users see one migration, not two.
+- `[ ]` **PB-4 🟡 Svelte CSS is JS-injected** — `esbuild.config.mjs` runs
+  `esbuild-svelte` with `css: "injected"`, so component styles become runtime
+  `<style>` elements, contradicting the "all CSS belongs in `styles.css`" rule.
+  Effect: component CSS bypasses `styles.css`, can't be overridden predictably by
+  theme snippets, and briefly FOUCs on view open. Switch to `css: 'external'` and
+  concatenate onto `styles.css` at build. **Do it before `styles.css` becomes a
+  public API for theme authors.**
+- `[ ]` **`fundingUrl`** — not set; optional, Taylor's call.
 
-- `[ ]` **AR-1 🔴 the component→plugin coupling rule is violated by all ten legacy
-  components** — every top-level component imports `TTasksPlugin`/`TaskStore`
-  directly; they pre-date the rule. **Plan:** a `BoardContext` of
-  callbacks/service refs, migrated component by component, each with a render test
-  (TD-4).
-- `[ ]` **AR-2 🟡 `TaskGraph.svelte` is a ~2,125-line god component** — schedule
-  ahead of further graph polish work.
-- `[ ]` **AR-3 🟡 the Task field schema is defined in four places** — they must be
-  updated in lockstep. **Plan:** one descriptor table with `fmKey` /
-  `omitWhenEmpty`, which MD-1/MD-2 and N3 both build on.
-- `[ ]` **AR-4 🟡 `TaskWriter` mixes four concerns** — extract a
-  `ChecklistSyncService`.
-- `[ ]` **AR-5 🟢 smaller DRY / correctness items** — including the 8 duplicate
-  ISO-date regexes (with DT-6).
-
-### Testing posture (TD)
-
-- `[ ]` **TD-3 🟡 coverage visibility** — no coverage reporting.
-- `[ ]` **TD-4 🟢 component-test debt** — tracks AR-1; fold "add a render test"
-  into each component migration.
-- `[ ]` **TD-5 🟢 date/time determinism** — tests that depend on the wall clock;
-  largely resolved by DT-1's `today` injection.
+*Already publication-clean (PB-5):* no network calls, no telemetry, no
+Node/Electron imports in `src`, `isDesktopOnly: false` matches mobile support,
+`processFrontMatter` for all frontmatter mutation, no leaf detaching in
+`onunload`, intervals/events registered for cleanup, `normalizePath` at vault
+boundaries, `seed-graph-test-data` dev-gated out of production. Submitting to
+`obsidianmd/obsidian-releases` stays **deliberately out of scope**.
 
 ---
 
-## Later — roadmap features
+## B. Verification queue — needs eyes on a real device / vault
 
-Roughly priority-ordered within each group; not committed.
+Everything here is *built and shipped* (most of it in 0.1.3–0.1.13) but cannot be
+observed headless: the rig has no Obsidian mobile shell, `Modal` chrome, settings
+tab, leaves, or status bar. This was previously scattered across four sections.
+Taylor can only test a cut release, so the ask is one on-device pass against the
+current version, ticking these off. Working through it also closes the
+"Visual regression pass" (dark/light × desktop/phone sweep, plus the P7
+settings-tab before/after).
+
+**Mobile (iOS)**
+- `[~]` **Graph: detail drawer opens behind/hidden after popping out** 🔎 — tapping
+  a node in the fullscreen graph closes the modal but the drawer ends up behind
+  something or off-screen. Fix attempted: `GraphExpandModal` defers the open-task
+  hand-off to a `requestAnimationFrame` *after* `close()`; `openDetailPane()`
+  reveals the right leaf with `active: Platform.isMobile`.
+- `[~]` **Graph: double-tap-to-open** 🔎 — WKWebView spends the first tap on
+  emulated hover. Fix: open from `pointerup` on touch (desktop stays on `click`;
+  700 ms ghost-click guard for Android), plus an 8 px press-vs-drag threshold.
+- `[~]` **Detail pane fits the drawer** 🔎 — below 768 px the field grid collapses
+  to one column with `overflow-x: hidden`. Rig-verified; unconfirmed on device.
+- `[~]` **Ghost sidebar tabs** 🔎 — disable the plugin → relaunch → re-enable →
+  expect one live tab, no ghost, no duplicate (`views/leafHygiene.ts`; shipped
+  0.1.3).
+- `[ ]` **Floor check for the mobile golden path** — per CLAUDE.md, any UI
+  feature closes only after a narrow-viewport/iOS pass.
+
+**Desktop Obsidian**
+- `[ ]` **Pomodoro sign-off** — the CSV write, the two modals, the sidebar pane
+  leaf, the status-bar item.
+- `[ ]` **Share/Sync sign-off** — the modal in the real shell, both tabs.
+- `[ ]` **Settings tab** — the AI export prompt library (textarea width, the
+  disabled "Restore default", read-only interop list) and the settings-tab P7
+  overhaul. The tab is not a rig scene.
+- `[ ]` **`QueryEditorModal`** — the three `✕` glyph buttons became icons
+  (2026-08-07); the rig has no scene for it.
+- `[ ]` **`GraphExpandModal`** — no rig scene either; covers the double-close fix.
+- `[~]` **Obsidian API-guidance sweep** (2026-08-07) — the four contraventions are
+  fixed and covered by a boundary test; only the QueryEditor icon swap above is
+  UI-facing and unobserved.
+
+**Cloud-session note:** the SessionStart hook now runs `rig:sync-css`, so a cloud
+session *does* have real Obsidian + Underwater CSS and `rig:shots` works there.
+That still isn't Obsidian itself.
+
+---
+
+## C. Open feature & UX threads
+
+### Status semantics — Blocked vs Hold
+
+- `[~]` **(6) Blocked vs Hold verbiage** — **defined by Taylor 2026-07-25:**
+  - **Blocked** — *"I need to escalate something, or something is just impossible
+    at the current moment."* An **external impediment**: the work cannot move
+    until someone or something outside the task clears it.
+  - **Hold** — *"awaiting a confirmation of delegated work, paused due to some
+    other priority."* A **deliberate pause**: the work *could* proceed but has
+    been consciously set down.
+
+  The distinguishing axis is **can't vs. won't-right-now**, not severity.
+  **Remaining:** reflect this in UI wording/tooltips and in the `blocked_reason`
+  field copy, which still reads "Why is this task blocked?" and only fits the
+  Blocked case (`src/schema/taskFields.ts`).
+- `[x]` **(8) Cascade to dependents** — engine 2026-07-25
+  (`src/query/taskImpediment.ts`, Blocked > Hold > Future, derived never written);
+  UI surfacing shipped as `.tt-badge-impediment` on rows and kanban cards
+  (by 2026-07-31). **Residual** `[ ]`: the detail pane doesn't show the badge —
+  decide whether it should (the Relationships section already marks blocked
+  upstream nodes).
+
+### Graph polish
+
+*Schedule AR-2 (TaskGraph decomposition) before the larger items here.*
+
+- `[~]` **GP5 — lane-header focus interaction** — the `+` add-subshape shipped
+  (tap → add a task parented to the project). A first rev made the header body a
+  pin toggle that grew the pinned lane to reveal its full vertical title; Taylor
+  felt it was *"not that nice… come back and tune later,"* so both were **backed
+  out**. Remaining: a header-focus affordance that feels good, plus the
+  full-title grow reveal.
+- `[ ]` **(12) Drag connectors to create dependency chains** 🔎 — click-and-drag
+  a node's connector (left = depends-on, right = blocks) to link it to another
+  node. Needs interaction-design research: hit targets, drop targets, touch
+  equivalent.
+- `[ ]` **(16) Vertical sort: rank completed items lower** ⚖ — current order
+  reads as priority-based; Taylor's instinct is that completed items should sink
+  regardless of priority. Needs a taste call on the exact rule.
+- `[ ]` **GP2 residue** ⚖ (minor) — Blocked/Cycle count pills hide at zero; if
+  Taylor prefers them always visible it's a two-line revert.
+- `[x]` Timeline blank with a single lane; Gantt pinned name column; graph
+  fullscreen double-close button *(2026-08-07 / 08-31; see HISTORY)*.
+
+### Search & filters
+
+- `[ ]` **Filter-bar search box on phone width** ⚖ — desktop is fixed (148 px
+  `min-width`, due-date range moved into a dropdown, 2026-08-31). At phone width
+  it still collapses to the magnifier icon alone, so the placeholder and typed
+  query are invisible and there's nowhere to hint at `#hash`. Needs a taste call:
+  its own row, an expanding icon-button, or shrink the selects.
+- `[x]` Search by hash prefix (2026-08-05); Excel-style filter dropdowns
+  (2026-08-31).
+
+### Feedback items
+
+- `[ ]` **Status / Priority badges: selected vs. regular hard to distinguish,
+  worse in dark mode** ⚖ — likely a colour-spine follow-on (badges went
+  monochrome in V2). Needs a taste call on how much contrast the selected state
+  should carry.
+- `[~]` **(14) Dependency-selection dropdown sorting** — *awaiting repro since
+  2026-07-20.* All three pickers already sort via `sortDependencyFirst`
+  (same-project first, then alphabetical). **Close if Taylor has no repro.**
+- `[ ]` **Share/Sync import: from regular notes** 🔎 — the Import tab only
+  accepts a pasted JSON export. Needs scoping: "point at a note and parse tasks
+  out of it" (adjacent to the checkbox-scan/promote flow) or something else.
+- `[ ]` **Share/Sync import command surface** *(deferred)* — a direct
+  import-from-clipboard command.
+- `[ ]` **A renamed task leaves stale link aliases** — links are stored
+  `[[path|Name]]`, and neither the detail-pane rename nor the import rename
+  rewrites the alias on inbound `depends_on`/`blocks`/`parent_task` entries. The
+  TTasks UI is unaffected (it resolves through `resolveTaskRef`), so this only
+  shows in **native Obsidian views**. Pre-existing. *(MD-3 removes the `blocks`
+  half of this.)*
+- `[x]` Subprojects UI; Future cascades down; right-click Open; Share/Sync graph
+  answers + weak-model wording; hover-transform scrollbar flicker; field CSS
+  dedupe *(2026-08-24 → 2026-09-06; see HISTORY)*.
+
+### Pomodoro
+
+Core and all optional slices are done (state machine, service, detail-pane
+control, settings, untethered sessions, CSV log, "focus until", sidebar pane,
+status-bar countdown, log-partial-on-stop). Live sign-off is in §B.
+
+- `[ ]` **(15) Pomodoro discoverability** — no obvious way to find the sidebar
+  icon or open the pane. Needs a clearer entry point: ribbon icon (the only
+  ribbon icon today opens the board), command-palette hint, or an onboarding
+  nudge.
+
+---
+
+## D. Architecture, CSS & test debt
+
+Phase 4 — ongoing, PR-sized. None of it is user-visible, so none of it blocks the
+critical path except where noted above (AR-3, PB-4).
+
+- `[ ]` **AR-3 🟡 the Task field schema is defined in four places** — they must be
+  updated in lockstep. **Plan:** one descriptor table with `fmKey` /
+  `omitWhenEmpty`, which MD-1/MD-2, DT-2 and N3 all build on. **Critical-path
+  step 2.**
+- `[ ]` **AR-1 🟡 the component→plugin coupling rule is violated by all ten legacy
+  components** (`TaskAgenda`, `TaskArchiveView`, `TaskBoard`, `TaskDetail`,
+  `TaskDetailNotes`, `TaskDetailRelationships`, `TaskGraph`, `TaskKanban`,
+  `TaskList`, `TaskRow` — verified 2026-10-08). **Plan:** a `BoardContext` of
+  callbacks/service refs, migrated component by component, each with a render test
+  (TD-4). *(Demoted from 🔴 on 2026-10-08: it's a code-health rule, no user sees
+  it, and the release-gate summary never counted it.)*
+- `[ ]` **AR-2 🟡 `TaskGraph.svelte` is a ~2,750-line god component** (was
+  ~2,125 at audit time and has grown) — schedule ahead of further graph work.
+- `[ ]` **AR-4 🟡 `TaskWriter` mixes four concerns** — extract a
+  `ChecklistSyncService`.
+- `[ ]` **AR-5 🟢 smaller DRY / correctness items** — including the duplicate
+  ISO-date regexes (with DT-6).
+- `[ ]` **TD-3 🟡 coverage visibility** — no coverage reporting configured.
+- `[ ]` **TD-4 🟢 component-test debt** — tracks AR-1; fold "add a render test"
+  into each component migration.
+- `[ ]` **TD-5 🟢 date/time determinism** — tests that depend on the wall clock;
+  closed by DT-1's `today` injection.
+- `[ ]` **Detail pane suppresses every field's real `<label>`** — found in the
+  2026-09-06 UI audit. `deriveInlineFieldProps` sets `definition.label = ''` so
+  `TaskDetail` can render its own `<div class="tt-field-group"><span
+  class="tt-label">`. Net effect: ~32 extra nodes and **no control in the detail
+  pane has a programmatic label** (the field components already emit `<label
+  for={definition.name}>`). Fix is a deletion: stop blanking, drop the wrapper and
+  span. Watch `.tt-detail > .tt-field-group` in `styles.css`, which centres the
+  top block and would need rehoming.
+- `[ ]` **Two plugin roots miss the design tokens** — `.tt-graph-fullscreen-modal`
+  and `.tt-pomodoro-view` aren't in the token-root list in `styles.css`, so
+  `--tt-space-*` / `--tt-control-*` fall back to per-use defaults. Mostly a no-op
+  today because the fallbacks mirror the token values.
+- `[ ]` **Hand-rolled popovers could be the native Popover API** —
+  `FilterDropdown` and the graph's project filter each carry a window `mousedown`
+  listener plus a capture-phase Escape handler to reimplement light-dismiss.
+  `popover` + `popovertarget` gives both and puts the menu in the top layer. Check
+  the `minAppVersion` (1.7.2) Electron floor first.
+- `[ ]` **`ImportConfirmModal` duplicates `confirmModal.ts`** — same
+  open/cancel/confirm shape as its own `Modal` subclass. Small, low-risk.
+
+---
+
+## E. Gated on Taylor (not headless-workable)
+
+- `[ ]` **N3 public API — review, then implement** — `API_DESIGN.md` is written and
+  Taylor's decisions on the five open questions are recorded (2026-07-09);
+  implementation ships only after Taylor's review of the final doc. **Wait for
+  AR-3 and MD-1**: the descriptor table changes how API fields are exposed, and
+  the prefix rename changes every property name the doc's examples use.
+- `[ ]` **N7 Bases compatibility** — needs the live vault with Bases enabled. Ship
+  `Scripts/TTasks.base` (views: Active, Due this week, By area, project rollup),
+  verify aliased wiki-links / `labels` list / quoted date fields resolve, document
+  in the README. **Do it after MD-1**, so the `.base` file isn't written against
+  property names that are about to change. **No schema changes** without a
+  written proposal first.
+- `[ ]` **C2-F2 mid-column whitespace** ⚖ — a semantic tradeoff: pulling
+  source-only nodes rightward changes what a column *means* and can perturb the
+  0-crossing layout. Full analysis in `HISTORY.md` (C2 workshop).
+
+---
+
+## F. Later — roadmap features
+
+Roughly priority-ordered within each group; not committed. *(Re-checked
+2026-10-08: none of these have started — no code-block processor, no native
+`Notification` use, no milestone or Eisenhower code, no density toggle.)*
 
 **Power features**
 
@@ -696,9 +533,8 @@ Roughly priority-ordered within each group; not committed.
     no single try/catch → log → notify helper exists. At least four inconsistent
     patterns coexist (`plugin.log()` + `Notice`; silent `console.warn` with no
     user feedback; `console.error` + `Notice`; and three separate mini-helpers
-    each covering only their own call sites). Since centralizing `Notice` already
-    means answering "how does a call site report a failure," this item covers
-    both.
+    each covering only their own call sites). *(Partly improved 2026-08-31:
+    `plugin.log` is dev-gated and `plugin.logError` always reports.)*
   - **Direction:** one `NotificationService` owning success/info/error variants
     that every call site routes through. On desktop additionally fire the
     Web/Electron `Notification` API with a click handler that focuses the window
@@ -707,10 +543,12 @@ Roughly priority-ordered within each group; not committed.
     **off** (it triggers a permission prompt).
   - **Still needs scoping:** which notification *types* get the native upgrade
     (Pomodoro phase-complete and due-date reminders are the obvious candidates;
-    error/CRUD notices stay in-app).
+    error/CRUD notices stay in-app). DT-2's `due-time-passed` reminder is a
+    natural first consumer.
 - `[ ]` **Natural language quick capture** — parse `Fix bug #high due:tomorrow
   @Project blocking:abc123` from palette / status bar / mobile FAB. Unblocked
-  (was gated on a stable filter engine).
+  (was gated on a stable filter engine). *(The emoji-field capture parser exists;
+  this is a different, free-text grammar.)*
 - `[ ]` **Capacity-aware Today planner** — a "for today" flag independent of due
   date; suggest top tasks by `estimated_days` vs. available hours; overload
   warning. May overlap Cycles — design together.
@@ -723,7 +561,8 @@ Roughly priority-ordered within each group; not committed.
 - `[ ]` **Markdown code-block processor** — ```` ```ttasks filter:… ```` embeds a
   live task list in any note. High value if the plugin is ever published.
 
-**Data-model expansion**
+**Data-model expansion** *(each adds frontmatter or body structure — land after
+MD-1/MD-4 so they're born prefixed)*
 
 - `[ ]` **Activity log on tasks** — timestamped append-only log in the note body;
   auto-entries for status/creation/completion/recurrence; manual comments;
@@ -743,10 +582,6 @@ Roughly priority-ordered within each group; not committed.
 - `[ ]` **Kanban drag-to-reorder within a column** (priority ordering).
 - `[ ]` **Card density toggle** (compact vs. detailed) — the per-card *field* set
   shipped; a density toggle did not.
-- `[ ]` **Minor: `ImportConfirmModal` duplicates `confirmModal.ts`** —
-  `confirmModal.ts` is a real shared helper, but `ImportConfirmModal`
-  reimplements the same open/cancel/confirm shape as its own `Modal` subclass.
-  Small, low-risk, not blocking anything.
 
 **Deferred / investigate later** (parked, needs a design or a precondition)
 

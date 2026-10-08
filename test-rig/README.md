@@ -61,9 +61,11 @@ and `--disable-dev-shm-usage` so headless works in a container.
 
 ## URL params
 
-`?theme=light|dark` · `?view=list|kanban|agenda|graph|today|inbox|logbook` ·
+`?theme=light|dark` · `?view=list|kanban|agenda|graph|timeline|today|inbox|logbook` ·
 `?detail=1` opens the first task's detail panel · `?modal=1` opens the Create
-Task modal. The top bar has the same controls for interactive use.
+Task modal · `?pomo=idle|active|focus` mounts the Pomodoro pane · `?share=1|import`
+opens the Share/Sync modal on the Export / Import tab · `?data=fixtures` forces
+synthetic data · `?chrome=0` hides the rig toolbar. The top bar has the same controls for interactive use.
 
 ## How it works
 

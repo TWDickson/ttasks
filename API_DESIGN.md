@@ -1,6 +1,6 @@
 # TTasks Public API — Design Doc (NATIVE N3)
 
-**Status:** Proposal for Taylor's review. **No code has been written.** This
+**Status:** Proposal for Taylor's review (re-checked against the code 2026-10-08; still no implementation). **No code has been written.** This
 document specifies a stable, versioned API surface other plugins and scripts
 (Templater, QuickAdd, Dataview-JS, community plugins) can consume via:
 
@@ -23,6 +23,13 @@ The API is a **curated, frozen façade** over capabilities that already exist on
 (`src/query/`). It is *not* new capability — it is a narrow, guaranteed-stable
 contract so consumers don't reach into plugin internals that we reserve the
 right to refactor.
+
+> **Sequencing note (2026-10-08).** Don't implement this before AR-3 (the field
+> descriptor table) and MD-1 (the `ttask_*` prefix) land — see `PROJECT.md`'s
+> critical path. The prefix renames the stored property names, and the examples
+> in §11 (`recurrence`, `recurrence_type`, `due_time`, and the whole `Task`
+> shape) will change with it and with the repeat redesign. The facade's
+> `Task` is deliberately "verbatim internal", so it inherits every rename.
 
 ---
 
@@ -84,13 +91,13 @@ All reads are synchronous and return deep-frozen snapshots.
 getAllTasks(): ReadonlyArray<Task>
 ```
 Snapshot of every task and project currently in the store. Wraps
-`TaskStore.getAll()` (`TaskStore.ts:58`), cloning + freezing each entry.
+`TaskStore.getAll()`, cloning + freezing each entry.
 
 ```ts
 getTask(path: string): Task | undefined
 ```
 Single task by vault path. `.md` extension optional (matching
-`TaskStore.getByPath()`, `TaskStore.ts:53`). Returns a frozen clone or
+`TaskStore.getByPath()`). Returns a frozen clone or
 `undefined`.
 
 ```ts
@@ -98,7 +105,7 @@ queryTasks(query: QuerySpec): TaskGroup[]
 ```
 Runs the **same Smart List query schema** used everywhere in the UI
 (`filter` / `sort` / `group` / `limit` / `search`) through
-`applyQuery()` (`src/query/engine.ts:363`). Returns grouped results; each
+`applyQuery()` (`src/query/engine.ts`). Returns grouped results; each
 `TaskGroup.tasks` entry is a frozen clone.
 
 `QuerySpec` (from `src/query/types.ts`) is part of the public contract:
@@ -122,7 +129,7 @@ minor; v1 ships the full `QuerySpec` only to keep one code path.
 
 The public `Task` type is the current `src/types.ts` `Task` **minus internal
 churn risk**. The proposal is to expose it verbatim (all fields in
-`src/types.ts:5-60`, including derived `is_complete` / `is_inbox`), because
+`src/types.ts`, including derived `is_complete` / `is_inbox`), because
 every field is already portable frontmatter or a documented derived flag.
 Relationship fields (`depends_on`, `blocks`, `parent_task`) are exposed as the
 stored vault paths (without extension), matching the on-disk format.
@@ -135,7 +142,7 @@ stored vault paths (without extension), matching the on-disk format.
 onTasksChanged(cb: (tasks: ReadonlyArray<Task>) => void): () => void
 ```
 
-Wraps the `TaskStore.tasks` writable (`TaskStore.ts:16`). Fires on any
+Wraps the `TaskStore.tasks` writable. Fires on any
 create/update/delete/rename/external-edit that the store observes. The callback
 receives the same frozen-snapshot array shape as `getAllTasks()`.
 
@@ -162,14 +169,14 @@ paths. All are async and resolve after the store reflects the change.
 ```ts
 createTask(input: TaskCreateInput): Promise<Task>
 ```
-Wraps `TaskStore.create()` (`TaskStore.ts:147`). Returns the created task's
+Wraps `TaskStore.create()`. Returns the created task's
 frozen snapshot (with its assigned `id` / `slug` / `path`). Reuses the
 collision-safe path retry and relationship guards.
 
 ```ts
 updateTask(path: string, updates: Partial<Task>): Promise<void>
 ```
-Wraps `TaskStore.update()` (`TaskStore.ts:151`). Frozen-input safe — the
+Wraps `TaskStore.update()`. Frozen-input safe — the
 wrapper shallow-copies `updates` before handing them on.
 
 ```ts
@@ -178,12 +185,12 @@ completeTask(path: string): Promise<void>
 Convenience over `completeAndRecur` / `setStatus`. Resolves the task by path,
 then completes it (and spawns the next recurrence if the task recurs), matching
 in-app "complete" behavior. Wraps `TaskStore.completeAndRecur()`
-(`TaskStore.ts:179`).
+.
 
 ```ts
 setStatus(path: string, status: string): Promise<void>
 ```
-Wraps `TaskStore.setStatus()` (`TaskStore.ts:183`). **Note:** the store method
+Wraps `TaskStore.setStatus()`. **Note:** the store method
 currently takes a `Task`, not a path — the API wrapper resolves the path first
 and rejects with a clear error if the task is unknown. Status string is
 validated against configured statuses; invalid → rejected, no write.
@@ -191,7 +198,7 @@ validated against configured statuses; invalid → rejected, no write.
 ```ts
 addDependency(path: string, dependsOnPath: string): Promise<void>
 ```
-Wraps `TaskStore.addDependency()` (`TaskStore.ts:165`). Reuses the dedupe +
+Wraps `TaskStore.addDependency()`. Reuses the dedupe +
 self/invalid-reference guards; `blocks` is auto-synced on the other side.
 
 **Write-side error contract:** methods **reject** (never silently no-op) when
@@ -207,13 +214,13 @@ surface errors as `Notice`s.
 Navigation helpers so external tools can drive the workspace.
 
 ```ts
-openBoard(): Promise<void>            // wraps plugin.openBoard()      (main.ts:260)
-openTask(path: string): Promise<void> // wraps TaskStore.openDetail()  (TaskStore.ts:209)
-openCreateModal(prefill?: CreatePrefill): Promise<void> // wraps CreateTaskModal (main.ts:105)
+openBoard(): Promise<void>            // wraps plugin.openBoard()
+openTask(path: string): Promise<void> // wraps TaskStore.openDetail()
+openCreateModal(prefill?: CreatePrefill): Promise<void> // wraps CreateTaskModal
 ```
 
 `CreatePrefill` mirrors the modal's existing prefill options
-(`CreateTaskModal.ts:52` — `name`, `parent_task`, `area`, `labels`,
+(`CreateTaskModal.ts` — `name`, `parent_task`, `area`, `labels`,
 `priority`, `start_date`, `due_date`). `openCreateModal` **never writes
 directly** — it only opens the modal pre-filled, so the user still confirms.
 
@@ -239,7 +246,7 @@ and `src/query/types.ts` import nothing from `obsidian`; an
 
 ---
 
-## 8. Protocol (`ttasks://`) parity
+## 8. Protocol (`obsidian://ttasks`) parity
 
 The URI handler (`src/integration/protocol.ts`, documented in `PROTOCOL.md`) is
 the *path-free, cross-app* sibling of this API. Mapping:
@@ -249,13 +256,11 @@ the *path-free, cross-app* sibling of this API. Mapping:
 | `openBoard()`         | `action=open-board`             | —                            |
 | `openTask(path)`      | `action=open&path=`             | —                            |
 | `openCreateModal(p)`  | `action=new-task&name=&area=&due=` | prefill parity is partial |
-| find a task           | `action=jump` / `search&query=` | —                            |
-| `queryTasks(query)`   | *(none)*                        | **propose `action=search&query=`** as a lightweight text search entry point; full `QuerySpec` over a URL is out of scope |
+| find a task           | `action=jump` / `search&query=` | — (`search` shipped as an alias of `jump`) |
+| `queryTasks(query)`   | *(none)*                        | `search&query=` now exists as a text-search entry point (opens the jump switcher); full `QuerySpec` over a URL stays out of scope |
 | write methods         | *(none — by design)*            | URLs never write without the modal |
 
 **Proposed additions (protocol, separate task):**
-- `action=search&query=` returning/opening a filtered board — the URL-level
-  analog of `queryTasks` for simple text queries.
 - **`x-success` callbacks** (Advanced-URI style): after `new-task`, invoke a
   caller-supplied `x-success` URL with the new task's path. Powerful for
   automation chains but adds a callback-security surface — flagged as a
@@ -349,7 +354,7 @@ else {
 %>
 ```
 *(Shape mirrors `TaskCreateInput` = `Task` minus `id`/`slug`/`path`/`blocks`/
-derived flags/`status_changed`, `src/types.ts:62`.)*
+derived flags/`status_changed`, `src/types.ts`.)*
 
 ### 11b. QuickAdd — capture, review in the modal
 
