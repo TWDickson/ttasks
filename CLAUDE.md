@@ -257,6 +257,37 @@ Leave feature branches in place unless asked to prune. Confirm before genuinely
 destructive git ops (hard reset, force-delete, history rewrite), and before
 **cutting a release**, which is outward-facing and permanent.
 
+### Working notes (carried over from local-session memory)
+
+These live here so a fresh clone — e.g. a cloud session — starts with them.
+
+- **Taylor can only test a cut release, never a branch.** The plugin reaches
+  their devices only via a tagged GitHub release. So don't park finished UI work
+  on a branch awaiting an on-device pass: gate (`npm run check:all`), merge,
+  push, and propose the patch release, then hand over the on-device check
+  against that version number. Still confirm before cutting. Say plainly what
+  shipped unverified and what to look at.
+- **Sessions are headless — no Obsidian, no vault.** `VAULT` / `OBSIDIAN_ASAR`
+  resolve to `null`, so the build's vault copy is a silent no-op and anything
+  that only shows in the real Obsidian shell (mobile drawers, `Modal` chrome,
+  deferred views) can be reasoned about but not observed. In reports, separate
+  "test-green" from "reasoned, unobserved". A cloud clone also has no vendored
+  Obsidian CSS, so rig screenshots are stubbed and `rig:shots` refuses them;
+  `check:all` still passes. The rig has no scene for `QueryEditorModal` or
+  `GraphExpandModal`.
+- **Run checks from the worktree whose code you're verifying.** From the primary
+  checkout, vitest's glob walks into `.claude/worktrees/*` and runs other
+  sessions' tests, faking failures. A stack trace naming
+  `.claude/worktrees/<other-id>/…` is the tell — discard and re-run from the
+  right directory.
+- **Share/Sync exports are consumed by Copilot, not Claude.** Taylor pastes them
+  into the work AI, which skims the ~1,500 tokens of instructions (it missed
+  that Blocked/Hold propagate downstream). When editing `meta` or
+  `sharePreamble.ts`, give a load-bearing rule its own top-level key/paragraph
+  rather than appending, and don't trim the deliberate `GRAPH_RULE` ↔
+  `meta.graph` / `NO_NEW_VALUES_RULE` ↔ `meta.instructions` duplication without
+  Taylor's steer.
+
 ### Cutting a release
 
 ```sh
