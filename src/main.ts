@@ -34,7 +34,7 @@ import { resolveQuickAction } from './integration/quickActions';
 import { ArchiveService } from './store/ArchiveService';
 import { type CompletedFocus, PomodoroService } from './store/PomodoroService';
 import { type PomodoroLogEntry, formatLogRow, formatNewLogFile, pomodoroLogPath } from './integration/pomodoroLog';
-import { playChime, showSystemNotification } from './integration/pomodoroAlert';
+import { playChime, showSystemNotification, vibrate } from './integration/pomodoroAlert';
 import { pomodoroStatusBarView } from './integration/pomodoroStatusBar';
 import { type NotesPolicy, type TaskJsonMode, type TaskJsonValidValues, serializeTasksToJson } from './integration/taskJsonExport';
 import type { DerivedStateContext } from './integration/taskDerivedState';
@@ -77,6 +77,7 @@ export default class TTasksPlugin extends Plugin {
 	private statusBarEl: HTMLElement | null = null;
 	private pomodoroStatusBarEl: HTMLElement | null = null;
 	private pomodoroStatusBarTextEl: HTMLElement | null = null;
+	private pomodoroPhaseNotice: Notice | null = null;
 	private isApplyingExternalSettings = false;
 	private reminderStartTimeoutId: number | null = null;
 	private cachedStatusPolicy: { source: TTasksSettings; policy: StatusPolicy } | null = null;
@@ -523,15 +524,18 @@ export default class TTasksPlugin extends Plugin {
 	 */
 	/**
 	 * A phase boundary is the one moment the user may be looking elsewhere, so it
-	 * gets more than the 5s in-app toast: a longer Notice, an optional chime, and
-	 * — on desktop, when Obsidian isn't the focused window — an OS notification
-	 * whose click brings Obsidian forward on the Pomodoro pane.
+	 * must not be missable: a Notice that stays until clicked (replacing the
+	 * previous phase's, so an unattended cycle doesn't stack them), an optional
+	 * chime, a vibration where supported (Android), and on desktop an OS
+	 * notification whose click brings Obsidian forward on the Pomodoro pane.
 	 */
 	private alertPomodoroPhase(message: string): void {
 		const { alertSound, systemNotification } = this.settings.pomodoro;
-		new Notice(message, 10_000);
+		this.pomodoroPhaseNotice?.hide();
+		this.pomodoroPhaseNotice = new Notice(`Pomodoro — ${message}`, 0);
 		if (alertSound) playChime();
-		if (systemNotification && Platform.isDesktop && !document.hasFocus()) {
+		vibrate();
+		if (systemNotification && Platform.isDesktop) {
 			void showSystemNotification('TTasks Pomodoro', message, () => {
 				window.focus();
 				void this.openPomodoroPane();

@@ -26,9 +26,14 @@ were no notifications or indicators.
   `toISOString()`, so the date part is the user's day.
 - **Alerts:** the service gained an optional `alert` dep. Each phase boundary
   makes one combined call ("Focus complete — logged 25m to X. Short break
-  started.") instead of two toasts. Main turns it into a 10s Notice, an optional
-  synthesized chime, and on desktop an OS `Notification` when the window isn't
-  focused. Both are on by default; the Electron Notification API doesn't prompt.
+  started.") instead of two toasts. Taylor: "we need some sort of notification"
+  — so it is deliberately unmissable. Main turns it into a Notice that stays
+  until clicked (replacing the previous phase's, so they don't stack), an
+  optional synthesized chime, a vibration on Android, and on desktop an OS
+  `Notification` **every time**, not only when the window is unfocused. The
+  chime and the OS notification are on by default; Electron's Notification API
+  doesn't prompt for permission. iOS gets the Notice and chime only. Obsidian
+  mobile exposes no local-notification API.
 - **Status bar:** `.ttasks-pomo-statusbar`'s `display` beat the shared hide
   class through source order, so idle showed a bare timer icon.
 - **Theme trap, plugin-wide:** app.css's `button:not(.clickable-icon)` (0,1,1)

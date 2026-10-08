@@ -36,6 +36,15 @@ export function playChime(): void {
 	}
 }
 
+/** Short double buzz where the runtime supports it (Android); a no-op elsewhere, including iOS. */
+export function vibrate(): void {
+	try {
+		(globalThis as { navigator?: Navigator }).navigator?.vibrate?.([200, 100, 200]);
+	} catch {
+		// Not supported — ignore.
+	}
+}
+
 /**
  * Raise an OS-level notification via the Web Notification API (Electron routes
  * it to the system notification centre). Clicking it runs `onClick` — main uses

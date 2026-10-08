@@ -340,9 +340,9 @@ settings-tab before/after).
 **Desktop Obsidian**
 - `[ ]` **Pomodoro sign-off** — the CSV write (now in the tasks folder, optional
   year/month split), the two modals, the restyled sidebar pane, the status-bar
-  item (idle now actually hides), and the phase-end alerts: 10s Notice, chime,
-  and an OS notification **only when Obsidian is in the background** (click →
-  Pomodoro pane). Also eyeball any `tt-btn-primary` (Mark complete, the empty
+  item (idle now actually hides), and the phase-end alerts: a sticky Notice,
+  a chime, an Android vibration, and a desktop OS notification on every phase end
+  (click → Pomodoro pane). Also eyeball any `tt-btn-primary` (Mark complete, the empty
   list's "+ New task") — the theme-trap fix makes them filled plugin-wide.
 - `[ ]` **Share/Sync sign-off** — the modal in the real shell, both tabs.
 - `[ ]` **Settings tab** — the AI export prompt library (textarea width, the

@@ -112,7 +112,7 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 	if (Platform.isDesktop) {
 		new Setting(containerEl)
 			.setName('System notification when a phase ends')
-			.setDesc('When Obsidian is in the background, also show an OS notification. Clicking it brings you back to the Pomodoro pane.')
+			.setDesc('Also show an OS notification (it reaches you even when Obsidian is in the background). Clicking it brings you back to the Pomodoro pane.')
 			.addToggle(toggle => toggle
 				.setValue(p.systemNotification)
 				.onChange(async (value) => {
