@@ -22,13 +22,11 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 
 ---
 
-## Current state (2026-10-08)
-
-> **⏳ Waiting on release 0.1.14** — carries the dependency-picker sort fix (item 14). Cloud sessions can't push the tag (Auto-mode classifier blocks it as a deploy). Run `git push origin 0.1.14` from a local checkout, then do the on-device check: Create modal → "+ Add dependency…" lists same-project tasks first.
+## Current state (2026-10-09)
 
 | | |
 | --- | --- |
-| Version | `0.1.13` published; **`0.1.14` bumped on `main` (52c8fe7), tag `0.1.14` not yet pushed — waiting on release** (not on the community list — deliberate) |
+| Version | `0.1.15` published 2026-10-09 (tag `0.1.14` was never pushed — 0.1.15 superseded it). Not on the community list — deliberate |
 | Tests | **1898 passing, 140 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
@@ -332,8 +330,10 @@ settings-tab before/after).
 - `[ ]` **Pomodoro sign-off** — the CSV write (now in the tasks folder, optional
   year/month split), the two modals, the restyled sidebar pane, the status-bar
   item (idle now actually hides), and the phase-end alerts: a sticky Notice,
-  a chime, an Android vibration, and a desktop OS notification on every phase end
-  (click → Pomodoro pane). **Start with Settings → Pomodoro → "Send test"** on Windows: it reports shown / denied / unsupported, and "shown" with nothing visible means Focus Assist or Windows' per-app setting is suppressing it. Also eyeball any `tt-btn-primary` (Mark complete, the empty
+  a sound (separate focus-end / break-end picks, with a volume slider — 0.1.16),
+  an Android vibration, and a desktop OS notification on every phase end
+  (click → Pomodoro pane). The preview buttons next to each sound picker are the
+  quickest check that audio plays at all. **Start with Settings → Pomodoro → "Send test"** on Windows: it reports shown / denied / unsupported, and "shown" with nothing visible means Focus Assist or Windows' per-app setting is suppressing it. Also eyeball any `tt-btn-primary` (Mark complete, the empty
   list's "+ New task") — the theme-trap fix makes them filled plugin-wide.
 - `[ ]` **Share/Sync sign-off** — the modal in the real shell, both tabs.
 - `[ ]` **Settings tab** — the AI export prompt library (textarea width, the
@@ -471,10 +471,41 @@ critical path except where noted above (AR-3, PB-4).
   it, and the release-gate summary never counted it.)*
 - `[ ]` **AR-2 🟡 `TaskGraph.svelte` is a ~2,750-line god component** (was
   ~2,125 at audit time and has grown) — schedule ahead of further graph work.
+- `[ ]` **AR-6 🟢 the codec's `kind` is not type-checked against the field** —
+  *(code audit 2026-10-09)* `TASK_PERSISTENCE` forces every `Task` key to be
+  described, but nothing ties the `kind` to the field's TypeScript type:
+  `labels: editable('labels', 'number')` compiles, and `readStoredFields` returns
+  through `as unknown as StoredTaskFields`, so the mistake surfaces only at
+  runtime. Fix: a `KindValue` map (`strings → string[]`, `date → string | null`, …)
+  and a mapped type so each entry's `kind` must produce `Task[field]`. Same
+  change can drop the cast.
+- `[ ]` **AR-7 🟢 settings normalization imports the audio module** — *(code
+  audit 2026-10-09)* `settings/defaults.ts` imports `isPomodoroAlertSound` from
+  `integration/pomodoroAlert.ts`, which also holds the Web Audio synth and the
+  Electron notification code. Not a boundary violation (it's Obsidian-free), but
+  the sound *catalogue* (ids, labels, guard, note table) is data the settings
+  layer needs and playback is a side effect it doesn't. Split a
+  `pomodoroSounds.ts` out; `pomodoroAlert.ts` keeps `playAlertSound` /
+  `showSystemNotification`.
+- `[ ]` **⚖ Pomodoro: two ways to mute** — *(code audit 2026-10-09)* the
+  "Sound when a phase ends" toggle and `alertVolume: 0` both silence the alert.
+  Dropping the toggle (migrate `alertSound: false` → volume 0) leaves one
+  control; keeping it lets a user mute without losing their level. Taste call.
+  Also: the volume slider calls `saveSettings()` (full normalize + write) on every
+  5-point step while dragging — harmless at this size, worth a debounce if the
+  settings payload grows.
 - `[ ]` **AR-4 🟡 `TaskWriter` mixes four concerns** — extract a
   `ChecklistSyncService`.
 - `[ ]` **AR-5 🟢 smaller DRY / correctness items** — including the duplicate
   ISO-date regexes (with DT-6).
+  *Added by the 2026-10-09 audit (all comment/verbosity nits, no behaviour):*
+  `taskPersistence.ts` has two stacked JSDoc blocks, so the module header is
+  orphaned onto `FieldKind`; its `onCreate: 'when-set'` doc says "only for a
+  recurring task" (that's the one current user — the semantics are "only when
+  non-null"); the `ENTRIES` cast is duplicated in `taskPersistence.ts` and
+  `taskCodec.ts` (export it once); `createTimeFrontmatterKeys` is a test-only
+  export; the `alertPomodoroPhase` doc comment in `main.ts` has an unwrapped
+  line.
 - `[ ]` **TD-3 🟡 coverage visibility** — no coverage reporting configured.
 - `[ ]` **TD-4 🟢 component-test debt** — tracks AR-1; fold "add a render test"
   into each component migration.

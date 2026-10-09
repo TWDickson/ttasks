@@ -12,6 +12,16 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-09 — Pre-0.1.16 audit
+
+Reviewed everything since 0.1.15 (DT-1 `today` injection, Pomodoro volume and
+per-phase sounds, AR-3 slices 1–2, rig favicon/console tweaks) plus a
+codebase-wide sweep. `check:all` green: lint, tsc, 1898/1898 tests, 11/11 rig
+scenes. Nothing blocking. Logged AR-6 (codec `kind` not type-tied), AR-7 (sound
+catalogue vs. playback), a ⚖ on the duplicate Pomodoro mute controls, and
+comment nits under AR-5. The remaining `localDateString()` reads in
+`TaskBoard`/`TaskDetail` are click-time stamps, not render-time — correct as is.
+
 ## 2026-10-09 — AR-3 slice 2: the codec reads and writes from the table
 
 - **`src/schema/taskCodec.ts`** (pure): `readStoredFields(fm, ctx)` and
