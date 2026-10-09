@@ -300,57 +300,67 @@ boundaries, `seed-graph-test-data` dev-gated out of production. Submitting to
 
 ---
 
-## B. Verification queue — needs eyes on a real device / vault
+## B. Verification tracker — by device
 
-Everything here is *built and shipped* (most of it in 0.1.3–0.1.13) but cannot be
-observed headless: the rig has no Obsidian mobile shell, `Modal` chrome, settings
-tab, leaves, or status bar. This was previously scattered across four sections.
-Taylor can only test a cut release, so the ask is one on-device pass against the
-current version, ticking these off. Working through it also closes the
-"Visual regression pass" (dark/light × desktop/phone sweep, plus the P7
-settings-tab before/after).
+Everything here is *built and shipped* (or queued for the next release) but cannot
+be observed headless: the rig has no Obsidian mobile shell, `Modal` chrome,
+settings tab, leaves, or status bar. Taylor can only test a **cut release**, so
+each row names the version it first ships in. One on-device pass per device,
+ticking rows off; when a row passes, mark it `[x]` with the date and version.
+The pass also closes the "Visual regression pass" (dark/light × desktop/phone).
 
-**Mobile (iOS)**
-- `[~]` **Graph: detail drawer opens behind/hidden after popping out** 🔎 — tapping
-  a node in the fullscreen graph closes the modal but the drawer ends up behind
-  something or off-screen. Fix attempted: `GraphExpandModal` defers the open-task
-  hand-off to a `requestAnimationFrame` *after* `close()`; `openDetailPane()`
-  reveals the right leaf with `active: Platform.isMobile`.
-- `[~]` **Graph: double-tap-to-open** 🔎 — WKWebView spends the first tap on
-  emulated hover. Fix: open from `pointerup` on touch (desktop stays on `click`;
-  700 ms ghost-click guard for Android), plus an 8 px press-vs-drag threshold.
-- `[~]` **Detail pane fits the drawer** 🔎 — below 768 px the field grid collapses
-  to one column with `overflow-x: hidden`. Rig-verified; unconfirmed on device.
-- `[~]` **Ghost sidebar tabs** 🔎 — disable the plugin → relaunch → re-enable →
-  expect one live tab, no ghost, no duplicate (`views/leafHygiene.ts`; shipped
-  0.1.3).
-- `[ ]` **Floor check for the mobile golden path** — per CLAUDE.md, any UI
-  feature closes only after a narrow-viewport/iOS pass.
+**Maintenance rule:** when work lands that touches UI or device behaviour, add a
+row here *in the same commit* (device · what to do · what "pass" looks like ·
+version). Move closed rows to `HISTORY.md` once a release has been ticked.
 
-**Desktop Obsidian**
-- `[ ]` **Pomodoro sign-off** — the CSV write (now in the tasks folder, optional
-  year/month split), the two modals, the restyled sidebar pane, the status-bar
-  item (idle now actually hides), and the phase-end alerts: a sticky Notice,
-  a sound (separate focus-end / break-end picks; the volume slider replaced the
-  on/off toggle in 0.1.16, and a saved "off" migrates to volume 0),
-  an Android vibration, and a desktop OS notification on every phase end
-  (click → Pomodoro pane). The preview buttons next to each sound picker are the
-  quickest check that audio plays at all. **Start with Settings → Pomodoro → "Send test"** on Windows: it reports shown / denied / unsupported, and "shown" with nothing visible means Focus Assist or Windows' per-app setting is suppressing it. Also eyeball any `tt-btn-primary` (Mark complete, the empty
-  list's "+ New task") — the theme-trap fix makes them filled plugin-wide.
-- `[ ]` **Share/Sync sign-off** — the modal in the real shell, both tabs.
-- `[ ]` **Settings tab** — the AI export prompt library (textarea width, the
-  disabled "Restore default", read-only interop list) and the settings-tab P7
-  overhaul. The tab is not a rig scene.
-- `[ ]` **`QueryEditorModal`** — the three `✕` glyph buttons became icons
-  (2026-08-07); the rig has no scene for it.
-- `[ ]` **`GraphExpandModal`** — no rig scene either; covers the double-close fix.
-- `[~]` **Obsidian API-guidance sweep** (2026-08-07) — the four contraventions are
-  fixed and covered by a boundary test; only the QueryEditor icon swap above is
-  UI-facing and unobserved.
+```mermaid
+flowchart LR
+  L["Work lands"] --> R["Add row under its device"]
+  R --> C["Release cut"]
+  C --> T["Taylor ticks on device"]
+  T -->|pass| H["→ HISTORY.md"]
+  T -->|fail| F["Back to open work"]
+```
 
-**Cloud-session note:** the SessionStart hook now runs `rig:sync-css`, so a cloud
-session *does* have real Obsidian + Underwater CSS and `rig:shots` works there.
-That still isn't Obsidian itself.
+### 📱 iOS (iPhone/iPad)
+
+| | Check | Pass looks like | Ships |
+| --- | --- | --- | --- |
+| `[ ]` | **Due Time input** (DT-2) — create modal and detail pane | Native time picker opens; field appears only once a due date is set; clearing the date hides it | next |
+| `[ ]` | **Mobile golden path** floor check | Create → edit → complete a task at phone width, no clipped controls | — |
+| `[~]` | **Graph: detail drawer** after tapping a node in fullscreen graph | Modal closes, drawer is visible and on top (fix: rAF hand-off + `active: Platform.isMobile`) | 0.1.x |
+| `[~]` | **Graph: double-tap-to-open** | One tap opens (fix: `pointerup` on touch, 8 px drag threshold) | 0.1.x |
+| `[~]` | **Detail pane fits the drawer** | Single column below 768 px, no horizontal scroll | 0.1.x |
+| `[~]` | **Ghost sidebar tabs** — disable → relaunch → re-enable | Exactly one live tab, no ghost/duplicate (`views/leafHygiene.ts`) | 0.1.3 |
+| `[ ]` | **Midnight rollover** (DT-1) — leave a view open across midnight | Today/Overdue buckets refresh without reopening | 0.1.16 |
+| `[ ]` | **New-task frontmatter** (AR-3) — create a task, inspect YAML | Same keys/order as before the codec change | 0.1.16 |
+
+### 🤖 Android
+
+| | Check | Pass looks like | Ships |
+| --- | --- | --- | --- |
+| `[ ]` | **Pomodoro vibration** on phase end | Device vibrates; sticky Notice shows | 0.1.x |
+| `[ ]` | **Due Time input** (DT-2) | As iOS row | next |
+| `[ ]` | **Graph double-tap** — 700 ms ghost-click guard | One tap opens, no double-open | 0.1.x |
+
+### 🖥 Desktop (Windows, Obsidian)
+
+| | Check | Pass looks like | Ships |
+| --- | --- | --- | --- |
+| `[ ]` | **"Due now" reminder** (DT-2) — task due today with `due_time` a few minutes ahead; wait for the 5-min poll | Notice reads "N due now"; fires once; task is *not* styled overdue; follows the "Due today" toggle | next |
+| `[ ]` | **Pomodoro → "Send test"** notification | Reports shown/denied/unsupported; "shown" with nothing visible = Focus Assist / per-app setting | 0.1.16 |
+| `[ ]` | **Pomodoro sounds** — preview buttons, separate focus-end / break-end picks, volume slider (0 = off; saved "off" migrates to 0) | Audio plays at the set volume | 0.1.16 |
+| `[ ]` | **Pomodoro rest** — CSV log (tasks folder, optional year/month split), two modals, sidebar pane, status-bar item (idle hides), OS notification click → pane | Each behaves as described | 0.1.x |
+| `[ ]` | **`tt-btn-primary`** (Mark complete, empty-list "+ New task") | Filled plugin-wide | 0.1.x |
+| `[ ]` | **Share/Sync** modal, both tabs | Renders and round-trips in the real shell | 0.1.x |
+| `[ ]` | **Settings tab** — AI export prompt library (textarea width, disabled "Restore default", read-only interop list); P7 overhaul | Layout intact; not a rig scene | 0.1.x |
+| `[ ]` | **`QueryEditorModal`** — three `✕` → icon buttons | Icons render; no rig scene | 0.1.x |
+| `[ ]` | **`GraphExpandModal`** — double-close fix | Single close button | 0.1.x |
+| `[~]` | **Obsidian API-guidance sweep** (2026-08-07) | Only the QueryEditor icon swap is UI-facing | — |
+
+**Cloud-session note:** the SessionStart hook runs `rig:sync-css`, so a cloud
+session has real Obsidian + Underwater CSS and `rig:shots` works there. That still
+isn't Obsidian itself.
 
 ---
 
