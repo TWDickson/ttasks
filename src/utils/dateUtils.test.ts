@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localIsoTimestamp, localDateString, daysBetweenLocal, addDaysLocal, toCalendarDate } from './dateUtils';
+import { localIsoTimestamp, localDateString, daysBetweenLocal, addDaysLocal, toCalendarDate, localTimeString } from './dateUtils';
 
 // ── localDateString ───────────────────────────────────────────────────────────
 //
@@ -214,5 +214,13 @@ describe('localIsoTimestamp', () => {
 		expect(ts).toMatch(/[+-]\d{2}:\d{2}$/);
 		// Round-trips to the same instant.
 		expect(new Date(ts).getTime()).toBe(d.getTime());
+	});
+});
+
+describe('localTimeString', () => {
+	it('zero-pads the local wall-clock time as HH:MM', () => {
+		expect(localTimeString(new Date(2026, 9, 9, 7, 5))).toBe('07:05');
+		expect(localTimeString(new Date(2026, 9, 9, 23, 59))).toBe('23:59');
+		expect(localTimeString(new Date(2026, 9, 9, 0, 0))).toBe('00:00');
 	});
 });

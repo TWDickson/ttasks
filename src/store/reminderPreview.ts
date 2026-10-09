@@ -1,5 +1,6 @@
 import type { RemindersSettings } from '../settings/types';
 import {
+	formatDueTimePassedMessage,
 	formatDueTodayMessage,
 	formatLeadTimeMessage,
 	formatOverdueMessage,
@@ -30,6 +31,7 @@ export function buildReminderPreviews(
 	const previews: ReminderPreview[] = [];
 	if (reminders.ruleDueToday) {
 		previews.push({ ruleId: 'due-today', message: formatDueTodayMessage(taskName) });
+		previews.push({ ruleId: 'due-time-passed', message: formatDueTimePassedMessage(taskName, '09:00') });
 	}
 	if (reminders.ruleOverdue) {
 		previews.push({ ruleId: 'overdue', message: formatOverdueMessage(taskName) });

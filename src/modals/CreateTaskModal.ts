@@ -30,6 +30,7 @@ export class CreateTaskModal extends Modal {
 		depends_on: [] as string[],
 		parent_task: null as string | null,
 		due_date: '',
+		due_time: '',
 		start_date: '',
 		estimated_days: null as number | null,
 		workweek_only: false,
@@ -511,6 +512,25 @@ export class CreateTaskModal extends Modal {
 			text: 'Clear',
 		});
 
+		// Optional time of day — only offered once there's a due date.
+		const dueTimeField = this.field(schedulingSection, 'Due Time');
+		const dueTimeInput = dueTimeField.createEl('input', {
+			cls: 'tt-modal-input',
+			attr: { type: 'time' },
+		});
+		dueTimeField.addClass('tt-hidden');
+		dueTimeInput.addEventListener('change', () => {
+			this.formValues.due_time = dueTimeInput.value;
+		});
+		const syncDueTime = () => {
+			const hasDate = !!this.formValues.due_date;
+			dueTimeField.toggleClass('tt-hidden', !hasDate);
+			if (!hasDate) {
+				this.formValues.due_time = '';
+				dueTimeInput.value = '';
+			}
+		};
+
 		const estField = this.field(dueRow, 'Est. Days');
 		const estInput = estField.createEl('input', {
 			cls: 'tt-modal-input',
@@ -526,6 +546,7 @@ export class CreateTaskModal extends Modal {
 			} else {
 				estInput.disabled    = false;
 			}
+			syncDueTime();
 		});
 
 		estInput.addEventListener('change', () => {
@@ -539,6 +560,7 @@ export class CreateTaskModal extends Modal {
 				dueDateInput.value      = '';
 				dueDateInput.disabled   = true;
 				dueTodayBtn.disabled    = true;
+				syncDueTime();
 			} else {
 				dueDateInput.disabled   = false;
 				dueTodayBtn.disabled    = false;
@@ -552,6 +574,7 @@ export class CreateTaskModal extends Modal {
 			this.formValues.estimated_days = null;
 			estInput.value = '';
 			estInput.disabled = true;
+			syncDueTime();
 		});
 
 		dueClearBtn.addEventListener('click', () => {
@@ -559,6 +582,7 @@ export class CreateTaskModal extends Modal {
 			this.formValues.due_date = '';
 			estInput.disabled = false;
 			dueTodayBtn.disabled = false;
+			syncDueTime();
 		});
 
 		// ── Notes ────────────────────────────────────────────────────────────────
@@ -784,7 +808,7 @@ export class CreateTaskModal extends Modal {
 				status:         this.formValues.status,
 				priority:       this.formValues.priority,
 				labels:         this.formValues.labels,
-				due_time:       null,
+				due_time:       dueDate ? (this.formValues.due_time || null) : null,
 				parent_task:    this.formValues.parent_task,
 				depends_on:     this.formValues.depends_on,
 				blocked_reason: '',

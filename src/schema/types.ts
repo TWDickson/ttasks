@@ -9,6 +9,7 @@ export type FieldType =
 	| 'textarea'       // TextAreaField
 	| 'number'        // NumberField
 	| 'date'          // DateField
+	| 'time'          // TimeField (HH:MM)
 	| 'select'        // SelectField (single option)
 	| 'chips'         // ChipsField (multi-select or single-select visual)
 	| 'wikilink'      // WikiLinkField (dependency, parent task)

@@ -33,9 +33,10 @@ describe('buildReminderPreviews', () => {
 			ruleStaleInProgress: true,
 		}, 'Sample');
 
-		expect(previews.map((p) => p.ruleId)).toEqual(['due-today', 'overdue', 'lead-time', 'stale']);
+		expect(previews.map((p) => p.ruleId)).toEqual(['due-today', 'due-time-passed', 'overdue', 'lead-time', 'stale']);
 		expect(previews.map((p) => p.message)).toEqual([
 			'Due today: Sample',
+			'Due now: Sample (was 09:00)',
 			'Overdue: Sample',
 			'Coming up: Sample (in 3 days)',
 			'Stale in-progress: Sample (7 days)',

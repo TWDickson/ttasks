@@ -6,7 +6,7 @@ describe('Task Field Schema', () => {
 		it('should have field definitions for all core task properties', () => {
 			const coreFields = [
 				'name', 'type', 'status', 'priority', 'area', 'labels',
-				'start_date', 'due_date', 'estimated_days',
+				'start_date', 'due_date', 'due_time', 'estimated_days',
 				'parent_task', 'depends_on', 'blocks',
 				'assigned_to', 'blocked_reason',
 				'recurrence', 'recurrence_type', 'reminder_override',
@@ -34,7 +34,7 @@ describe('Task Field Schema', () => {
 
 		it('each field should have a type', () => {
 			const validTypes = [
-				'text', 'textarea', 'number', 'date', 'select', 'chips',
+				'text', 'textarea', 'number', 'date', 'time', 'select', 'chips',
 				'wikilink', 'date-range', 'toggle'
 			];
 			for (const field of TASK_FIELD_DEFINITIONS) {
@@ -128,6 +128,22 @@ describe('Task Field Schema', () => {
 			// Invalid date
 			const invalidResult = dateValidator!.validate('not-a-date', {});
 			expect(invalidResult).toBeTruthy();
+		});
+
+		it('due_time is only visible once a due date is set', () => {
+			const field = TASK_FIELD_DEFINITIONS.find(f => f.name === 'due_time');
+			expect(field?.type).toBe('time');
+			expect(field!.visible!({ due_date: '' })).toBe(false);
+			expect(field!.visible!({ due_date: '2026-10-09' })).toBe(true);
+		});
+
+		it('due_time validates as HH:MM', () => {
+			const validate = TASK_FIELD_DEFINITIONS.find(f => f.name === 'due_time')!.validators![0].validate;
+			expect(validate('', {})).toBeNull();
+			expect(validate('09:30', {})).toBeNull();
+			expect(validate('23:59', {})).toBeNull();
+			expect(validate('24:00', {})).not.toBeNull();
+			expect(validate('9:30', {})).not.toBeNull();
 		});
 
 		it('estimated_days should validate as non-negative number', () => {

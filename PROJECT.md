@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **1899 passing, 140 files** (`npm run check` = lint → build → test) |
+| Tests | **1906 passing, 140 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -38,8 +38,9 @@ search/filter, dependency graph, reminders, quick actions, archive/logbook, the
 `area`/`labels` data model, the shared query engine, Smart Lists, native
 Pomodoro, and Share/Sync all ship.
 
-**Three things gate a public release** (all 🔴 below): **DT-2**
-(semantically-dead `due_time`), **MD-1/MD-2** (schema prefix + sparse writes), and **PB-2's last bullet** (`localStorage` namespacing).
+**Two things gate a public release** (both 🔴 below): **MD-1/MD-2** (schema
+prefix + sparse writes) and **PB-2's last bullet** (`localStorage` namespacing).
+*(DT-2 landed 2026-10-09, pending an on-device check.)*
 Everything else is 🟡/🟢.
 
 **No ⚖ call blocks any 🔴 item.** DT-2 and DT-5 are *decided* (2026-07-25) and
@@ -55,7 +56,7 @@ shippable; dependencies are the arrows.
 ```mermaid
 flowchart LR
   DT1["DT-1 ✅<br/>today injection"] --> AR3["AR-3 🟡<br/>field descriptor table"]
-  AR3 --> DT2["DT-2 🔴<br/>due_time reminders"]
+  AR3 --> DT2["DT-2 ✅<br/>due_time reminders"]
   DT2 --> DT5["DT-5 🟡<br/>calendar weeks"]
   AR3 --> MD12["MD-1/2 🔴<br/>ttask_* prefix + sparse"]
   MD12 --> MD3["MD-3 🟡<br/>derive blocks"]
@@ -72,8 +73,8 @@ flowchart LR
 | # | Step | Why here |
 | --- | --- | --- |
 | 1 | ~~**DT-1** engine `today` injection~~ ✅ 2026-10-09 | Independent, user-visible bug, and makes every later date test deterministic (closes TD-5). |
-| 2 | **AR-3** field descriptor table | `due_time` is not settable yet (no `TASK_FIELD_DEFINITIONS` entry). Adding it before AR-3 means adding it and then migrating it. *(Previously sequenced after DT-2 — flipped 2026-10-08.)* |
-| 3 | **DT-2** `due_time` reminders | Decided; needs UI + consumption. |
+| 2 | **AR-3** field descriptor table | Slices 1–2 landed; the JSON export/import lists and `TASK_FIELD_DEFINITIONS` are still hand-listed. `due_time` was added to the latter ahead of that. *(Previously sequenced after DT-2 — flipped 2026-10-08.)* |
+| 3 | ~~**DT-2** `due_time` reminders~~ ✅ 2026-10-09 | UI + `due-time-passed` reminder. |
 | 4 | **DT-5** calendar weeks + week-start setting | Decided. Pairs with the Logbook "Last 7 Days" rename. |
 | 5 | **MD-1 / MD-2** `ttask_*` prefix + sparse writes | The schema change everything downstream depends on. |
 | 6 | **MD-3** derive `blocks` | Deletes the sync machinery; do it in the same schema break, not a second one. |
@@ -92,7 +93,7 @@ flowchart LR
 
 - `[x]` **DT-1** — engine `today` injection *(2026-10-09; see HISTORY)*. Also
   closes TD-5 for the query engine.
-- `[ ]` **DT-2 🔴 `due_time` is stored but semantically dead** — **decided
+- `[x]` **DT-2 🔴 `due_time` is stored but semantically dead** — *(2026-10-09, unreleased: `time` field type + `TimeField`, detail-pane and create-modal control (shown only with a due date; clearing the date clears the time), `due-time-passed` reminder, `localTimeString`; gated by the existing "due today" toggle. Awaiting on-device check.)* Original scope: **decided
   2026-07-25 (Taylor): make it real, reminders only.**
   - **Scope is bigger than the audit stated.** `due_time` is persisted, written,
     sortable, and offered in the query editor but consumed by nothing. It's also

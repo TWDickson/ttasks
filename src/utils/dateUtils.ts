@@ -34,6 +34,16 @@ export function localDateString(now: Date = new Date()): string {
 }
 
 /**
+ * Current (or given) local wall-clock time as `HH:MM`, zero-padded 24-hour — the
+ * shape `due_time` is stored in, so the two compare as plain strings.
+ *
+ * @param now — inject for testing; defaults to `new Date()`
+ */
+export function localTimeString(now: Date = new Date()): string {
+	return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
  * Local wall-clock instant as ISO-8601 with an explicit UTC offset, e.g.
  * `2026-10-08T14:25:07-05:00`. Unlike `toISOString()` the date part is the
  * user's local day, while the offset keeps the instant unambiguous.

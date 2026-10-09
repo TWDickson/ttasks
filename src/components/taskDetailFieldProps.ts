@@ -11,6 +11,7 @@ export interface TaskDetailEditableValues {
 	labels: string[];
 	parent_task_path: string;
 	due_date: string;
+	due_time: string;
 	start_date: string;
 	assigned_to: string;
 	estimated_days: number | null;
@@ -39,6 +40,7 @@ export interface TaskDetailFieldPropsState {
 	areaFieldProps: FieldComponentProps | null;
 	labelsFieldProps: FieldComponentProps | null;
 	dueDateFieldProps: FieldComponentProps | null;
+	dueTimeFieldProps: FieldComponentProps | null;
 	startDateFieldProps: FieldComponentProps | null;
 	assignedToFieldProps: FieldComponentProps | null;
 	blockedReasonFieldProps: FieldComponentProps | null;
@@ -56,6 +58,7 @@ const EMPTY_FIELD_PROPS: TaskDetailFieldPropsState = {
 	areaFieldProps: null,
 	labelsFieldProps: null,
 	dueDateFieldProps: null,
+	dueTimeFieldProps: null,
 	startDateFieldProps: null,
 	assignedToFieldProps: null,
 	blockedReasonFieldProps: null,
@@ -80,6 +83,7 @@ function deriveInlineFieldProps(
 			labels: values.labels,
 			parent_task: values.parent_task_path || null,
 			due_date: values.due_date,
+			due_time: values.due_time,
 			start_date: values.start_date,
 			assigned_to: values.assigned_to,
 			estimated_days: values.estimated_days,
@@ -134,6 +138,7 @@ export function deriveTaskDetailFieldProps(input: TaskDetailFieldPropsInput): Ta
 		areaFieldProps: deriveInlineFieldProps('area', input),
 		labelsFieldProps: deriveInlineFieldProps('labels', input),
 		dueDateFieldProps: deriveInlineFieldProps('due_date', input),
+		dueTimeFieldProps: deriveInlineFieldProps('due_time', input),
 		startDateFieldProps: deriveInlineFieldProps('start_date', input),
 		assignedToFieldProps: deriveInlineFieldProps('assigned_to', input),
 		blockedReasonFieldProps: deriveInlineFieldProps('blocked_reason', input),

@@ -2,7 +2,7 @@ import type { Task } from '../types';
 import { daysBetweenLocal } from '../utils/dateUtils';
 import { resolveStaleDate } from './statusChanged';
 
-export type ReminderRuleId = 'due-today' | 'overdue' | 'lead-time' | 'stale';
+export type ReminderRuleId = 'due-today' | 'due-time-passed' | 'overdue' | 'lead-time' | 'stale';
 
 export interface FiredReminder {
 	ruleId: ReminderRuleId;
@@ -13,6 +13,10 @@ export interface FiredReminder {
 
 export function formatDueTodayMessage(name: string): string {
 	return `Due today: ${name}`;
+}
+
+export function formatDueTimePassedMessage(name: string, dueTime: string): string {
+	return `Due now: ${name} (was ${dueTime})`;
 }
 
 export function formatOverdueMessage(name: string): string {
@@ -33,6 +37,7 @@ export function evaluateReminders(
 	leadDays: number,
 	staleDays: number,
 	startStatus: string,
+	nowTime: string,
 ): FiredReminder[] {
 	if (task.is_complete) return [];
 
@@ -41,6 +46,9 @@ export function evaluateReminders(
 	const dueToday = checkDueToday(task, today);
 	if (dueToday) {
 		fired.push(dueToday);
+		// A timed task gets a second, later nudge once its time arrives.
+		const timePassed = checkDueTimePassed(task, today, nowTime);
+		if (timePassed) fired.push(timePassed);
 		return fired;
 	}
 
@@ -63,6 +71,20 @@ export function checkDueToday(task: Task, today: string): FiredReminder | null {
 		taskPath: task.path,
 		taskName: task.name,
 		message: formatDueTodayMessage(task.name),
+	};
+}
+
+/**
+ * Reminder only — deliberately not an overdue signal. A 09:00 task is not
+ * overdue-red at 09:01; overdue styling stays date-based (DT-2).
+ */
+export function checkDueTimePassed(task: Task, today: string, nowTime: string): FiredReminder | null {
+	if (task.is_complete || task.due_date !== today || !task.due_time || task.due_time > nowTime) return null;
+	return {
+		ruleId: 'due-time-passed',
+		taskPath: task.path,
+		taskName: task.name,
+		message: formatDueTimePassedMessage(task.name, task.due_time),
 	};
 }
 

@@ -12,6 +12,24 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-09 — DT-2: `due_time` becomes real (reminders only)
+
+`due_time` was stored, sortable and offered in the query editor but unsettable
+and consumed by nothing. Now:
+
+- **Settable** — new `time` field type + `TimeField.svelte`; a `due_time` entry in
+  `TASK_FIELD_DEFINITIONS` (visible only when a due date is set) rendered in the
+  detail pane and the create modal. Clearing the due date clears the time.
+- **Consumed** — `due-time-passed` reminder rule: due today + `due_time` ≤ now +
+  not complete. It fires *alongside* `due-today` (which still fires on the first
+  poll), once per day via the existing fired-storage key. Gated by the existing
+  "due today" setting rather than a new toggle. `evaluateReminders` takes
+  `nowTime` (from the new `dateUtils.localTimeString`) so the rules stay pure.
+- **Deliberate asymmetry** — overdue styling stays date-based. A 09:00 task is
+  not overdue-red at 09:01; the reminder fires, the styling doesn't change.
+- **Caught by lint** — the service's count chain had an `else` that would have
+  tallied the new rule as "stale"; now has its own "due now" summary part.
+
 ## 2026-10-09 — Pre-0.1.16 audit
 
 Reviewed everything since 0.1.15 (DT-1 `today` injection, Pomodoro volume and

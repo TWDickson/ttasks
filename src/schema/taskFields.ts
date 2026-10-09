@@ -25,6 +25,10 @@ const VALIDATORS = {
 		}
 		return null;
 	},
+	timeFormat: (value: string): string | null => {
+		if (!value) return null;
+		return /^([01]\d|2[0-3]):[0-5]\d$/.test(value) ? null : 'Invalid time (use HH:MM)';
+	},
 	nonNegativeNumber: (value: any): string | null => {
 		if (value === null || value === undefined || value === '') return null;
 		const num = parseFloat(value);
@@ -114,6 +118,21 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 			{
 				name: 'date-format',
 				validate: VALIDATORS.dateFormat,
+			},
+		],
+	},
+
+	{
+		name: 'due_time',
+		label: 'Due Time',
+		type: 'time',
+		section: 'scheduling',
+		// A time of day only means something on a dated task.
+		visible: (values) => !!values.due_date,
+		validators: [
+			{
+				name: 'time-format',
+				validate: VALIDATORS.timeFormat,
 			},
 		],
 	},

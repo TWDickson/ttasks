@@ -25,6 +25,7 @@
 	import TextField from './fields/TextField.svelte';
 	import SelectField from './fields/SelectField.svelte';
 	import DateField from './fields/DateField.svelte';
+	import TimeField from './fields/TimeField.svelte';
 	import ChipsField from './fields/ChipsField.svelte';
 	import WikiLinkField from './fields/WikiLinkField.svelte';
 	import NumberField from './fields/NumberField.svelte';
@@ -69,6 +70,7 @@
 	let selectedLabels: string[] = [];
 	let parent_task_path = '';
 	let due_date = '';
+	let due_time = '';
 	let start_date = '';
 	let assigned_to = '';
 	let estimated_days: number | null = null;
@@ -105,6 +107,7 @@
 			task.labels,
 			task.parent_task,
 			task.due_date,
+			task.due_time,
 			task.start_date,
 			task.assigned_to,
 			task.estimated_days,
@@ -127,6 +130,7 @@
 		selectedLabels = task.labels;
 		parent_task_path = task.parent_task ?? '';
 		due_date      = task.due_date ?? '';
+		due_time      = task.due_time ?? '';
 		start_date    = task.start_date ?? '';
 		assigned_to   = task.assigned_to ?? '';
 		estimated_days = task.estimated_days;
@@ -188,7 +192,19 @@
 
 	function saveDueDate(nextValue: string): void {
 		due_date = nextValue;
-		void saveController.saveImmediate({ due_date: normalizeDateValue(nextValue) });
+		const normalized = normalizeDateValue(nextValue);
+		// A time of day is meaningless without a date — clear it together.
+		if (normalized === null && due_time) {
+			due_time = '';
+			void saveController.saveImmediate({ due_date: null, due_time: null });
+			return;
+		}
+		void saveController.saveImmediate({ due_date: normalized });
+	}
+
+	function onDueTimeFieldChange(nextValue: string): void {
+		due_time = nextValue;
+		void saveController.saveImmediate({ due_time: nextValue || null });
 	}
 
 	function saveStartDate(nextValue: string): void {
@@ -326,6 +342,7 @@
 	let areaFieldProps: FieldComponentProps | null = null;
 	let labelsFieldProps: FieldComponentProps | null = null;
 	let dueDateFieldProps: FieldComponentProps | null = null;
+	let dueTimeFieldProps: FieldComponentProps | null = null;
 	let startDateFieldProps: FieldComponentProps | null = null;
 	let assignedToFieldProps: FieldComponentProps | null = null;
 	let blockedReasonFieldProps: FieldComponentProps | null = null;
@@ -363,6 +380,7 @@
 				labels: selectedLabels,
 				parent_task_path,
 				due_date,
+				due_time,
 				start_date,
 				assigned_to,
 				estimated_days,
@@ -383,6 +401,7 @@
 		areaFieldProps = detailFieldProps.areaFieldProps;
 		labelsFieldProps = detailFieldProps.labelsFieldProps;
 		dueDateFieldProps = detailFieldProps.dueDateFieldProps;
+		dueTimeFieldProps = detailFieldProps.dueTimeFieldProps;
 		startDateFieldProps = detailFieldProps.startDateFieldProps;
 		assignedToFieldProps = detailFieldProps.assignedToFieldProps;
 		blockedReasonFieldProps = detailFieldProps.blockedReasonFieldProps;
@@ -605,6 +624,17 @@
 					readonly={dueDateFieldProps.readonly}
 					value={due_date}
 					onChange={onDueDateFieldChange}
+				/>
+			{/if}
+
+			{#if due_date && dueTimeFieldProps}
+				<label class="tt-label" for="due_time">Due Time</label>
+				<TimeField
+					definition={dueTimeFieldProps.definition}
+					error={dueTimeFieldProps.error}
+					readonly={dueTimeFieldProps.readonly}
+					value={due_time}
+					onChange={onDueTimeFieldChange}
 				/>
 			{/if}
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
 import {
+	checkDueTimePassed,
 	checkDueToday,
 	checkLeadTime,
 	checkOverdue,
@@ -88,11 +89,11 @@ describe('reminder rules', () => {
 	});
 
 	it('returns no reminders for a completed task', () => {
-		expect(evaluateReminders(makeTask({ is_complete: true, due_date: '2026-05-25' }), '2026-05-25', 7, 14, 'In Progress')).toEqual([]);
+		expect(evaluateReminders(makeTask({ is_complete: true, due_date: '2026-05-25' }), '2026-05-25', 7, 14, 'In Progress', '12:00')).toEqual([]);
 	});
 
 	it('ignores mute flags in the pure helper', () => {
-		expect(evaluateReminders(makeTask({ reminder_override: 'mute', due_date: '2026-05-25' }), '2026-05-25', 7, 14, 'In Progress')).toHaveLength(1);
+		expect(evaluateReminders(makeTask({ reminder_override: 'mute', due_date: '2026-05-25' }), '2026-05-25', 7, 14, 'In Progress', '12:00')).toHaveLength(1);
 	});
 
 	it('can return multiple reminders for the same task', () => {
@@ -102,6 +103,7 @@ describe('reminder rules', () => {
 			7,
 			14,
 			'In Progress',
+			'12:00',
 		);
 		expect(reminders.map((reminder) => reminder.ruleId)).toEqual(['lead-time', 'stale']);
 	});
@@ -113,12 +115,41 @@ describe('reminder rules', () => {
 			7,
 			14,
 			'In Progress',
+			'12:00',
 		);
 		expect(reminders.map((reminder) => reminder.ruleId)).toEqual(['due-today']);
 	});
 
 	it('does not fire due-today or overdue without a due date', () => {
-		const reminders = evaluateReminders(makeTask({ due_date: null }), '2026-05-25', 7, 14, 'In Progress');
+		const reminders = evaluateReminders(makeTask({ due_date: null }), '2026-05-25', 7, 14, 'In Progress', '12:00');
 		expect(reminders.every((reminder) => reminder.ruleId !== 'due-today' && reminder.ruleId !== 'overdue')).toBe(true);
+	});
+
+	describe('due-time-passed', () => {
+		const timed = (overrides: Partial<Task> = {}) =>
+			makeTask({ due_date: '2026-05-25', due_time: '09:00', ...overrides });
+
+		it('fires once the due time has been reached', () => {
+			expect(checkDueTimePassed(timed(), '2026-05-25', '09:00')?.ruleId).toBe('due-time-passed');
+			expect(checkDueTimePassed(timed(), '2026-05-25', '14:30')?.message).toBe('Due now: Default task (was 09:00)');
+		});
+
+		it('waits until the due time', () => {
+			expect(checkDueTimePassed(timed(), '2026-05-25', '08:59')).toBeNull();
+		});
+
+		it('needs a due time, today\'s date, and an open task', () => {
+			expect(checkDueTimePassed(timed({ due_time: null }), '2026-05-25', '23:59')).toBeNull();
+			expect(checkDueTimePassed(timed({ due_date: '2026-05-26' }), '2026-05-25', '23:59')).toBeNull();
+			expect(checkDueTimePassed(timed({ due_date: '2026-05-24' }), '2026-05-25', '23:59')).toBeNull();
+			expect(checkDueTimePassed(timed({ is_complete: true }), '2026-05-25', '23:59')).toBeNull();
+		});
+
+		it('evaluateReminders adds it alongside due-today, only when the time has come', () => {
+			const ids = (now: string) =>
+				evaluateReminders(timed(), '2026-05-25', 7, 14, 'In Progress', now).map((r) => r.ruleId);
+			expect(ids('08:00')).toEqual(['due-today']);
+			expect(ids('09:05')).toEqual(['due-today', 'due-time-passed']);
+		});
 	});
 });

@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
-import { localDateString } from '../utils/dateUtils';
+import { localDateString, localTimeString } from '../utils/dateUtils';
 import { safeLocalStorage, safeLocalStorageSet } from '../utils/vaultSafe';
 import { isSnoozed, purgeSnoozed, snoozeTask, type SnoozedState } from './reminderSnooze';
 import { NOTICE_DURATION_MS, REMINDER_POLL_INTERVAL_MS, REMINDER_LEAD_DAYS, REMINDER_STALE_DAYS } from '../constants';
@@ -58,11 +58,13 @@ export class ReminderService {
 
 		let overdueCount  = 0;
 		let dueTodayCount = 0;
+		let dueNowCount   = 0;
 		let leadTimeCount = 0;
 		let staleCount    = 0;
 
 		const snoozed = this.loadSnoozed();
 		const now = new Date();
+		const nowTime = localTimeString(now);
 
 		for (const task of tasks) {
 			if (task.is_complete) continue;
@@ -76,11 +78,12 @@ export class ReminderService {
 				REMINDER_LEAD_DAYS,
 				REMINDER_STALE_DAYS,
 				startStatus,
+				nowTime,
 			);
 
 			for (const reminder of reminders) {
 				if (
-					(reminder.ruleId === 'due-today' && !r.ruleDueToday) ||
+					((reminder.ruleId === 'due-today' || reminder.ruleId === 'due-time-passed') && !r.ruleDueToday) ||
 					(reminder.ruleId === 'overdue' && !r.ruleOverdue) ||
 					(reminder.ruleId === 'lead-time' && !r.ruleLeadTime) ||
 					(reminder.ruleId === 'stale' && !r.ruleStaleInProgress)
@@ -91,6 +94,8 @@ export class ReminderService {
 				if (this.storage.hasFired(reminder.taskPath, reminder.ruleId as ReminderRuleId, today)) continue;
 				if (reminder.ruleId === 'due-today') {
 					dueTodayCount++;
+				} else if (reminder.ruleId === 'due-time-passed') {
+					dueNowCount++;
 				} else if (reminder.ruleId === 'overdue') {
 					overdueCount++;
 				} else if (reminder.ruleId === 'lead-time') {
@@ -102,9 +107,10 @@ export class ReminderService {
 			}
 		}
 
-		if (overdueCount > 0 || dueTodayCount > 0 || leadTimeCount > 0 || staleCount > 0) {
+		if (overdueCount > 0 || dueTodayCount > 0 || dueNowCount > 0 || leadTimeCount > 0 || staleCount > 0) {
 			const parts: string[] = [];
 			if (overdueCount  > 0) parts.push(`${overdueCount} overdue`);
+			if (dueNowCount   > 0) parts.push(`${dueNowCount} due now`);
 			if (dueTodayCount > 0) parts.push(`${dueTodayCount} due today`);
 			if (leadTimeCount > 0) parts.push(`${leadTimeCount} coming up`);
 			if (staleCount    > 0) parts.push(`${staleCount} stale`);
