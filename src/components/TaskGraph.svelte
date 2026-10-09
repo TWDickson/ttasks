@@ -20,12 +20,14 @@
 		formatDateISO,
 		intersectsViewport,
 		percentAtDate,
+		parseIsoDate,
 		startOfToday,
 	} from '../store/graph/graphTimeline';
 	import { computeDependencyLaneWidth, groupingLabel, laneHeaderClass } from '../store/graph/graphPresentation';
 	import { splitHolidayCalendar } from '../settings/holidays';
 	import { CreateTaskModal } from '../modals/CreateTaskModal';
 	import { icon } from '../utils/icon';
+	import { today } from '../utils/todayStore';
 	import { buildTaskRefIndex, resolveTaskRef, taskRefName } from '../utils/taskRef';
 	import type { BadgePalette } from '../utils/badgePalette';
 
@@ -171,10 +173,10 @@
 	// Same resolution the layout uses, exposed so undated node cards can show a
 	// projected finish (~date) inferred from the dependency chain.
 	$: graphSchedule = buildTaskSchedule(dependencyGraphTasks.filter((task) => task.type === 'task'), { allTasks: tasks, calendarConfig });
-	function projectedEndLabel(path: string): string | null {
+	function projectedEndLabel(path: string, now: string): string | null {
 		const entry = graphSchedule.get(path);
 		if (!entry) return null;
-		return formatHumanDate(formatDateISO(entry.end), formatDateISO(startOfToday()));
+		return formatHumanDate(formatDateISO(entry.end), now);
 	}
 
 	$: layout = buildTaskGraph(dependencyGraphTasks, {
@@ -366,13 +368,15 @@
 	$: overviewTasks = showCompletedInOverview
 		? tasks
 		: tasks.filter((task) => task.type !== 'task' || !task.is_complete);
-	$: hybridTimeline = buildHybridTimeline(overviewTasks, { grouping: overviewGrouping, calendarConfig });
+	// Re-derived when the date rolls over so the today marker and range padding follow it.
+	$: todayDate = parseIsoDate($today) ?? startOfToday();
+	$: hybridTimeline = buildHybridTimeline(overviewTasks, { grouping: overviewGrouping, calendarConfig, today: todayDate });
 	$: timelineTaskCount = hybridTimeline.defined.length + hybridTimeline.underdefined.length;
 	$: hiddenCompletedCount = Math.max(0, tasks.filter((task) => task.type === 'task' && task.is_complete).length - overviewTasks.filter((task) => task.type === 'task' && task.is_complete).length);
 	$: timelineEmpty = timelineTaskCount === 0;
 	$: overviewSpanDays = Math.max(1, diffDays(hybridTimeline.rangeStart, hybridTimeline.rangeEnd) + 1);
 	$: overviewCanvasWidth = Math.max(overviewViewportWidth, Math.round(overviewSpanDays * OVERVIEW_PIXELS_PER_DAY));
-	$: todayPercent = percentAtDate(startOfToday(), hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
+	$: todayPercent = percentAtDate(todayDate, hybridTimeline.rangeStart, hybridTimeline.rangeEnd);
 	$: dayWidthPercent = 100 / overviewSpanDays;
 	$: visibleStartPercent = overviewCanvasWidth > 0 ? (overviewScrollLeft / overviewCanvasWidth) * 100 : 0;
 	$: visibleEndPercent = overviewCanvasWidth > 0 ? ((overviewScrollLeft + overviewViewportWidth) / overviewCanvasWidth) * 100 : 100;
@@ -1192,11 +1196,11 @@
 							<div class="tt-graph-meta">
 								<span>{subtitle(node)}</span>
 							{#if node.task.is_complete && node.task.completed}
-								<span>Done {formatHumanDate(node.task.completed, formatDateISO(startOfToday()))}</span>
+								<span>Done {formatHumanDate(node.task.completed, $today)}</span>
 							{:else if node.task.due_date}
-								<span>Due {formatHumanDate(node.task.due_date, formatDateISO(startOfToday()))}</span>
-							{:else if projectedEndLabel(node.path)}
-								<span aria-label="Projected from dependencies">~{projectedEndLabel(node.path)}</span>
+								<span>Due {formatHumanDate(node.task.due_date, $today)}</span>
+							{:else if projectedEndLabel(node.path, $today)}
+								<span aria-label="Projected from dependencies">~{projectedEndLabel(node.path, $today)}</span>
 								{/if}
 							</div>
 						</button>

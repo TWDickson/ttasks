@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { get, writable } from 'svelte/store';
+import { get, readable, writable } from 'svelte/store';
 import { createTaskQuery } from './useTaskQuery';
 import type { Task } from '../types';
 import type { QuerySpec } from './types';
@@ -116,12 +116,11 @@ describe('createTaskQuery', () => {
 	});
 
 	it('supports semantic date bucket grouping reactively', () => {
-		vi.setSystemTime(new Date('2026-04-29T12:00:00'));
 		const tasks = writable([
 			makeTask({ due_date: '2026-04-29' }),
 			makeTask({ due_date: '2026-05-20' }),
 		]);
-		const { result, query } = createTaskQuery(tasks, BASE_QUERY);
+		const { result, query } = createTaskQuery(tasks, BASE_QUERY, undefined, readable('2026-04-29'));
 
 		query.update(q => ({ ...q, group: { kind: 'date_buckets', field: 'due_date', preset: 'agenda' } }));
 		const groups = get(result);
@@ -146,5 +145,32 @@ describe('createTaskQuery', () => {
 
 		query.set({ ...BASE_QUERY, search: 'hello' });
 		expect(get(query).search).toBe('hello');
+	});
+
+	it('re-buckets when the injected date rolls over, with no task or query change', () => {
+		const tasks = writable([makeTask({ due_date: '2026-04-29' })]);
+		const today = writable('2026-04-29');
+		const { result, query } = createTaskQuery(tasks, BASE_QUERY, undefined, today);
+		query.update(q => ({ ...q, group: { kind: 'date_buckets', field: 'due_date', preset: 'agenda' } }));
+
+		expect(get(result).map(g => g.key)).toEqual(['today']);
+
+		today.set('2026-04-30');
+		expect(get(result).map(g => g.key)).toEqual(['overdue']);
+	});
+
+	it('re-evaluates relative-date filters when the date rolls over', () => {
+		const tasks = writable([makeTask({ due_date: '2026-04-29' })]);
+		const today = writable('2026-04-29');
+		const { result, query } = createTaskQuery(tasks, BASE_QUERY, undefined, today);
+		query.update(q => ({
+			...q,
+			filter: { logic: 'and', conditions: [{ field: 'due_date', operator: 'is', value: 'today' }] },
+		}));
+
+		expect(get(result)[0].tasks).toHaveLength(1);
+
+		today.set('2026-04-30');
+		expect(get(result)[0].tasks).toHaveLength(0);
 	});
 });

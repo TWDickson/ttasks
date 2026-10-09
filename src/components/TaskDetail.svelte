@@ -7,6 +7,7 @@
 	import type { TaskStore } from '../store/TaskStore';
 	import { RECURRENCE_LABELS, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
 	import { localDateString } from '../utils/dateUtils';
+	import { today } from '../utils/todayStore';
 	import { buildTaskSchedule, resolveProjectedSchedule } from '../store/taskSchedule';
 	import { splitHolidayCalendar } from '../settings/holidays';
 	import { formatHumanDate } from './taskDateMeta';
@@ -621,7 +622,7 @@
 			{#if projectedSchedule}
 				<span class="tt-label tt-label-projected">Projected</span>
 				<div class="tt-projected-schedule" title="Inferred from dependencies">
-					{formatHumanDate(projectedSchedule.start, localDateString())} – {formatHumanDate(projectedSchedule.end, localDateString())}
+					{formatHumanDate(projectedSchedule.start, $today)} – {formatHumanDate(projectedSchedule.end, $today)}
 					<span class="tt-projected-note">inferred from dependencies</span>
 				</div>
 			{/if}

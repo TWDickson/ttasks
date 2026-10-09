@@ -25,21 +25,31 @@ const PRIORITY_ORDER: Record<string, number> = Object.fromEntries(PRIORITIES.map
  * Resolves a date value which may be an absolute YYYY-MM-DD string or a
  * relative expression: 'today', '+7d', '-3d'.
  */
-function resolveDate(value: string): string {
+function resolveDate(value: string, today: string): string {
 	if (value === 'today') {
-		return localDateString();
+		return today;
 	}
 	const relative = /^([+-])(\d+)d$/.exec(value);
 	if (relative) {
 		const sign = relative[1] === '+' ? 1 : -1;
 		const days = parseInt(relative[2], 10);
-		return addDaysLocal(localDateString(), sign * days);
+		return addDaysLocal(today, sign * days);
 	}
 	return value;
 }
 
-function today(): string {
-	return localDateString();
+/**
+ * The "now" a query evaluates against. Injected rather than read from the
+ * clock so a view can re-run the query when the date rolls over (the `today`
+ * store) and so tests are deterministic.
+ */
+export interface QueryContext {
+	/** Local calendar date, YYYY-MM-DD. */
+	today: string;
+}
+
+function defaultContext(): QueryContext {
+	return { today: localDateString() };
 }
 
 const RELATIVE_DATE_RE = /^(today|[+-]\d+d)$/;
@@ -50,9 +60,9 @@ const RELATIVE_DATE_RE = /^(today|[+-]\d+d)$/;
  * comparing, otherwise `due_date === 'today'` never matches. Non-relative values
  * are returned untouched.
  */
-function resolveEqualityValue(value: unknown): unknown {
+function resolveEqualityValue(value: unknown, today: string): unknown {
 	if (typeof value === 'string' && RELATIVE_DATE_RE.test(value)) {
-		return resolveDate(value);
+		return resolveDate(value, today);
 	}
 	return value;
 }
@@ -79,16 +89,16 @@ function getFieldValue(task: Task, field: string, schedule?: Map<string, Resolve
 
 // ── Single condition evaluation ───────────────────────────────────────────────
 
-function evalCondition(task: Task, cond: FilterCondition, schedule?: Map<string, ResolvedTaskDate>): boolean {
+function evalCondition(task: Task, cond: FilterCondition, ctx: QueryContext, schedule?: Map<string, ResolvedTaskDate>): boolean {
 	const { field, operator, value } = cond;
 	const raw = getFieldValue(task, field, schedule);
 
 	switch (operator) {
 		case 'is':
-			return raw === resolveEqualityValue(value);
+			return raw === resolveEqualityValue(value, ctx.today);
 
 		case 'is_not':
-			return raw !== resolveEqualityValue(value);
+			return raw !== resolveEqualityValue(value, ctx.today);
 
 		case 'is_null':
 			// For arrays, null means empty
@@ -121,29 +131,28 @@ function evalCondition(task: Task, cond: FilterCondition, schedule?: Map<string,
 
 		case 'before': {
 			if (typeof raw !== 'string') return false;
-			return raw < resolveDate(value as string);
+			return raw < resolveDate(value as string, ctx.today);
 		}
 
 		case 'after': {
 			if (typeof raw !== 'string') return false;
-			return raw > resolveDate(value as string);
+			return raw > resolveDate(value as string, ctx.today);
 		}
 
 		case 'on_or_after': {
 			if (typeof raw !== 'string') return false;
-			return raw >= resolveDate(value as string);
+			return raw >= resolveDate(value as string, ctx.today);
 		}
 
 		case 'on_or_before': {
 			if (typeof raw !== 'string') return false;
-			return raw <= resolveDate(value as string);
+			return raw <= resolveDate(value as string, ctx.today);
 		}
 
 		case 'within_days': {
 			if (typeof raw !== 'string') return false;
-			const t = today();
-			const cutoff = resolveDate(`+${value as number}d`);
-			return raw >= t && raw <= cutoff;
+			const cutoff = resolveDate(`+${value as number}d`, ctx.today);
+			return raw >= ctx.today && raw <= cutoff;
 		}
 
 		default:
@@ -153,16 +162,16 @@ function evalCondition(task: Task, cond: FilterCondition, schedule?: Map<string,
 
 // ── Group evaluation (recursive) ─────────────────────────────────────────────
 
-function evalGroup(task: Task, group: FilterGroup, schedule?: Map<string, ResolvedTaskDate>): boolean {
+function evalGroup(task: Task, group: FilterGroup, ctx: QueryContext, schedule?: Map<string, ResolvedTaskDate>): boolean {
 	if (group.conditions.length === 0) return true;
 
 	if (group.logic === 'and') {
 		return group.conditions.every(c =>
-			'logic' in c ? evalGroup(task, c, schedule) : evalCondition(task, c, schedule)
+			'logic' in c ? evalGroup(task, c, ctx, schedule) : evalCondition(task, c, ctx, schedule)
 		);
 	} else {
 		return group.conditions.some(c =>
-			'logic' in c ? evalGroup(task, c, schedule) : evalCondition(task, c, schedule)
+			'logic' in c ? evalGroup(task, c, ctx, schedule) : evalCondition(task, c, ctx, schedule)
 		);
 	}
 }
@@ -175,11 +184,19 @@ function evalGroup(task: Task, group: FilterGroup, schedule?: Map<string, Resolv
  * on the task's hash id prefix — see `hashSearch.ts` for the term grammar.
  * `schedule`, when given, makes any `due_date` condition read the
  * dependency-chain-inferred date for tasks with no explicit due date.
+ * `ctx.today` anchors relative dates (`today`, `+7d`, `within_days`); it defaults
+ * to the wall clock only at this entry point.
  */
-export function applyFilter(tasks: Task[], spec: FilterSpec, search?: string, schedule?: Map<string, ResolvedTaskDate>): Task[] {
+export function applyFilter(
+	tasks: Task[],
+	spec: FilterSpec,
+	search?: string,
+	schedule?: Map<string, ResolvedTaskDate>,
+	ctx: QueryContext = defaultContext(),
+): Task[] {
 	const result = search ? filterBySearch(tasks, search) : tasks;
 
-	return result.filter(t => evalGroup(t, spec, schedule));
+	return result.filter(t => evalGroup(t, spec, ctx, schedule));
 }
 
 /**
@@ -252,9 +269,8 @@ function applyFieldGroup(tasks: Task[], group: FieldGroupSpec, schedule?: Map<st
 	return [...map.entries()].map(([key, tasks]) => ({ key, tasks }));
 }
 
-function classifyAgendaBucketByDate(dueDate: string | null): AgendaBucketKey {
+function classifyAgendaBucketByDate(dueDate: string | null, current: string): AgendaBucketKey {
 	if (!dueDate) return 'no-date';
-	const current = today();
 	if (dueDate < current) return 'overdue';
 	if (dueDate === current) return 'today';
 	if (dueDate === addDaysLocal(current, 1)) return 'tomorrow';
@@ -275,9 +291,10 @@ function classifyAgendaBucketByDate(dueDate: string | null): AgendaBucketKey {
 function classifyAgendaBucket(
 	task: Task,
 	activeStatusBucket: string | null | undefined,
+	ctx: QueryContext,
 	schedule?: Map<string, ResolvedTaskDate>,
 ): AgendaBucketKey {
-	const dateBucket = classifyAgendaBucketByDate(effectiveDueDate(task, schedule));
+	const dateBucket = classifyAgendaBucketByDate(effectiveDueDate(task, schedule), ctx.today);
 	if (activeStatusBucket && task.status === activeStatusBucket && dateBucket !== 'overdue') {
 		return 'today';
 	}
@@ -287,6 +304,7 @@ function classifyAgendaBucket(
 function applyAgendaDateBuckets(
 	tasks: Task[],
 	activeStatusBucket: string | null | undefined,
+	ctx: QueryContext,
 	schedule?: Map<string, ResolvedTaskDate>,
 ): TaskGroup[] {
 	const map = new Map<AgendaBucketKey, Task[]>();
@@ -295,7 +313,7 @@ function applyAgendaDateBuckets(
 	}
 
 	for (const task of tasks) {
-		const key = classifyAgendaBucket(task, activeStatusBucket, schedule);
+		const key = classifyAgendaBucket(task, activeStatusBucket, ctx, schedule);
 		map.get(key)!.push(task);
 	}
 
@@ -321,23 +339,22 @@ const LOGBOOK_BUCKET_ORDER: LogbookBucketKey[] = [
 	'today', 'yesterday', 'this-week', 'earlier', 'no-date',
 ];
 
-function classifyLogbookBucket(completedDate: string | null): LogbookBucketKey {
+function classifyLogbookBucket(completedDate: string | null, current: string): LogbookBucketKey {
 	if (!completedDate) return 'no-date';
-	const current = today();
 	if (completedDate === current) return 'today';
 	if (completedDate === addDaysLocal(current, -1)) return 'yesterday';
 	if (completedDate > addDaysLocal(current, -7)) return 'this-week';
 	return 'earlier';
 }
 
-function applyLogbookDateBuckets(tasks: Task[]): TaskGroup[] {
+function applyLogbookDateBuckets(tasks: Task[], ctx: QueryContext): TaskGroup[] {
 	const map = new Map<LogbookBucketKey, Task[]>();
 	for (const key of LOGBOOK_BUCKET_ORDER) {
 		map.set(key, []);
 	}
 
 	for (const task of tasks) {
-		const key = classifyLogbookBucket(task.completed);
+		const key = classifyLogbookBucket(task.completed, ctx.today);
 		map.get(key)!.push(task);
 	}
 
@@ -369,6 +386,7 @@ export function applyGroup(
 	group: GroupSpec,
 	activeStatusBucket?: string | null,
 	schedule?: Map<string, ResolvedTaskDate>,
+	ctx: QueryContext = defaultContext(),
 ): TaskGroup[] {
 	if (group.kind === 'none') {
 		return [{ key: 'all', tasks }];
@@ -380,12 +398,12 @@ export function applyGroup(
 
 	if (group.kind === 'date_buckets') {
 		if (group.preset === 'logbook') {
-			return applyLogbookDateBuckets(tasks);
+			return applyLogbookDateBuckets(tasks, ctx);
 		}
-		return applyAgendaDateBuckets(tasks, activeStatusBucket, schedule);
+		return applyAgendaDateBuckets(tasks, activeStatusBucket, ctx, schedule);
 	}
 
-	return applyAgendaDateBuckets(tasks, activeStatusBucket, schedule);
+	return applyAgendaDateBuckets(tasks, activeStatusBucket, ctx, schedule);
 }
 
 /**
@@ -421,9 +439,16 @@ function capGroups(groups: TaskGroup[], limitPerGroup: number | undefined, limit
  * inferred finish for a task with no explicit due date — the same computed
  * value its row badge already shows. Never mutates a task; the Detail pane
  * edits the raw field directly and is untouched by this.
+ * `ctx.today` is the one clock read: pass it in to keep the result in step with
+ * the `today` store across midnight.
  */
-export function applyQuery(tasks: Task[], query: QuerySpec, schedule?: Map<string, ResolvedTaskDate>): TaskGroup[] {
-	const filtered = applyFilter(tasks, query.filter, query.search, schedule);
+export function applyQuery(
+	tasks: Task[],
+	query: QuerySpec,
+	schedule?: Map<string, ResolvedTaskDate>,
+	ctx: QueryContext = defaultContext(),
+): TaskGroup[] {
+	const filtered = applyFilter(tasks, query.filter, query.search, schedule, ctx);
 	const sortScope: SortScope = query.sortScope ?? (query.group.kind === 'none' ? 'global' : 'within_groups');
 
 	// Global (and always-global ungrouped) mode: sort the flat list, apply the
@@ -433,12 +458,12 @@ export function applyQuery(tasks: Task[], query: QuerySpec, schedule?: Map<strin
 		const sorted0 = applySort(filtered, query.sort, schedule);
 		const sorted = query.readyFirst ? sortReadyFirst(sorted0, tasks) : sorted0;
 		const limited = query.limit != null ? sorted.slice(0, query.limit) : sorted;
-		const groups = applyGroup(limited, query.group, query.activeStatusBucket, schedule);
+		const groups = applyGroup(limited, query.group, query.activeStatusBucket, schedule, ctx);
 		return capGroups(groups, query.limitPerGroup, undefined);
 	}
 
 	// Within-groups mode: group first, sort within each group, then cap.
-	const groups = applyGroup(filtered, query.group, query.activeStatusBucket, schedule).map((group) => {
+	const groups = applyGroup(filtered, query.group, query.activeStatusBucket, schedule, ctx).map((group) => {
 		const sorted = applySort(group.tasks, query.sort, schedule);
 		return {
 			key: group.key,

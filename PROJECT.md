@@ -29,7 +29,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.13` published; **`0.1.14` bumped on `main` (52c8fe7), tag `0.1.14` not yet pushed — waiting on release** (not on the community list — deliberate) |
-| Tests | **1862 passing, 137 files** (`npm run check` = lint → build → test) |
+| Tests | **1884 passing, 138 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -40,9 +40,8 @@ search/filter, dependency graph, reminders, quick actions, archive/logbook, the
 `area`/`labels` data model, the shared query engine, Smart Lists, native
 Pomodoro, and Share/Sync all ship.
 
-**Four things gate a public release** (all 🔴 below): **DT-1** (midnight-stale
-queries), **DT-2** (semantically-dead `due_time`), **MD-1/MD-2** (schema prefix +
-sparse writes), and **PB-2's last bullet** (`localStorage` namespacing).
+**Three things gate a public release** (all 🔴 below): **DT-2**
+(semantically-dead `due_time`), **MD-1/MD-2** (schema prefix + sparse writes), and **PB-2's last bullet** (`localStorage` namespacing).
 Everything else is 🟡/🟢.
 
 **No ⚖ call blocks any 🔴 item.** DT-2 and DT-5 are *decided* (2026-07-25) and
@@ -57,7 +56,7 @@ shippable; dependencies are the arrows.
 
 ```mermaid
 flowchart LR
-  DT1["DT-1 🔴<br/>today injection"] --> AR3["AR-3 🟡<br/>field descriptor table"]
+  DT1["DT-1 ✅<br/>today injection"] --> AR3["AR-3 🟡<br/>field descriptor table"]
   AR3 --> DT2["DT-2 🔴<br/>due_time reminders"]
   DT2 --> DT5["DT-5 🟡<br/>calendar weeks"]
   AR3 --> MD12["MD-1/2 🔴<br/>ttask_* prefix + sparse"]
@@ -74,7 +73,7 @@ flowchart LR
 
 | # | Step | Why here |
 | --- | --- | --- |
-| 1 | **DT-1** engine `today` injection | Independent, user-visible bug, and makes every later date test deterministic (closes TD-5). |
+| 1 | ~~**DT-1** engine `today` injection~~ ✅ 2026-10-09 | Independent, user-visible bug, and makes every later date test deterministic (closes TD-5). |
 | 2 | **AR-3** field descriptor table | `due_time` is not settable yet (no `TASK_FIELD_DEFINITIONS` entry). Adding it before AR-3 means adding it and then migrating it. *(Previously sequenced after DT-2 — flipped 2026-10-08.)* |
 | 3 | **DT-2** `due_time` reminders | Decided; needs UI + consumption. |
 | 4 | **DT-5** calendar weeks + week-start setting | Decided. Pairs with the Logbook "Last 7 Days" rename. |
@@ -93,16 +92,8 @@ flowchart LR
 
 ### Dates (DT)
 
-- `[ ]` **DT-1 🔴 agenda buckets + query results go stale at midnight** — the
-  engine calls `localDateString()` internally (`src/query/engine.ts`) and nothing
-  re-runs the query at midnight, so a board left open overnight shows yesterday's
-  Overdue/Today buckets while the row badges (which *do* subscribe to the `today`
-  store) update — a visible inconsistency. **Plan:** make `applyQuery` take
-  `ctx: { today }`, derive `useTaskQuery` from `[tasks, query, today]`, then sweep
-  the remaining `startOfToday()`-at-mount surfaces (`TaskGraph`/`hybridTimeline`
-  today-marker, `TaskBoard`, `TaskDetail`, `statusSummary`). Also makes the engine
-  tests deterministic. *(Verified still open 2026-10-08; DT-7 added a `schedule`
-  param to the same call chain, so thread `today` alongside it.)*
+- `[x]` **DT-1** — engine `today` injection *(2026-10-09; see HISTORY)*. Also
+  closes TD-5 for the query engine.
 - `[ ]` **DT-2 🔴 `due_time` is stored but semantically dead** — **decided
   2026-07-25 (Taylor): make it real, reminders only.**
   - **Scope is bigger than the audit stated.** `due_time` is persisted, written,
@@ -481,8 +472,8 @@ critical path except where noted above (AR-3, PB-4).
 - `[ ]` **TD-3 🟡 coverage visibility** — no coverage reporting configured.
 - `[ ]` **TD-4 🟢 component-test debt** — tracks AR-1; fold "add a render test"
   into each component migration.
-- `[ ]` **TD-5 🟢 date/time determinism** — tests that depend on the wall clock;
-  closed by DT-1's `today` injection.
+- `[x]` **TD-5 🟢 date/time determinism** — closed for the query engine by DT-1's
+  `today` injection (2026-10-09).
 - `[ ]` **Detail pane suppresses every field's real `<label>`** — found in the
   2026-09-06 UI audit. `deriveInlineFieldProps` sets `definition.label = ''` so
   `TaskDetail` can render its own `<div class="tt-field-group"><span

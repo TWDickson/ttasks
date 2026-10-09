@@ -12,6 +12,33 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-09 — DT-1: queries stop going stale at midnight
+
+A board left open overnight showed yesterday's Overdue/Today buckets while row
+badges (subscribed to the `today` store) had already moved on.
+
+- **`applyQuery` / `applyFilter` / `applyGroup` take a `QueryContext { today }`**
+  (last optional param, after `schedule`). The engine no longer reads the clock
+  internally; the wall clock is consulted only in `defaultContext()` at the entry
+  point, so existing callers and tests are unchanged.
+- **`createTaskQuery` derives from `[tasks, query, schedule, today]`**, defaulting
+  `today` to the shared midnight store. Date-relative filters (`today`, `+7d`,
+  `within_days`) and agenda/logbook buckets now re-run at rollover.
+- **Tests inject the date** instead of faking timers: one existing test relied on
+  `vi.setSystemTime` and broke because the singleton store captured the real date
+  at import — exactly the nondeterminism TD-5 described.
+- **Swept the stale-at-mount surfaces:** the graph's today marker / range padding
+  (`buildHybridTimeline` gained `options.today`; `TaskGraph` derives it from
+  `$today`), `TaskDetail`'s projected-schedule label, and the status bar
+  (subscribes to the store, so Overdue/Due-today counts refresh at midnight).
+- **Left alone on purpose:** `localDateString()` calls inside click/save handlers
+  (`TaskBoard.batchComplete`, `TaskDetail.markComplete`, `TaskWriter`, quick
+  actions) — they run at action time, so they are correct by construction.
+- Unobserved: midnight rollover itself is unit-tested via an injected store, not
+  watched on a live board.
+
+---
+
 ## 2026-10-08 — Pomodoro: log location, alerts, pane restyle
 
 Taylor's report: the pane looked bad, the log wasn't where expected, and there

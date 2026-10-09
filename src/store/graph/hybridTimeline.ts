@@ -1,6 +1,6 @@
 import type { Task } from '../../types';
 import { missingTaskLabel } from '../../utils/taskLabel';
-import { DAY_MS, addDays, normalizeTimelineRange, parseIsoDate } from './graphTimeline';
+import { DAY_MS, addDays, normalizeTimelineRange, parseIsoDate, startOfToday } from './graphTimeline';
 import { normalizeTaskPath, resolveOwningProjectPath, dedupePaths } from './taskGraph';
 import {
 	createWorkingCalendarResolver,
@@ -74,6 +74,8 @@ export interface BuildHybridTimelineOptions {
 	grouping?: HybridTimelineGrouping;
 	/** Universal calendar config threaded to the working-day date math. */
 	calendarConfig?: CalendarConfig;
+	/** Local-midnight "today" for the fallback range and today-padding; defaults to the wall clock. */
+	today?: Date;
 }
 
 // ---------------------------------------------------------------------------
@@ -181,8 +183,7 @@ export function buildHybridTimeline(
 	tasks: Task[],
 	options: BuildHybridTimelineOptions = {},
 ): HybridTimelineModel {
-	const today = new Date();
-	today.setHours(0, 0, 0, 0);
+	const today = options.today ?? startOfToday();
 	const fallbackStart = addDays(today, -7);
 	const fallbackEnd   = addDays(today, 21);
 	const grouping = options.grouping ?? 'none';

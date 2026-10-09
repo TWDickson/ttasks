@@ -50,6 +50,7 @@ import { TaskJumpSuggestModal } from './editor/TaskJumpSuggestModal';
 import { buildAliasedLink } from './integration/relationshipLink';
 import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
 import { localDateString, localIsoTimestamp } from './utils/dateUtils';
+import { today as todayStore } from './utils/todayStore';
 import { ensureFolderPath } from './utils/vaultSafe';
 import { createTaskContextMenuDeps } from './integration/taskActionPorts';
 import { ScanEngine } from './integration/ScanEngine';
@@ -1093,7 +1094,12 @@ export default class TTasksPlugin extends Plugin {
 			this.updateStatusBar();
 		});
 		this.register(() => unsubscribeSettings());
-		this.updateStatusBar();
+		// "Overdue" / "due today" counts are date-relative, so re-render at midnight.
+		// The store fires once on subscribe, which doubles as the initial render.
+		const unsubscribeToday = todayStore.subscribe(() => {
+			this.updateStatusBar();
+		});
+		this.register(() => unsubscribeToday());
 	}
 
 	/**

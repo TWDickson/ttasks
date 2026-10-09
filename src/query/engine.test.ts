@@ -804,3 +804,49 @@ describe('applyQuery', () => {
 		expect(groups.find((g) => g.key === 'general')?.tasks.map((t) => t.name)).toEqual(['gen-high']);
 	});
 });
+
+// ── Injected clock (DT-1) ─────────────────────────────────────────────────────
+
+describe('QueryContext.today', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('buckets against the injected date, not the wall clock', () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2030-01-01T12:00:00'));
+		const tasks = [makeTask({ due_date: '2026-04-29' })];
+		const groups = applyGroup(
+			tasks,
+			{ kind: 'date_buckets', field: 'due_date', preset: 'agenda' },
+			null,
+			undefined,
+			{ today: '2026-04-29' },
+		);
+		expect(groups.map(g => g.key)).toEqual(['today']);
+	});
+
+	it('resolves relative filter values against the injected date', () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2030-01-01T12:00:00'));
+		const tasks = [makeTask({ due_date: '2026-05-06' })];
+		const spec: FilterSpec = {
+			logic: 'and',
+			conditions: [{ field: 'due_date', operator: 'is', value: '+7d' }],
+		};
+		expect(applyFilter(tasks, spec, undefined, undefined, { today: '2026-04-29' })).toHaveLength(1);
+		expect(applyFilter(tasks, spec, undefined, undefined, { today: '2026-04-30' })).toHaveLength(0);
+	});
+
+	it('buckets the logbook against the injected date', () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2030-01-01T12:00:00'));
+		const tasks = [makeTask({ completed: '2026-04-29' })];
+		const groups = applyGroup(
+			tasks,
+			{ kind: 'date_buckets', field: 'completed', preset: 'logbook' },
+			null,
+			undefined,
+			{ today: '2026-04-30' },
+		);
+		expect(groups.map(g => g.key)).toEqual(['yesterday']);
+	});
+});
