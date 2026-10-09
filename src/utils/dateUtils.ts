@@ -43,6 +43,21 @@ export function localTimeString(now: Date = new Date()): string {
 	return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 }
 
+/** First day of the calendar week: 0 = Sunday, 1 = Monday. */
+export type WeekStart = 0 | 1;
+
+/** Day of week for a YYYY-MM-DD date: 0 = Sunday … 6 = Saturday. */
+export function weekdayOfLocal(date: string): number {
+	const [y, m, d] = date.split('-').map(Number);
+	return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/** Last day (inclusive) of the calendar week containing `date`. */
+export function endOfWeekLocal(date: string, weekStart: WeekStart): string {
+	const daysIntoWeek = (weekdayOfLocal(date) - weekStart + 7) % 7;
+	return addDaysLocal(date, 6 - daysIntoWeek);
+}
+
 /**
  * Local wall-clock instant as ISO-8601 with an explicit UTC offset, e.g.
  * `2026-10-08T14:25:07-05:00`. Unlike `toISOString()` the date part is the

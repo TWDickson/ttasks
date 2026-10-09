@@ -359,6 +359,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			labelValues: ['feature', 'bug', 'research'],
 			completionStatus: COMPLETION_STATUS,
 			logbookRendererMode: 'list',
+			weekStartsOn: 'sunday',
 			kanbanCardFields: ['area', 'dueDate', 'labels', 'depCount'],
 			kanbanCollapsedColumns: '',
 			showCompletedByViewId: {},

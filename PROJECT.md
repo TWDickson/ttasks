@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **1906 passing, 140 files** (`npm run check` = lint → build → test) |
+| Tests | **1915 passing, 140 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -57,7 +57,7 @@ shippable; dependencies are the arrows.
 flowchart LR
   DT1["DT-1 ✅<br/>today injection"] --> AR3["AR-3 🟡<br/>field descriptor table"]
   AR3 --> DT2["DT-2 ✅<br/>due_time reminders"]
-  DT2 --> DT5["DT-5 🟡<br/>calendar weeks"]
+  DT2 --> DT5["DT-5 ✅<br/>calendar weeks"]
   AR3 --> MD12["MD-1/2 🔴<br/>ttask_* prefix + sparse"]
   MD12 --> MD3["MD-3 🟡<br/>derive blocks"]
   MD12 --> RP["RP-2/3 🟡<br/>repeat engine"]
@@ -75,7 +75,7 @@ flowchart LR
 | 1 | ~~**DT-1** engine `today` injection~~ ✅ 2026-10-09 | Independent, user-visible bug, and makes every later date test deterministic (closes TD-5). |
 | 2 | **AR-3** field descriptor table | Slices 1–2 landed; the JSON export/import lists and `TASK_FIELD_DEFINITIONS` are still hand-listed. `due_time` was added to the latter ahead of that. *(Previously sequenced after DT-2 — flipped 2026-10-08.)* |
 | 3 | ~~**DT-2** `due_time` reminders~~ ✅ 2026-10-09 | UI + `due-time-passed` reminder. |
-| 4 | **DT-5** calendar weeks + week-start setting | Decided. Pairs with the Logbook "Last 7 Days" rename. |
+| 4 | ~~**DT-5** calendar weeks + week-start setting~~ ✅ 2026-10-09 | Includes the Logbook "Last 7 Days" rename. |
 | 5 | **MD-1 / MD-2** `ttask_*` prefix + sparse writes | The schema change everything downstream depends on. |
 | 6 | **MD-3** derive `blocks` | Deletes the sync machinery; do it in the same schema break, not a second one. |
 | 7 | **RP** `src/repeat/` engine → integration → builder UI | Adds `ttask_repeat_*` keys, so it rides the same break. Folds in DT-4. |
@@ -114,7 +114,7 @@ flowchart LR
     is deliberately reduced to its calendar-date portion by `toCalendarDate`.
     `due_date` + `due_time` already *are* a local datetime split across two
     fields — this just makes the second one count.
-- `[ ]` **DT-5 🟡 "This week" is a rolling 7 days, not a calendar week** —
+- `[x]` **DT-5 🟡 "This week" is a rolling 7 days, not a calendar week** — *(2026-10-09, unreleased: agenda This/Next Week are calendar weeks; new "Week starts on" setting (Sunday default) under Working calendar; Logbook bucket key renamed `last-7-days`; `within_days` confirmed in the query editor's date operators. See HISTORY.)* Original scope:
   **decided 2026-07-25 (Taylor): real calendar weeks, keeping rolling windows
   where they suit.**
   - **Current** (`engine.ts`, `agendaBuckets.ts`): `today+1` → Tomorrow,
@@ -332,6 +332,7 @@ flowchart LR
 | `[~]` | **Graph: double-tap-to-open** | One tap opens (fix: `pointerup` on touch, 8 px drag threshold) | 0.1.x |
 | `[~]` | **Detail pane fits the drawer** | Single column below 768 px, no horizontal scroll | 0.1.x |
 | `[~]` | **Ghost sidebar tabs** — disable → relaunch → re-enable | Exactly one live tab, no ghost/duplicate (`views/leafHygiene.ts`) | 0.1.3 |
+| `[ ]` | **Agenda calendar weeks** (DT-5) — Agenda view, then flip Settings → Working calendar → Week starts on | Tomorrow / This Week / Next Week follow real weeks; This Week hides when tomorrow is already next week; setting change re-buckets live | next |
 | `[ ]` | **Midnight rollover** (DT-1) — leave a view open across midnight | Today/Overdue buckets refresh without reopening | 0.1.16 |
 | `[ ]` | **New-task frontmatter** (AR-3) — create a task, inspect YAML | Same keys/order as before the codec change | 0.1.16 |
 
@@ -347,6 +348,7 @@ flowchart LR
 
 | | Check | Pass looks like | Ships |
 | --- | --- | --- | --- |
+| `[ ]` | **Week starts on** (DT-5) — Settings → Working calendar | Dropdown present at top of the section; Monday vs Sunday moves Sunday between This/Next Week | next |
 | `[ ]` | **"Due now" reminder** (DT-2) — task due today with `due_time` a few minutes ahead; wait for the 5-min poll | Notice reads "N due now"; fires once; task is *not* styled overdue; follows the "Due today" toggle | next |
 | `[ ]` | **Pomodoro → "Send test"** notification | Reports shown/denied/unsupported; "shown" with nothing visible = Focus Assist / per-app setting | 0.1.16 |
 | `[ ]` | **Pomodoro sounds** — preview buttons, separate focus-end / break-end picks, volume slider (0 = off; saved "off" migrates to 0) | Audio plays at the set volume | 0.1.16 |

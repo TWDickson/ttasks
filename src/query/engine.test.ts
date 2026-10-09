@@ -533,7 +533,7 @@ describe('applyGroup', () => {
 			makeTask({ path: 'Tasks/overdue.md', due_date: '2026-04-28' }),
 			makeTask({ path: 'Tasks/today.md', due_date: '2026-04-29' }),
 			makeTask({ path: 'Tasks/tomorrow.md', due_date: '2026-04-30' }),
-			makeTask({ path: 'Tasks/this-week.md', due_date: '2026-05-03' }),
+			makeTask({ path: 'Tasks/this-week.md', due_date: '2026-05-02' }),
 			makeTask({ path: 'Tasks/next-week.md', due_date: '2026-05-08' }),
 			makeTask({ path: 'Tasks/later.md', due_date: '2026-05-20' }),
 			makeTask({ path: 'Tasks/no-date.md', due_date: null }),
@@ -550,6 +550,45 @@ describe('applyGroup', () => {
 			'later',
 			'no-date',
 		]);
+	});
+
+	describe('agenda uses calendar weeks', () => {
+		const bucketOf = (today: string, due: string, weekStart: 0 | 1) => {
+			const groups = applyQuery(
+				[makeTask({ path: 'Tasks/x.md', due_date: due })],
+				{ filter: { logic: 'and', conditions: [] }, sort: [], group: { kind: 'date_buckets', field: 'due_date', preset: 'agenda' } },
+				undefined,
+				{ today, weekStart },
+			);
+			return groups[0]?.key;
+		};
+
+		// 2026-04-29 is a Wednesday.
+		it('Sunday-start: the week runs through Saturday, then next week', () => {
+			expect(bucketOf('2026-04-29', '2026-05-02', 0)).toBe('this-week');
+			expect(bucketOf('2026-04-29', '2026-05-03', 0)).toBe('next-week');
+			expect(bucketOf('2026-04-29', '2026-05-09', 0)).toBe('next-week');
+			expect(bucketOf('2026-04-29', '2026-05-10', 0)).toBe('later');
+		});
+
+		it('Monday-start: Sunday still belongs to this week', () => {
+			expect(bucketOf('2026-04-29', '2026-05-03', 1)).toBe('this-week');
+			expect(bucketOf('2026-04-29', '2026-05-04', 1)).toBe('next-week');
+			expect(bucketOf('2026-04-29', '2026-05-10', 1)).toBe('next-week');
+			expect(bucketOf('2026-04-29', '2026-05-11', 1)).toBe('later');
+		});
+
+		it('the bucket drains instead of refilling from the future', () => {
+			// Friday: only Saturday is left of a Sunday-start week.
+			expect(bucketOf('2026-05-01', '2026-05-02', 0)).toBe('tomorrow');
+			expect(bucketOf('2026-05-01', '2026-05-03', 0)).toBe('next-week');
+		});
+
+		it('when tomorrow is already next week, This Week is empty', () => {
+			// Saturday, Sunday-start week: Sunday is tomorrow and next week.
+			expect(bucketOf('2026-05-02', '2026-05-03', 0)).toBe('tomorrow');
+			expect(bucketOf('2026-05-02', '2026-05-05', 0)).toBe('next-week');
+		});
 	});
 
 	it('promotes an active-status task into the "today" bucket regardless of due date', () => {
@@ -599,7 +638,7 @@ describe('applyGroup', () => {
 		expect(groups.map(g => g.key)).toEqual([
 			'today',
 			'yesterday',
-			'this-week',
+			'last-7-days',
 			'earlier',
 			'no-date',
 		]);
@@ -614,9 +653,9 @@ describe('applyGroup', () => {
 		];
 
 		const groups = applyGroup(tasks, { kind: 'date_buckets', field: 'completed', preset: 'logbook' });
-		const thisWeek = groups.find(group => group.key === 'this-week');
+		const lastWeek = groups.find(group => group.key === 'last-7-days');
 
-		expect(thisWeek?.tasks.map(task => task.name)).toEqual(['B', 'A', 'C']);
+		expect(lastWeek?.tasks.map(task => task.name)).toEqual(['B', 'A', 'C']);
 	});
 });
 

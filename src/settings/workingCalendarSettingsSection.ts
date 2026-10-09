@@ -21,6 +21,18 @@ export function renderWorkingCalendarSettingsSection(params: RenderWorkingCalend
 	const { containerEl, plugin, rerender } = params;
 
 	new Setting(containerEl)
+		.setName('Week starts on')
+		.setDesc('Where the agenda\'s "This Week" and "Next Week" sections begin and end.')
+		.addDropdown(dd => dd
+			.addOption('sunday', 'Sunday')
+			.addOption('monday', 'Monday')
+			.setValue(plugin.settings.weekStartsOn)
+			.onChange(async (value) => {
+				plugin.settings.weekStartsOn = value === 'monday' ? 'monday' : 'sunday';
+				await plugin.saveSettings();
+			}));
+
+	new Setting(containerEl)
 		.setName('Holidays')
 		.setDesc('A shared list of holidays skipped when scheduling. It applies to any area with "Skip weekends & holidays" turned on (set per area in the Statuses, areas & labels section). Mark a holiday as repeating to skip that day every year.')
 		.setHeading();

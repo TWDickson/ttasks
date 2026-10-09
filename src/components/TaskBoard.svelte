@@ -27,7 +27,7 @@
 		combineBoardTasks,
 		createBoardStateService,
 	} from '../store/BoardStateService';
-	import { localDateString } from '../utils/dateUtils';
+import { localDateString, type WeekStart } from '../utils/dateUtils';
 	import { runBatchArchive, runBatchComplete, runBatchDelete } from './taskBoardBatchActions';
 	import { confirmModal } from '../modals/confirmModal';
 	import { buildBoardQuery, type ListGroupOverride, type ListSortOverride } from './boardQuery';
@@ -251,6 +251,9 @@
 	const scheduleStore = writable<Map<string, ResolvedTaskDate>>(new Map());
 	$: scheduleStore.set(schedule);
 
+	const weekStartStore = writable<WeekStart>(0);
+	$: { void $settingsRevision; weekStartStore.set(plugin.settings.weekStartsOn === 'monday' ? 1 : 0); }
+
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
 		filter: currentBoardQuery.filter,
 		sort: currentBoardQuery.sort,
@@ -260,7 +263,7 @@
 		search: currentBoardQuery.search,
 		activeStatusBucket: currentBoardQuery.activeStatusBucket,
 		readyFirst: currentBoardQuery.readyFirst,
-	}, scheduleStore);
+	}, scheduleStore, undefined, weekStartStore);
 
 	// Rebuild the filter spec whenever any filter control changes
 	$: {

@@ -12,6 +12,26 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-09 — DT-5: the agenda counts real weeks
+
+- **Before:** This Week = `≤ today+7`, Next Week = `≤ today+14`. By Friday the
+  bucket was almost entirely *next* week and refilled from the future as the week
+  drained, so "what's left this week?" had no answer.
+- **Now:** This Week runs through the end of the calendar week containing today,
+  Next Week is the following one. Tomorrow keeps its own bucket, so when tomorrow
+  is already next week, This Week is simply empty (buckets only render when
+  non-empty). New `weekStartsOn` setting (`sunday` default | `monday`), in the
+  Working calendar section; the board feeds it to the query as a store so a
+  change re-buckets live. `dateUtils` gains `weekdayOfLocal` / `endOfWeekLocal`.
+- **Rolling stays first-class** as the `within_days` operator (already in the
+  query editor), so no second mechanism was built.
+- **Logbook:** its look-back bucket was also called `this-week`, opposite
+  direction. Kept rolling (a look-back window should be), key renamed
+  `last-7-days`. Nothing renders that key as a label today (the archive view
+  regroups by month), so no UI string changed.
+- **Default is Sunday** (TickTick-style, North-American locale guess) — flip the
+  default if Monday is the better fit.
+
 ## 2026-10-09 — DT-2: `due_time` becomes real (reminders only)
 
 `due_time` was stored, sortable and offered in the query editor but unsettable

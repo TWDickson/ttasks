@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localIsoTimestamp, localDateString, daysBetweenLocal, addDaysLocal, toCalendarDate, localTimeString } from './dateUtils';
+import { localIsoTimestamp, localDateString, daysBetweenLocal, addDaysLocal, toCalendarDate, localTimeString, weekdayOfLocal, endOfWeekLocal } from './dateUtils';
 
 // ── localDateString ───────────────────────────────────────────────────────────
 //
@@ -222,5 +222,24 @@ describe('localTimeString', () => {
 		expect(localTimeString(new Date(2026, 9, 9, 7, 5))).toBe('07:05');
 		expect(localTimeString(new Date(2026, 9, 9, 23, 59))).toBe('23:59');
 		expect(localTimeString(new Date(2026, 9, 9, 0, 0))).toBe('00:00');
+	});
+});
+
+describe('week helpers', () => {
+	it('weekdayOfLocal: 0 = Sunday', () => {
+		expect(weekdayOfLocal('2026-05-03')).toBe(0);
+		expect(weekdayOfLocal('2026-05-04')).toBe(1);
+		expect(weekdayOfLocal('2026-05-09')).toBe(6);
+	});
+
+	it('endOfWeekLocal honours the week start', () => {
+		expect(endOfWeekLocal('2026-04-29', 0)).toBe('2026-05-02'); // Wed → Sat
+		expect(endOfWeekLocal('2026-04-29', 1)).toBe('2026-05-03'); // Wed → Sun
+		expect(endOfWeekLocal('2026-05-03', 0)).toBe('2026-05-09'); // Sunday starts a week
+		expect(endOfWeekLocal('2026-05-03', 1)).toBe('2026-05-03'); // Sunday ends one
+	});
+
+	it('crosses month and year boundaries', () => {
+		expect(endOfWeekLocal('2026-12-30', 0)).toBe('2027-01-02');
 	});
 });

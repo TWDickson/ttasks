@@ -11,7 +11,7 @@ import type {
 	TaskGroup,
 } from './types';
 import type { ResolvedTaskDate } from '../store/graph/taskGraphDates';
-import { addDaysLocal, formatDateISO, localDateString } from '../utils/dateUtils';
+import { addDaysLocal, endOfWeekLocal, formatDateISO, localDateString, type WeekStart } from '../utils/dateUtils';
 import { AGENDA_BUCKET_ORDER, type AgendaBucketKey } from './agendaBuckets';
 import { filterBySearch } from './hashSearch';
 import { PRIORITIES } from '../constants';
@@ -46,6 +46,8 @@ function resolveDate(value: string, today: string): string {
 export interface QueryContext {
 	/** Local calendar date, YYYY-MM-DD. */
 	today: string;
+	/** First day of the calendar week for the This Week / Next Week buckets. */
+	weekStart?: WeekStart;
 }
 
 function defaultContext(): QueryContext {
@@ -269,13 +271,23 @@ function applyFieldGroup(tasks: Task[], group: FieldGroupSpec, schedule?: Map<st
 	return [...map.entries()].map(([key, tasks]) => ({ key, tasks }));
 }
 
-function classifyAgendaBucketByDate(dueDate: string | null, current: string): AgendaBucketKey {
+/**
+ * Rolling look-ahead (`within_days`) is a separate, first-class operator; these
+ * buckets are real calendar weeks so "what's left this week?" has an answer.
+ * When tomorrow already falls in next week, This Week is simply empty.
+ */
+function classifyAgendaBucketByDate(
+	dueDate: string | null,
+	current: string,
+	weekStart: WeekStart,
+): AgendaBucketKey {
 	if (!dueDate) return 'no-date';
 	if (dueDate < current) return 'overdue';
 	if (dueDate === current) return 'today';
 	if (dueDate === addDaysLocal(current, 1)) return 'tomorrow';
-	if (dueDate <= addDaysLocal(current, 7)) return 'this-week';
-	if (dueDate <= addDaysLocal(current, 14)) return 'next-week';
+	const thisWeekEnd = endOfWeekLocal(current, weekStart);
+	if (dueDate <= thisWeekEnd) return 'this-week';
+	if (dueDate <= addDaysLocal(thisWeekEnd, 7)) return 'next-week';
 	return 'later';
 }
 
@@ -294,7 +306,7 @@ function classifyAgendaBucket(
 	ctx: QueryContext,
 	schedule?: Map<string, ResolvedTaskDate>,
 ): AgendaBucketKey {
-	const dateBucket = classifyAgendaBucketByDate(effectiveDueDate(task, schedule), ctx.today);
+	const dateBucket = classifyAgendaBucketByDate(effectiveDueDate(task, schedule), ctx.today, ctx.weekStart ?? 0);
 	if (activeStatusBucket && task.status === activeStatusBucket && dateBucket !== 'overdue') {
 		return 'today';
 	}
@@ -333,17 +345,18 @@ function applyAgendaDateBuckets(
 	return groups;
 }
 
-type LogbookBucketKey = 'today' | 'yesterday' | 'this-week' | 'earlier' | 'no-date';
+type LogbookBucketKey = 'today' | 'yesterday' | 'last-7-days' | 'earlier' | 'no-date';
 
 const LOGBOOK_BUCKET_ORDER: LogbookBucketKey[] = [
-	'today', 'yesterday', 'this-week', 'earlier', 'no-date',
+	'today', 'yesterday', 'last-7-days', 'earlier', 'no-date',
 ];
 
 function classifyLogbookBucket(completedDate: string | null, current: string): LogbookBucketKey {
 	if (!completedDate) return 'no-date';
 	if (completedDate === current) return 'today';
 	if (completedDate === addDaysLocal(current, -1)) return 'yesterday';
-	if (completedDate > addDaysLocal(current, -7)) return 'this-week';
+	// A look-back window, deliberately rolling — unlike the agenda's calendar weeks.
+	if (completedDate > addDaysLocal(current, -7)) return 'last-7-days';
 	return 'earlier';
 }
 

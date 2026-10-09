@@ -161,6 +161,8 @@ export interface TTasksSettings {
 	captureSourceDefaultDefaults: CaptureSourceDefaults;
 	fabPosition: FabPosition;
 	logbookRendererMode: LogbookRendererMode;
+	/** First day of the calendar week (agenda This Week / Next Week buckets). */
+	weekStartsOn: 'sunday' | 'monday';
 	overviewGraphGrouping: OverviewGraphGrouping;
 	overviewGraphShowCompleted: boolean;
 	/** Project note paths the user has hidden from the dependency graph via the

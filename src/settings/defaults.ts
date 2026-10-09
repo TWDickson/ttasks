@@ -64,6 +64,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	captureSourceDefaultDefaults: DEFAULT_CAPTURE_SOURCE_DEFAULTS,
 	fabPosition: 'right',
 	logbookRendererMode: 'list',
+	weekStartsOn: 'sunday',
 	overviewGraphGrouping: 'project',
 	overviewGraphShowCompleted: false,
 	graphHiddenProjects: [],
@@ -259,6 +260,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 		},
 		fabPosition: settings.fabPosition,
 		logbookRendererMode: settings.logbookRendererMode,
+		weekStartsOn: settings.weekStartsOn,
 		overviewGraphGrouping: settings.overviewGraphGrouping,
 		overviewGraphShowCompleted: settings.overviewGraphShowCompleted,
 		graphHiddenProjects: [...(settings.graphHiddenProjects ?? [])],
@@ -622,6 +624,11 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 	const logbookRendererMode = asString(root.logbookRendererMode);
 	if (logbookRendererMode === RENDERER_LIST || logbookRendererMode === RENDERER_KANBAN) {
 		target.logbookRendererMode = logbookRendererMode;
+	}
+
+	const weekStartsOn = asString(root.weekStartsOn);
+	if (weekStartsOn === 'sunday' || weekStartsOn === 'monday') {
+		target.weekStartsOn = weekStartsOn;
 	}
 
 	const overviewGraphGrouping = asString(root.overviewGraphGrouping);

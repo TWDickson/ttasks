@@ -5,25 +5,28 @@ import type { QuerySpec, TaskGroup } from './types';
 import type { ResolvedTaskDate } from '../store/graph/taskGraphDates';
 import { applyQuery } from './engine';
 import { today as liveToday } from '../utils/todayStore';
+import type { WeekStart } from '../utils/dateUtils';
 
 const SHOULD_PROFILE_QUERY = process.env.NODE_ENV === 'development';
 
 const EMPTY_SCHEDULE: Map<string, ResolvedTaskDate> = new Map();
 const emptyScheduleStore = readable(EMPTY_SCHEDULE);
+const defaultWeekStartStore = readable<WeekStart>(0);
 
 function applyQueryWithOptionalTiming(
 	tasks: Task[],
 	query: QuerySpec,
 	schedule: Map<string, ResolvedTaskDate>,
 	today: string,
+	weekStart: WeekStart,
 ): TaskGroup[] {
 	if (!SHOULD_PROFILE_QUERY) {
-		return applyQuery(tasks, query, schedule, { today });
+		return applyQuery(tasks, query, schedule, { today, weekStart });
 	}
 
 	console.time('applyQuery');
 	try {
-		return applyQuery(tasks, query, schedule, { today });
+		return applyQuery(tasks, query, schedule, { today, weekStart });
 	} finally {
 		console.timeEnd('applyQuery');
 	}
@@ -47,6 +50,8 @@ export interface TaskQueryHandle {
  * condition/sort/group reads a task's inferred finish when it has no
  * explicit due date — the same value its row badge already shows.
  *
+ * `weekStart` sets which day the agenda's This Week / Next Week buckets begin on.
+ *
  * `today` defaults to the shared midnight-flipping store, so date-relative
  * filters and agenda buckets re-run when the date rolls over. Tests inject a
  * writable to drive it.
@@ -56,11 +61,13 @@ export function createTaskQuery(
 	initialQuery: QuerySpec,
 	schedule: Readable<Map<string, ResolvedTaskDate>> = emptyScheduleStore,
 	today: Readable<string> = liveToday,
+	weekStart: Readable<WeekStart> = defaultWeekStartStore,
 ): TaskQueryHandle {
 	const query = writable<QuerySpec>(initialQuery);
 	const result = derived(
-		[tasks, query, schedule, today] as const,
-		([$tasks, $query, $schedule, $today]) => applyQueryWithOptionalTiming($tasks, $query, $schedule, $today),
+		[tasks, query, schedule, today, weekStart] as const,
+		([$tasks, $query, $schedule, $today, $weekStart]) =>
+			applyQueryWithOptionalTiming($tasks, $query, $schedule, $today, $weekStart),
 	);
 	return { result, query };
 }

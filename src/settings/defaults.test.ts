@@ -428,3 +428,14 @@ describe('normalizeSettingsFromSources', () => {
 		]);
 	});
 });
+
+describe('weekStartsOn settings normalization', () => {
+	it('defaults to sunday', () => {
+		expect(normalizeSettingsFromSources([{}]).weekStartsOn).toBe('sunday');
+	});
+
+	it('accepts monday and rejects anything else', () => {
+		expect(normalizeSettingsFromSources([{ weekStartsOn: 'monday' }]).weekStartsOn).toBe('monday');
+		expect(normalizeSettingsFromSources([{ weekStartsOn: 'friday' }]).weekStartsOn).toBe('sunday');
+	});
+});
