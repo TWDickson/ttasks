@@ -395,6 +395,9 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 				logFolder: '',
 				logSplit: 'none',
 				alertSound: false,
+				alertVolume: 80,
+				focusEndSound: 'chime',
+				breakEndSound: 'marimba',
 				systemNotification: false,
 			},
 	};

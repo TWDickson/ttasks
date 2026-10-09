@@ -37,6 +37,13 @@ were no notifications or indicators.
   settings reports what happened. Taylor was on 0.1.13, which had no OS
   notifications at all, and Windows can drop one silently (Focus Assist,
   per-app setting), so a failure has to be visible to be diagnosed.
+- **Alert sound (follow-up):** Taylor found the chime too quiet and wanted
+  different sounds for work vs rest. Added `alertVolume` (0-100, default 80, was
+  a fixed 0.25 gain), plus `focusEndSound` / `breakEndSound` picking from five
+  synthesized presets (chime, bell, marimba, beep, alarm). The service's `alert`
+  dep now also receives the phase that *ended* so main can choose the sound.
+  Defaults: chime when focus ends, marimba when a break ends. Each picker has a
+  preview button. `playChime` is replaced by `playAlertSound`.
 - **Status bar:** `.ttasks-pomo-statusbar`'s `display` beat the shared hide
   class through source order, so idle showed a bare timer icon.
 - **Theme trap, plugin-wide:** app.css's `button:not(.clickable-icon)` (0,1,1)

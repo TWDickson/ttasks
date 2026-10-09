@@ -24,6 +24,7 @@ import { RENDERER_KANBAN, RENDERER_LIST } from '../constants';
 import { normalizeHolidayEntries } from './holidays';
 import { SHARE_PREAMBLE_PRESETS, mergePresetLibrary } from '../integration/sharePreamble';
 import type { SharePreamblePreset } from '../integration/sharePreamble';
+import { isPomodoroAlertSound } from '../integration/pomodoroAlert';
 export const DEFAULT_STATUSES = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Completed'];
 
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
@@ -117,6 +118,9 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		logFolder: '',
 		logSplit: 'none',
 		alertSound: true,
+		alertVolume: 80,
+		focusEndSound: 'chime',
+		breakEndSound: 'marimba',
 		systemNotification: true,
 		logPartialOnStop: true,
 	},
@@ -309,6 +313,9 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 			logFolder: settings.pomodoro?.logFolder ?? DEFAULT_SETTINGS.pomodoro.logFolder,
 			logSplit: settings.pomodoro?.logSplit ?? DEFAULT_SETTINGS.pomodoro.logSplit,
 			alertSound: settings.pomodoro?.alertSound ?? DEFAULT_SETTINGS.pomodoro.alertSound,
+			alertVolume: settings.pomodoro?.alertVolume ?? DEFAULT_SETTINGS.pomodoro.alertVolume,
+			focusEndSound: settings.pomodoro?.focusEndSound ?? DEFAULT_SETTINGS.pomodoro.focusEndSound,
+			breakEndSound: settings.pomodoro?.breakEndSound ?? DEFAULT_SETTINGS.pomodoro.breakEndSound,
 			systemNotification: settings.pomodoro?.systemNotification ?? DEFAULT_SETTINGS.pomodoro.systemNotification,
 			logPartialOnStop: settings.pomodoro?.logPartialOnStop ?? DEFAULT_SETTINGS.pomodoro.logPartialOnStop,
 		},
@@ -832,6 +839,15 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 
 		const alertSound = asBoolean(pomodoro.alertSound);
 		if (alertSound !== null) target.pomodoro.alertSound = alertSound;
+
+		const alertVolume = asInteger(pomodoro.alertVolume);
+		if (alertVolume !== null) target.pomodoro.alertVolume = Math.max(0, Math.min(100, alertVolume));
+
+		const focusEndSound = asString(pomodoro.focusEndSound);
+		if (isPomodoroAlertSound(focusEndSound)) target.pomodoro.focusEndSound = focusEndSound;
+
+		const breakEndSound = asString(pomodoro.breakEndSound);
+		if (isPomodoroAlertSound(breakEndSound)) target.pomodoro.breakEndSound = breakEndSound;
 
 		const systemNotification = asBoolean(pomodoro.systemNotification);
 		if (systemNotification !== null) target.pomodoro.systemNotification = systemNotification;

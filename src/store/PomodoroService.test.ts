@@ -116,9 +116,9 @@ describe('PomodoroService', () => {
 		notify.mockClear();
 		advanceSeconds(1500);
 		expect(alert).toHaveBeenCalledTimes(1);
-		expect(alert).toHaveBeenCalledWith('Focus complete — logged 25m to A. Short break started.');
+		expect(alert).toHaveBeenCalledWith('Focus complete — logged 25m to A. Short break started.', 'focus');
 		advanceSeconds(300);
-		expect(alert).toHaveBeenLastCalledWith('Short break complete. Focus started.');
+		expect(alert).toHaveBeenLastCalledWith('Short break complete. Focus started.', 'short-break');
 		expect(notify).not.toHaveBeenCalled();
 		service.dispose();
 	});

@@ -52,9 +52,10 @@ export interface PomodoroServiceDeps {
 	 * Surface a phase boundary — focus done, break over, target reached. These are
 	 * the moments the user may be looking elsewhere, so main upgrades them to a
 	 * chime + OS notification. One call per boundary, with the whole story in one
-	 * line. Falls back to `notify` when not provided.
+	 * line, plus which phase just ended so main can pick the matching sound.
+	 * Falls back to `notify` when not provided.
 	 */
-	alert?: (message: string) => void;
+	alert?: (message: string, endedMode: PomodoroSession['mode']) => void;
 	/** Wall-clock source (epoch ms); injectable for tests. Defaults to Date.now. */
 	now?: () => number;
 }
@@ -222,8 +223,9 @@ export class PomodoroService {
 		else this.session.set(ticked);
 	}
 
-	private alert(message: string): void {
-		(this.deps.alert ?? this.deps.notify)(message);
+	private alert(message: string, endedMode: PomodoroSession['mode']): void {
+		if (this.deps.alert) this.deps.alert(message, endedMode);
+		else this.deps.notify(message);
 	}
 
 	private onPhaseComplete(completed: PomodoroSession): void {
@@ -247,7 +249,7 @@ export class PomodoroService {
 		const then = completed.targetEndMs !== null
 			? this.handleUntilBoundary(completed, config)
 			: this.announcePhase(advancePhase(completed, config), config);
-		this.alert(`${done}. ${then}`);
+		this.alert(`${done}. ${then}`, completed.mode);
 	}
 
 	/**

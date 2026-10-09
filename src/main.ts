@@ -33,8 +33,9 @@ import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration
 import { resolveQuickAction } from './integration/quickActions';
 import { ArchiveService } from './store/ArchiveService';
 import { type CompletedFocus, PomodoroService } from './store/PomodoroService';
+import type { PomodoroSession } from './integration/pomodoro';
 import { type PomodoroLogEntry, formatLogRow, formatNewLogFile, pomodoroLogPath } from './integration/pomodoroLog';
-import { playChime, showSystemNotification, vibrate } from './integration/pomodoroAlert';
+import { playAlertSound, showSystemNotification, vibrate } from './integration/pomodoroAlert';
 import { pomodoroStatusBarView } from './integration/pomodoroStatusBar';
 import { type NotesPolicy, type TaskJsonMode, type TaskJsonValidValues, serializeTasksToJson } from './integration/taskJsonExport';
 import type { DerivedStateContext } from './integration/taskDerivedState';
@@ -119,7 +120,7 @@ export default class TTasksPlugin extends Plugin {
 			getConfig: () => this.settings.pomodoro,
 			logFocus: (focus) => this.logPomodoroFocus(focus),
 			notify: (message) => { new Notice(message); },
-			alert: (message) => this.alertPomodoroPhase(message),
+			alert: (message, endedMode) => this.alertPomodoroPhase(message, endedMode),
 		});
 		this.register(() => this.pomodoroService.dispose());
 		this.scanEngine = new ScanEngine();
@@ -526,14 +527,14 @@ export default class TTasksPlugin extends Plugin {
 	 * A phase boundary is the one moment the user may be looking elsewhere, so it
 	 * must not be missable: a Notice that stays until clicked (replacing the
 	 * previous phase's, so an unattended cycle doesn't stack them), an optional
-	 * chime, a vibration where supported (Android), and on desktop an OS
+	 * sound (one for focus ending, another for a break ending), a vibration where supported (Android), and on desktop an OS
 	 * notification whose click brings Obsidian forward on the Pomodoro pane.
 	 */
-	private alertPomodoroPhase(message: string): void {
-		const { alertSound, systemNotification } = this.settings.pomodoro;
+	private alertPomodoroPhase(message: string, endedMode: PomodoroSession['mode']): void {
+		const { alertSound, alertVolume, focusEndSound, breakEndSound, systemNotification } = this.settings.pomodoro;
 		this.pomodoroPhaseNotice?.hide();
 		this.pomodoroPhaseNotice = new Notice(`Pomodoro — ${message}`, 0);
-		if (alertSound) playChime();
+		if (alertSound) playAlertSound(endedMode === 'focus' ? focusEndSound : breakEndSound, alertVolume);
 		vibrate();
 		if (systemNotification && Platform.isDesktop) {
 			void showSystemNotification('TTasks Pomodoro', message, () => {

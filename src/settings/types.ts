@@ -2,6 +2,7 @@
 import type { Task } from '../types';
 import type { NotesPolicy, TaskJsonMode } from '../integration/taskJsonExport';
 import type { PomodoroLogSplit } from '../integration/pomodoroLog';
+import type { PomodoroAlertSound } from '../integration/pomodoroAlert';
 import type { SharePayloadFormat, ShareOutputFormat, SharePreamblePreset, SharePreamblePresetId } from '../integration/sharePreamble';
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';
@@ -136,8 +137,14 @@ export interface PomodoroSettings {
 	logFolder: string;
 	/** Split the log into one file per year / month, or keep one file. */
 	logSplit: PomodoroLogSplit;
-	/** Play a short chime when a phase ends. */
+	/** Play a sound when a phase ends. */
 	alertSound: boolean;
+	/** Alert loudness, 0–100. */
+	alertVolume: number;
+	/** Sound played when a focus session ends (rest is next). */
+	focusEndSound: PomodoroAlertSound;
+	/** Sound played when a break ends (work is next). */
+	breakEndSound: PomodoroAlertSound;
 	/** Desktop: also raise an OS notification when a phase ends. */
 	systemNotification: boolean;
 	/**

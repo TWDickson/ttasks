@@ -74,6 +74,9 @@ describe('pomodoro settings normalization', () => {
 			logFolder: DEFAULT_SETTINGS.pomodoro.logFolder,
 			logSplit: DEFAULT_SETTINGS.pomodoro.logSplit,
 			alertSound: DEFAULT_SETTINGS.pomodoro.alertSound,
+			alertVolume: DEFAULT_SETTINGS.pomodoro.alertVolume,
+			focusEndSound: DEFAULT_SETTINGS.pomodoro.focusEndSound,
+			breakEndSound: DEFAULT_SETTINGS.pomodoro.breakEndSound,
 			systemNotification: DEFAULT_SETTINGS.pomodoro.systemNotification,
 			logPartialOnStop: DEFAULT_SETTINGS.pomodoro.logPartialOnStop,
 		});
@@ -97,6 +100,15 @@ describe('pomodoro settings normalization', () => {
 		expect(merged.pomodoro.alertSound).toBe(false);
 		expect(merged.pomodoro.systemNotification).toBe(false);
 		expect(merged.pomodoro.logPartialOnStop).toBe(false);
+	});
+
+	it('applies valid alert sound settings, clamps volume, and ignores unknown sounds', () => {
+		const merged = normalizeSettingsFromSources([
+			{ pomodoro: { alertVolume: 250, focusEndSound: 'bell', breakEndSound: 'kazoo' } },
+		]);
+		expect(merged.pomodoro.alertVolume).toBe(100);
+		expect(merged.pomodoro.focusEndSound).toBe('bell');
+		expect(merged.pomodoro.breakEndSound).toBe(DEFAULT_SETTINGS.pomodoro.breakEndSound);
 	});
 
 	it('ignores an unknown logSplit and the retired logPath', () => {
