@@ -30,8 +30,10 @@ Full detail for anything summarized here is recoverable from git.
   `seed` on the descriptor.
 - **Small intentional difference:** a `null` `created` now writes `null` rather than
   the string `'null'`. Unreachable in practice (creation always stamps it).
-- The rig's `list` scene logs one non-fatal console error; it predates this work
-  (reproduced with these changes stashed) and is untouched.
+- The rig's `list` scene logged one non-fatal console error that predated this
+  work: a 404 for the favicon on first page load. Fixed with an inline
+  `data:` icon in `test-rig/index.html`; `rig:smoke` now prints console-error text
+  instead of only counting it.
 
 ---
 

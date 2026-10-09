@@ -111,6 +111,7 @@ async function main() {
 				await page.waitForSelector('body[data-rig-ready="1"]', { timeout: 15000 });
 				if (fatal.length) throw new Error(fatal.join(' | '));
 				console.log('✓', scene.name, noise.length ? `(${noise.length} console error(s), not fatal)` : '');
+				for (const line of noise) console.log('    console.error:', line.slice(0, 300));
 			} catch (err) {
 				const detail = fatal.length ? fatal.join(' | ') : (err.message ?? String(err));
 				console.error('✗', scene.name, '—', detail);
