@@ -29,7 +29,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.13` published; **`0.1.14` bumped on `main` (52c8fe7), tag `0.1.14` not yet pushed — waiting on release** (not on the community list — deliberate) |
-| Tests | **1891 passing, 139 files** (`npm run check` = lint → build → test) |
+| Tests | **1898 passing, 140 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -452,15 +452,16 @@ status-bar countdown, log-partial-on-stop). Live sign-off is in §B.
 Phase 4 — ongoing, PR-sized. None of it is user-visible, so none of it blocks the
 critical path except where noted above (AR-3, PB-4).
 
-- `[~]` **AR-3 🟡 the Task field schema is defined in four places** — *slice 1
+- `[~]` **AR-3 🟡 the Task field schema is defined in four places** — *slices 1–2
   landed 2026-10-09:* `src/schema/taskPersistence.ts` is a `Record<keyof Task,
-  FieldPersistence>` (`fmKey` / `updatable` / `onCreate`), so a new `Task` field
-  fails the type-check until described. `update()`'s written-field list now
-  derives from it, and tests tie the creation YAML, the reader (`fileToTask`) and
-  `TASK_FIELD_DEFINITIONS` to the table. **Remaining:** generate the creation YAML
-  and the reader *from* the table (today they're hand-written and only
-  test-guarded), and the JSON export/import field lists. MD-1 renames keys via
-  `fmKey`; MD-2 flips `onCreate` to omit-when-empty. **Critical-path step 2.**
+  FieldPersistence>` (`fmKey` / `kind` / `updatable` / `onCreate` / `seed`), and
+  `src/schema/taskCodec.ts` reads (`readStoredFields`) and writes
+  (`serializeNewTaskFrontmatter`) from it. `fileToTask`, `buildTaskFrontmatter`
+  and `update()`'s field list no longer carry their own lists; a new `Task` field
+  is a compile error until described. **Remaining:** the JSON export/import field
+  lists (`taskJsonExport`/`taskJsonImport`) and `TASK_FIELD_DEFINITIONS` still
+  hand-list fields (test-guarded against the table, not generated). MD-1 renames
+  keys via `fmKey`; MD-2 flips `onCreate` to omit-when-empty. **Unblocks DT-2.**
 - `[ ]` **AR-1 🟡 the component→plugin coupling rule is violated by all ten legacy
   components** (`TaskAgenda`, `TaskArchiveView`, `TaskBoard`, `TaskDetail`,
   `TaskDetailNotes`, `TaskDetailRelationships`, `TaskGraph`, `TaskKanban`,

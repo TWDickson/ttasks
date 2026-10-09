@@ -15,9 +15,34 @@ import type { Task } from '../types';
  *
  * Pure module — no Obsidian imports.
  */
+/**
+ * How a field is read from and written to frontmatter. One entry per behaviour
+ * the codec (`taskCodec.ts`) distinguishes — kept as named kinds rather than
+ * inferred from the TypeScript type because the coercions differ in ways that
+ * matter (e.g. `source` is not list-unwrapped on read, `area` is).
+ */
+export type FieldKind =
+	| 'derived'      // not in frontmatter
+	| 'recordType'   // closed enum, falls back to 'task'
+	| 'title'        // required text, list-unwrapped on read
+	| 'text'         // free text, "" when absent
+	| 'textOrNull'   // free text, null when absent
+	| 'status'       // enum resolved against the user's status policy
+	| 'priority'     // closed enum, falls back to 'None'
+	| 'reminder'     // optional closed enum
+	| 'strings'      // list of text
+	| 'link'         // one wiki-link → path
+	| 'links'        // list of wiki-links → paths
+	| 'date'         // calendar date, single-quoted or null
+	| 'time'         // HH:MM text, single-quoted or null
+	| 'number'       // finite number or null
+	| 'flag'         // boolean
+	| 'dates';       // list of calendar dates
+
 export interface FieldPersistence {
 	/** Frontmatter key; `null` for file-derived or computed fields never stored in it. */
 	fmKey: string | null;
+	kind: FieldKind;
 	/** `TaskWriter.update` mirrors this field from a `Partial<Task>` into frontmatter. */
 	updatable: boolean;
 	/**
@@ -26,14 +51,23 @@ export interface FieldPersistence {
 	 * for a recurring task, `false` leaves it out (written later by `update`).
 	 */
 	onCreate: 'always' | 'when-set' | false;
+	/**
+	 * Value written on creation instead of the task's own: `blank` is the empty
+	 * value for the kind (a new note has no reverse links and isn't complete),
+	 * `created` stamps the creation date.
+	 */
+	seed?: 'blank' | 'created';
 }
 
-const derived: FieldPersistence = { fmKey: null, updatable: false, onCreate: false };
+const derived: FieldPersistence = { fmKey: null, kind: 'derived', updatable: false, onCreate: false };
 /** Written once at creation and thereafter by a dedicated path (not `update`). */
-const createOnly = (fmKey: string): FieldPersistence => ({ fmKey, updatable: false, onCreate: 'always' });
-const editable = (fmKey: string): FieldPersistence => ({ fmKey, updatable: true, onCreate: 'always' });
+const createOnly = (fmKey: string, kind: FieldKind, seed?: FieldPersistence['seed']): FieldPersistence =>
+	({ fmKey, kind, updatable: false, onCreate: 'always', ...(seed ? { seed } : {}) });
+const editable = (fmKey: string, kind: FieldKind, seed?: FieldPersistence['seed']): FieldPersistence =>
+	({ fmKey, kind, updatable: true, onCreate: 'always', ...(seed ? { seed } : {}) });
 /** Absent until first written by `update`. */
-const lazy = (fmKey: string): FieldPersistence => ({ fmKey, updatable: true, onCreate: false });
+const lazy = (fmKey: string, kind: FieldKind): FieldPersistence =>
+	({ fmKey, kind, updatable: true, onCreate: false });
 
 export const TASK_PERSISTENCE: Record<keyof Task, FieldPersistence> = {
 	// File metadata / derived flags — never in frontmatter.
@@ -44,41 +78,43 @@ export const TASK_PERSISTENCE: Record<keyof Task, FieldPersistence> = {
 	is_complete: derived,
 	is_inbox: derived,
 
-	type: createOnly('type'),
-	name: editable('name'),
-	area: editable('area'),
-	status: editable('status'),
-	priority: editable('priority'),
-	labels: editable('labels'),
+	type: createOnly('type', 'recordType'),
+	name: editable('name', 'title'),
+	area: editable('area', 'textOrNull'),
+	status: editable('status', 'status'),
+	priority: editable('priority', 'priority'),
+	labels: editable('labels', 'strings'),
 
 	// Relationships are rewritten by the relationship services, not by `update`.
-	parent_task: createOnly('parent_task'),
-	depends_on: createOnly('depends_on'),
-	blocks: createOnly('blocks'),
-	blocked_reason: editable('blocked_reason'),
+	parent_task: createOnly('parent_task', 'link'),
+	depends_on: createOnly('depends_on', 'links'),
+	// A new note has no dependents; the reverse index is maintained afterwards.
+	blocks: createOnly('blocks', 'links', 'blank'),
+	blocked_reason: editable('blocked_reason', 'text'),
 
-	assigned_to: editable('assigned_to'),
-	source: editable('source'),
+	assigned_to: editable('assigned_to', 'text'),
+	source: editable('source', 'text'),
 
-	start_date: editable('start_date'),
-	due_date: editable('due_date'),
-	due_time: editable('due_time'),
-	estimated_days: editable('estimated_days'),
-	workweek_only: editable('workweek_only'),
-	holiday_dates: editable('holiday_dates'),
+	start_date: editable('start_date', 'date'),
+	due_date: editable('due_date', 'date'),
+	due_time: editable('due_time', 'time'),
+	estimated_days: editable('estimated_days', 'number'),
+	workweek_only: editable('workweek_only', 'flag'),
+	holiday_dates: editable('holiday_dates', 'dates'),
 
-	created: createOnly('created'),
-	completed: editable('completed'),
+	created: createOnly('created', 'date'),
+	// A task is born incomplete.
+	completed: editable('completed', 'date', 'blank'),
 	// Stamped on creation and on every real status transition inside `update`.
-	status_changed: createOnly('status_changed'),
+	status_changed: createOnly('status_changed', 'date', 'created'),
 
-	pomodoro_count: lazy('pomodoro_count'),
-	focused_minutes: lazy('focused_minutes'),
+	pomodoro_count: lazy('pomodoro_count', 'number'),
+	focused_minutes: lazy('focused_minutes', 'number'),
 
-	recurrence: editable('recurrence'),
-	recurrence_type: editable('recurrence_type'),
-	recurrence_anchor_day: { fmKey: 'recurrence_anchor_day', updatable: true, onCreate: 'when-set' },
-	reminder_override: lazy('reminder_override'),
+	recurrence: editable('recurrence', 'textOrNull'),
+	recurrence_type: editable('recurrence_type', 'textOrNull'),
+	recurrence_anchor_day: { fmKey: 'recurrence_anchor_day', kind: 'number', updatable: true, onCreate: 'when-set' },
+	reminder_override: lazy('reminder_override', 'reminder'),
 };
 
 const ENTRIES = Object.entries(TASK_PERSISTENCE) as [keyof Task, FieldPersistence][];

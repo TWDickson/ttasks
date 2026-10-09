@@ -12,6 +12,29 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-09 — AR-3 slice 2: the codec reads and writes from the table
+
+- **`src/schema/taskCodec.ts`** (pure): `readStoredFields(fm, ctx)` and
+  `serializeNewTaskFrontmatter(task, resolveName)` both walk `TASK_PERSISTENCE`.
+  `TaskStore.fileToTask` and `buildTaskFrontmatter` are now thin callers.
+- **Named `kind`s, not type inference:** the existing coercions differ on purpose
+  (`source`/`blocked_reason` aren't list-unwrapped on read, `area`/`recurrence` are;
+  `due_time` is single-quoted, `recurrence` double-quoted). Each distinct behaviour
+  got a kind so the refactor preserves them rather than normalising them.
+- **Verified byte-identical** against the previous builder across six varied tasks
+  (quotes/backslashes, links with and without a resolvable name, lists, recurrence
+  with and without an anchor) before the old code was deleted; permanent tests now
+  cover the write→read round-trip, key order, and the `blank`/`created` seeds.
+- **Seeds:** a new note's `blocks` is blank, `completed` is null, and
+  `status_changed` takes `created` — previously three special cases inline, now
+  `seed` on the descriptor.
+- **Small intentional difference:** a `null` `created` now writes `null` rather than
+  the string `'null'`. Unreachable in practice (creation always stamps it).
+- The rig's `list` scene logs one non-fatal console error; it predates this work
+  (reproduced with these changes stashed) and is untouched.
+
+---
+
 ## 2026-10-09 — AR-3 slice 1: a typed persistence table
 
 - **`TASK_PERSISTENCE: Record<keyof Task, …>`** in `src/schema/taskPersistence.ts`

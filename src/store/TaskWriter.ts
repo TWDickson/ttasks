@@ -20,6 +20,7 @@ import { syncCompletionToSource } from '../integration/completionSync';
 import { mutateLinkArray } from '../utils/arrayUtils';
 import { isPathOpenInMarkdownEditor } from '../views/openFileLeaves';
 import { UPDATABLE_TASK_FIELDS } from '../schema/taskPersistence';
+import { serializeNewTaskFrontmatter } from '../schema/taskCodec';
 
 export class TaskWriter {
 	private plugin: TTasksPlugin;
@@ -635,64 +636,10 @@ export class TaskWriter {
 // ---------------------------------------------------------------------------
 
 export function buildTaskFrontmatter(task: Task, resolveName: (pathWithoutExt: string) => string | null): string {
-	const esc = (s: string) => String(s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-	const strOrNull = (s: string | null | undefined) => s ? `"${esc(s)}"` : 'null';
-	const link = (p: string | null) => {
-		if (!p) return 'null';
-		const clean = p.replace(/\.md$/, '');
-		// An unresolvable target gets a bare link — never an alias derived from
-		// its filename, which would read as a title the task doesn't have.
-		const name = resolveName(clean);
-		return name ? `'[[${clean}|${name}]]'` : `'[[${clean}]]'`;
-	};
-	const depsStr = task.depends_on.length
-		? `\n${task.depends_on.map(d => `  - ${link(d)}`).join('\n')}`
-		: ' []';
-
-	const labelsYaml = task.labels.length
-		? `\n${task.labels.map(l => `  - "${esc(l)}"`).join('\n')}`
-		: ' []';
-
-	const holidayDates = Array.isArray(task.holiday_dates)
-		? task.holiday_dates.filter((value): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value))
-		: [];
-	const holidayDatesYaml = holidayDates.length
-		? `\n${holidayDates.map((date) => `  - '${date}'`).join('\n')}`
-		: ' []';
-
 	// Only meaningful for a recurring task, and only monthly/yearly actually clamp —
 	// but it's cheap to carry for any rule and it makes the schedule self-describing.
-	// Omitted entirely otherwise, so non-recurring notes don't grow a null key.
+	// Left null otherwise, so the codec omits the key and non-recurring notes don't
+	// grow one.
 	const anchorDay = task.recurrence ? (task.recurrence_anchor_day ?? deriveAnchorDay(task.due_date)) : null;
-	const anchorLines = anchorDay !== null ? [`recurrence_anchor_day: ${anchorDay}`] : [];
-
-	return [
-		'---',
-		`type: ${task.type}`,
-		`name: "${esc(task.name)}"`,
-		`cssclasses: [ttask]`,
-		`area: ${strOrNull(task.area)}`,
-		`status: "${esc(task.status)}"`,
-		`priority: "${esc(task.priority)}"`,
-		`labels:${labelsYaml}`,
-		`parent_task: ${link(task.parent_task)}`,
-		`depends_on:${depsStr}`,
-		`blocks: []`,
-		`blocked_reason: "${esc(task.blocked_reason)}"`,
-		`assigned_to: "${esc(task.assigned_to)}"`,
-		`source: "${esc(task.source)}"`,
-		`start_date: ${task.start_date ? `'${task.start_date}'` : 'null'}`,
-		`due_date: ${task.due_date ? `'${task.due_date}'` : 'null'}`,
-		`due_time: ${task.due_time ? `'${task.due_time}'` : 'null'}`,
-		`estimated_days: ${task.estimated_days ?? 'null'}`,
-		`workweek_only: ${task.workweek_only === true ? 'true' : 'false'}`,
-		`holiday_dates:${holidayDatesYaml}`,
-		`created: '${task.created}'`,
-		`completed: null`,
-		`status_changed: '${task.created}'`,
-		`recurrence: ${task.recurrence ? `"${esc(task.recurrence)}"` : 'null'}`,
-		`recurrence_type: ${task.recurrence_type ? `"${esc(task.recurrence_type)}"` : 'null'}`,
-		...anchorLines,
-		'---',
-	].join('\n');
+	return serializeNewTaskFrontmatter({ ...task, recurrence_anchor_day: anchorDay }, resolveName);
 }

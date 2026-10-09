@@ -1,22 +1,12 @@
 import { Notice, TFile, normalizePath } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
-import type { Task, TaskCreateInput, TaskPriority, TaskRecordType } from '../types';
+import type { Task, TaskCreateInput } from '../types';
 import { ensureMdExt, splitTaskBasename, taskIdFromPath } from '../utils/pathUtils';
 import { normalizeRefPath, type TaskRef } from '../utils/taskRef';
-import { toCalendarDate } from '../utils/dateUtils';
-import {
-	toFrontmatterBoolean,
-	toFrontmatterEnum,
-	toFrontmatterNumber,
-	toFrontmatterOptionalEnum,
-	toFrontmatterScalar,
-	toFrontmatterString,
-	toFrontmatterStringArray,
-	toFrontmatterStringOrNull,
-} from '../utils/frontmatterValue';
-import { PRIORITIES, REMINDER_OVERRIDES, TASK_RECORD_TYPES } from '../constants';
+import { toFrontmatterScalar, toFrontmatterString } from '../utils/frontmatterValue';
 import { parseWikiLink } from '../utils/wikiLink';
+import { readStoredFields } from '../schema/taskCodec';
 import { ensureFolderPath } from '../utils/vaultSafe';
 import { seedGraphTestData } from './graphSandboxSeeder';
 import { TaskWriter } from './TaskWriter';
@@ -317,52 +307,21 @@ export class TaskStore {
 		const notes = this.extractNotes(content, fmEndOffset);
 
 		const policy = this.plugin.statusPolicy;
-		const normalizedStatus = toFrontmatterEnum(fm.status, policy.all, policy.initial);
-
-		const rawArea = toFrontmatterString(toFrontmatterScalar(fm.area));
-		const area: string | null = rawArea === '' ? null : rawArea;
-
-		const labels: string[] = toFrontmatterStringArray(fm.labels);
-
-		const holiday_dates: string[] = (Array.isArray(fm.holiday_dates) ? fm.holiday_dates : [fm.holiday_dates])
-			.map((v) => toCalendarDate(v))
-			.filter((v): v is string => v !== null);
+		const stored = readStoredFields(fm, {
+			statuses: policy.all,
+			initialStatus: policy.initial,
+			resolveLink: (raw) => this.resolveWikiLinkPath(raw, file.path),
+		});
 
 		return {
+			...stored,
+			// `name` was validated above; `readStoredFields` returns the same coerced value.
+			name,
 			id, slug,
 			path: file.path,
-			type:           toFrontmatterEnum<TaskRecordType>(fm.type, TASK_RECORD_TYPES, 'task'),
-			name,
-			area,
-			status:         normalizedStatus,
-			priority:       toFrontmatterEnum<TaskPriority>(fm.priority, PRIORITIES, 'None'),
-			labels,
-			parent_task:    this.resolveWikiLinkPath(fm.parent_task, file.path),
-			depends_on:     this.resolveWikiLinkPaths(fm.depends_on, file.path),
-			blocks:         this.resolveWikiLinkPaths(fm.blocks, file.path),
-			blocked_reason: toFrontmatterString(fm.blocked_reason),
-			assigned_to:    toFrontmatterString(fm.assigned_to),
-			source:         toFrontmatterString(fm.source),
-			start_date:     toCalendarDate(fm.start_date),
-			due_date:       toCalendarDate(fm.due_date),
-			due_time:       toFrontmatterStringOrNull(fm.due_time),
-			estimated_days: toFrontmatterNumber(toFrontmatterScalar(fm.estimated_days)),
-			workweek_only: toFrontmatterBoolean(fm.workweek_only),
-			holiday_dates,
-			created:         toCalendarDate(fm.created),
-			completed:       toCalendarDate(fm.completed),
-			status_changed:  toCalendarDate(fm.status_changed),
-			pomodoro_count:  toFrontmatterNumber(toFrontmatterScalar(fm.pomodoro_count)),
-			focused_minutes: toFrontmatterNumber(toFrontmatterScalar(fm.focused_minutes)),
 			notes,
-			recurrence:      toFrontmatterStringOrNull(fm.recurrence),
-			recurrence_type: toFrontmatterStringOrNull(fm.recurrence_type),
-			// Same Obsidian-native-property-type hardening as the other numbers: a
-			// List- or Text-typed value must still resolve (see feedback #19).
-			recurrence_anchor_day: toFrontmatterNumber(toFrontmatterScalar(fm.recurrence_anchor_day)),
-			reminder_override: toFrontmatterOptionalEnum(fm.reminder_override, REMINDER_OVERRIDES),
-			is_complete: policy.isComplete(normalizedStatus),
-			is_inbox:    area === null,
+			is_complete: policy.isComplete(stored.status),
+			is_inbox:    stored.area === null,
 		};
 	}
 
