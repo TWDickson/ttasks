@@ -430,12 +430,13 @@ describe('normalizeSettingsFromSources', () => {
 });
 
 describe('weekStartsOn settings normalization', () => {
-	it('defaults to sunday', () => {
-		expect(normalizeSettingsFromSources([{}]).weekStartsOn).toBe('sunday');
+	it('defaults to following the system locale', () => {
+		expect(normalizeSettingsFromSources([{}]).weekStartsOn).toBe('system');
 	});
 
-	it('accepts monday and rejects anything else', () => {
+	it('accepts explicit overrides and rejects anything else', () => {
 		expect(normalizeSettingsFromSources([{ weekStartsOn: 'monday' }]).weekStartsOn).toBe('monday');
-		expect(normalizeSettingsFromSources([{ weekStartsOn: 'friday' }]).weekStartsOn).toBe('sunday');
+		expect(normalizeSettingsFromSources([{ weekStartsOn: 'sunday' }]).weekStartsOn).toBe('sunday');
+		expect(normalizeSettingsFromSources([{ weekStartsOn: 'friday' }]).weekStartsOn).toBe('system');
 	});
 });

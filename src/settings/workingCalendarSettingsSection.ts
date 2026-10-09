@@ -1,6 +1,7 @@
 import { Notice, Setting } from 'obsidian';
 import type TTasksPlugin from '../main';
 import type { HolidayEntry } from './types';
+import { resolveWeekStart } from '../utils/dateUtils';
 import { normalizeHolidayEntries, sortHolidayEntries } from './holidays';
 
 interface RenderWorkingCalendarSettingsParams {
@@ -22,13 +23,14 @@ export function renderWorkingCalendarSettingsSection(params: RenderWorkingCalend
 
 	new Setting(containerEl)
 		.setName('Week starts on')
-		.setDesc('Where the agenda\'s "This Week" and "Next Week" sections begin and end.')
+		.setDesc('Where the agenda\'s "This Week" and "Next Week" sections begin and end. "System" follows your device\'s locale.')
 		.addDropdown(dd => dd
+			.addOption('system', `System default (${resolveWeekStart('system') === 1 ? 'Monday' : 'Sunday'})`)
 			.addOption('sunday', 'Sunday')
 			.addOption('monday', 'Monday')
 			.setValue(plugin.settings.weekStartsOn)
 			.onChange(async (value) => {
-				plugin.settings.weekStartsOn = value === 'monday' ? 'monday' : 'sunday';
+				plugin.settings.weekStartsOn = value === 'monday' || value === 'sunday' ? value : 'system';
 				await plugin.saveSettings();
 			}));
 

@@ -64,7 +64,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 	captureSourceDefaultDefaults: DEFAULT_CAPTURE_SOURCE_DEFAULTS,
 	fabPosition: 'right',
 	logbookRendererMode: 'list',
-	weekStartsOn: 'sunday',
+	weekStartsOn: 'system',
 	overviewGraphGrouping: 'project',
 	overviewGraphShowCompleted: false,
 	graphHiddenProjects: [],
@@ -627,7 +627,7 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 	}
 
 	const weekStartsOn = asString(root.weekStartsOn);
-	if (weekStartsOn === 'sunday' || weekStartsOn === 'monday') {
+	if (weekStartsOn === 'system' || weekStartsOn === 'sunday' || weekStartsOn === 'monday') {
 		target.weekStartsOn = weekStartsOn;
 	}
 

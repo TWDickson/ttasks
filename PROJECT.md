@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **1915 passing, 140 files** (`npm run check` = lint → build → test) |
+| Tests | **1918 passing, 140 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -114,7 +114,7 @@ flowchart LR
     is deliberately reduced to its calendar-date portion by `toCalendarDate`.
     `due_date` + `due_time` already *are* a local datetime split across two
     fields — this just makes the second one count.
-- `[x]` **DT-5 🟡 "This week" is a rolling 7 days, not a calendar week** — *(2026-10-09, unreleased: agenda This/Next Week are calendar weeks; new "Week starts on" setting (Sunday default) under Working calendar; Logbook bucket key renamed `last-7-days`; `within_days` confirmed in the query editor's date operators. See HISTORY.)* Original scope:
+- `[x]` **DT-5 🟡 "This week" is a rolling 7 days, not a calendar week** — *(2026-10-09, unreleased: agenda This/Next Week are calendar weeks; new "Week starts on" setting (System default → Sunday/Monday override) under Working calendar; Logbook bucket key renamed `last-7-days`; `within_days` confirmed in the query editor's date operators. See HISTORY.)* Original scope:
   **decided 2026-07-25 (Taylor): real calendar weeks, keeping rolling windows
   where they suit.**
   - **Current** (`engine.ts`, `agendaBuckets.ts`): `today+1` → Tomorrow,
@@ -348,7 +348,7 @@ flowchart LR
 
 | | Check | Pass looks like | Ships |
 | --- | --- | --- | --- |
-| `[ ]` | **Week starts on** (DT-5) — Settings → Working calendar | Dropdown present at top of the section; Monday vs Sunday moves Sunday between This/Next Week | next |
+| `[ ]` | **Week starts on** (DT-5) — Settings → Working calendar | Dropdown at top of the section, default "System default (Mon/Sun)" matching your device locale; Monday vs Sunday moves Sunday between This/Next Week | next |
 | `[ ]` | **"Due now" reminder** (DT-2) — task due today with `due_time` a few minutes ahead; wait for the 5-min poll | Notice reads "N due now"; fires once; task is *not* styled overdue; follows the "Due today" toggle | next |
 | `[ ]` | **Pomodoro → "Send test"** notification | Reports shown/denied/unsupported; "shown" with nothing visible = Focus Assist / per-app setting | 0.1.16 |
 | `[ ]` | **Pomodoro sounds** — preview buttons, separate focus-end / break-end picks, volume slider (0 = off; saved "off" migrates to 0) | Audio plays at the set volume | 0.1.16 |

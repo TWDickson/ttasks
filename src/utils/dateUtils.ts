@@ -46,6 +46,37 @@ export function localTimeString(now: Date = new Date()): string {
 /** First day of the calendar week: 0 = Sunday, 1 = Monday. */
 export type WeekStart = 0 | 1;
 
+/** The user's choice: follow the system locale, or force a day. */
+export type WeekStartSetting = 'system' | 'sunday' | 'monday';
+
+/**
+ * The locale's first day of the week, via `Intl` (`weekInfo.firstDay`: 1 = Monday
+ * … 7 = Sunday). Only Monday and Sunday are supported week starts, so any other
+ * locale (e.g. Saturday-first) and any runtime without week info fall back to
+ * Sunday.
+ *
+ * @param locale — inject for testing; defaults to the runtime's locale
+ */
+export function systemWeekStart(locale?: string): WeekStart {
+	try {
+		const loc = new Intl.Locale(locale ?? Intl.DateTimeFormat().resolvedOptions().locale) as Intl.Locale & {
+			getWeekInfo?: () => { firstDay: number };
+			weekInfo?: { firstDay: number };
+		};
+		const firstDay = (loc.getWeekInfo?.() ?? loc.weekInfo)?.firstDay;
+		return firstDay === 1 ? 1 : 0;
+	} catch {
+		return 0;
+	}
+}
+
+/** Resolve the setting to a concrete week start. */
+export function resolveWeekStart(setting: WeekStartSetting, locale?: string): WeekStart {
+	if (setting === 'monday') return 1;
+	if (setting === 'sunday') return 0;
+	return systemWeekStart(locale);
+}
+
 /** Day of week for a YYYY-MM-DD date: 0 = Sunday … 6 = Saturday. */
 export function weekdayOfLocal(date: string): number {
 	const [y, m, d] = date.split('-').map(Number);

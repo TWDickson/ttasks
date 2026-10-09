@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localIsoTimestamp, localDateString, daysBetweenLocal, addDaysLocal, toCalendarDate, localTimeString, weekdayOfLocal, endOfWeekLocal } from './dateUtils';
+import { localIsoTimestamp, localDateString, daysBetweenLocal, addDaysLocal, toCalendarDate, localTimeString, weekdayOfLocal, endOfWeekLocal, systemWeekStart, resolveWeekStart } from './dateUtils';
 
 // ── localDateString ───────────────────────────────────────────────────────────
 //
@@ -241,5 +241,24 @@ describe('week helpers', () => {
 
 	it('crosses month and year boundaries', () => {
 		expect(endOfWeekLocal('2026-12-30', 0)).toBe('2027-01-02');
+	});
+});
+
+describe('system week start', () => {
+	it('follows the locale: Monday-first vs Sunday-first', () => {
+		expect(systemWeekStart('en-GB')).toBe(1);
+		expect(systemWeekStart('de-DE')).toBe(1);
+		expect(systemWeekStart('en-US')).toBe(0);
+	});
+
+	it('falls back to Sunday for unsupported or invalid locales', () => {
+		expect(systemWeekStart('ar-EG')).toBe(0); // Saturday-first
+		expect(systemWeekStart('not a locale!!')).toBe(0);
+	});
+
+	it('explicit settings override the locale', () => {
+		expect(resolveWeekStart('monday', 'en-US')).toBe(1);
+		expect(resolveWeekStart('sunday', 'en-GB')).toBe(0);
+		expect(resolveWeekStart('system', 'en-GB')).toBe(1);
 	});
 });

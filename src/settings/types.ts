@@ -1,5 +1,6 @@
 ﻿import type { GroupField, QuerySpec, SortField } from '../query/types';
 import type { Task } from '../types';
+import type { WeekStartSetting } from '../utils/dateUtils';
 import type { NotesPolicy, TaskJsonMode } from '../integration/taskJsonExport';
 import type { PomodoroLogSplit } from '../integration/pomodoroLog';
 import type { PomodoroAlertSound } from '../integration/pomodoroAlert';
@@ -161,8 +162,9 @@ export interface TTasksSettings {
 	captureSourceDefaultDefaults: CaptureSourceDefaults;
 	fabPosition: FabPosition;
 	logbookRendererMode: LogbookRendererMode;
-	/** First day of the calendar week (agenda This Week / Next Week buckets). */
-	weekStartsOn: 'sunday' | 'monday';
+	/** First day of the calendar week (agenda This Week / Next Week buckets).
+	 *  `system` follows the device locale. */
+	weekStartsOn: WeekStartSetting;
 	overviewGraphGrouping: OverviewGraphGrouping;
 	overviewGraphShowCompleted: boolean;
 	/** Project note paths the user has hidden from the dependency graph via the

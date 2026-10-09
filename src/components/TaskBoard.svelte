@@ -27,7 +27,7 @@
 		combineBoardTasks,
 		createBoardStateService,
 	} from '../store/BoardStateService';
-import { localDateString, type WeekStart } from '../utils/dateUtils';
+import { localDateString, resolveWeekStart, type WeekStart } from '../utils/dateUtils';
 	import { runBatchArchive, runBatchComplete, runBatchDelete } from './taskBoardBatchActions';
 	import { confirmModal } from '../modals/confirmModal';
 	import { buildBoardQuery, type ListGroupOverride, type ListSortOverride } from './boardQuery';
@@ -252,7 +252,7 @@ import { localDateString, type WeekStart } from '../utils/dateUtils';
 	$: scheduleStore.set(schedule);
 
 	const weekStartStore = writable<WeekStart>(0);
-	$: { void $settingsRevision; weekStartStore.set(plugin.settings.weekStartsOn === 'monday' ? 1 : 0); }
+	$: { void $settingsRevision; weekStartStore.set(resolveWeekStart(plugin.settings.weekStartsOn)); }
 
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
 		filter: currentBoardQuery.filter,

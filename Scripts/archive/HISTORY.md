@@ -29,8 +29,11 @@ Full detail for anything summarized here is recoverable from git.
   direction. Kept rolling (a look-back window should be), key renamed
   `last-7-days`. Nothing renders that key as a label today (the archive view
   regroups by month), so no UI string changed.
-- **Default is Sunday** (TickTick-style, North-American locale guess) — flip the
-  default if Monday is the better fit.
+- **Default follows the system locale.** The setting is `system` (default) |
+  `sunday` | `monday`; `system` resolves through `Intl` week info
+  (`systemWeekStart`), falling back to Sunday for Saturday-first locales or
+  runtimes without week info (only Sun/Mon are supported week starts). The
+  dropdown labels the current resolution, e.g. "System default (Monday)".
 
 ## 2026-10-09 — DT-2: `due_time` becomes real (reminders only)
 
