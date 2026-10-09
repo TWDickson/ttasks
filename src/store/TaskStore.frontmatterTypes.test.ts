@@ -3,6 +3,7 @@ import { buildStatusPolicy } from '../settings/statusPolicy';
 import { TFile } from 'obsidian';
 import { TaskStore } from './TaskStore';
 import type { Task } from '../types';
+import { TASK_PERSISTENCE } from '../schema/taskPersistence';
 
 /**
  * Obsidian lets a user set any frontmatter property's *type* (Text / List /
@@ -200,5 +201,16 @@ describe('TaskStore frontmatter type handling — invalid values fall back', () 
 	it('skips a note with no usable name', async () => {
 		expect(await parseFrontmatter({ ...CANONICAL_FRONTMATTER, name: [] })).toBeNull();
 		expect(await parseFrontmatter({ ...CANONICAL_FRONTMATTER, name: '' })).toBeNull();
+	});
+});
+
+describe('TaskStore reader vs. the persistence table', () => {
+	it('returns a key for every field the table says is stored', async () => {
+		const task = await parseFrontmatter(CANONICAL_FRONTMATTER);
+		const missing = Object.entries(TASK_PERSISTENCE)
+			.filter(([, p]) => p.fmKey !== null)
+			.map(([field]) => field)
+			.filter((field) => !(field in (task as object)));
+		expect(missing).toEqual([]);
 	});
 });

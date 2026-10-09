@@ -19,6 +19,7 @@ import { linkReferencesTaskPath } from './relationshipLinkMatch';
 import { syncCompletionToSource } from '../integration/completionSync';
 import { mutateLinkArray } from '../utils/arrayUtils';
 import { isPathOpenInMarkdownEditor } from '../views/openFileLeaves';
+import { UPDATABLE_TASK_FIELDS } from '../schema/taskPersistence';
 
 export class TaskWriter {
 	private plugin: TTasksPlugin;
@@ -104,14 +105,7 @@ export class TaskWriter {
 		const currentTask = get(this.tasks).find((task) => task.path === normalizedPath) ?? null;
 
 		// Persisted fields that mirror straight into the in-memory Task on success.
-		const writtenFields: (keyof Task)[] = [
-			'name', 'status', 'priority', 'area', 'labels',
-			'blocked_reason', 'assigned_to', 'source', 'due_time',
-			'start_date', 'due_date', 'estimated_days', 'completed',
-			'workweek_only', 'holiday_dates',
-			'recurrence', 'recurrence_type', 'recurrence_anchor_day', 'reminder_override',
-			'pomodoro_count', 'focused_minutes',
-		];
+		const writtenFields = UPDATABLE_TASK_FIELDS;
 
 		// Setting or rescheduling a due date (re)defines the recurrence anchor, so a
 		// month-end schedule keeps its day instead of drifting to February's (RP-1).
@@ -203,7 +197,7 @@ export class TaskWriter {
 	private applyOptimisticUpdate(
 		normalizedPath: string,
 		updates: Partial<Task>,
-		writtenFields: (keyof Task)[],
+		writtenFields: readonly (keyof Task)[],
 		derivedStatusChanged: string | undefined,
 		derivedCompleted: string | null | undefined,
 	): void {

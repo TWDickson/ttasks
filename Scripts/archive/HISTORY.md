@@ -12,6 +12,25 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-09 — AR-3 slice 1: a typed persistence table
+
+- **`TASK_PERSISTENCE: Record<keyof Task, …>`** in `src/schema/taskPersistence.ts`
+  says, per field, its frontmatter key, whether `update()` writes it, and whether
+  creation emits it. The `Record` type is the lockstep mechanism: adding a `Task`
+  field is a compile error until it is described.
+- `TaskWriter.update`'s hand-kept `writtenFields` array is now
+  `UPDATABLE_TASK_FIELDS`, derived from the table.
+- **Guarded rather than generated, for now:** the creation YAML builder and
+  `fileToTask` are still hand-written (their quoting/coercion differs per field),
+  but tests assert they agree with the table — builder emits exactly the table's
+  keys, reader returns a key for every stored field, and `TASK_FIELD_DEFINITIONS`
+  names only stored fields. Generating them is the next slice; doing it in the
+  same commit as introducing the table would have mixed a mechanical refactor with
+  a behaviour-sensitive one.
+- No behaviour change; `due_time` still has no UI definition (that is DT-2).
+
+---
+
 ## 2026-10-09 — DT-1: queries stop going stale at midnight
 
 A board left open overnight showed yesterday's Overdue/Today buckets while row
