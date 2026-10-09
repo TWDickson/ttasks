@@ -137,9 +137,7 @@ export interface PomodoroSettings {
 	logFolder: string;
 	/** Split the log into one file per year / month, or keep one file. */
 	logSplit: PomodoroLogSplit;
-	/** Play a sound when a phase ends. */
-	alertSound: boolean;
-	/** Alert loudness, 0–100. */
+	/** Alert loudness, 0–100; 0 turns the sound off. */
 	alertVolume: number;
 	/** Sound played when a focus session ends (rest is next). */
 	focusEndSound: PomodoroAlertSound;

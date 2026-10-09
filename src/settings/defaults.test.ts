@@ -73,7 +73,6 @@ describe('pomodoro settings normalization', () => {
 			logEnabled: DEFAULT_SETTINGS.pomodoro.logEnabled,
 			logFolder: DEFAULT_SETTINGS.pomodoro.logFolder,
 			logSplit: DEFAULT_SETTINGS.pomodoro.logSplit,
-			alertSound: DEFAULT_SETTINGS.pomodoro.alertSound,
 			alertVolume: DEFAULT_SETTINGS.pomodoro.alertVolume,
 			focusEndSound: DEFAULT_SETTINGS.pomodoro.focusEndSound,
 			breakEndSound: DEFAULT_SETTINGS.pomodoro.breakEndSound,
@@ -92,12 +91,11 @@ describe('pomodoro settings normalization', () => {
 
 	it('applies persisted log settings', () => {
 		const merged = normalizeSettingsFromSources([
-			{ pomodoro: { logEnabled: false, logFolder: '/logs/pomo/', logSplit: 'month', logPartialOnStop: false, alertSound: false, systemNotification: false } },
+			{ pomodoro: { logEnabled: false, logFolder: '/logs/pomo/', logSplit: 'month', logPartialOnStop: false, systemNotification: false } },
 		]);
 		expect(merged.pomodoro.logEnabled).toBe(false);
 		expect(merged.pomodoro.logFolder).toBe('logs/pomo');
 		expect(merged.pomodoro.logSplit).toBe('month');
-		expect(merged.pomodoro.alertSound).toBe(false);
 		expect(merged.pomodoro.systemNotification).toBe(false);
 		expect(merged.pomodoro.logPartialOnStop).toBe(false);
 	});
@@ -109,6 +107,15 @@ describe('pomodoro settings normalization', () => {
 		expect(merged.pomodoro.alertVolume).toBe(100);
 		expect(merged.pomodoro.focusEndSound).toBe('bell');
 		expect(merged.pomodoro.breakEndSound).toBe(DEFAULT_SETTINGS.pomodoro.breakEndSound);
+	});
+
+	it('folds the retired alertSound toggle into volume 0', () => {
+		const muted = normalizeSettingsFromSources([DEFAULT_SETTINGS, { pomodoro: { alertSound: false } }]);
+		expect(muted.pomodoro.alertVolume).toBe(0);
+		expect(muted.pomodoro).not.toHaveProperty('alertSound');
+
+		const unmuted = normalizeSettingsFromSources([DEFAULT_SETTINGS, { pomodoro: { alertSound: true } }]);
+		expect(unmuted.pomodoro.alertVolume).toBe(DEFAULT_SETTINGS.pomodoro.alertVolume);
 	});
 
 	it('ignores an unknown logSplit and the retired logPath', () => {

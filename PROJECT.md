@@ -330,7 +330,8 @@ settings-tab before/after).
 - `[ ]` **Pomodoro sign-off** — the CSV write (now in the tasks folder, optional
   year/month split), the two modals, the restyled sidebar pane, the status-bar
   item (idle now actually hides), and the phase-end alerts: a sticky Notice,
-  a sound (separate focus-end / break-end picks, with a volume slider — 0.1.16),
+  a sound (separate focus-end / break-end picks; the volume slider replaced the
+  on/off toggle in 0.1.16, and a saved "off" migrates to volume 0),
   an Android vibration, and a desktop OS notification on every phase end
   (click → Pomodoro pane). The preview buttons next to each sound picker are the
   quickest check that audio plays at all. **Start with Settings → Pomodoro → "Send test"** on Windows: it reports shown / denied / unsupported, and "shown" with nothing visible means Focus Assist or Windows' per-app setting is suppressing it. Also eyeball any `tt-btn-primary` (Mark complete, the empty
@@ -487,13 +488,9 @@ critical path except where noted above (AR-3, PB-4).
   layer needs and playback is a side effect it doesn't. Split a
   `pomodoroSounds.ts` out; `pomodoroAlert.ts` keeps `playAlertSound` /
   `showSystemNotification`.
-- `[ ]` **⚖ Pomodoro: two ways to mute** — *(code audit 2026-10-09)* the
-  "Sound when a phase ends" toggle and `alertVolume: 0` both silence the alert.
-  Dropping the toggle (migrate `alertSound: false` → volume 0) leaves one
-  control; keeping it lets a user mute without losing their level. Taste call.
-  Also: the volume slider calls `saveSettings()` (full normalize + write) on every
-  5-point step while dragging — harmless at this size, worth a debounce if the
-  settings payload grows.
+- `[ ]` **🟢 Pomodoro volume slider saves on every step** — it calls
+  `saveSettings()` (full normalize + write) on each 5-point step while dragging.
+  Harmless at this size; worth a debounce if the settings payload grows.
 - `[ ]` **AR-4 🟡 `TaskWriter` mixes four concerns** — extract a
   `ChecklistSyncService`.
 - `[ ]` **AR-5 🟢 smaller DRY / correctness items** — including the duplicate
@@ -504,8 +501,7 @@ critical path except where noted above (AR-3, PB-4).
   recurring task" (that's the one current user — the semantics are "only when
   non-null"); the `ENTRIES` cast is duplicated in `taskPersistence.ts` and
   `taskCodec.ts` (export it once); `createTimeFrontmatterKeys` is a test-only
-  export; the `alertPomodoroPhase` doc comment in `main.ts` has an unwrapped
-  line.
+  export.
 - `[ ]` **TD-3 🟡 coverage visibility** — no coverage reporting configured.
 - `[ ]` **TD-4 🟢 component-test debt** — tracks AR-1; fold "add a render test"
   into each component migration.

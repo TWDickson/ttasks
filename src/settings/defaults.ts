@@ -117,7 +117,6 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		logEnabled: true,
 		logFolder: '',
 		logSplit: 'none',
-		alertSound: true,
 		alertVolume: 80,
 		focusEndSound: 'chime',
 		breakEndSound: 'marimba',
@@ -312,7 +311,6 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 			logEnabled: settings.pomodoro?.logEnabled ?? DEFAULT_SETTINGS.pomodoro.logEnabled,
 			logFolder: settings.pomodoro?.logFolder ?? DEFAULT_SETTINGS.pomodoro.logFolder,
 			logSplit: settings.pomodoro?.logSplit ?? DEFAULT_SETTINGS.pomodoro.logSplit,
-			alertSound: settings.pomodoro?.alertSound ?? DEFAULT_SETTINGS.pomodoro.alertSound,
 			alertVolume: settings.pomodoro?.alertVolume ?? DEFAULT_SETTINGS.pomodoro.alertVolume,
 			focusEndSound: settings.pomodoro?.focusEndSound ?? DEFAULT_SETTINGS.pomodoro.focusEndSound,
 			breakEndSound: settings.pomodoro?.breakEndSound ?? DEFAULT_SETTINGS.pomodoro.breakEndSound,
@@ -837,11 +835,12 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 		const logSplit = asString(pomodoro.logSplit);
 		if (logSplit === 'none' || logSplit === 'year' || logSplit === 'month') target.pomodoro.logSplit = logSplit;
 
-		const alertSound = asBoolean(pomodoro.alertSound);
-		if (alertSound !== null) target.pomodoro.alertSound = alertSound;
-
 		const alertVolume = asInteger(pomodoro.alertVolume);
 		if (alertVolume !== null) target.pomodoro.alertVolume = Math.max(0, Math.min(100, alertVolume));
+		// Legacy (≤0.1.15): a separate on/off toggle, folded into volume 0. That
+		// release had no volume key, so `false` can't clash with a chosen level, and
+		// the key is dropped on the next save.
+		if (asBoolean(pomodoro.alertSound) === false) target.pomodoro.alertVolume = 0;
 
 		const focusEndSound = asString(pomodoro.focusEndSound);
 		if (isPomodoroAlertSound(focusEndSound)) target.pomodoro.focusEndSound = focusEndSound;

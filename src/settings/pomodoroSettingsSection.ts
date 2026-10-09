@@ -102,18 +102,8 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 			}));
 
 	new Setting(containerEl)
-		.setName('Sound when a phase ends')
-		.setDesc('Play an alert sound when a focus session or break finishes.')
-		.addToggle(toggle => toggle
-			.setValue(p.alertSound)
-			.onChange(async (value) => {
-				plugin.settings.pomodoro.alertSound = value;
-				await plugin.saveSettings();
-			}));
-
-	new Setting(containerEl)
 		.setName('Alert volume')
-		.setDesc('Raise this if the sound is easy to miss. Use the preview buttons below to check it.')
+		.setDesc('Sound played when a focus session or break finishes. Set to 0 to turn it off; use the preview buttons below to check the level.')
 		.addSlider(slider => slider
 			.setLimits(0, 100, 5)
 			.setValue(p.alertVolume)
@@ -155,7 +145,7 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 			.addButton(button => button
 				.setButtonText('Send test')
 				.onClick(async () => {
-					if (plugin.settings.pomodoro.alertSound) playAlertSound(plugin.settings.pomodoro.focusEndSound, plugin.settings.pomodoro.alertVolume);
+					playAlertSound(plugin.settings.pomodoro.focusEndSound, plugin.settings.pomodoro.alertVolume);
 					const result = await showSystemNotification('TTasks Pomodoro', 'Test notification — phase alerts will look like this.');
 					new Notice(describeNotificationResult(result), 10_000);
 				}));

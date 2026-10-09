@@ -527,15 +527,15 @@ export default class TTasksPlugin extends Plugin {
 	/**
 	 * A phase boundary is the one moment the user may be looking elsewhere, so it
 	 * must not be missable: a Notice that stays until clicked (replacing the
-	 * previous phase's, so an unattended cycle doesn't stack them), an optional
-	 * sound (one for focus ending, another for a break ending), a vibration where supported (Android), and on desktop an OS
-	 * notification whose click brings Obsidian forward on the Pomodoro pane.
+	 * previous phase's, so an unattended cycle doesn't stack them), a sound (one
+	 * for focus ending, another for a break ending; volume 0 silences it), a
+	 * vibration where supported (Android), and on desktop an OS notification whose click brings Obsidian forward on the Pomodoro pane.
 	 */
 	private alertPomodoroPhase(message: string, endedMode: PomodoroSession['mode']): void {
-		const { alertSound, alertVolume, focusEndSound, breakEndSound, systemNotification } = this.settings.pomodoro;
+		const { alertVolume, focusEndSound, breakEndSound, systemNotification } = this.settings.pomodoro;
 		this.pomodoroPhaseNotice?.hide();
 		this.pomodoroPhaseNotice = new Notice(`Pomodoro — ${message}`, 0);
-		if (alertSound) playAlertSound(endedMode === 'focus' ? focusEndSound : breakEndSound, alertVolume);
+		playAlertSound(endedMode === 'focus' ? focusEndSound : breakEndSound, alertVolume);
 		vibrate();
 		if (systemNotification && Platform.isDesktop) {
 			void showSystemNotification('TTasks Pomodoro', message, () => {
