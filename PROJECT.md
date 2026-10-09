@@ -26,8 +26,8 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 
 | | |
 | --- | --- |
-| Version | `0.1.15` published 2026-10-09 (tag `0.1.14` was never pushed — 0.1.15 superseded it). Not on the community list — deliberate |
-| Tests | **1898 passing, 140 files** (`npm run check` = lint → build → test) |
+| Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
+| Tests | **1899 passing, 140 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
