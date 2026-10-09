@@ -15,6 +15,7 @@ status document.
   why past decisions went the way they did. Read it when you need the reasoning
   behind existing code.
 - **`API_DESIGN.md`** — the proposed public API (awaiting Taylor's review).
+- **`SCHEMA_BREAK_PLAN.md`** — proposed MD-1/MD-2 sequencing (awaiting Taylor's review).
 - **`PROTOCOL.md`** — the `obsidian://ttasks` URI handler.
 - **`test-rig/README.md`** — the visual rig.
 

@@ -148,6 +148,10 @@ flowchart LR
 
 ### Frontmatter / schema hygiene (MD)
 
+> **Plan proposed 2026-10-09:** see `SCHEMA_BREAK_PLAN.md` (awaiting Taylor's review). It
+> recommends shipping MD-2/MD-3 ahead of the rename and keeping only the rename +
+> migration as the cutover.
+
 - `[ ]` **MD-1 🔴 prefix the schema `ttask_*`** — the plugin's generic property
   names (`type`, `name`, `status`, `priority`, …) pollute the vault-wide property
   suggestion pool and collide with other plugins' conventions. *(No `ttask_`
