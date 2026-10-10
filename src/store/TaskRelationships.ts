@@ -1,3 +1,4 @@
+import { fmKey } from '../schema/taskPersistence';
 import { Notice, TFile, normalizePath } from 'obsidian';
 import type TTasksPlugin from '../main';
 import { parseWikiLink } from '../utils/wikiLink';
@@ -72,8 +73,8 @@ export class TaskRelationships {
 			// No `name:` means the note can't tell us what it's called. Write an
 			// un-aliased link rather than seeding `blocks` with its filename —
 			// that alias would then render as a title everywhere it's read back.
-			const name: string | null = typeof fm.name === 'string' && fm.name.trim() ? fm.name : null;
-			const deps = this.resolveWikiLinkPaths(fm.depends_on, file.path);
+			const name: string | null = typeof fm[fmKey('name')] === 'string' && fm[fmKey('name')].trim() ? fm[fmKey('name')] : null;
+			const deps = this.resolveWikiLinkPaths(fm[fmKey('depends_on')], file.path);
 			for (const dep of deps) {
 				const depClean = dep.replace(/\.md$/, '');
 				if (!reverseMap.has(depClean)) reverseMap.set(depClean, []);
@@ -85,7 +86,7 @@ export class TaskRelationships {
 			const cleanPath = file.path.replace(/\.md$/, '');
 			const blockers = reverseMap.get(cleanPath) ?? [];
 			await this.app.fileManager.processFrontMatter(file, (fm) => {
-				fm.blocks = blockers.map(b => this.buildAliasedTaskLink(b.path, b.name, file.path));
+				fm[fmKey('blocks')] = blockers.map(b => this.buildAliasedTaskLink(b.path, b.name, file.path));
 			});
 		}), 5);
 
@@ -122,13 +123,13 @@ export class TaskRelationships {
 						return rewriteWikiLinkValue(val, linkRegex, newClean);
 					};
 
-					for (const key of ['parent_task', 'blocked_reason']) {
+					for (const key of [fmKey('parent_task'), fmKey('blocked_reason')]) {
 						if (typeof frontmatter[key] === 'string' && frontmatter[key].includes(oldClean)) {
 							frontmatter[key] = rewriteLink(frontmatter[key]);
 						}
 					}
 
-					for (const key of ['depends_on', 'blocks']) {
+					for (const key of [fmKey('depends_on'), fmKey('blocks')]) {
 						if (Array.isArray(frontmatter[key])) {
 							frontmatter[key] = frontmatter[key].map((v: unknown) => rewriteLink(v));
 						}
@@ -163,13 +164,13 @@ export class TaskRelationships {
 			let changed = false;
 			try {
 				await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-					const currentParent = parseWikiLink(frontmatter.parent_task);
+					const currentParent = parseWikiLink(frontmatter[fmKey('parent_task')]);
 					if (currentParent === deletedClean) {
-						frontmatter.parent_task = null;
+						frontmatter[fmKey('parent_task')] = null;
 						changed = true;
 					}
 
-					for (const key of ['depends_on', 'blocks']) {
+					for (const key of [fmKey('depends_on'), fmKey('blocks')]) {
 						if (!Array.isArray(frontmatter[key])) continue;
 						const next = filterOutDeletedPath(
 							frontmatter[key] as unknown[],

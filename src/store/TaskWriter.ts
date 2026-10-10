@@ -19,7 +19,7 @@ import { linkReferencesTaskPath } from './relationshipLinkMatch';
 import { syncCompletionToSource } from '../integration/completionSync';
 import { mutateLinkArray } from '../utils/arrayUtils';
 import { isPathOpenInMarkdownEditor } from '../views/openFileLeaves';
-import { UPDATABLE_TASK_FIELDS } from '../schema/taskPersistence';
+import { UPDATABLE_TASK_FIELDS, fmKey } from '../schema/taskPersistence';
 import { serializeNewTaskFrontmatter } from '../schema/taskCodec';
 
 export class TaskWriter {
@@ -123,9 +123,9 @@ export class TaskWriter {
 
 		try {
 			await this.app.fileManager.processFrontMatter(file, (fm) => {
-				const previousStatus = typeof fm.status === 'string' ? fm.status : undefined;
+				const previousStatus = typeof fm[fmKey('status')] === 'string' ? fm[fmKey('status')] : undefined;
 				for (const key of writtenFields) {
-					if (key in updates) fm[key] = (updates as Record<string, unknown>)[key] ?? null;
+					if (key in updates) fm[fmKey(key)] = (updates as Record<string, unknown>)[key] ?? null;
 				}
 
 				// Write status_changed whenever status actually transitions
@@ -136,7 +136,7 @@ export class TaskWriter {
 					today,
 				);
 				if (changed !== undefined) {
-					fm.status_changed = changed;
+					fm[fmKey('status_changed')] = changed;
 					derivedStatusChanged = changed;
 				}
 
@@ -151,7 +151,7 @@ export class TaskWriter {
 						today,
 					);
 					if (nextCompleted !== undefined) {
-						fm.completed = nextCompleted;
+						fm[fmKey('completed')] = nextCompleted;
 						derivedCompleted = nextCompleted;
 					}
 				}
@@ -283,9 +283,9 @@ export class TaskWriter {
 		const depLink = this.buildAliasedTaskLink(depPathWithoutExt, depName, file.path);
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
-			const current = this.extractLinkStrings(fm.depends_on);
+			const current = this.extractLinkStrings(fm[fmKey('depends_on')]);
 			const already = current.some((v) => this.linkTargetsPath(v, depPathWithoutExt, file.path));
-			if (!already) fm.depends_on = mutateLinkArray(current, [depLink], []);
+			if (!already) fm[fmKey('depends_on')] = mutateLinkArray(current, [depLink], []);
 		});
 
 		await this.addToBlocks(depPathWithoutExt, taskPath, selfName);
@@ -296,9 +296,9 @@ export class TaskWriter {
 		if (!(file instanceof TFile)) return;
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
-			const current = this.extractLinkStrings(fm.depends_on);
+			const current = this.extractLinkStrings(fm[fmKey('depends_on')]);
 			const remove = current.filter((v) => this.linkTargetsPath(v, depPathWithoutExt, file.path));
-			fm.depends_on = mutateLinkArray(current, [], remove);
+			fm[fmKey('depends_on')] = mutateLinkArray(current, [], remove);
 		});
 
 		// Remove from blocks on the dependency target
@@ -306,9 +306,9 @@ export class TaskWriter {
 		if (depFile instanceof TFile) {
 			const selfClean = taskPath.replace(/\.md$/, '');
 			await this.app.fileManager.processFrontMatter(depFile, (fm) => {
-				const current = this.extractLinkStrings(fm.blocks);
+				const current = this.extractLinkStrings(fm[fmKey('blocks')]);
 				const remove = current.filter((v) => this.linkTargetsPath(v, selfClean, depFile.path));
-				fm.blocks = mutateLinkArray(current, [], remove);
+				fm[fmKey('blocks')] = mutateLinkArray(current, [], remove);
 			});
 		}
 	}
@@ -319,11 +319,11 @@ export class TaskWriter {
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			if (!parentPath) {
-				fm.parent_task = null;
+				fm[fmKey('parent_task')] = null;
 				return;
 			}
 			const name = this.getTaskByPath(parentPath)?.name ?? null;
-			fm.parent_task = this.buildAliasedTaskLink(parentPath, name, file.path);
+			fm[fmKey('parent_task')] = this.buildAliasedTaskLink(parentPath, name, file.path);
 		});
 	}
 
@@ -567,9 +567,9 @@ export class TaskWriter {
 		const cleanPath = thisPath.replace(/\.md$/, '');
 		const thisLink = this.buildAliasedTaskLink(cleanPath, thisName, depFile.path);
 		await this.app.fileManager.processFrontMatter(depFile, (fm) => {
-			const current = this.extractLinkStrings(fm.blocks);
+			const current = this.extractLinkStrings(fm[fmKey('blocks')]);
 			const already = current.some((b) => this.linkTargetsPath(b, cleanPath, depFile.path));
-			if (!already) fm.blocks = mutateLinkArray(current, [thisLink], []);
+			if (!already) fm[fmKey('blocks')] = mutateLinkArray(current, [thisLink], []);
 		});
 	}
 

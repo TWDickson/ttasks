@@ -1,3 +1,4 @@
+import { fmKey } from '../schema/taskPersistence';
 import { Notice, TFile, normalizePath } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
@@ -218,8 +219,8 @@ export class TaskStore {
 		if (!(file instanceof TFile)) return;
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
-			fm.type = 'project';
-			fm.labels = [];
+			fm[fmKey('type')] = 'project';
+			fm[fmKey('labels')] = [];
 		});
 	}
 
@@ -293,7 +294,7 @@ export class TaskStore {
 		const fm = cache?.frontmatter;
 		// Coerce before the presence check: a List-typed `name` arrives as
 		// ['Ship it'], which is truthy but not a usable title.
-		const name = toFrontmatterString(toFrontmatterScalar(fm?.name));
+		const name = toFrontmatterString(toFrontmatterScalar(fm?.[fmKey('name')]));
 		if (!fm || name === '') {
 			// One line per file on a cold vault — a breadcrumb, not a failure.
 			this.plugin.log(`skipping ${file.name} — cache not ready yet`);

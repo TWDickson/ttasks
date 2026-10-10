@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **1918 passing, 140 files** (`npm run check` = lint → build → test) |
+| Tests | **1920 passing, 141 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -148,9 +148,9 @@ flowchart LR
 
 ### Frontmatter / schema hygiene (MD)
 
-> **Plan proposed 2026-10-09:** see `SCHEMA_BREAK_PLAN.md` (awaiting Taylor's review). It
-> recommends shipping MD-2/MD-3 ahead of the rename and keeping only the rename +
-> migration as the cutover.
+> **Plan approved 2026-10-10:** see `SCHEMA_BREAK_PLAN.md`. MD-2/MD-3 ship ahead of
+> the rename; only the rename + migration is the cutover. **MD-0** (route every
+> frontmatter key through `fmKey()`) is done — see HISTORY.
 
 - `[ ]` **MD-1 🔴 prefix the schema `ttask_*`** — the plugin's generic property
   names (`type`, `name`, `status`, `priority`, …) pollute the vault-wide property

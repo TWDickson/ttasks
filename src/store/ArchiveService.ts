@@ -1,3 +1,4 @@
+import { EXTRA_FM_KEYS, fmKey } from '../schema/taskPersistence';
 import { Notice, TFile, TFolder, normalizePath } from 'obsidian';
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
@@ -109,17 +110,17 @@ export class ArchiveService {
 			for (const child of folder.children) {
 				if (child instanceof TFile && child.extension === 'md') {
 					const fm = this.app.metadataCache.getFileCache(child)?.frontmatter;
-					if (!fm?.name) continue;
+					if (!fm?.[fmKey('name')]) continue;
 					// Path: {archiveFolder}/{year}/{month}/{file}
 					const parts = child.path.split('/');
 					const n = parts.length;
 					results.push({
 						path: child.path,
 						id: splitTaskBasename(child.basename).id,
-						name: String(fm.name),
-						status: typeof fm.status === 'string' ? fm.status : '',
-						completed: typeof fm.completed === 'string' ? fm.completed : null,
-						area: typeof fm.area === 'string' ? fm.area : null,
+						name: String(fm[fmKey('name')]),
+						status: typeof fm[fmKey('status')] === 'string' ? fm[fmKey('status')] : '',
+						completed: typeof fm[fmKey('completed')] === 'string' ? fm[fmKey('completed')] : null,
+						area: typeof fm[fmKey('area')] === 'string' ? fm[fmKey('area')] : null,
 						archiveYear: n >= 3 ? parts[n - 3] : '',
 						archiveMonth: n >= 2 ? parts[n - 2] : '',
 					});
@@ -204,10 +205,10 @@ export class ArchiveService {
 		};
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
-			const history: unknown[] = Array.isArray(fm.archive_history) ? fm.archive_history : [];
+			const history: unknown[] = Array.isArray(fm[EXTRA_FM_KEYS.archiveHistory]) ? fm[EXTRA_FM_KEYS.archiveHistory] : [];
 			history.push(entry);
 			// Cap entries to prevent frontmatter bloat.
-			fm.archive_history = history.length > ARCHIVE_HISTORY_MAX_ENTRIES
+			fm[EXTRA_FM_KEYS.archiveHistory] = history.length > ARCHIVE_HISTORY_MAX_ENTRIES
 				? history.slice(-ARCHIVE_HISTORY_MAX_ENTRIES)
 				: history;
 		});

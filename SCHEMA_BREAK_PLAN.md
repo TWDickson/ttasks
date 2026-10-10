@@ -1,6 +1,7 @@
 # Schema break plan — MD-1 / MD-2 (and what rides with them)
 
-**Status: proposal, awaiting Taylor's review.** Nothing here is implemented.
+**Status: approved 2026-10-10** (Taylor: "whatever you think is best"; he is the
+only user). **MD-0 is done** (2026-10-10); the rest is open.
 Written 2026-10-09 from a survey of every place frontmatter keys are touched.
 
 ## TL;DR
@@ -159,21 +160,36 @@ sequenceDiagram
 
 ---
 
-## Decisions for Taylor
+## Decisions *(resolved 2026-10-10)*
 
-1. **Split vs bundle.** Ship MD-2 and MD-3 early (recommended) or keep them in
-   the single break as `PROJECT.md` currently says?
-2. **RP scope at the cutover.** Data model only, UI later (recommended), or the
-   full redesign first? The latter delays the break by the largest open item.
-3. **Always-written keys under sparse writes.** Is `type`, `name`, `status`,
-   `created` the right minimum? (`priority: None` would be omitted.)
-4. **Tripwire.** OK to add the unmigrated-vault notice, given it's the only thing
-   protecting a device that updates before the script has run?
-5. **Prefix scope.** Confirm `cssclasses` stays as-is and everything else
-   (including pomodoro and archive keys) gets `ttask_`.
-6. **Release gating.** The cutover is outward-facing and irreversible per vault;
-   I'd cut it only after a dry run against a copy of your real vault. Can you
-   provide a copy (or run the dry run and paste the summary)?
+| # | Question | Decision |
+| --- | --- | --- |
+| 1 | Split vs bundle | **Split.** MD-2 and MD-3 ship ahead of the rename. |
+| 2 | RP scope at cutover | **Data model only**; builder UI and richer rules follow. |
+| 3 | Always-written keys | **`type`, `name`, `status`, `created`, `status_changed`** (+ `cssclasses`). `status_changed` stays because staleness reads it; everything else is omitted when empty (`priority: None`, null dates, `[]`, `""`). Taylor was unsure; this is the conservative minimum that keeps every current reader correct. |
+| 4 | Unmigrated-vault tripwire | **Yes.** Notice + write nothing. |
+| 5 | Prefix scope | **Confirmed**: `cssclasses` stays; everything else is `ttask_*`. |
+| 6 | Real-vault dry run | **Claude has read access** to the vault via the Obsidian MCP, so the dry run happens in-session against the tasks folder only (read-only). See findings below. |
+
+## Findings from the real vault *(2026-10-10, read-only sample)*
+
+`Planner/Tasks` holds ~170 notes; `Planner/Archive` holds archived ones; the
+`Planner/Projects` folder is empty (projects live in `Tasks` with `type: project`).
+The script must handle what the sample showed:
+
+- **Foreign keys.** At least one note carries a non-TTasks property
+  (`"creation date"`). Unknown keys are left untouched.
+- **Mixed link styles.** `parent_task` appears both short
+  (`[[57c330-…|Name]]`) and full-path (`[[Planner/Tasks/b8f768-…|Name]]`).
+  Link *values* are never rewritten.
+- **Orphaned anchor.** `recurrence_anchor_day: 1` on a task with
+  `recurrence: null`. Dropped (an anchor without a rule is meaningless).
+- **Odd filenames.** Some notes are named `2026-08-23T13-11 - 2b70c3-…md`
+  (apparently produced by another tool). The script keys off the folder, not the
+  filename pattern.
+- **Custom status names** (e.g. `Completed`) are user data, not part of the
+  schema; they pass through unchanged.
+- **Archive folder is in scope**; `ArchiveService` reads those notes too.
 
 ## What I would not do
 

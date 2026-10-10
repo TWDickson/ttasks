@@ -12,6 +12,22 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-10 — MD-0: one door for frontmatter keys
+
+First step of the approved schema-break plan (`SCHEMA_BREAK_PLAN.md`). No
+behaviour change.
+
+- `fmKey(field)` and `EXTRA_FM_KEYS` (`cssclasses`, `archive_history`) in
+  `taskPersistence.ts`. Every literal key in `TaskWriter`, `TaskRelationships`,
+  `ArchiveService` and `TaskStore` now goes through them — these had bypassed the
+  AR-3 table, so flipping `fmKey` alone would have produced mixed-format vaults.
+- `frontmatterKeyAccess.test.ts` fails on any `fm.<key>` / `fm['<key>']` in
+  `src/store/` (verified to bite by injecting one). `TaskMigrations` is exempt —
+  it names legacy keys on purpose and is deleted by MD-4.
+- Plan decisions recorded; a read-only look at the real vault (~170 notes)
+  surfaced the script's edge cases (foreign keys, mixed link styles, an orphaned
+  `recurrence_anchor_day`, odd filenames, the archive folder).
+
 ## 2026-10-09 — DT-5: the agenda counts real weeks
 
 - **Before:** This Week = `≤ today+7`, Next Week = `≤ today+14`. By Friday the

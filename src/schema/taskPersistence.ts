@@ -117,6 +117,25 @@ export const TASK_PERSISTENCE: Record<keyof Task, FieldPersistence> = {
 	reminder_override: lazy('reminder_override', 'reminder'),
 };
 
+/**
+ * The frontmatter key for a stored field. Every read or write of a task note's
+ * properties outside the codec goes through this — never a string literal — so a
+ * schema rename (MD-1) is an edit to `TASK_PERSISTENCE` and nothing else. Throws
+ * for a file-derived field, which has no key.
+ */
+export function fmKey(field: keyof Task): string {
+	const key = TASK_PERSISTENCE[field].fmKey;
+	if (key === null) throw new Error(`Task field "${field}" is not stored in frontmatter`);
+	return key;
+}
+
+/** Frontmatter keys the plugin owns that are not `Task` fields. */
+export const EXTRA_FM_KEYS = {
+	/** Obsidian-native property that scopes `styles.css`; never prefixed. */
+	cssclasses: 'cssclasses',
+	archiveHistory: 'archive_history',
+} as const;
+
 const ENTRIES = Object.entries(TASK_PERSISTENCE) as [keyof Task, FieldPersistence][];
 
 /** Fields `TaskWriter.update` mirrors into frontmatter and the in-memory Task. */

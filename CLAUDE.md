@@ -15,7 +15,7 @@ status document.
   why past decisions went the way they did. Read it when you need the reasoning
   behind existing code.
 - **`API_DESIGN.md`** — the proposed public API (awaiting Taylor's review).
-- **`SCHEMA_BREAK_PLAN.md`** — proposed MD-1/MD-2 sequencing (awaiting Taylor's review).
+- **`SCHEMA_BREAK_PLAN.md`** — the approved MD-0…MD-4 sequencing for the `ttask_*` schema break.
 - **`PROTOCOL.md`** — the `obsidian://ttasks` URI handler.
 - **`test-rig/README.md`** — the visual rig.
 
@@ -112,6 +112,10 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
 - Frontmatter mutations always use `app.fileManager.processFrontMatter()` — never
   write raw YAML to an existing file
 - Frontmatter is built as a raw string **only** at file-creation time
+- **Never name a frontmatter key as a literal outside the codec.** Reach a task
+  note's properties through `fmKey('due_date')` / `EXTRA_FM_KEYS`
+  (`src/schema/taskPersistence.ts`), so the `ttask_*` rename is one table edit.
+  `frontmatterKeyAccess.test.ts` fails on a literal in `src/store/`.
 - Settings accessed via `this.plugin.settings.tasksFolder`
 - Dates are **local calendar dates**; `dateUtils.ts` documents the hybrid
   local-date/UTC-arithmetic policy. No bare `new Date()` outside the boundary.
