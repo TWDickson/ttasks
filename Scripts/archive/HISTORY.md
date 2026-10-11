@@ -12,6 +12,34 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-11 — RP-core: the repeat engine, proven but not yet wired
+
+First half of the RP redesign; the rest rides the schema cutover.
+
+- **`src/repeat/`** (pure, listed in the boundary test): `types` (the `RepeatRule`
+  model), `normalize` (flat `ttask_repeat_*` keys ⇄ rule; inconsistent combos
+  become a warning, never a guess), `describe` (display-only labels),
+  `next` (`nextOccurrence(rule, anchor, after, calendar?)`), `dates`, and
+  `legacy` (a temporary bridge from `recurrence` / `recurrence_type` /
+  `recurrence_anchor_day`).
+- **Implements the full spec, not just the legacy subset** — every N, weekday
+  sets, month-day / last / nth, working-day targets, `roll`, `until`, `count`,
+  completion basis — because the data model has to be able to express its final
+  shape before the migration script is written. Settled edges are pinned in
+  `next.test.ts`: last weekend = last weekend *day*; a nonexistent nth skips the
+  month; yearly Feb 29 clamps per year and returns in leap years; week counting
+  is Monday-based from the anchor's week.
+- **Proven, not swapped.** `legacyEquivalence.test.ts` runs the old
+  `recurrence.ts` and the new engine side by side over ~480 dates for every
+  legacy rule, fixed (derived and pinned anchors) and from-completion. They
+  agree everywhere except one documented case: a pinned anchor day *later* than
+  the due date (a hand-edited date) — the old code skipped a whole interval, the
+  new one returns the next occurrence on the pinned schedule.
+- **Deliberately not wired.** The completion path, writer and UI still use
+  `recurrence.ts`, so there is no user-visible change. Swapping them is part of
+  the cutover (the fields themselves change then), when `recurrence.ts` and
+  `legacy.ts` are deleted and `ttask_repeat_of` (RP-3) is added.
+
 ## 2026-10-11 — MD-3: `blocks` is derived, not stored
 
 - `deriveBlocks` (pure, `src/store/deriveBlocks.ts`) computes the reverse index of

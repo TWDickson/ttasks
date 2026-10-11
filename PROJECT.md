@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **1930 passing, 142 files** (`npm run check` = lint → build → test) |
+| Tests | **2003 passing, 146 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -78,7 +78,7 @@ flowchart LR
 | 4 | ~~**DT-5** calendar weeks + week-start setting~~ ✅ 2026-10-09 | Includes the Logbook "Last 7 Days" rename. |
 | 5 | **MD-1 / MD-2** `ttask_*` prefix + sparse writes | The schema change everything downstream depends on. |
 | 6 | ~~**MD-3** derive `blocks`~~ ✅ 2026-10-11 | Needed no vault conversion, so it shipped ahead of the break (see `SCHEMA_BREAK_PLAN.md`). |
-| 7 | **RP** `src/repeat/` engine → integration → builder UI | Adds `ttask_repeat_*` keys, so it rides the same break. Folds in DT-4. |
+| 7 | **RP** `src/repeat/` engine ✅ (2026-10-11) → integration (at the cutover) → builder UI | Adds `ttask_repeat_*` keys, so it rides the same break. Folds in DT-4. |
 | 8 | **MD-4** one-shot migration script, then **MD-5** | Converts the vault once; **zero legacy code ships**. Handle `localStorage` (PB-2) before this so the script's cutover is the only one. |
 | 9 | **N7 Bases**, **N3 public API** | Both expose property names. Do them *after* MD-1 or rewrite them. README's data-model section and the API doc examples also change at step 5. |
 | — | **PB-4** Svelte CSS external | Before `styles.css` becomes a public surface for theme authors. Not on the arrows' path; do it any time before N3/publishing. |
@@ -175,12 +175,14 @@ flowchart LR
 
 RP-1 (month-end drift) was **fixed 2026-07-25** via a persisted anchor day. The
 remaining two items are resolved by the redesign below, which is specified in
-full because it's the largest single piece of open work. Nothing under
-`src/repeat/` exists yet.
+full because it's the largest single piece of open work. **RP-core landed 2026-10-11** (unreleased,
+unwired): `src/repeat/` holds the rule model, `normalize`, `describe` and
+`nextOccurrence`, proven equivalent to `store/recurrence.ts` by a differential
+test. The live completion path still uses `recurrence.ts` until the cutover.
 
-- `[ ]` **RP-2 🟡 expressiveness** — no "every N", weekday sets, nth-weekday,
+- `[~]` **RP-2 🟡 expressiveness** — *engine done (RP-core); builder UI and wiring open.* no "every N", weekday sets, nth-weekday,
   weekday classes, end conditions, or working-day awareness.
-- `[ ]` **RP-3 🟡 fragile recurrence identity** — the spawn dedupe guard in
+- `[ ]` **RP-3 🟡 fragile recurrence identity** — *(needs the `ttask_repeat_of` key, so it rides the cutover.)* the spawn dedupe guard in
   `decideCompletion` matches on task **name**, so renaming a recurring task with
   an open instance breaks the guard and double-spawns. Fixed by construction in
   the redesign via stable series identity.

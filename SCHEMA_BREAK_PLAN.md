@@ -88,7 +88,7 @@ unaffected.
 break "not a second one". That reasoning assumed each change forces a vault
 conversion; this one doesn't.
 
-### RP-core — the repeat data model *(before the cutover)*
+### RP-core — the repeat data model *(before the cutover)* — ✅ done 2026-10-11
 
 The cutover must migrate `recurrence`, `recurrence_type`, `recurrence_anchor_day`
 straight into their **final** shape (`ttask_repeat_*`, already specified in
