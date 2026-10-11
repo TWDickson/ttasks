@@ -96,6 +96,14 @@ recurrence_anchor_day: number | null
 ---
 ```
 
+**Sparse by design:** only `type`, `name`, `status`, `created` and
+`status_changed` (plus `cssclasses`) are always written; every other key is
+written when it has a value and **deleted** when it becomes blank (null, `""`,
+`[]`, `false`, priority `None`). The reader treats an absent key as that blank
+value. Write through `writeStoredField()` (`src/schema/taskCodec.ts`), never
+`fm[key] = null`. The YAML above is the full set of possible keys, not what a
+note carries.
+
 Body = free-form markdown notes only. The plugin renders all structured UI on top.
 
 **Relationship fields**

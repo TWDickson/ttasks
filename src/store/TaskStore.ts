@@ -1,4 +1,5 @@
 import { fmKey } from '../schema/taskPersistence';
+import { readStoredFields, writeStoredField } from '../schema/taskCodec';
 import { Notice, TFile, normalizePath } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
@@ -7,7 +8,6 @@ import { ensureMdExt, splitTaskBasename, taskIdFromPath } from '../utils/pathUti
 import { normalizeRefPath, type TaskRef } from '../utils/taskRef';
 import { toFrontmatterScalar, toFrontmatterString } from '../utils/frontmatterValue';
 import { parseWikiLink } from '../utils/wikiLink';
-import { readStoredFields } from '../schema/taskCodec';
 import { ensureFolderPath } from '../utils/vaultSafe';
 import { seedGraphTestData } from './graphSandboxSeeder';
 import { TaskWriter } from './TaskWriter';
@@ -220,7 +220,7 @@ export class TaskStore {
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			fm[fmKey('type')] = 'project';
-			fm[fmKey('labels')] = [];
+			writeStoredField(fm, 'labels', []);
 		});
 	}
 

@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **1920 passing, 141 files** (`npm run check` = lint → build → test) |
+| Tests | **1926 passing, 141 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -156,8 +156,10 @@ flowchart LR
   names (`type`, `name`, `status`, `priority`, …) pollute the vault-wide property
   suggestion pool and collide with other plugins' conventions. *(No `ttask_`
   keys exist in `src` yet; README's "planned" note is accurate.)*
-- `[ ]` **MD-2 🔴 sparse writes** — stop writing null/empty keys on creation;
-  every task note currently carries the full key set whether used or not.
+- `[x]` **MD-2 🔴 sparse writes** — *(2026-10-11, unreleased; see HISTORY)* only
+  `type`/`name`/`status`/`created`/`status_changed` are always written; other keys
+  are omitted on creation and deleted when cleared. Existing notes keep their full
+  key sets until the MD-4 script strips them.
 - `[ ]` **MD-3 🟡 stop persisting `blocks`** — it's a pure reverse index of
   `depends_on` and can be derived at load, which deletes the whole sync machinery
   and the `sync-blocks` command. *(CLAUDE.md and README currently describe
@@ -337,6 +339,7 @@ flowchart LR
 | `[~]` | **Detail pane fits the drawer** | Single column below 768 px, no horizontal scroll | 0.1.x |
 | `[~]` | **Ghost sidebar tabs** — disable → relaunch → re-enable | Exactly one live tab, no ghost/duplicate (`views/leafHygiene.ts`) | 0.1.3 |
 | `[ ]` | **Agenda calendar weeks** (DT-5) — Agenda view, then flip Settings → Working calendar → Week starts on | Tomorrow / This Week / Next Week follow real weeks; This Week hides when tomorrow is already next week; setting change re-buckets live | next |
+| `[ ]` | **Sparse notes** (MD-2) — create a task, set then clear a due date and a label | New note has only the five core keys; clearing removes the key (Properties panel); detail pane and lists unaffected | next |
 | `[ ]` | **Midnight rollover** (DT-1) — leave a view open across midnight | Today/Overdue buckets refresh without reopening | 0.1.16 |
 | `[ ]` | **New-task frontmatter** (AR-3) — create a task, inspect YAML | Same keys/order as before the codec change | 0.1.16 |
 
@@ -353,6 +356,7 @@ flowchart LR
 | | Check | Pass looks like | Ships |
 | --- | --- | --- | --- |
 | `[ ]` | **Week starts on** (DT-5) — Settings → Working calendar | Dropdown at top of the section, default "System default (Mon/Sun)" matching your device locale; Monday vs Sunday moves Sunday between This/Next Week | next |
+| `[ ]` | **Sparse notes** (MD-2) — open a few existing notes and a freshly created one in the Properties panel | Old notes unchanged; new note has the five core keys; `Planner/Tasks.base` views still list new tasks | next |
 | `[ ]` | **"Due now" reminder** (DT-2) — task due today with `due_time` a few minutes ahead; wait for the 5-min poll | Notice reads "N due now"; fires once; task is *not* styled overdue; follows the "Due today" toggle | next |
 | `[ ]` | **Pomodoro → "Send test"** notification | Reports shown/denied/unsupported; "shown" with nothing visible = Focus Assist / per-app setting | 0.1.16 |
 | `[ ]` | **Pomodoro sounds** — preview buttons, separate focus-end / break-end picks, volume slider (0 = off; saved "off" migrates to 0) | Audio plays at the set volume | 0.1.16 |

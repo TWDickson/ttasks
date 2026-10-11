@@ -20,6 +20,7 @@ import { syncCompletionToSource } from '../integration/completionSync';
 import { mutateLinkArray } from '../utils/arrayUtils';
 import { isPathOpenInMarkdownEditor } from '../views/openFileLeaves';
 import { UPDATABLE_TASK_FIELDS, fmKey } from '../schema/taskPersistence';
+import { writeStoredField } from '../schema/taskCodec';
 import { serializeNewTaskFrontmatter } from '../schema/taskCodec';
 
 export class TaskWriter {
@@ -125,7 +126,7 @@ export class TaskWriter {
 			await this.app.fileManager.processFrontMatter(file, (fm) => {
 				const previousStatus = typeof fm[fmKey('status')] === 'string' ? fm[fmKey('status')] : undefined;
 				for (const key of writtenFields) {
-					if (key in updates) fm[fmKey(key)] = (updates as Record<string, unknown>)[key] ?? null;
+					if (key in updates) writeStoredField(fm, key, (updates as Record<string, unknown>)[key]);
 				}
 
 				// Write status_changed whenever status actually transitions
@@ -136,7 +137,7 @@ export class TaskWriter {
 					today,
 				);
 				if (changed !== undefined) {
-					fm[fmKey('status_changed')] = changed;
+					writeStoredField(fm, 'status_changed', changed);
 					derivedStatusChanged = changed;
 				}
 
@@ -151,7 +152,7 @@ export class TaskWriter {
 						today,
 					);
 					if (nextCompleted !== undefined) {
-						fm[fmKey('completed')] = nextCompleted;
+						writeStoredField(fm, 'completed', nextCompleted);
 						derivedCompleted = nextCompleted;
 					}
 				}
@@ -285,7 +286,7 @@ export class TaskWriter {
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			const current = this.extractLinkStrings(fm[fmKey('depends_on')]);
 			const already = current.some((v) => this.linkTargetsPath(v, depPathWithoutExt, file.path));
-			if (!already) fm[fmKey('depends_on')] = mutateLinkArray(current, [depLink], []);
+			if (!already) writeStoredField(fm, 'depends_on', mutateLinkArray(current, [depLink], []));
 		});
 
 		await this.addToBlocks(depPathWithoutExt, taskPath, selfName);
@@ -298,7 +299,7 @@ export class TaskWriter {
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			const current = this.extractLinkStrings(fm[fmKey('depends_on')]);
 			const remove = current.filter((v) => this.linkTargetsPath(v, depPathWithoutExt, file.path));
-			fm[fmKey('depends_on')] = mutateLinkArray(current, [], remove);
+			writeStoredField(fm, 'depends_on', mutateLinkArray(current, [], remove));
 		});
 
 		// Remove from blocks on the dependency target
@@ -308,7 +309,7 @@ export class TaskWriter {
 			await this.app.fileManager.processFrontMatter(depFile, (fm) => {
 				const current = this.extractLinkStrings(fm[fmKey('blocks')]);
 				const remove = current.filter((v) => this.linkTargetsPath(v, selfClean, depFile.path));
-				fm[fmKey('blocks')] = mutateLinkArray(current, [], remove);
+				writeStoredField(fm, 'blocks', mutateLinkArray(current, [], remove));
 			});
 		}
 	}
@@ -319,11 +320,11 @@ export class TaskWriter {
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
 			if (!parentPath) {
-				fm[fmKey('parent_task')] = null;
+				writeStoredField(fm, 'parent_task', null);
 				return;
 			}
 			const name = this.getTaskByPath(parentPath)?.name ?? null;
-			fm[fmKey('parent_task')] = this.buildAliasedTaskLink(parentPath, name, file.path);
+			writeStoredField(fm, 'parent_task', this.buildAliasedTaskLink(parentPath, name, file.path));
 		});
 	}
 
@@ -569,7 +570,7 @@ export class TaskWriter {
 		await this.app.fileManager.processFrontMatter(depFile, (fm) => {
 			const current = this.extractLinkStrings(fm[fmKey('blocks')]);
 			const already = current.some((b) => this.linkTargetsPath(b, cleanPath, depFile.path));
-			if (!already) fm[fmKey('blocks')] = mutateLinkArray(current, [thisLink], []);
+			if (!already) writeStoredField(fm, 'blocks', mutateLinkArray(current, [thisLink], []));
 		});
 	}
 

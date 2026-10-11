@@ -59,12 +59,20 @@ describe('UI field definitions vs. the descriptor table', () => {
 describe('creation frontmatter vs. the descriptor table', () => {
 	const noName = () => null;
 
-	it('emits exactly the keys the table says it will, for a recurring task', () => {
-		const fm = buildTaskFrontmatter(makeTask({ recurrence: 'weekly', due_date: '2026-05-25' }), noName);
-		expect(keysOf(fm).filter((k) => k !== 'cssclasses').sort()).toEqual([...createTimeFrontmatterKeys()].sort());
+	it('emits exactly the keys the table says it will, for a fully populated task', () => {
+		const fm = buildTaskFrontmatter(makeTask({
+			area: 'Work', priority: 'High', labels: ['bug'], parent_task: 'Tasks/p-1.md', depends_on: ['Tasks/a-1.md'],
+			blocked_reason: 'x', assigned_to: 'me', source: 'src', start_date: '2026-05-01', due_date: '2026-05-25',
+			due_time: '09:00', estimated_days: 2, workweek_only: true, holiday_dates: ['2026-07-04'],
+			recurrence: 'weekly', recurrence_type: 'fixed', recurrence_anchor_day: 25,
+		}), noName);
+		const present = new Set(keysOf(fm));
+		// `blocks` and `completed` are seeded blank, so even a full task omits them.
+		const expected = createTimeFrontmatterKeys().filter((k) => k !== 'blocks' && k !== 'completed');
+		expect([...present].filter((k) => k !== 'cssclasses').sort()).toEqual(expected.sort());
 	});
 
-	it('omits only the when-set keys for a non-recurring task', () => {
+	it('writes only the always-keys for a bare task (sparse)', () => {
 		const fm = buildTaskFrontmatter(makeTask(), noName);
 		const expected = Object.values(TASK_PERSISTENCE)
 			.filter((p) => p.fmKey !== null && p.onCreate === 'always')

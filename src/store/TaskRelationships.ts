@@ -1,4 +1,5 @@
 import { fmKey } from '../schema/taskPersistence';
+import { writeStoredField } from '../schema/taskCodec';
 import { Notice, TFile, normalizePath } from 'obsidian';
 import type TTasksPlugin from '../main';
 import { parseWikiLink } from '../utils/wikiLink';
@@ -86,7 +87,7 @@ export class TaskRelationships {
 			const cleanPath = file.path.replace(/\.md$/, '');
 			const blockers = reverseMap.get(cleanPath) ?? [];
 			await this.app.fileManager.processFrontMatter(file, (fm) => {
-				fm[fmKey('blocks')] = blockers.map(b => this.buildAliasedTaskLink(b.path, b.name, file.path));
+				writeStoredField(fm, 'blocks', blockers.map(b => this.buildAliasedTaskLink(b.path, b.name, file.path)));
 			});
 		}), 5);
 
@@ -166,7 +167,7 @@ export class TaskRelationships {
 				await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
 					const currentParent = parseWikiLink(frontmatter[fmKey('parent_task')]);
 					if (currentParent === deletedClean) {
-						frontmatter[fmKey('parent_task')] = null;
+						writeStoredField(frontmatter, 'parent_task', null);
 						changed = true;
 					}
 
@@ -178,7 +179,8 @@ export class TaskRelationships {
 							parseWikiLink
 						);
 						if (next.length !== (frontmatter[key] as unknown[]).length) {
-							frontmatter[key] = next;
+							if (next.length === 0) delete frontmatter[key];
+							else frontmatter[key] = next;
 							changed = true;
 						}
 					}

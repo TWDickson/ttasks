@@ -138,21 +138,24 @@ labels:
 parent_task: '[[Tasks/a1b2c3-infra|Infrastructure]]'
 depends_on:
   - '[[Tasks/d4e5f6-ci-workflow|CI workflow]]'
-blocks: []
 start_date: '2026-08-01'
 due_date: '2026-08-08'
 estimated_days: 2
 created: '2026-07-28'
-completed: null
 status_changed: '2026-08-01'
 ---
 
 Free-form notes go here. The plugin renders all structured UI on top.
 ```
 
+- **Only five keys are always present** (`type`, `name`, `status`, `created`,
+  `status_changed`). Everything else is written when it has a value and removed
+  when it's cleared, so a bare task is a handful of lines. To set an absent field
+  by hand, add the property in Obsidian's Properties panel.
 - **`type`** is `task` or `project`; a project groups tasks via `parent_task`.
 - **`depends_on`** is what you edit. **`blocks`** is its reverse index and is
-  maintained automatically — don't set it by hand.
+  maintained automatically — don't set it by hand. (Absent until a task has
+  dependents.)
 - Wiki-links are stored with aliases (`[[path|Name]]`) so they read as human names
   in Obsidian's own link views and graph.
 - **Statuses, priorities, areas, and labels are configurable** in settings. The

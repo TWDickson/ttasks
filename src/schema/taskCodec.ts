@@ -11,7 +11,7 @@ import {
 	toFrontmatterStringArray,
 	toFrontmatterStringOrNull,
 } from '../utils/frontmatterValue';
-import { TASK_PERSISTENCE, type FieldKind, type FieldPersistence } from './taskPersistence';
+import { TASK_PERSISTENCE, fmKey, isBlankStoredValue, type FieldKind, type FieldPersistence } from './taskPersistence';
 
 /**
  * The frontmatter ↔ `Task` codec, driven by `TASK_PERSISTENCE`. Reading and
@@ -132,8 +132,9 @@ export function serializeNewTaskFrontmatter(
 	for (const [field, p] of ENTRIES) {
 		if (p.fmKey === null || p.onCreate === false) continue;
 		const own = task[field];
-		if (p.onCreate === 'when-set' && (own === null || own === undefined)) continue;
 		const value = p.seed === 'blank' ? blankFor(p.kind) : p.seed === 'created' ? task.created : own;
+		// Sparse: an optional field with nothing to say gets no key at all.
+		if (p.onCreate === 'when-set' && isBlankStoredValue(p.kind, value)) continue;
 		const encoded = encode(p.kind, value, resolveName);
 		// List encodings carry their own leading space/newline; scalars need one.
 		lines.push(/^[ \n]/.test(encoded) ? `${p.fmKey}:${encoded}` : `${p.fmKey}: ${encoded}`);
@@ -141,4 +142,19 @@ export function serializeNewTaskFrontmatter(
 	}
 	lines.push('---');
 	return lines.join('\n');
+}
+
+// ── Write (update) ────────────────────────────────────────────────────────────
+
+/**
+ * Set a stored field on a note's frontmatter, or remove its key when the value is
+ * blank (MD-2). Fields marked `always` keep their key and take `null` instead, so
+ * a note never loses `type`, `name`, `status`, `created` or `status_changed`.
+ * Every frontmatter write after creation goes through here.
+ */
+export function writeStoredField(fm: Record<string, unknown>, field: keyof Task, value: unknown): void {
+	const p = TASK_PERSISTENCE[field];
+	const key = fmKey(field);
+	if (p.onCreate !== 'always' && isBlankStoredValue(p.kind, value)) delete fm[key];
+	else fm[key] = value ?? null;
 }

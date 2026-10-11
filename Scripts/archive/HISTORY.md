@@ -12,6 +12,26 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-11 — MD-2: sparse writes
+
+- **Rule:** `type`, `name`, `status`, `created`, `status_changed` (+ `cssclasses`)
+  are always written. Every other field is written only when non-blank *for its
+  kind* and its key is **deleted** when it becomes blank. Blank = what the
+  reader's missing-key fallback already returns: null, `""`, `[]`, `false`, and
+  priority `None`. Zero is a value (`estimated_days: 0` stays).
+- **Where:** `onCreate` in `TASK_PERSISTENCE` now defaults to `when-set`
+  (redefined from "only for a recurring task" to "only when non-blank");
+  `isBlankStoredValue` is the one definition of blank; `writeStoredField` is the
+  one update-time writer. `TaskWriter.update`, the relationship writers,
+  `removeRelationshipReferences`, `syncBlocks` and `convertToProject` all use it.
+  Unlike literals, that is not guarded by a test — new writers should copy the
+  pattern (see CLAUDE.md).
+- **Why it ships alone:** no vault conversion is needed — an absent key already
+  reads as blank (`taskCodec.test.ts` pins it), so old full-key notes keep
+  working until the MD-4 script strips them.
+- **Trade-off:** the Properties panel only lists keys that exist, so setting an
+  absent field by hand means adding the property. TTasks' own UI is unaffected.
+
 ## 2026-10-10 — MD-0: one door for frontmatter keys
 
 First step of the approved schema-break plan (`SCHEMA_BREAK_PLAN.md`). No

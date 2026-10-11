@@ -46,9 +46,12 @@ export interface FieldPersistence {
 	/** `TaskWriter.update` mirrors this field from a `Partial<Task>` into frontmatter. */
 	updatable: boolean;
 	/**
-	 * What `buildTaskFrontmatter` does when a note is created:
-	 * `always` writes the key (null/empty included), `when-set` writes it only
-	 * for a recurring task, `false` leaves it out (written later by `update`).
+	 * What note creation does with this field (MD-2, sparse writes): `always`
+	 * writes the key even when empty — reserved for the handful of fields every
+	 * note carries — `when-set` writes it only when the value is non-blank for its
+	 * kind (see `isBlankStoredValue`), `false` leaves it out (written later by
+	 * `update`). The same rule governs `update`: a field that becomes blank has its
+	 * key removed rather than set to null/empty, unless it is `always`.
 	 */
 	onCreate: 'always' | 'when-set' | false;
 	/**
@@ -62,9 +65,11 @@ export interface FieldPersistence {
 const derived: FieldPersistence = { fmKey: null, kind: 'derived', updatable: false, onCreate: false };
 /** Written once at creation and thereafter by a dedicated path (not `update`). */
 const createOnly = (fmKey: string, kind: FieldKind, seed?: FieldPersistence['seed']): FieldPersistence =>
-	({ fmKey, kind, updatable: false, onCreate: 'always', ...(seed ? { seed } : {}) });
+	({ fmKey, kind, updatable: false, onCreate: 'when-set', ...(seed ? { seed } : {}) });
 const editable = (fmKey: string, kind: FieldKind, seed?: FieldPersistence['seed']): FieldPersistence =>
-	({ fmKey, kind, updatable: true, onCreate: 'always', ...(seed ? { seed } : {}) });
+	({ fmKey, kind, updatable: true, onCreate: 'when-set', ...(seed ? { seed } : {}) });
+/** The few keys every note carries, even when empty. */
+const core = (p: FieldPersistence): FieldPersistence => ({ ...p, onCreate: 'always' });
 /** Absent until first written by `update`. */
 const lazy = (fmKey: string, kind: FieldKind): FieldPersistence =>
 	({ fmKey, kind, updatable: true, onCreate: false });
@@ -78,10 +83,10 @@ export const TASK_PERSISTENCE: Record<keyof Task, FieldPersistence> = {
 	is_complete: derived,
 	is_inbox: derived,
 
-	type: createOnly('type', 'recordType'),
-	name: editable('name', 'title'),
+	type: core(createOnly('type', 'recordType')),
+	name: core(editable('name', 'title')),
 	area: editable('area', 'textOrNull'),
-	status: editable('status', 'status'),
+	status: core(editable('status', 'status')),
 	priority: editable('priority', 'priority'),
 	labels: editable('labels', 'strings'),
 
@@ -102,18 +107,18 @@ export const TASK_PERSISTENCE: Record<keyof Task, FieldPersistence> = {
 	workweek_only: editable('workweek_only', 'flag'),
 	holiday_dates: editable('holiday_dates', 'dates'),
 
-	created: createOnly('created', 'date'),
+	created: core(createOnly('created', 'date')),
 	// A task is born incomplete.
 	completed: editable('completed', 'date', 'blank'),
 	// Stamped on creation and on every real status transition inside `update`.
-	status_changed: createOnly('status_changed', 'date', 'created'),
+	status_changed: core(createOnly('status_changed', 'date', 'created')),
 
 	pomodoro_count: lazy('pomodoro_count', 'number'),
 	focused_minutes: lazy('focused_minutes', 'number'),
 
 	recurrence: editable('recurrence', 'textOrNull'),
 	recurrence_type: editable('recurrence_type', 'textOrNull'),
-	recurrence_anchor_day: { fmKey: 'recurrence_anchor_day', kind: 'number', updatable: true, onCreate: 'when-set' },
+	recurrence_anchor_day: editable('recurrence_anchor_day', 'number'),
 	reminder_override: lazy('reminder_override', 'reminder'),
 };
 
@@ -135,6 +140,25 @@ export const EXTRA_FM_KEYS = {
 	cssclasses: 'cssclasses',
 	archiveHistory: 'archive_history',
 } as const;
+
+/**
+ * Whether a value would be stored as an *absent* key (MD-2). Blank means "the
+ * reader's fallback for a missing key gives back exactly this": null, `''`, an
+ * empty list, `false`, and the neutral priority.
+ */
+export function isBlankStoredValue(kind: FieldKind, value: unknown): boolean {
+	if (value === null || value === undefined) return true;
+	switch (kind) {
+		case 'derived': return true;
+		case 'priority': return value === '' || value === 'None';
+		case 'flag': return value === false;
+		case 'number': return typeof value === 'number' && Number.isNaN(value);
+		case 'strings':
+		case 'links':
+		case 'dates': return Array.isArray(value) ? value.length === 0 : value === '';
+		default: return value === '';
+	}
+}
 
 const ENTRIES = Object.entries(TASK_PERSISTENCE) as [keyof Task, FieldPersistence][];
 

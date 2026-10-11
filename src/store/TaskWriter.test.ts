@@ -114,9 +114,9 @@ describe('buildTaskFrontmatter', () => {
 		expect(fm).toContain('"Fix \\"bug\\" in path\\\\thing"');
 	});
 
-	it('sets area to null when null', () => {
+	it('omits area when null (sparse)', () => {
 		const fm = buildTaskFrontmatter(makeTask({ area: null }), noName);
-		expect(parseYaml(fm)['area']).toBe('null');
+		expect(parseYaml(fm)).not.toHaveProperty('area');
 	});
 
 	it('sets area to quoted string when provided', () => {
@@ -135,14 +135,14 @@ describe('buildTaskFrontmatter', () => {
 		expect(parseYaml(fm)['parent_task']).toBe("'[[Planner/Tasks/proj-1|My Project]]'");
 	});
 
-	it('renders parent_task as null when null', () => {
+	it('omits parent_task when null', () => {
 		const fm = buildTaskFrontmatter(makeTask({ parent_task: null }), noName);
-		expect(parseYaml(fm)['parent_task']).toBe('null');
+		expect(parseYaml(fm)).not.toHaveProperty('parent_task');
 	});
 
-	it('renders depends_on as empty array when empty', () => {
+	it('omits depends_on when empty', () => {
 		const fm = buildTaskFrontmatter(makeTask({ depends_on: [] }), noName);
-		expect(fm).toContain('depends_on: []');
+		expect(parseYaml(fm)).not.toHaveProperty('depends_on');
 	});
 
 	it('renders depends_on as multiline YAML list with aliased links', () => {
@@ -154,9 +154,9 @@ describe('buildTaskFrontmatter', () => {
 		expect(fm).toContain('depends_on:\n  - \'[[Planner/Tasks/dep-1|Dep One]]\'');
 	});
 
-	it('renders labels as empty array when empty', () => {
+	it('omits labels when empty', () => {
 		const fm = buildTaskFrontmatter(makeTask({ labels: [] }), noName);
-		expect(fm).toContain('labels: []');
+		expect(parseYaml(fm)).not.toHaveProperty('labels');
 	});
 
 	it('renders labels as multiline YAML list', () => {
@@ -174,11 +174,11 @@ describe('buildTaskFrontmatter', () => {
 		expect(parsed['due_date']).toBe("'2026-05-31'");
 	});
 
-	it('renders null dates as null', () => {
+	it('omits null dates', () => {
 		const fm = buildTaskFrontmatter(makeTask({ start_date: null, due_date: null }), noName);
 		const parsed = parseYaml(fm);
-		expect(parsed['start_date']).toBe('null');
-		expect(parsed['due_date']).toBe('null');
+		expect(parsed).not.toHaveProperty('start_date');
+		expect(parsed).not.toHaveProperty('due_date');
 	});
 
 	it('renders estimated_days as a number', () => {
@@ -188,7 +188,7 @@ describe('buildTaskFrontmatter', () => {
 
 	it('renders workweek_only correctly', () => {
 		expect(parseYaml(buildTaskFrontmatter(makeTask({ workweek_only: true }), noName))['workweek_only']).toBe('true');
-		expect(parseYaml(buildTaskFrontmatter(makeTask({ workweek_only: false }), noName))['workweek_only']).toBe('false');
+		expect(parseYaml(buildTaskFrontmatter(makeTask({ workweek_only: false }), noName))).not.toHaveProperty('workweek_only');
 	});
 
 	it('renders holiday_dates as YAML list', () => {
@@ -223,11 +223,10 @@ describe('buildTaskFrontmatter', () => {
 		expect(parsed['recurrence_type']).toBe('"due"');
 	});
 
-	it('renders null recurrence fields as null', () => {
-		const fm = buildTaskFrontmatter(makeTask(), noName);
-		const parsed = parseYaml(fm);
-		expect(parsed['recurrence']).toBe('null');
-		expect(parsed['recurrence_type']).toBe('null');
+	it('omits recurrence fields when the task does not repeat', () => {
+		const parsed = parseYaml(buildTaskFrontmatter(makeTask(), noName));
+		expect(parsed).not.toHaveProperty('recurrence');
+		expect(parsed).not.toHaveProperty('recurrence_type');
 	});
 
 	it('produces project type frontmatter', () => {
@@ -383,7 +382,7 @@ describe('TaskWriter.update recurrence anchor (RP-1)', () => {
 
 		await writer.update(file.path, { due_date: null });
 
-		expect(frontmatter.recurrence_anchor_day).toBeNull();
+		expect(frontmatter).not.toHaveProperty('recurrence_anchor_day');
 	});
 
 	it('leaves the anchor alone on an unrelated update', async () => {
