@@ -51,7 +51,8 @@ describe('UI field definitions vs. the descriptor table', () => {
 	it('only describes fields that are stored in frontmatter', () => {
 		const unstored = TASK_FIELD_DEFINITIONS
 			.map((def) => def.name)
-			.filter((name) => TASK_PERSISTENCE[name as keyof Task]?.fmKey == null && name !== 'notes');
+			// `blocks` is shown read-only but derived (MD-3); `notes` is the note body.
+			.filter((name) => TASK_PERSISTENCE[name as keyof Task]?.fmKey == null && name !== 'notes' && name !== 'blocks');
 		expect(unstored).toEqual([]);
 	});
 });
@@ -67,8 +68,8 @@ describe('creation frontmatter vs. the descriptor table', () => {
 			recurrence: 'weekly', recurrence_type: 'fixed', recurrence_anchor_day: 25,
 		}), noName);
 		const present = new Set(keysOf(fm));
-		// `blocks` and `completed` are seeded blank, so even a full task omits them.
-		const expected = createTimeFrontmatterKeys().filter((k) => k !== 'blocks' && k !== 'completed');
+		// `completed` is seeded blank, so even a full task omits it.
+		const expected = createTimeFrontmatterKeys().filter((k) => k !== 'completed');
 		expect([...present].filter((k) => k !== 'cssclasses').sort()).toEqual(expected.sort());
 	});
 

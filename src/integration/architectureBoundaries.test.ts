@@ -63,6 +63,7 @@ describe('architecture boundaries', () => {
 	it('frontmatter-coercion utils stay pure and free of Obsidian imports', () => {
 		for (const relativePath of [
 			'src/utils/dateUtils.ts',
+			'src/store/deriveBlocks.ts',
 			'src/utils/frontmatterValue.ts',
 			'src/utils/pathUtils.ts',
 			'src/utils/taskLabel.ts',

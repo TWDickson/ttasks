@@ -1,76 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-	buildBlocksReverseIndex,
 	rewriteWikiLinkValue,
 	filterOutDeletedPath,
 } from './TaskRelationships';
-
-describe('buildBlocksReverseIndex', () => {
-	it('returns empty map for empty input', () => {
-		const result = buildBlocksReverseIndex([]);
-		expect(result.size).toBe(0);
-	});
-
-	it('returns empty map when no task has dependencies', () => {
-		const tasks = [
-			{ path: 'Tasks/a.md', name: 'Task A', depends_on: [] },
-			{ path: 'Tasks/b.md', name: 'Task B', depends_on: [] },
-		];
-		expect(buildBlocksReverseIndex(tasks).size).toBe(0);
-	});
-
-	it('builds reverse index for a single dependency', () => {
-		const tasks = [
-			{ path: 'Tasks/b.md', name: 'Task B', depends_on: ['Tasks/a.md'] },
-			{ path: 'Tasks/a.md', name: 'Task A', depends_on: [] },
-		];
-		const result = buildBlocksReverseIndex(tasks);
-		expect(result.get('Tasks/a')).toEqual([{ path: 'Tasks/b', name: 'Task B' }]);
-	});
-
-	it('strips .md from dep paths when building reverse index', () => {
-		const tasks = [
-			{ path: 'Tasks/b.md', name: 'Task B', depends_on: ['Tasks/a.md'] },
-		];
-		const result = buildBlocksReverseIndex(tasks);
-		const key = [...result.keys()][0];
-		expect(key).toBe('Tasks/a');
-		expect(result.get(key)![0]!.path).toBe('Tasks/b');
-	});
-
-	it('aggregates multiple dependents for the same task', () => {
-		const tasks = [
-			{ path: 'Tasks/b.md', name: 'Task B', depends_on: ['Tasks/a.md'] },
-			{ path: 'Tasks/c.md', name: 'Task C', depends_on: ['Tasks/a.md'] },
-		];
-		const result = buildBlocksReverseIndex(tasks);
-		const blockers = result.get('Tasks/a')!;
-		expect(blockers).toHaveLength(2);
-		expect(blockers.map(b => b.name)).toContain('Task B');
-		expect(blockers.map(b => b.name)).toContain('Task C');
-	});
-
-	it('handles chain dependencies A→B→C', () => {
-		const tasks = [
-			{ path: 'Tasks/a.md', name: 'Task A', depends_on: [] },
-			{ path: 'Tasks/b.md', name: 'Task B', depends_on: ['Tasks/a.md'] },
-			{ path: 'Tasks/c.md', name: 'Task C', depends_on: ['Tasks/b.md'] },
-		];
-		const result = buildBlocksReverseIndex(tasks);
-		expect(result.get('Tasks/a')?.map(b => b.name)).toEqual(['Task B']);
-		expect(result.get('Tasks/b')?.map(b => b.name)).toEqual(['Task C']);
-		expect(result.has('Tasks/c')).toBe(false);
-	});
-
-	it('handles a task with multiple dependencies', () => {
-		const tasks = [
-			{ path: 'Tasks/c.md', name: 'Task C', depends_on: ['Tasks/a.md', 'Tasks/b.md'] },
-		];
-		const result = buildBlocksReverseIndex(tasks);
-		expect(result.get('Tasks/a')).toEqual([{ path: 'Tasks/c', name: 'Task C' }]);
-		expect(result.get('Tasks/b')).toEqual([{ path: 'Tasks/c', name: 'Task C' }]);
-	});
-});
 
 describe('rewriteWikiLinkValue', () => {
 	it('rewrites a simple wiki link', () => {

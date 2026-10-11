@@ -153,9 +153,9 @@ Free-form notes go here. The plugin renders all structured UI on top.
   when it's cleared, so a bare task is a handful of lines. To set an absent field
   by hand, add the property in Obsidian's Properties panel.
 - **`type`** is `task` or `project`; a project groups tasks via `parent_task`.
-- **`depends_on`** is what you edit. **`blocks`** is its reverse index and is
-  maintained automatically — don't set it by hand. (Absent until a task has
-  dependents.)
+- **`depends_on`** is what you edit. **`blocks`** (what a task unblocks) is its
+  reverse index, worked out by the plugin on load and never written to the note.
+  Older notes may still have a `blocks:` property; it's ignored.
 - Wiki-links are stored with aliases (`[[path|Name]]`) so they read as human names
   in Obsidian's own link views and graph.
 - **Statuses, priorities, areas, and labels are configurable** in settings. The

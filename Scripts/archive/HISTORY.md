@@ -12,6 +12,25 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-11 — MD-3: `blocks` is derived, not stored
+
+- `deriveBlocks` (pure, `src/store/deriveBlocks.ts`) computes the reverse index of
+  `depends_on` over the held tasks. `TaskStore.tasks` is now a wrapper store
+  whose `set` / `update` run every write through it, so *every* path (initial
+  load, a rescan of one file, the optimistic patch after `update()`, delete,
+  rename) yields consistent `blocks`. Tasks whose `blocks` is already right keep
+  their object identity, so unrelated rows don't re-render.
+- **Deleted:** `syncBlocks` (store, relationships, seeder), the `Sync blocks`
+  command, `addToBlocks`, the `blocks` cleanup in `removeDependency`, and
+  `blocks` in the rename/delete link rewriters. `TASK_PERSISTENCE.blocks` is now
+  `derived` (no key); the reader ignores a stored `blocks:`.
+- **Why it ships alone:** no vault conversion is needed. Old notes keep a stale
+  `blocks:` that nothing reads, and the MD-4 script strips it. Half of the
+  "renamed task leaves stale aliases" bug goes with it, and TTasks no longer
+  rewrites *other* notes' frontmatter when you add a dependency.
+- **Trade-off:** native Obsidian views / Bases no longer show `blocks`.
+- Rig's vault loader derives it the same way.
+
 ## 2026-10-11 — MD-2: sparse writes
 
 - **Rule:** `type`, `name`, `status`, `created`, `status_changed` (+ `cssclasses`)

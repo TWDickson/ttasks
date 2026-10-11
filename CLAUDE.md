@@ -81,8 +81,6 @@ labels:
 parent_task: '[[path/without/ext|Name]]' | null
 depends_on:
   - '[[path/without/ext|Name]]'
-blocks:
-  - '[[path/without/ext|Name]]'
 blocked_reason: ""
 assigned_to: ""
 source: ""
@@ -109,7 +107,9 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
 **Relationship fields**
 
 - `depends_on` — tasks that must finish before this one (forward index)
-- `blocks` — reverse index of `depends_on`, **auto-maintained; never set by hand**
+- `blocks` — reverse index of `depends_on`. **Derived in memory, never stored**:
+  `TaskStore.tasks` runs every write through `deriveBlocks` (MD-3), so `task.blocks`
+  is always right. Old notes may still carry a stale `blocks:` key; it is ignored
 - `parent_task` — the project this task belongs to
 - Wiki-links stored with aliases (`[[path|Name]]`) so they display human names in
   native Obsidian views

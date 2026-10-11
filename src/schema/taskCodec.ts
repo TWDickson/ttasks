@@ -24,7 +24,7 @@ import { TASK_PERSISTENCE, fmKey, isBlankStoredValue, type FieldKind, type Field
  */
 
 /** Fields that live in frontmatter (everything except file metadata, the body, and derived flags). */
-export type StoredTaskFields = Omit<Task, 'id' | 'slug' | 'path' | 'notes' | 'is_complete' | 'is_inbox'>;
+export type StoredTaskFields = Omit<Task, 'id' | 'slug' | 'path' | 'notes' | 'is_complete' | 'is_inbox' | 'blocks'>;
 
 export interface ReadContext {
 	/** The user's configured statuses; an unrecognised value falls back to `initialStatus`. */

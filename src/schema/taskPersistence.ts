@@ -82,6 +82,8 @@ export const TASK_PERSISTENCE: Record<keyof Task, FieldPersistence> = {
 	notes: derived,
 	is_complete: derived,
 	is_inbox: derived,
+	// Reverse index of `depends_on`, derived at load by `deriveBlocks` (MD-3) — never stored.
+	blocks: derived,
 
 	type: core(createOnly('type', 'recordType')),
 	name: core(editable('name', 'title')),
@@ -93,8 +95,6 @@ export const TASK_PERSISTENCE: Record<keyof Task, FieldPersistence> = {
 	// Relationships are rewritten by the relationship services, not by `update`.
 	parent_task: createOnly('parent_task', 'link'),
 	depends_on: createOnly('depends_on', 'links'),
-	// A new note has no dependents; the reverse index is maintained afterwards.
-	blocks: createOnly('blocks', 'links', 'blank'),
 	blocked_reason: editable('blocked_reason', 'text'),
 
 	assigned_to: editable('assigned_to', 'text'),

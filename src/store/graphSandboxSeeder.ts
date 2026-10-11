@@ -11,7 +11,6 @@ import { stripMdExt } from '../utils/pathUtils';
 export interface GraphSandboxSeederDeps {
 	create: (input: TaskCreateInput) => Promise<Task>;
 	addDependency: (taskPath: string, depPathWithoutExt: string) => Promise<void>;
-	syncBlocks: () => Promise<void>;
 	load: () => Promise<void>;
 	getAll: () => Task[];
 	ensureFolder: () => Promise<void>;
@@ -227,7 +226,6 @@ export async function seedGraphTestData(deps: GraphSandboxSeederDeps): Promise<{
 	// deliberate 2-cycle for exercising cycle detection in the graph views.
 	await deps.addDependency(cycleA.path, stripMdExt(cycleB.path));
 
-	await deps.syncBlocks();
 	await deps.load();
 
 	deps.notice(`TTasks: seeded ${created.length} graph sandbox tasks.`);

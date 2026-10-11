@@ -80,7 +80,7 @@ describe('write → read round-trip', () => {
 			start_date: '2026-01-02', due_date: '2026-02-03', due_time: '09:30', estimated_days: 2.5,
 			workweek_only: true, holiday_dates: ['2026-07-04'],
 			recurrence: 'monthly', recurrence_type: 'fixed', recurrence_anchor_day: 31,
-			created: '2026-05-20', completed: null, status_changed: '2026-05-20', blocks: [],
+			created: '2026-05-20', completed: null, status_changed: '2026-05-20',
 		});
 	});
 });
@@ -115,7 +115,7 @@ describe('sparse notes read back as the blank task', () => {
 	it('a note with only the core keys decodes to every default', () => {
 		const read = readStoredFields({ type: 'task', name: 'Bare', status: 'Active', created: '2026-05-20', status_changed: '2026-05-20' }, ctx);
 		expect(read).toMatchObject({
-			area: null, priority: 'None', labels: [], parent_task: null, depends_on: [], blocks: [],
+			area: null, priority: 'None', labels: [], parent_task: null, depends_on: [],
 			blocked_reason: '', assigned_to: '', source: '', start_date: null, due_date: null, due_time: null,
 			estimated_days: null, workweek_only: false, holiday_dates: [], completed: null,
 			recurrence: null, recurrence_type: null, recurrence_anchor_day: null,

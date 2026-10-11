@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **1926 passing, 141 files** (`npm run check` = lint → build → test) |
+| Tests | **1930 passing, 142 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -59,7 +59,7 @@ flowchart LR
   AR3 --> DT2["DT-2 ✅<br/>due_time reminders"]
   DT2 --> DT5["DT-5 ✅<br/>calendar weeks"]
   AR3 --> MD12["MD-1/2 🔴<br/>ttask_* prefix + sparse"]
-  MD12 --> MD3["MD-3 🟡<br/>derive blocks"]
+  MD12 --> MD3["MD-3 ✅<br/>derive blocks"]
   MD12 --> RP["RP-2/3 🟡<br/>repeat engine"]
   MD3 --> MD4["MD-4 🟡<br/>migration script"]
   RP --> MD4
@@ -77,7 +77,7 @@ flowchart LR
 | 3 | ~~**DT-2** `due_time` reminders~~ ✅ 2026-10-09 | UI + `due-time-passed` reminder. |
 | 4 | ~~**DT-5** calendar weeks + week-start setting~~ ✅ 2026-10-09 | Includes the Logbook "Last 7 Days" rename. |
 | 5 | **MD-1 / MD-2** `ttask_*` prefix + sparse writes | The schema change everything downstream depends on. |
-| 6 | **MD-3** derive `blocks` | Deletes the sync machinery; do it in the same schema break, not a second one. |
+| 6 | ~~**MD-3** derive `blocks`~~ ✅ 2026-10-11 | Needed no vault conversion, so it shipped ahead of the break (see `SCHEMA_BREAK_PLAN.md`). |
 | 7 | **RP** `src/repeat/` engine → integration → builder UI | Adds `ttask_repeat_*` keys, so it rides the same break. Folds in DT-4. |
 | 8 | **MD-4** one-shot migration script, then **MD-5** | Converts the vault once; **zero legacy code ships**. Handle `localStorage` (PB-2) before this so the script's cutover is the only one. |
 | 9 | **N7 Bases**, **N3 public API** | Both expose property names. Do them *after* MD-1 or rewrite them. README's data-model section and the API doc examples also change at step 5. |
@@ -160,10 +160,9 @@ flowchart LR
   `type`/`name`/`status`/`created`/`status_changed` are always written; other keys
   are omitted on creation and deleted when cleared. Existing notes keep their full
   key sets until the MD-4 script strips them.
-- `[ ]` **MD-3 🟡 stop persisting `blocks`** — it's a pure reverse index of
+- `[x]` **MD-3 🟡 stop persisting `blocks`** *(2026-10-11, unreleased; see HISTORY)* — it was a pure reverse index of
   `depends_on` and can be derived at load, which deletes the whole sync machinery
-  and the `sync-blocks` command. *(CLAUDE.md and README currently describe
-  `blocks` as auto-maintained; update both when this lands.)*
+  and the `sync-blocks` command. CLAUDE.md and README updated.
 - `[ ]` **MD-4 🟡 one-shot vault migration + dev-command pruning** — a standalone
   `Scripts/migrate-prefixed-schema.mjs`, run once with Obsidian closed, does
   MD-1/MD-2/MD-3 plus the legacy-recurrence conversion, so **zero legacy code
@@ -340,6 +339,7 @@ flowchart LR
 | `[~]` | **Ghost sidebar tabs** — disable → relaunch → re-enable | Exactly one live tab, no ghost/duplicate (`views/leafHygiene.ts`) | 0.1.3 |
 | `[ ]` | **Agenda calendar weeks** (DT-5) — Agenda view, then flip Settings → Working calendar → Week starts on | Tomorrow / This Week / Next Week follow real weeks; This Week hides when tomorrow is already next week; setting change re-buckets live | next |
 | `[ ]` | **Sparse notes** (MD-2) — create a task, set then clear a due date and a label | New note has only the five core keys; clearing removes the key (Properties panel); detail pane and lists unaffected | next |
+| `[ ]` | **Derived `blocks`** (MD-3) — add/remove a dependency; rename and delete a task that others depend on | Detail pane "unblocks" and the kanban/graph counts update immediately and match after a restart; no `blocks:` is written to notes; the "Sync blocks" command is gone | next |
 | `[ ]` | **Midnight rollover** (DT-1) — leave a view open across midnight | Today/Overdue buckets refresh without reopening | 0.1.16 |
 | `[ ]` | **New-task frontmatter** (AR-3) — create a task, inspect YAML | Same keys/order as before the codec change | 0.1.16 |
 

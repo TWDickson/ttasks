@@ -88,15 +88,6 @@ export class TaskWriter {
 			throw error;
 		}
 
-		// Sync blocks on depends_on targets
-		for (const depPath of sanitizedDependsOn) {
-			try {
-				await this.addToBlocks(depPath, filePath, input.name);
-			} catch (error) {
-				this.plugin.logError(`addToBlocks failed for dependency ${depPath}: ${String(error)}`);
-			}
-		}
-
 		return full;
 	}
 
@@ -280,7 +271,6 @@ export class TaskWriter {
 		if (!(depFile instanceof TFile)) return;
 
 		const depName = this.getTaskByPath(depPathWithoutExt)?.name ?? null;
-		const selfName = this.getTaskByPath(taskPath)?.name ?? null;
 		const depLink = this.buildAliasedTaskLink(depPathWithoutExt, depName, file.path);
 
 		await this.app.fileManager.processFrontMatter(file, (fm) => {
@@ -289,7 +279,6 @@ export class TaskWriter {
 			if (!already) writeStoredField(fm, 'depends_on', mutateLinkArray(current, [depLink], []));
 		});
 
-		await this.addToBlocks(depPathWithoutExt, taskPath, selfName);
 	}
 
 	async removeDependency(taskPath: string, depPathWithoutExt: string): Promise<void> {
@@ -301,17 +290,6 @@ export class TaskWriter {
 			const remove = current.filter((v) => this.linkTargetsPath(v, depPathWithoutExt, file.path));
 			writeStoredField(fm, 'depends_on', mutateLinkArray(current, [], remove));
 		});
-
-		// Remove from blocks on the dependency target
-		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(depPathWithoutExt + '.md'));
-		if (depFile instanceof TFile) {
-			const selfClean = taskPath.replace(/\.md$/, '');
-			await this.app.fileManager.processFrontMatter(depFile, (fm) => {
-				const current = this.extractLinkStrings(fm[fmKey('blocks')]);
-				const remove = current.filter((v) => this.linkTargetsPath(v, selfClean, depFile.path));
-				writeStoredField(fm, 'blocks', mutateLinkArray(current, [], remove));
-			});
-		}
 	}
 
 	async updateParentTask(taskPath: string, parentPath: string | null): Promise<void> {
@@ -557,20 +535,6 @@ export class TaskWriter {
 				const child = await this.create(this.buildChildTaskInput(parent, content, effectiveParentPath));
 				return { path: child.path, name: child.name };
 			},
-		});
-	}
-
-	private async addToBlocks(depPath: string, thisPath: string, thisName: string | null): Promise<void> {
-		const fullPath = depPath.endsWith('.md') ? depPath : depPath + '.md';
-		const depFile = this.app.vault.getAbstractFileByPath(normalizePath(fullPath));
-		if (!(depFile instanceof TFile)) return;
-
-		const cleanPath = thisPath.replace(/\.md$/, '');
-		const thisLink = this.buildAliasedTaskLink(cleanPath, thisName, depFile.path);
-		await this.app.fileManager.processFrontMatter(depFile, (fm) => {
-			const current = this.extractLinkStrings(fm[fmKey('blocks')]);
-			const already = current.some((b) => this.linkTargetsPath(b, cleanPath, depFile.path));
-			if (!already) writeStoredField(fm, 'blocks', mutateLinkArray(current, [thisLink], []));
 		});
 	}
 

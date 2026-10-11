@@ -178,12 +178,6 @@ export default class TTasksPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: 'sync-blocks',
-			name: 'Sync blocks (rebuild reverse index)',
-			callback: () => this.taskStore.syncBlocks(),
-		});
-
-		this.addCommand({
 			id: 'migrate-css-classes',
 			name: 'Migrate CSS classes (add ttask to existing notes)',
 			callback: () => this.taskStore.migrateCssClasses(),

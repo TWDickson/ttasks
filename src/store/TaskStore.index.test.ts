@@ -81,3 +81,24 @@ describe('TaskStore path index', () => {
 		expect(store.getByPath('Tasks/abc123-task')).toBeUndefined();
 	});
 });
+
+describe('TaskStore derives blocks (MD-3)', () => {
+	it('fills blocks on set and keeps them in step through update', () => {
+		const store = createStore();
+		store.tasks.set([
+			makeTask({ path: 'Tasks/a.md' }),
+			makeTask({ path: 'Tasks/b.md', depends_on: ['Tasks/a.md'] }),
+		]);
+		expect(store.getByPath('Tasks/a.md')?.blocks).toEqual(['Tasks/b.md']);
+
+		// Removing the dependency (as a rescan of b would) clears a's reverse index.
+		store.tasks.update((all) => all.map((x) => (x.path === 'Tasks/b.md' ? { ...x, depends_on: [] } : x)));
+		expect(store.getByPath('Tasks/a.md')?.blocks).toEqual([]);
+
+		// Deleting the dependent does too.
+		store.tasks.update((all) => [...all, makeTask({ path: 'Tasks/c.md', depends_on: ['Tasks/a.md'] })]);
+		expect(store.getByPath('Tasks/a.md')?.blocks).toEqual(['Tasks/c.md']);
+		store.tasks.update((all) => all.filter((x) => x.path !== 'Tasks/c.md'));
+		expect(store.getByPath('Tasks/a.md')?.blocks).toEqual([]);
+	});
+});

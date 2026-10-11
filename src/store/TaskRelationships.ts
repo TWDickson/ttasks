@@ -1,6 +1,6 @@
 import { fmKey } from '../schema/taskPersistence';
 import { writeStoredField } from '../schema/taskCodec';
-import { Notice, TFile, normalizePath } from 'obsidian';
+import { TFile, normalizePath } from 'obsidian';
 import type TTasksPlugin from '../main';
 import { parseWikiLink } from '../utils/wikiLink';
 import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
@@ -8,30 +8,6 @@ import { buildAliasedLink } from '../integration/relationshipLink';
 import { withConcurrencyLimit } from '../utils/concurrency';
 
 // ── Pure helpers (exported for testing) ─────────────────────────────────────
-
-/** `name` is null when the source note has no usable `name:` frontmatter. */
-export interface BlocksEntry { path: string; name: string | null }
-
-/**
- * Builds the reverse index: for each depended-on path, which tasks block it.
- * Input tasks must have `.path` (with .md) and `.depends_on` (paths with .md).
- */
-export function buildBlocksReverseIndex(
-	tasks: Array<{ path: string; name: string; depends_on: string[] }>
-): Map<string, BlocksEntry[]> {
-	const reverseMap = new Map<string, BlocksEntry[]>();
-	for (const task of tasks) {
-		for (const dep of task.depends_on) {
-			const depClean = dep.replace(/\.md$/, '');
-			if (!reverseMap.has(depClean)) reverseMap.set(depClean, []);
-			reverseMap.get(depClean)!.push({
-				path: task.path.replace(/\.md$/, ''),
-				name: task.name,
-			});
-		}
-	}
-	return reverseMap;
-}
 
 /**
  * Rewrites a single wiki-link string if it contains oldClean, replacing with newClean.
@@ -58,41 +34,6 @@ export class TaskRelationships {
 
 	private get app() { return this.plugin.app; }
 	private get folderPath() { return normalizePath(this.plugin.settings.tasksFolder); }
-
-	async syncBlocks(): Promise<void> {
-		const folder = this.app.vault.getFolderByPath(this.folderPath);
-		if (!folder) { new Notice('TTasks: tasks folder not found'); return; }
-
-		const files = folder.children.filter(
-			(f): f is TFile => f instanceof TFile && f.extension === 'md'
-		);
-
-		const reverseMap = new Map<string, BlocksEntry[]>();
-		for (const file of files) {
-			const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
-			if (!fm) continue;
-			// No `name:` means the note can't tell us what it's called. Write an
-			// un-aliased link rather than seeding `blocks` with its filename —
-			// that alias would then render as a title everywhere it's read back.
-			const name: string | null = typeof fm[fmKey('name')] === 'string' && fm[fmKey('name')].trim() ? fm[fmKey('name')] : null;
-			const deps = this.resolveWikiLinkPaths(fm[fmKey('depends_on')], file.path);
-			for (const dep of deps) {
-				const depClean = dep.replace(/\.md$/, '');
-				if (!reverseMap.has(depClean)) reverseMap.set(depClean, []);
-				reverseMap.get(depClean)!.push({ path: file.path.replace(/\.md$/, ''), name });
-			}
-		}
-
-		await withConcurrencyLimit(files.map((file) => async () => {
-			const cleanPath = file.path.replace(/\.md$/, '');
-			const blockers = reverseMap.get(cleanPath) ?? [];
-			await this.app.fileManager.processFrontMatter(file, (fm) => {
-				writeStoredField(fm, 'blocks', blockers.map(b => this.buildAliasedTaskLink(b.path, b.name, file.path)));
-			});
-		}), 5);
-
-		this.plugin.log(`SyncBlocks complete — ${files.length} files processed`);
-	}
 
 	async rewriteRelationshipReferences(oldPath: string, newPath: string): Promise<void> {
 		const oldClean = oldPath.replace(/\.md$/, '');
@@ -130,7 +71,7 @@ export class TaskRelationships {
 						}
 					}
 
-					for (const key of [fmKey('depends_on'), fmKey('blocks')]) {
+					for (const key of [fmKey('depends_on')]) {
 						if (Array.isArray(frontmatter[key])) {
 							frontmatter[key] = frontmatter[key].map((v: unknown) => rewriteLink(v));
 						}
@@ -171,7 +112,7 @@ export class TaskRelationships {
 						changed = true;
 					}
 
-					for (const key of [fmKey('depends_on'), fmKey('blocks')]) {
+					for (const key of [fmKey('depends_on')]) {
 						if (!Array.isArray(frontmatter[key])) continue;
 						const next = filterOutDeletedPath(
 							frontmatter[key] as unknown[],

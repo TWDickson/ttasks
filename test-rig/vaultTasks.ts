@@ -5,6 +5,7 @@
 import type { Task, TaskPriority, TaskRecordType } from '../src/types';
 import { parseWikiLink } from '../src/utils/wikiLink';
 import { ensureMdExt } from '../src/utils/pathUtils';
+import { deriveBlocks } from '../src/store/deriveBlocks';
 
 export interface RawTaskFile {
 	path: string;
@@ -51,7 +52,7 @@ export function mapVaultTasks(payload: VaultPayload): Task[] {
 	const statuses = (settings.statuses as string[]) ?? ['Active'];
 	const completionStatus = (settings.completionStatus as string) ?? statuses[statuses.length - 1] ?? 'Done';
 
-	return payload.files.map((file) => {
+	return deriveBlocks(payload.files.map((file) => {
 		const fm = file.frontmatter;
 		const dashIdx = file.basename.indexOf('-');
 		const rawStatus = typeof fm.status === 'string' ? fm.status : '';
@@ -77,7 +78,7 @@ export function mapVaultTasks(payload: VaultPayload): Task[] {
 			labels: Array.isArray(fm.labels) ? fm.labels.filter((v): v is string => typeof v === 'string') : [],
 			parent_task: resolveLink(fm.parent_task),
 			depends_on: resolveLinks(fm.depends_on),
-			blocks: resolveLinks(fm.blocks),
+			blocks: [], // derived below, as the real store does
 			blocked_reason: (fm.blocked_reason as string) ?? '',
 			assigned_to: (fm.assigned_to as string) ?? '',
 			source: (fm.source as string) ?? '',
@@ -100,5 +101,5 @@ export function mapVaultTasks(payload: VaultPayload): Task[] {
 			is_complete: status === completionStatus,
 			is_inbox: area === null,
 		};
-	});
+	}));
 }

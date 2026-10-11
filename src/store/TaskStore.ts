@@ -1,5 +1,6 @@
 import { fmKey } from '../schema/taskPersistence';
 import { readStoredFields, writeStoredField } from '../schema/taskCodec';
+import { deriveBlocks } from './deriveBlocks';
 import { Notice, TFile, normalizePath } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
@@ -16,7 +17,17 @@ import { TaskRelationships } from './TaskRelationships';
 import { TaskStoreSyncQueue } from './TaskStoreSyncQueue';
 
 export class TaskStore {
-	readonly tasks: Writable<Task[]> = writable([]);
+	private readonly rawTasks: Writable<Task[]> = writable([]);
+	/**
+	 * Every write passes through `deriveBlocks`, so `task.blocks` (the reverse index
+	 * of `depends_on`) is always consistent with the tasks held — nothing reads it
+	 * from disk (MD-3).
+	 */
+	readonly tasks: Writable<Task[]> = {
+		subscribe: this.rawTasks.subscribe,
+		set: (next) => this.rawTasks.set(deriveBlocks(next)),
+		update: (fn) => this.rawTasks.update((current) => deriveBlocks(fn(current))),
+	};
 	private taskMap: Map<string, Task> = new Map();
 
 	private plugin: TTasksPlugin;
@@ -250,10 +261,6 @@ export class TaskStore {
 
 	// ── Bulk operations (delegated) ──────────────────────────────────────────────
 
-	async syncBlocks(): Promise<void> {
-		return this.relationships.syncBlocks();
-	}
-
 	async migrateCssClasses(): Promise<void> {
 		return this.migrations.migrateCssClasses();
 	}
@@ -278,7 +285,6 @@ export class TaskStore {
 		return seedGraphTestData({
 			create: (input) => this.create(input),
 			addDependency: (taskPath, depPathWithoutExt) => this.addDependency(taskPath, depPathWithoutExt),
-			syncBlocks: () => this.syncBlocks(),
 			load: () => this.load(),
 			getAll: () => get(this.tasks),
 			ensureFolder: () => this.ensureFolderPathExists(this.folderPath),
@@ -320,6 +326,7 @@ export class TaskStore {
 			name,
 			id, slug,
 			path: file.path,
+			blocks: [], // derived by `deriveBlocks` when the task enters the store
 			notes,
 			is_complete: policy.isComplete(stored.status),
 			is_inbox:    stored.area === null,
