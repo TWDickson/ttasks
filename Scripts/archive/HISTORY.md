@@ -12,6 +12,29 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-11 — MD-4 (part 1): the vault migration script
+
+- **`Scripts/migrate-prefixed-schema.mjs`** + pure `Scripts/lib/schemaMigration.mjs`.
+  Dry run by default; `--apply` backs each changed note up, rewrites it, re-reads
+  it and restores from the backup if the check fails. Idempotent. Renames to
+  `ttask_*`, drops blank optional keys, drops `blocks`, converts recurrence to
+  `ttask_repeat_*`, leaves foreign properties and `cssclasses` alone.
+- **Preserves formatting** by editing the YAML *document* (the `yaml` package, now
+  a dev dependency) rather than re-dumping: comments, quoting, key order, CRLF,
+  nested `archive_history` and the body survive. Caught on the way: the library
+  pads flow lists (`[ttask]` → `[ ttask ]`), fixed with `flowCollectionPadding`.
+- **Kept honest against `src/`:** `migrationScript.test.ts` asserts the script's
+  mapping equals `ttask_<field>` for exactly the stored fields in
+  `TASK_PERSISTENCE`, that its "core" set equals the table's `always` fields, and
+  that its recurrence conversion normalizes to the same rule the repeat engine's
+  legacy bridge builds, across every rule × type × anchor × due date.
+- **A real-vault survey** (read-only, via the Obsidian connection) shaped it:
+  bare `key:` blanks, nested `archive_history`, a foreign `creation date`, mixed
+  link styles, an orphan anchor, a nested archive tree — and no recurring tasks
+  at all. Details in `SCHEMA_BREAK_PLAN.md`.
+- **Not done:** running it on the real vault (needs the machine that has it) and
+  all plugin-side cutover work.
+
 ## 2026-10-11 — RP-core: the repeat engine, proven but not yet wired
 
 First half of the RP redesign; the rest rides the schema cutover.

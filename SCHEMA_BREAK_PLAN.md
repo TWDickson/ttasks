@@ -1,7 +1,8 @@
 # Schema break plan — MD-1 / MD-2 (and what rides with them)
 
 **Status: approved 2026-10-10** (Taylor: "whatever you think is best"; he is the
-only user). **MD-0 is done** (2026-10-10); the rest is open.
+only user). **MD-0, MD-2, MD-3 and RP-core are done**; the migration *script* is written
+(2026-10-11); the plugin-side cutover is open.
 Written 2026-10-09 from a survey of every place frontmatter keys are touched.
 
 ## TL;DR
@@ -197,3 +198,53 @@ The script must handle what the sample showed:
   exists to avoid.
 - Rename in-memory `Task` fields — it would break saved queries, views, settings
   and the Share/Sync contract for no benefit.
+
+---
+
+## Migration script — status and runbook *(2026-10-11)*
+
+`Scripts/migrate-prefixed-schema.mjs` (+ `Scripts/lib/schemaMigration.mjs`) is
+written and tested (`src/schema/migrationScript.test.ts`, 26 tests, including an
+exact byte-for-byte case built from shapes in the real vault). It has **not** been
+run on the real vault: sessions are headless and can only *read* it.
+
+**What the real vault looked like** (read-only survey, 2026-10-11):
+
+- ~170 notes in `Planner/Tasks`, plus `Planner/Archive/2026/<mm>/…` (nested — the
+  script recurses).
+- **No note has a recurrence value set.** `recurrence:` / `recurrence_type:` are
+  bare (null) everywhere, so the repeat conversion has nothing to convert on this
+  vault today. It is still tested against every legacy rule.
+- Obsidian's bare `key:` blanks are the norm, not `null`/`""` — both handled.
+- `archive_history` is a list of maps (kept verbatim); two *restored* tasks in
+  `Planner/Tasks` still carry it.
+- `pomodoro_count: 0` exists — kept (0 is a value).
+- One foreign property (`creation date`) and `tags` survive untouched.
+- **Not covered by the script, yours to handle:**
+  `Planner/_Templates/task.md` is an old-format template (`category:`,
+  `cssclasses: [planner-task]`) and `Planner/Tasks.base` filters on property
+  names. Both will need updating to `ttask_*` after the cutover.
+
+**Runbook** (on the machine with the vault; Obsidian **closed** on every device):
+
+```sh
+# 1. Look first. Prints what would change; writes nothing.
+node Scripts/migrate-prefixed-schema.mjs "<vault>/Planner/Tasks" "<vault>/Planner/Archive"
+
+# 2. Read a few notes' plans in detail if you like.
+node Scripts/migrate-prefixed-schema.mjs "<vault>/Planner/Tasks" --verbose | less
+
+# 3. Apply. Backs up every changed note to <vault>/Planner/.ttasks-migration-backup/<time>/
+node Scripts/migrate-prefixed-schema.mjs "<vault>/Planner/Tasks" "<vault>/Planner/Archive" --apply
+```
+
+Exit code 2 means some notes were skipped (both old and new keys, unparseable
+YAML, or a failed check) and are listed. A second `--apply` is a no-op, so it is
+also the fix for an out-of-date device that syncs an old-format note back in.
+To undo: copy the backup folder's files back over the notes.
+
+**Still to do for the cutover** (in order): flip `TASK_PERSISTENCE` to `ttask_*`
+and the repeat fields; wire `src/repeat/` into completion/duplicate/writer/UI and
+delete `recurrence.ts` + `legacy.ts`; add `ttask_repeat_of` (RP-3); the
+unmigrated-vault notice; PB-2 `localStorage` namespacing; update README /
+CLAUDE.md / API_DESIGN; delete `TaskMigrations` and the dev-phase commands.

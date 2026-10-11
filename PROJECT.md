@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **2003 passing, 146 files** (`npm run check` = lint → build → test) |
+| Tests | **2029 passing, 147 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -148,6 +148,9 @@ flowchart LR
 
 ### Frontmatter / schema hygiene (MD)
 
+> **Migration script written 2026-10-11** (`Scripts/migrate-prefixed-schema.mjs`;
+> dry-run by default; runbook in `SCHEMA_BREAK_PLAN.md`). Not yet run on the real vault.
+>
 > **Plan approved 2026-10-10:** see `SCHEMA_BREAK_PLAN.md`. MD-2/MD-3 ship ahead of
 > the rename; only the rename + migration is the cutover. **MD-0** (route every
 > frontmatter key through `fmKey()`) is done — see HISTORY.
