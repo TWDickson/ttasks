@@ -1,6 +1,6 @@
 {
   "name": "ttasks",
-  "version": "0.1.17",
+  "version": "0.2.0",
   "description": "A task management plugin for Obsidian",
   "main": "main.js",
   "license": "GPL-3.0-or-later",
