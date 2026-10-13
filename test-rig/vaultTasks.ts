@@ -2,7 +2,8 @@
    same rules as TaskStore.fileToTask, with a basename-based wiki-link resolver
    standing in for Obsidian's metadataCache. */
 
-import type { Task, TaskPriority, TaskRecordType } from '../src/types';
+import type { Task } from '../src/types';
+import { readStoredFields } from '../src/schema/taskCodec';
 import { parseWikiLink } from '../src/utils/wikiLink';
 import { ensureMdExt } from '../src/utils/pathUtils';
 import { deriveBlocks } from '../src/store/deriveBlocks';
@@ -43,63 +44,25 @@ export function mapVaultTasks(payload: VaultPayload): Task[] {
 		return byBasename.get(leaf.replace(/\.md$/, '')) ?? ensureMdExt(linkpath);
 	};
 
-	const resolveLinks = (raw: unknown): string[] => {
-		if (!Array.isArray(raw)) return [];
-		return raw.map(resolveLink).filter((p): p is string => !!p);
-	};
-
 	const settings = payload.settings ?? {};
 	const statuses = (settings.statuses as string[]) ?? ['Active'];
 	const completionStatus = (settings.completionStatus as string) ?? statuses[statuses.length - 1] ?? 'Done';
+	const ctx = { statuses, initialStatus: statuses[0] ?? 'Active', resolveLink };
 
-	return deriveBlocks(payload.files.map((file) => {
-		const fm = file.frontmatter;
+	// The real codec, so the rig reads exactly what the plugin reads.
+	return deriveBlocks(payload.files.flatMap((file): Task[] => {
+		const stored = readStoredFields(file.frontmatter, ctx);
+		if (!stored.name) return [];
 		const dashIdx = file.basename.indexOf('-');
-		const rawStatus = typeof fm.status === 'string' ? fm.status : '';
-		const status = rawStatus && statuses.includes(rawStatus) ? rawStatus : (statuses[0] ?? 'Active');
-		const area = typeof fm.area === 'string' ? fm.area : null;
-		const asDate = (v: unknown): string | null => {
-			if (typeof v === 'string' && v) return v.slice(0, 10);
-			if (v instanceof Date || (v && typeof v === 'object' && 'toISOString' in (v as object))) {
-				return (v as Date).toISOString().slice(0, 10);
-			}
-			return null;
-		};
-
-		return {
+		return [{
+			...stored,
 			id: dashIdx >= 0 ? file.basename.slice(0, dashIdx) : file.basename,
 			slug: dashIdx >= 0 ? file.basename.slice(dashIdx + 1) : '',
 			path: file.path,
-			type: (fm.type as TaskRecordType) ?? 'task',
-			name: (fm.name as string) ?? file.basename,
-			area,
-			status,
-			priority: (fm.priority as TaskPriority) ?? 'None',
-			labels: Array.isArray(fm.labels) ? fm.labels.filter((v): v is string => typeof v === 'string') : [],
-			parent_task: resolveLink(fm.parent_task),
-			depends_on: resolveLinks(fm.depends_on),
-			blocks: [], // derived below, as the real store does
-			blocked_reason: (fm.blocked_reason as string) ?? '',
-			assigned_to: (fm.assigned_to as string) ?? '',
-			source: (fm.source as string) ?? '',
-			start_date: asDate(fm.start_date),
-			due_date: asDate(fm.due_date),
-			due_time: typeof fm.due_time === 'string' ? fm.due_time : null,
-			estimated_days: typeof fm.estimated_days === 'number' ? fm.estimated_days : null,
-			workweek_only: fm.workweek_only === true,
-			holiday_dates: Array.isArray(fm.holiday_dates)
-				? fm.holiday_dates.map(asDate).filter((v): v is string => !!v)
-				: [],
-			created: asDate(fm.created),
-			completed: asDate(fm.completed),
-			status_changed: asDate(fm.status_changed),
-			recurrence: typeof fm.recurrence === 'string' ? fm.recurrence : null,
-			recurrence_type: typeof fm.recurrence_type === 'string' ? fm.recurrence_type : null,
+			blocks: [],
 			notes: file.notes,
-			reminder_override: fm.reminder_override === 'urgent' || fm.reminder_override === 'mute'
-				? fm.reminder_override : null,
-			is_complete: status === completionStatus,
-			is_inbox: area === null,
-		};
+			is_complete: stored.status === completionStatus,
+			is_inbox: stored.area === null,
+		}];
 	}));
 }

@@ -178,21 +178,6 @@ export default class TTasksPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: 'migrate-css-classes',
-			name: 'Migrate CSS classes (add ttask to existing notes)',
-			callback: () => this.taskStore.migrateCssClasses(),
-		});
-
-		this.addCommand({
-			id: 'migrate-status-changed',
-			name: 'Migrate status_changed field (backfill existing tasks)',
-			callback: async () => {
-				const count = await this.taskStore.migrateStatusChanged();
-				new Notice(`TTasks: backfilled status_changed on ${count} task(s).`);
-			},
-		});
-
-		this.addCommand({
 			id: 'migrate-status-colors-to-theme',
 			name: 'Migrate status colours to current theme defaults',
 			callback: async () => {
@@ -204,16 +189,6 @@ export default class TTasksPlugin extends Plugin {
 				this.settings.statusColors = colors;
 				await this.saveSettings();
 				new Notice(`TTasks: moved ${converted.length} status colour(s) onto the current defaults — ${converted.join(', ')}.`);
-			},
-		});
-
-		this.addCommand({
-			id: 'migrate-phase6-data-model',
-			name: 'Migrate to Phase 6 data model (category→area, task_type→labels)',
-			callback: async () => {
-				const count = await this.taskStore.migrateToPhase6DataModel();
-				new Notice(`TTasks: migrated ${count} task file(s) to Phase 6 data model.`);
-				await this.taskStore.load();
 			},
 		});
 

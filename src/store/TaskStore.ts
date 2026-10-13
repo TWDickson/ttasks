@@ -261,21 +261,12 @@ export class TaskStore {
 
 	// ── Bulk operations (delegated) ──────────────────────────────────────────────
 
-	async migrateCssClasses(): Promise<void> {
-		return this.migrations.migrateCssClasses();
-	}
 
 	async migrateFieldValues(field: MigratableField, mappings: Record<string, string | null>): Promise<number> {
 		return this.migrations.migrateFieldValues(field, mappings);
 	}
 
-	async migrateStatusChanged(): Promise<number> {
-		return this.migrations.migrateStatusChanged();
-	}
 
-	async migrateToPhase6DataModel(): Promise<number> {
-		return this.migrations.migrateToPhase6DataModel();
-	}
 
 	async migrateStatuses(validStatuses: string[]): Promise<number> {
 		return this.migrations.migrateStatuses(validStatuses);

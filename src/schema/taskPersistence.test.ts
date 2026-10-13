@@ -69,7 +69,7 @@ describe('creation frontmatter vs. the descriptor table', () => {
 		}), noName);
 		const present = new Set(keysOf(fm));
 		// `completed` is seeded blank, so even a full task omits it.
-		const expected = createTimeFrontmatterKeys().filter((k) => k !== 'completed');
+		const expected = createTimeFrontmatterKeys().filter((k) => k !== TASK_PERSISTENCE.completed.fmKey);
 		expect([...present].filter((k) => k !== 'cssclasses').sort()).toEqual(expected.sort());
 	});
 

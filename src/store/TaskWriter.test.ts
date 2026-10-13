@@ -1,6 +1,7 @@
 import { writable, get } from 'svelte/store';
 import { buildStatusPolicy } from '../settings/statusPolicy';
 import { TFile } from 'obsidian';
+import { fmKey, toStoredFrontmatter } from '../schema/taskPersistence';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { buildTaskFrontmatter, TaskWriter } from './TaskWriter';
 import type { Task } from '../types';
@@ -63,7 +64,8 @@ function makeFile(path: string): TFile {
 }
 
 function makeWriterForUpdateTest(initialFrontmatter: Record<string, unknown>, seedTask?: Partial<Task>) {
-	const frontmatter = { ...initialFrontmatter };
+	// Fixtures are written in field names; store them under their real keys.
+	const frontmatter = toStoredFrontmatter(initialFrontmatter);
 	const file = makeFile('Planner/Tasks/abc123-test-task.md');
 	const processFrontMatter = vi.fn(async (_file: TFile, cb: (fm: Record<string, unknown>) => void) => {
 		cb(frontmatter);
@@ -105,8 +107,8 @@ describe('buildTaskFrontmatter', () => {
 	it('emits correct type and name', () => {
 		const fm = buildTaskFrontmatter(makeTask({ type: 'task', name: 'My Task' }), noName);
 		const parsed = parseYaml(fm);
-		expect(parsed['type']).toBe('task');
-		expect(parsed['name']).toBe('"My Task"');
+		expect(parsed[fmKey('type')]).toBe('task');
+		expect(parsed[fmKey('name')]).toBe('"My Task"');
 	});
 
 	it('escapes special characters in name', () => {
@@ -116,12 +118,12 @@ describe('buildTaskFrontmatter', () => {
 
 	it('omits area when null (sparse)', () => {
 		const fm = buildTaskFrontmatter(makeTask({ area: null }), noName);
-		expect(parseYaml(fm)).not.toHaveProperty('area');
+		expect(parseYaml(fm)).not.toHaveProperty(fmKey('area'));
 	});
 
 	it('sets area to quoted string when provided', () => {
 		const fm = buildTaskFrontmatter(makeTask({ area: 'Work' }), noName);
-		expect(parseYaml(fm)['area']).toBe('"Work"');
+		expect(parseYaml(fm)[fmKey('area')]).toBe('"Work"');
 	});
 
 	it('emits cssclasses: [ttask]', () => {
@@ -132,17 +134,17 @@ describe('buildTaskFrontmatter', () => {
 	it('renders parent_task as aliased wikilink using resolveName', () => {
 		const resolve = byPath({ 'Planner/Tasks/proj-1': 'My Project' });
 		const fm = buildTaskFrontmatter(makeTask({ parent_task: 'Planner/Tasks/proj-1.md' }), resolve);
-		expect(parseYaml(fm)['parent_task']).toBe("'[[Planner/Tasks/proj-1|My Project]]'");
+		expect(parseYaml(fm)[fmKey('parent_task')]).toBe("'[[Planner/Tasks/proj-1|My Project]]'");
 	});
 
 	it('omits parent_task when null', () => {
 		const fm = buildTaskFrontmatter(makeTask({ parent_task: null }), noName);
-		expect(parseYaml(fm)).not.toHaveProperty('parent_task');
+		expect(parseYaml(fm)).not.toHaveProperty(fmKey('parent_task'));
 	});
 
 	it('omits depends_on when empty', () => {
 		const fm = buildTaskFrontmatter(makeTask({ depends_on: [] }), noName);
-		expect(parseYaml(fm)).not.toHaveProperty('depends_on');
+		expect(parseYaml(fm)).not.toHaveProperty(fmKey('depends_on'));
 	});
 
 	it('renders depends_on as multiline YAML list with aliased links', () => {
@@ -151,17 +153,17 @@ describe('buildTaskFrontmatter', () => {
 			makeTask({ depends_on: ['Planner/Tasks/dep-1.md'] }),
 			resolve,
 		);
-		expect(fm).toContain('depends_on:\n  - \'[[Planner/Tasks/dep-1|Dep One]]\'');
+		expect(fm).toContain(`${fmKey('depends_on')}:\n  - '[[Planner/Tasks/dep-1|Dep One]]'`);
 	});
 
 	it('omits labels when empty', () => {
 		const fm = buildTaskFrontmatter(makeTask({ labels: [] }), noName);
-		expect(parseYaml(fm)).not.toHaveProperty('labels');
+		expect(parseYaml(fm)).not.toHaveProperty(fmKey('labels'));
 	});
 
 	it('renders labels as multiline YAML list', () => {
 		const fm = buildTaskFrontmatter(makeTask({ labels: ['frontend', 'urgent'] }), noName);
-		expect(fm).toContain('labels:\n  - "frontend"\n  - "urgent"');
+		expect(fm).toContain(`${fmKey('labels')}:\n  - "frontend"\n  - "urgent"`);
 	});
 
 	it('renders start_date and due_date as single-quoted strings', () => {
@@ -170,25 +172,25 @@ describe('buildTaskFrontmatter', () => {
 			noName,
 		);
 		const parsed = parseYaml(fm);
-		expect(parsed['start_date']).toBe("'2026-05-01'");
-		expect(parsed['due_date']).toBe("'2026-05-31'");
+		expect(parsed[fmKey('start_date')]).toBe("'2026-05-01'");
+		expect(parsed[fmKey('due_date')]).toBe("'2026-05-31'");
 	});
 
 	it('omits null dates', () => {
 		const fm = buildTaskFrontmatter(makeTask({ start_date: null, due_date: null }), noName);
 		const parsed = parseYaml(fm);
-		expect(parsed).not.toHaveProperty('start_date');
-		expect(parsed).not.toHaveProperty('due_date');
+		expect(parsed).not.toHaveProperty(fmKey('start_date'));
+		expect(parsed).not.toHaveProperty(fmKey('due_date'));
 	});
 
 	it('renders estimated_days as a number', () => {
 		const fm = buildTaskFrontmatter(makeTask({ estimated_days: 3 }), noName);
-		expect(parseYaml(fm)['estimated_days']).toBe('3');
+		expect(parseYaml(fm)[fmKey('estimated_days')]).toBe('3');
 	});
 
 	it('renders workweek_only correctly', () => {
-		expect(parseYaml(buildTaskFrontmatter(makeTask({ workweek_only: true }), noName))['workweek_only']).toBe('true');
-		expect(parseYaml(buildTaskFrontmatter(makeTask({ workweek_only: false }), noName))).not.toHaveProperty('workweek_only');
+		expect(parseYaml(buildTaskFrontmatter(makeTask({ workweek_only: true }), noName))[fmKey('workweek_only')]).toBe('true');
+		expect(parseYaml(buildTaskFrontmatter(makeTask({ workweek_only: false }), noName))).not.toHaveProperty(fmKey('workweek_only'));
 	});
 
 	it('renders holiday_dates as YAML list', () => {
@@ -210,7 +212,7 @@ describe('buildTaskFrontmatter', () => {
 
 	it('uses created date for status_changed', () => {
 		const fm = buildTaskFrontmatter(makeTask({ created: '2026-03-15' }), noName);
-		expect(parseYaml(fm)['status_changed']).toBe("'2026-03-15'");
+		expect(parseYaml(fm)[fmKey('status_changed')]).toBe("'2026-03-15'");
 	});
 
 	it('renders recurrence and recurrence_type', () => {
@@ -231,7 +233,7 @@ describe('buildTaskFrontmatter', () => {
 
 	it('produces project type frontmatter', () => {
 		const fm = buildTaskFrontmatter(makeTask({ type: 'project', name: 'My Project' }), noName);
-		expect(fm).toContain('type: project');
+		expect(fm).toContain(`${fmKey('type')}: project`);
 	});
 
 	describe('recurrence_anchor_day (RP-1)', () => {
@@ -265,7 +267,7 @@ describe('buildTaskFrontmatter', () => {
 
 	it('marks a project type', () => {
 		const fm = buildTaskFrontmatter(makeTask({ type: 'project', name: 'My Project' }), noName);
-		expect(parseYaml(fm)['type']).toBe('project');
+		expect(parseYaml(fm)[fmKey('type')]).toBe('project');
 	});
 });
 
@@ -287,8 +289,8 @@ describe('TaskWriter.update status_changed transitions', () => {
 
 		await writer.update(file.path, { status: 'In Progress' });
 
-		expect(frontmatter.status).toBe('In Progress');
-		expect(frontmatter.status_changed).toBe('2026-05-25');
+		expect(frontmatter[fmKey('status')]).toBe('In Progress');
+		expect(frontmatter[fmKey('status_changed')]).toBe('2026-05-25');
 	});
 
 	it('does not modify status_changed when status is unchanged', async () => {
@@ -299,7 +301,7 @@ describe('TaskWriter.update status_changed transitions', () => {
 
 		await writer.update(file.path, { status: 'Active' });
 
-		expect(frontmatter.status_changed).toBe('2026-05-01');
+		expect(frontmatter[fmKey('status_changed')]).toBe('2026-05-01');
 	});
 
 	it('does not touch status_changed when status is omitted', async () => {
@@ -311,8 +313,8 @@ describe('TaskWriter.update status_changed transitions', () => {
 
 		await writer.update(file.path, { priority: 'High' });
 
-		expect(frontmatter.priority).toBe('High');
-		expect(frontmatter.status_changed).toBe('2026-05-01');
+		expect(frontmatter[fmKey('priority')]).toBe('High');
+		expect(frontmatter[fmKey('status_changed')]).toBe('2026-05-01');
 	});
 
 	it('treats empty previous status as a real transition edge case', async () => {
@@ -323,8 +325,8 @@ describe('TaskWriter.update status_changed transitions', () => {
 
 		await writer.update(file.path, { status: 'Active' });
 
-		expect(frontmatter.status).toBe('Active');
-		expect(frontmatter.status_changed).toBe('2026-05-25');
+		expect(frontmatter[fmKey('status')]).toBe('Active');
+		expect(frontmatter[fmKey('status_changed')]).toBe('2026-05-25');
 	});
 });
 

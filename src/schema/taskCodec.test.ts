@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { load } from 'js-yaml';
 import { readStoredFields, serializeNewTaskFrontmatter, writeStoredField, type ReadContext } from './taskCodec';
 import type { Task } from '../types';
+import { toStoredFrontmatter } from './taskPersistence';
 
 function makeTask(overrides: Partial<Task> = {}): Task {
 	return {
@@ -32,28 +33,29 @@ const body = (fm: string) => load(fm.replace(/^---\n/, '').replace(/\n---$/, '')
 describe('serializeNewTaskFrontmatter', () => {
 	it('emits keys in table order with cssclasses right after name', () => {
 		const keys = Object.keys(body(serializeNewTaskFrontmatter(makeTask({ area: 'Work' }), noName)));
-		expect(keys.slice(0, 4)).toEqual(['type', 'name', 'cssclasses', 'area']);
+		expect(keys.slice(0, 4)).toEqual(['ttask_type', 'ttask_name', 'cssclasses', 'ttask_area']);
 	});
 
 	it('is sparse: a bare task carries only the always-written keys', () => {
 		const keys = Object.keys(body(serializeNewTaskFrontmatter(makeTask(), noName)));
-		expect(keys).toEqual(['type', 'name', 'cssclasses', 'status', 'created', 'status_changed']);
+		expect(keys).toEqual(['ttask_type', 'ttask_name', 'cssclasses', 'ttask_status', 'ttask_created', 'ttask_status_changed']);
 	});
 
 	it('a task is born incomplete with no dependents, whatever the input says', () => {
 		const fm = body(serializeNewTaskFrontmatter(makeTask({ blocks: ['x.md'], completed: '2026-06-01' }), noName));
 		expect(fm).not.toHaveProperty('blocks');
-		expect(fm).not.toHaveProperty('completed');
+		expect(fm).not.toHaveProperty('ttask_blocks');
+		expect(fm).not.toHaveProperty('ttask_completed');
 	});
 
 	it('omits the neutral priority but keeps a real one', () => {
-		expect(body(serializeNewTaskFrontmatter(makeTask({ priority: 'None' }), noName))).not.toHaveProperty('priority');
-		expect(body(serializeNewTaskFrontmatter(makeTask({ priority: 'High' }), noName))).toHaveProperty('priority', 'High');
+		expect(body(serializeNewTaskFrontmatter(makeTask({ priority: 'None' }), noName))).not.toHaveProperty('ttask_priority');
+		expect(body(serializeNewTaskFrontmatter(makeTask({ priority: 'High' }), noName))).toHaveProperty('ttask_priority', 'High');
 	});
 
 	it('seeds status_changed from created', () => {
 		const fm = body(serializeNewTaskFrontmatter(makeTask({ created: '2026-05-20', status_changed: '2030-01-01' }), noName));
-		expect(fm.status_changed).toBe('2026-05-20');
+		expect(fm.ttask_status_changed).toBe('2026-05-20');
 	});
 
 	it('emits the anchor key only when the task carries one', () => {
@@ -87,7 +89,7 @@ describe('write → read round-trip', () => {
 
 describe('writeStoredField', () => {
 	it('removes the key when the value is blank, sets it otherwise', () => {
-		const fm: Record<string, unknown> = { due_date: '2026-01-01', labels: ['a'], priority: 'High', workweek_only: true };
+		const fm = toStoredFrontmatter({ due_date: '2026-01-01', labels: ['a'], priority: 'High', workweek_only: true });
 		writeStoredField(fm, 'due_date', null);
 		writeStoredField(fm, 'labels', []);
 		writeStoredField(fm, 'priority', 'None');
@@ -95,25 +97,25 @@ describe('writeStoredField', () => {
 		expect(fm).toEqual({});
 		writeStoredField(fm, 'due_date', '2026-02-02');
 		writeStoredField(fm, 'priority', 'Low');
-		expect(fm).toEqual({ due_date: '2026-02-02', priority: 'Low' });
+		expect(fm).toEqual(toStoredFrontmatter({ due_date: '2026-02-02', priority: 'Low' }));
 	});
 
 	it('keeps an always-written key, taking null instead of vanishing', () => {
-		const fm: Record<string, unknown> = { status_changed: '2026-01-01' };
+		const fm = toStoredFrontmatter({ status_changed: '2026-01-01' });
 		writeStoredField(fm, 'status_changed', null);
-		expect(fm).toEqual({ status_changed: null });
+		expect(fm).toEqual(toStoredFrontmatter({ status_changed: null }));
 	});
 
 	it('treats zero as a value, not blank', () => {
 		const fm: Record<string, unknown> = {};
 		writeStoredField(fm, 'estimated_days', 0);
-		expect(fm).toEqual({ estimated_days: 0 });
+		expect(fm).toEqual(toStoredFrontmatter({ estimated_days: 0 }));
 	});
 });
 
 describe('sparse notes read back as the blank task', () => {
 	it('a note with only the core keys decodes to every default', () => {
-		const read = readStoredFields({ type: 'task', name: 'Bare', status: 'Active', created: '2026-05-20', status_changed: '2026-05-20' }, ctx);
+		const read = readStoredFields(toStoredFrontmatter({ type: 'task', name: 'Bare', status: 'Active', created: '2026-05-20', status_changed: '2026-05-20' }), ctx);
 		expect(read).toMatchObject({
 			area: null, priority: 'None', labels: [], parent_task: null, depends_on: [],
 			blocked_reason: '', assigned_to: '', source: '', start_date: null, due_date: null, due_time: null,
@@ -125,12 +127,12 @@ describe('sparse notes read back as the blank task', () => {
 
 describe('readStoredFields', () => {
 	it('falls back for unknown enum values and tolerates a missing key', () => {
-		const read = readStoredFields({ type: 'weird', status: 'Nope', priority: 'urgent!' }, ctx);
+		const read = readStoredFields(toStoredFrontmatter({ type: 'weird', status: 'Nope', priority: 'urgent!' }), ctx);
 		expect(read).toMatchObject({ type: 'task', status: 'Active', priority: 'None', labels: [], depends_on: [], estimated_days: null });
 	});
 
 	it('accepts a bare scalar where a list is expected', () => {
-		const read = readStoredFields({ labels: 'feature', depends_on: '[[Tasks/a-1]]' }, ctx);
+		const read = readStoredFields(toStoredFrontmatter({ labels: 'feature', depends_on: '[[Tasks/a-1]]' }), ctx);
 		expect(read.labels).toEqual(['feature']);
 		expect(read.depends_on).toEqual(['Tasks/a-1.md']);
 	});

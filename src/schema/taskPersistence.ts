@@ -9,9 +9,10 @@ import type { Task } from '../types';
  * AR-3 exists for: the reader, the creation-time YAML builder, and `update()`
  * used to each carry their own hand-kept list of field names.
  *
- * MD-1 (`ttask_*` prefix) and MD-2 (sparse writes) build on this: `fmKey` is the
- * single place a key is renamed, and `onCreate` is the single place a field
- * becomes "omit when empty".
+ * Keys carry the `ttask_` prefix (MD-1) so the plugin's properties don't pollute
+ * Obsidian's vault-wide property suggestions or collide with other plugins'
+ * conventions. `fmKey` is the single place a key is named; `onCreate` is the
+ * single place a field becomes "omit when empty" (MD-2).
  *
  * Pure module — no Obsidian imports.
  */
@@ -85,41 +86,41 @@ export const TASK_PERSISTENCE: Record<keyof Task, FieldPersistence> = {
 	// Reverse index of `depends_on`, derived at load by `deriveBlocks` (MD-3) — never stored.
 	blocks: derived,
 
-	type: core(createOnly('type', 'recordType')),
-	name: core(editable('name', 'title')),
-	area: editable('area', 'textOrNull'),
-	status: core(editable('status', 'status')),
-	priority: editable('priority', 'priority'),
-	labels: editable('labels', 'strings'),
+	type: core(createOnly('ttask_type', 'recordType')),
+	name: core(editable('ttask_name', 'title')),
+	area: editable('ttask_area', 'textOrNull'),
+	status: core(editable('ttask_status', 'status')),
+	priority: editable('ttask_priority', 'priority'),
+	labels: editable('ttask_labels', 'strings'),
 
 	// Relationships are rewritten by the relationship services, not by `update`.
-	parent_task: createOnly('parent_task', 'link'),
-	depends_on: createOnly('depends_on', 'links'),
-	blocked_reason: editable('blocked_reason', 'text'),
+	parent_task: createOnly('ttask_parent_task', 'link'),
+	depends_on: createOnly('ttask_depends_on', 'links'),
+	blocked_reason: editable('ttask_blocked_reason', 'text'),
 
-	assigned_to: editable('assigned_to', 'text'),
-	source: editable('source', 'text'),
+	assigned_to: editable('ttask_assigned_to', 'text'),
+	source: editable('ttask_source', 'text'),
 
-	start_date: editable('start_date', 'date'),
-	due_date: editable('due_date', 'date'),
-	due_time: editable('due_time', 'time'),
-	estimated_days: editable('estimated_days', 'number'),
-	workweek_only: editable('workweek_only', 'flag'),
-	holiday_dates: editable('holiday_dates', 'dates'),
+	start_date: editable('ttask_start_date', 'date'),
+	due_date: editable('ttask_due_date', 'date'),
+	due_time: editable('ttask_due_time', 'time'),
+	estimated_days: editable('ttask_estimated_days', 'number'),
+	workweek_only: editable('ttask_workweek_only', 'flag'),
+	holiday_dates: editable('ttask_holiday_dates', 'dates'),
 
-	created: core(createOnly('created', 'date')),
+	created: core(createOnly('ttask_created', 'date')),
 	// A task is born incomplete.
-	completed: editable('completed', 'date', 'blank'),
+	completed: editable('ttask_completed', 'date', 'blank'),
 	// Stamped on creation and on every real status transition inside `update`.
-	status_changed: core(createOnly('status_changed', 'date', 'created')),
+	status_changed: core(createOnly('ttask_status_changed', 'date', 'created')),
 
-	pomodoro_count: lazy('pomodoro_count', 'number'),
-	focused_minutes: lazy('focused_minutes', 'number'),
+	pomodoro_count: lazy('ttask_pomodoro_count', 'number'),
+	focused_minutes: lazy('ttask_focused_minutes', 'number'),
 
 	recurrence: editable('recurrence', 'textOrNull'),
 	recurrence_type: editable('recurrence_type', 'textOrNull'),
 	recurrence_anchor_day: editable('recurrence_anchor_day', 'number'),
-	reminder_override: lazy('reminder_override', 'reminder'),
+	reminder_override: lazy('ttask_reminder_override', 'reminder'),
 };
 
 /**
@@ -134,11 +135,26 @@ export function fmKey(field: keyof Task): string {
 	return key;
 }
 
+/**
+ * Translate a field-named object to the keys it is stored under — `{ due_date }`
+ * becomes `{ [fmKey('due_date')]: … }`. Keys that aren't stored `Task` fields pass
+ * through unchanged. Lets tests and fixtures be written in field names and stay
+ * correct across a key rename.
+ */
+export function toStoredFrontmatter(fields: Record<string, unknown>): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
+	for (const [field, value] of Object.entries(fields)) {
+		const key = (TASK_PERSISTENCE as Record<string, FieldPersistence | undefined>)[field]?.fmKey;
+		out[key ?? field] = value;
+	}
+	return out;
+}
+
 /** Frontmatter keys the plugin owns that are not `Task` fields. */
 export const EXTRA_FM_KEYS = {
 	/** Obsidian-native property that scopes `styles.css`; never prefixed. */
 	cssclasses: 'cssclasses',
-	archiveHistory: 'archive_history',
+	archiveHistory: 'ttask_archive_history',
 } as const;
 
 /**

@@ -3,7 +3,7 @@ import { buildStatusPolicy } from '../settings/statusPolicy';
 import { TFile } from 'obsidian';
 import { TaskStore } from './TaskStore';
 import type { Task } from '../types';
-import { TASK_PERSISTENCE } from '../schema/taskPersistence';
+import { TASK_PERSISTENCE, toStoredFrontmatter } from '../schema/taskPersistence';
 
 /**
  * Obsidian lets a user set any frontmatter property's *type* (Text / List /
@@ -56,7 +56,8 @@ async function parseFrontmatter(frontmatter: Record<string, unknown>): Promise<T
 	const plugin = {
 		app: {
 			metadataCache: {
-				getFileCache: () => ({ frontmatter, frontmatterPosition: { end: { offset: 0 } } }),
+				// Fixtures are field-named; serve them under their real keys.
+				getFileCache: () => ({ frontmatter: toStoredFrontmatter(frontmatter), frontmatterPosition: { end: { offset: 0 } } }),
 				getFirstLinkpathDest: () => null,
 			},
 			vault: { cachedRead: async () => '' },

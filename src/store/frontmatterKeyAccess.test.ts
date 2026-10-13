@@ -8,11 +8,8 @@ import { EXTRA_FM_KEYS, TASK_PERSISTENCE, fmKey } from '../schema/taskPersistenc
  * `EXTRA_FM_KEYS`, never a literal — so MD-1's rename is an edit to
  * `TASK_PERSISTENCE` alone. A literal here would silently keep reading the old
  * name after the cutover.
- *
- * `TaskMigrations` is exempt: it is dev-era code that names *legacy* keys on
- * purpose and is deleted by MD-4.
  */
-const EXEMPT = new Set(['TaskMigrations.ts']);
+const EXEMPT = new Set<string>();
 
 const storedKeys = [
 	...Object.values(TASK_PERSISTENCE).flatMap((p) => (p.fmKey === null ? [] : [p.fmKey])),

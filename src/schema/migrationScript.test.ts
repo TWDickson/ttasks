@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import {
 	CORE_FIELDS, KEY_MAP, applyPlanToObject, isBlank, planMigration, verifyMigration,
 } from '../../Scripts/lib/schemaMigration.mjs';
-import { TASK_PERSISTENCE } from './taskPersistence';
+import { EXTRA_FM_KEYS, TASK_PERSISTENCE } from './taskPersistence';
 import { REPEAT_KEYS, normalizeRepeat, repeatToFrontmatter } from '../repeat/normalize';
 import { ruleFromLegacy } from '../repeat/legacy';
 import type { Task } from '../types';
@@ -29,8 +29,12 @@ describe('KEY_MAP vs. the persistence table', () => {
 
 	it('renames exactly the stored fields, each to ttask_<field>', () => {
 		expect(Object.keys(KEY_MAP).filter((k) => k !== 'archive_history').sort()).toEqual([...renamed].sort());
-		for (const f of renamed) expect(KEY_MAP[f as keyof typeof KEY_MAP]).toBe(`ttask_${f}`);
-		expect(KEY_MAP.archive_history).toBe('ttask_archive_history');
+		for (const f of renamed) {
+			expect(KEY_MAP[f as keyof typeof KEY_MAP]).toBe(`ttask_${f}`);
+			// …and that is the key the plugin actually reads and writes.
+			expect(KEY_MAP[f as keyof typeof KEY_MAP]).toBe(TASK_PERSISTENCE[f].fmKey);
+		}
+		expect(KEY_MAP.archive_history).toBe(EXTRA_FM_KEYS.archiveHistory);
 	});
 
 	it('treats as core exactly the fields the table says are always written', () => {
