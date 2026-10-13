@@ -99,6 +99,7 @@ ttask_pomodoro_count: number
 ttask_focused_minutes: number
 ttask_reminder_override: urgent | mute
 ttask_archive_history: [...]
+ttask_repeat_of: '[[path/without/ext|Name]]'   # spawned instances only
 ttask_repeat_every: number          # presence = repeats; see src/repeat/normalize.ts
 ttask_repeat_unit: day | week | month | year
 # optional: _weekdays, _monthday, _month, _nth, _nth_target, _basis, _roll, _until, _count
@@ -124,7 +125,10 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
 - `parent_task` — the project this task belongs to
 - `repeat` — a `RepeatRule` (`src/repeat/`), stored as the `ttask_repeat_*` key
   group. `nextOccurrence` is anchor-based; a fixed monthly/yearly rule pins
-  `monthday`, and rescheduling the due date moves the pin (RP-1)
+  `monthday`, and rescheduling the due date moves the pin (RP-1). Spawned
+  instances carry `repeat_of` (`ttask_repeat_of`), the series link the
+  duplicate guard matches (RP-3) — note it shares the `ttask_repeat_` prefix
+  but is not part of the rule's key group
 - Wiki-links stored with aliases (`[[path|Name]]`) so they display human names in
   native Obsidian views
 
@@ -139,6 +143,9 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
   (`src/schema/taskPersistence.ts`), so the `ttask_*` rename is one table edit.
   `frontmatterKeyAccess.test.ts` fails on a literal in `src/store/`.
 - Settings accessed via `this.plugin.settings.tasksFolder`
+- **Per-device state goes through `plugin.deviceStore`** (`src/utils/deviceStore.ts`,
+  Obsidian's vault-scoped `loadLocalStorage`), never raw `localStorage` — a
+  boundary test enforces it. Needs Obsidian ≥ 1.8.7 (`minAppVersion`).
 - Dates are **local calendar dates**; `dateUtils.ts` documents the hybrid
   local-date/UTC-arithmetic policy. No bare `new Date()` outside the boundary.
 - **No legacy keys.** The plugin reads only `ttask_*`. An unconverted vault is

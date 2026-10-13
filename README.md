@@ -108,7 +108,7 @@ Or install manually: download `main.js`, `manifest.json`, and `styles.css` from
 the [latest release](https://github.com/TWDickson/ttasks/releases/latest) into
 `<vault>/.obsidian/plugins/ttasks/`, then reload Obsidian.
 
-Requires Obsidian **1.7.2** or newer.
+Requires Obsidian **1.8.7** or newer.
 
 ## Getting started
 
@@ -167,10 +167,10 @@ Free-form notes go here. The plugin renders all structured UI on top.
 - **Repeats** are a small group of `ttask_repeat_*` keys — `every` + `unit`
   (`day` / `week` / `month` / `year`), plus optional `weekdays`, `monthday`
   (a number or `last`), `month`, `nth` + `nth_target` ("first working day"),
-  `basis: completion`, `roll`, `until` and `count`. The task pane sets the common
-  ones; anything richer can be written by hand and shows as "Custom". A
-  combination that doesn't make sense is ignored with a warning on the task,
-  never guessed at.
+  `basis: completion`, `roll`, `until` and `count`. The task pane offers the
+  common presets and a **Custom…** builder for the rest, with a preview of the
+  next dates. A hand-edited combination that doesn't make sense is ignored with a
+  warning on the task, never guessed at.
 - Wiki-links are stored with aliases (`[[path|Name]]`) so they read as human names
   in Obsidian's own link views and graph.
 - **Statuses, priorities, areas, and labels are configurable** in settings. The

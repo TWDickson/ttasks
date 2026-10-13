@@ -12,6 +12,32 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-13 — RP-3, PB-2 and the repeat builder (→ 0.2.1)
+
+- **RP-3:** spawned instances carry `ttask_repeat_of` (link to the instance they
+  came from). The duplicate-spawn guard matches it, so a rename no longer
+  defeats it; instances spawned earlier fall back to name + series. The rename
+  rewriter keeps the link current and delete clears it. No migration — the key
+  only appears on new spawns. Gotcha found on the way: `ttask_repeat_of` shares
+  the `ttask_repeat_` prefix with the rule group but isn't part of it; the codec
+  clears the group by its exact key list, never by prefix.
+- **PB-2:** `DeviceStore` (pure port) over Obsidian's vault-scoped
+  `loadLocalStorage` / `saveLocalStorage` for fired reminders, snoozes and the
+  quick-create prefs — replacing hand-built `…-<vault name>` keys and two keys
+  that leaked across vaults. `migrateLegacyDeviceStorage` copies old raw entries
+  into empty slots once and removes them. That API arrived in Obsidian 1.8.7, so
+  `minAppVersion` went 1.7.2 → 1.8.7 (single user, on 1.13 — no fallback shim).
+  A boundary test now fails on raw `localStorage` anywhere but the hand-off.
+- **RP-2 builder:** `src/repeat/builder.ts` maps a flat form state to a rule and
+  validates through `normalizeRepeat`, so it can't save what the reader rejects;
+  `RepeatBuilder.svelte` is plugin-free (callbacks only) with a component test.
+  Inline in the pane via "Custom…" / Edit. Rig caught two things: the theme's
+  fixed select height clipped the builder's selects (fixed with the
+  `SelectField` treatment + `height: auto`, the CLAUDE.md theme trap), and Repeat
+  Type duplicated the builder's "Counts from" (hidden while building).
+- **Cleanup deferred:** the vault hadn't been migrated yet (checked read-only),
+  so the script stays until it has.
+
 ## 2026-10-13 — The `ttask_*` cutover (MD-1, RP wiring, unmigrated-vault guard)
 
 Three commits on top of MD-0/2/3, RP-core and the migration script. The plugin
