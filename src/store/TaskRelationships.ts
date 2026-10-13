@@ -65,7 +65,7 @@ export class TaskRelationships {
 						return rewriteWikiLinkValue(val, linkRegex, newClean);
 					};
 
-					for (const key of [fmKey('parent_task'), fmKey('blocked_reason')]) {
+					for (const key of [fmKey('parent_task'), fmKey('repeat_of'), fmKey('blocked_reason')]) {
 						if (typeof frontmatter[key] === 'string' && frontmatter[key].includes(oldClean)) {
 							frontmatter[key] = rewriteLink(frontmatter[key]);
 						}
@@ -106,6 +106,13 @@ export class TaskRelationships {
 			let changed = false;
 			try {
 				await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+					// A link to the deleted note's spawn source just goes: the series
+					// guard falls back to name + rule for this instance.
+					if (parseWikiLink(frontmatter[fmKey('repeat_of')]) === deletedClean) {
+						writeStoredField(frontmatter, 'repeat_of', null);
+						changed = true;
+					}
+
 					const currentParent = parseWikiLink(frontmatter[fmKey('parent_task')]);
 					if (currentParent === deletedClean) {
 						writeStoredField(frontmatter, 'parent_task', null);

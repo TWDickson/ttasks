@@ -74,6 +74,7 @@ describe('write → read round-trip', () => {
 			start_date: '2026-01-02', due_date: '2026-02-03', due_time: '09:30', estimated_days: 2.5,
 			workweek_only: true, holiday_dates: ['2026-07-04'],
 			repeat: { every: 2, unit: 'week', weekdays: ['mon', 'wed'], basis: 'completion', until: '2026-12-31', count: 4 },
+			repeat_of: 'Tasks/prev-1',
 		});
 		const read = readStoredFields(body(serializeNewTaskFrontmatter(task, noName)), ctx);
 		expect(read).toMatchObject({
@@ -84,6 +85,7 @@ describe('write → read round-trip', () => {
 			workweek_only: true, holiday_dates: ['2026-07-04'],
 			repeat: { every: 2, unit: 'week', weekdays: ['mon', 'wed'], basis: 'completion', until: '2026-12-31', count: 4 },
 			repeat_warning: null,
+			repeat_of: 'Tasks/prev-1.md',
 			created: '2026-05-20', completed: null, status_changed: '2026-05-20',
 		});
 	});

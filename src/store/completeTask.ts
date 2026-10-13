@@ -10,6 +10,7 @@
 import type { Task } from '../types';
 import type { RepeatCalendar, RepeatRule } from '../repeat/types';
 import { nextOccurrence } from '../repeat/next';
+import { normalizeRefPath } from '../utils/taskRef';
 
 export interface CompleteTaskDeps {
 	completionStatus: string;
@@ -36,8 +37,10 @@ export function sameSeries(a: RepeatRule | null, b: RepeatRule | null): boolean 
  *
  * - No repeat rule, or the series has ended (`until` passed, no `count` left)
  *   → `complete-only`.
- * - Repeating, but an open instance already exists (same name and series, due
- *   on/after the computed next date) → `complete-only`. This is the idempotence
+ * - Repeating, but an open instance already exists → `complete-only`. That is an
+ *   open task whose `repeat_of` points here (RP-3 — survives renames), or, for
+ *   instances spawned before that link existed, one with the same name and
+ *   series due on/after the computed next date. This is the idempotence
  *   guard that makes checklist re-checks and kanban drag jitter safe: it
  *   *prevents* the duplicate spawn rather than cleaning it up afterwards.
  * - Otherwise → `complete-and-recur`, with the next due date and the rule the
@@ -58,13 +61,19 @@ export function decideCompletion(task: Task, deps: CompleteTaskDeps): CompleteTa
 	const nextDue = nextOccurrence(rule, anchor, anchor, deps.calendar);
 	if (nextDue === null) return { kind: 'complete-only', updates };
 
+	const self = normalizeRefPath(task.path);
 	const alreadySpawned = deps.allTasks.some((candidate) =>
 		candidate.path !== task.path &&
 		!candidate.is_complete &&
-		candidate.name === task.name &&
-		sameSeries(candidate.repeat, rule) &&
-		candidate.due_date != null &&
-		candidate.due_date >= nextDue,
+		(
+			// Stable identity (RP-3): this instance already has an open child.
+			(candidate.repeat_of != null && normalizeRefPath(candidate.repeat_of) === self) ||
+			// Fallback for instances spawned before the link existed.
+			(candidate.name === task.name &&
+				sameSeries(candidate.repeat, rule) &&
+				candidate.due_date != null &&
+				candidate.due_date >= nextDue)
+		),
 	);
 	if (alreadySpawned) return { kind: 'complete-only', updates };
 

@@ -63,6 +63,11 @@ export interface Task {
 	// 'urgent': bypass quiet hours; 'mute': suppress all reminders for this task
 	reminder_override?: 'urgent' | 'mute' | null;
 
+	// The instance this one was spawned from (RP-3), as a path. Stable series
+	// identity: the duplicate-spawn guard matches on it, so renaming a repeating
+	// task can't make it spawn twice. Set only on spawned instances.
+	repeat_of?: string | null;
+
 	// Derived flags — computed at load time, not stored in frontmatter
 	is_complete: boolean;
 	is_inbox: boolean;  // true when area is null (task hasn't been classified into a line of work)

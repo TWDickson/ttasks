@@ -124,6 +124,9 @@ export const TASK_PERSISTENCE: Record<keyof Task, FieldPersistence> = {
 	repeat: editable(REPEAT_KEYS.every, 'repeat'),
 	repeat_warning: derived,
 	reminder_override: lazy('ttask_reminder_override', 'reminder'),
+	// Written once when completion spawns the next instance; kept current by the
+	// rename/delete link rewriters, never by `update`.
+	repeat_of: createOnly('ttask_repeat_of', 'link'),
 };
 
 /**

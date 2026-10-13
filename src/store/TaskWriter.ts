@@ -399,6 +399,7 @@ export class TaskWriter {
 			// The rule is inherited as-is (its pinned day included, so a clamped Feb 28
 			// doesn't become the new pin — RP-1), with `count` already decremented.
 			repeat:          decision.nextRule,
+			repeat_of:       task.path,
 		};
 
 		return this.create(nextInput);

@@ -23,10 +23,10 @@ const fm = (extra: Record<string, unknown> = {}) => ({
 });
 
 describe('KEY_MAP vs. the persistence table', () => {
-	// `blocks` is derived (MD-3) and `repeat` is converted from the recurrence trio
-	// (RP); neither is a plain rename.
+	// `blocks` is derived (MD-3), `repeat` is converted from the recurrence trio
+	// (RP) and `repeat_of` is new (RP-3); none is a plain rename.
 	const renamed = (Object.keys(TASK_PERSISTENCE) as (keyof Task)[]).filter(
-		(f) => TASK_PERSISTENCE[f].fmKey !== null && f !== 'blocks' && f !== 'repeat',
+		(f) => TASK_PERSISTENCE[f].fmKey !== null && f !== 'blocks' && f !== 'repeat' && f !== 'repeat_of',
 	);
 
 	it('renames exactly the stored fields, each to ttask_<field>', () => {
@@ -165,7 +165,7 @@ describe('a migrated note reads back through the plugin\'s own codec', () => {
 			blocked_reason: 'waiting', assigned_to: 'me', source: 'email', start_date: '2026-01-02', due_date: '2026-01-31',
 			due_time: '09:30', estimated_days: 0, workweek_only: true, holiday_dates: ['2026-07-04'],
 			created: '2026-01-01', completed: null, status_changed: '2026-01-05',
-			repeat: { every: 1, unit: 'month', monthday: 31 }, repeat_warning: null,
+			repeat: { every: 1, unit: 'month', monthday: 31 }, repeat_warning: null, repeat_of: null,
 			pomodoro_count: 3, focused_minutes: 75, reminder_override: 'urgent',
 		});
 	});

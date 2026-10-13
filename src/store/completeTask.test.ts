@@ -138,6 +138,24 @@ describe('decideCompletion', () => {
 			expect(decideCompletion(base(), { ...DEPS, allTasks: [base(), stale] }).kind).toBe('complete-and-recur');
 		});
 
+		it('RP-3: a renamed open child still counts — matched by its repeat_of link', () => {
+			const renamed = makeTask({
+				path: 'Tasks/def456-water-the-ferns.md', name: 'Water the ferns', repeat: WEEKLY,
+				due_date: '2026-04-23', repeat_of: 'Tasks/abc123-task.md',
+			});
+			expect(decideCompletion(base(), { ...DEPS, allTasks: [base(), renamed] }).kind).toBe('complete-only');
+		});
+
+		it('RP-3: matches the link with or without the .md extension', () => {
+			const child = makeTask({ path: 'Tasks/def456-x.md', name: 'X', repeat: WEEKLY, due_date: '2026-04-23', repeat_of: 'Tasks/abc123-task' });
+			expect(decideCompletion(base(), { ...DEPS, allTasks: [base(), child] }).kind).toBe('complete-only');
+		});
+
+		it('RP-3: a completed child does not block the next spawn', () => {
+			const child = makeTask({ path: 'Tasks/def456-x.md', repeat: WEEKLY, due_date: '2026-04-23', repeat_of: 'Tasks/abc123-task.md', is_complete: true });
+			expect(decideCompletion(base(), { ...DEPS, allTasks: [base(), child] }).kind).toBe('complete-and-recur');
+		});
+
 		it('does not treat the task itself as an existing instance', () => {
 			const task = makeTask({ repeat: WEEKLY, due_date: '2026-05-01' });
 			expect(decideCompletion(task, { ...DEPS, allTasks: [task] }).kind).toBe('complete-and-recur');
