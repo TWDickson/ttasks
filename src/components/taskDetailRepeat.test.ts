@@ -12,8 +12,11 @@ describe('repeat menu', () => {
 		expect(repeatMenuValue(custom)).toBe(CUSTOM_REPEAT);
 	});
 
-	it('adds a described Custom entry only for a custom rule', () => {
-		expect(repeatMenuOptions(null, REPEAT_PRESETS).options).toEqual([...REPEAT_PRESETS]);
+	it('always offers Custom…, describing the rule when it is a custom one', () => {
+		const plain = repeatMenuOptions(null, REPEAT_PRESETS);
+		expect(plain.options).toEqual([...REPEAT_PRESETS, CUSTOM_REPEAT]);
+		expect(plain.labels[CUSTOM_REPEAT]).toBe('Custom…');
+		expect(repeatMenuOptions({ every: 1, unit: 'week' }, REPEAT_PRESETS).labels[CUSTOM_REPEAT]).toBe('Custom…');
 		const { options, labels } = repeatMenuOptions(custom, REPEAT_PRESETS);
 		expect(options.at(-1)).toBe(CUSTOM_REPEAT);
 		expect(labels[CUSTOM_REPEAT]).toBe('Custom — Every 2 weeks on Mon, Wed');

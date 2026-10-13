@@ -20,23 +20,20 @@ export function repeatMenuValue(rule: RepeatRule | null): string {
 	return presetOf(rule) ?? CUSTOM_REPEAT;
 }
 
+/** The presets, then "Custom…" — which names the rule when it is one. */
 export function repeatMenuOptions(rule: RepeatRule | null, presets: readonly string[]): { options: string[]; labels: Record<string, string> } {
-	const labels: Record<string, string> = { ...REPEAT_PRESET_LABELS };
-	if (rule && presetOf(rule) === null) {
-		labels[CUSTOM_REPEAT] = `Custom — ${describeRepeat(rule)}`;
-		return { options: [...presets, CUSTOM_REPEAT], labels };
-	}
-	return { options: [...presets], labels };
+	const custom = rule && presetOf(rule) === null ? `Custom — ${describeRepeat(rule)}` : 'Custom…';
+	return { options: [...presets, CUSTOM_REPEAT], labels: { ...REPEAT_PRESET_LABELS, [CUSTOM_REPEAT]: custom } };
 }
 
-/** The rule after picking `choice` from the menu; `undefined` means "no change". */
+/** The rule after picking `choice` from the menu; `undefined` means "no change" (Custom opens the builder instead). */
 export function ruleForMenuChoice(
 	rule: RepeatRule | null,
 	choice: string,
 	dueDate: string | null,
 ): RepeatRule | null | undefined {
 	if (choice === '') return null;
-	if (!isRepeatPreset(choice)) return undefined; // "custom" re-selected: keep it
+	if (!isRepeatPreset(choice)) return undefined; // Custom…: the builder takes over
 	return ruleFromPreset(choice, basisName(rule), dueDate);
 }
 

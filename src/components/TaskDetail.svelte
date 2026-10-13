@@ -7,7 +7,8 @@
 	import type { TaskStore } from '../store/TaskStore';
 	import { REPEAT_BASES, REPEAT_BASIS_LABELS, basisName, type RepeatBasisName } from '../repeat/presets';
 	import { repeatCalendarFromHolidays, type RepeatRule } from '../repeat/types';
-	import { previewOccurrences, repeatMenuOptions, repeatMenuValue, ruleForBasisChoice, ruleForMenuChoice } from './taskDetailRepeat';
+	import { CUSTOM_REPEAT, previewOccurrences, repeatMenuOptions, repeatMenuValue, ruleForBasisChoice, ruleForMenuChoice } from './taskDetailRepeat';
+	import RepeatBuilder from './RepeatBuilder.svelte';
 	import { localDateString } from '../utils/dateUtils';
 	import { today } from '../utils/todayStore';
 	import { buildTaskSchedule, resolveProjectedSchedule } from '../store/taskSchedule';
@@ -299,11 +300,32 @@
 		void saveController.saveImmediate({ holiday_dates: parseHolidayDates(nextValue) });
 	}
 
+	let repeatBuilderOpen = false;
+
 	function onRepeatMenuChange(nextValue: string): void {
+		if (nextValue === CUSTOM_REPEAT) {
+			repeatBuilderOpen = true;
+			return;
+		}
 		const next = ruleForMenuChoice(repeat, nextValue, due_date || null);
 		if (next === undefined) return;
+		repeatBuilderOpen = false;
 		repeat = next;
 		void saveController.saveImmediate({ repeat: next });
+	}
+
+	function onRepeatBuilderSave(next: RepeatRule): void {
+		repeatBuilderOpen = false;
+		repeat = next;
+		void saveController.saveImmediate({ repeat: next });
+	}
+
+	// A different task in the pane closes a builder left open on the last one
+	// (keyed on the path: the task object itself is replaced on every save).
+	let repeatBuilderPath: string | null = null;
+	$: if ((task?.path ?? null) !== repeatBuilderPath) {
+		repeatBuilderPath = task?.path ?? null;
+		repeatBuilderOpen = false;
 	}
 
 	function onRepeatBasisChange(nextValue: string): void {
@@ -697,25 +719,42 @@
 			<label class="tt-label" for="repeat">Repeats</label>
 			{#if repeatFieldProps}
 				<div class="tt-repeat-field">
-					<SelectField
-						definition={repeatFieldProps.definition}
-						error={repeatFieldProps.error}
-						readonly={repeatFieldProps.readonly}
-						value={repeatMenuValue(repeat)}
-						options={repeatMenu.options}
-						optionLabels={repeatMenu.labels}
-						onChange={onRepeatMenuChange}
-					/>
+					<!-- Re-keyed when the builder closes, so a cancelled "Custom…" pick snaps the menu back to the real rule. -->
+					{#key repeatBuilderOpen}
+						<SelectField
+							definition={repeatFieldProps.definition}
+							error={repeatFieldProps.error}
+							readonly={repeatFieldProps.readonly}
+							value={repeatBuilderOpen ? CUSTOM_REPEAT : repeatMenuValue(repeat)}
+							options={repeatMenu.options}
+							optionLabels={repeatMenu.labels}
+							onChange={onRepeatMenuChange}
+						/>
+					{/key}
 					{#if task.repeat_warning}
 						<span class="tt-chip-warning tt-repeat-warning" title={task.repeat_warning}>Repeat ignored: {task.repeat_warning}</span>
 					{/if}
-					{#if repeatPreview.length > 0}
-						<span class="tt-repeat-preview">Next: {repeatPreview.map((d) => formatHumanDate(d, $today)).join(' · ')}</span>
+					{#if repeatBuilderOpen}
+						<RepeatBuilder
+							rule={repeat}
+							dueDate={due_date || null}
+							today={$today}
+							calendar={repeatCalendar}
+							onSave={onRepeatBuilderSave}
+							onCancel={() => (repeatBuilderOpen = false)}
+						/>
+					{:else if repeat}
+						<div class="tt-repeat-meta">
+							{#if repeatPreview.length > 0}
+								<span class="tt-repeat-preview">Next: {repeatPreview.map((d) => formatHumanDate(d, $today)).join(' · ')}</span>
+							{/if}
+							<button type="button" class="tt-btn tt-btn-sm tt-repeat-edit" on:click={() => (repeatBuilderOpen = true)}>Edit</button>
+						</div>
 					{/if}
 				</div>
 			{/if}
 
-			{#if repeat}
+			{#if repeat && !repeatBuilderOpen}
 				<label class="tt-label" for="repeat_basis">Repeat Type</label>
 				<SelectField
 					definition={{ name: 'repeat', label: '', type: 'select' }}
@@ -934,6 +973,14 @@
 	.tt-repeat-preview {
 		font-size: 0.72rem;
 		color: var(--text-muted);
+	}
+
+	.tt-repeat-meta {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--tt-space-1, 4px);
+		flex-wrap: wrap;
 	}
 
 	.tt-repeat-warning {

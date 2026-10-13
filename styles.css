@@ -450,6 +450,14 @@ button.tt-btn-danger {
 	min-height: 28px;
 }
 
+/* A toggle button that is on (e.g. the repeat builder's weekday chips). Compound
+   selector so a theme's bare `button` rules don't win. */
+button.tt-btn[aria-pressed="true"] {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
 /* Empty-state pattern */
 .tt-empty {
 	padding: var(--size-4-8, 32px) var(--tt-space-4, 16px);
