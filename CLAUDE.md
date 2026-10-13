@@ -65,37 +65,48 @@ collision fails loudly rather than drifting to the next free port).
 
 ## File format
 
-Tasks stored as `{6hex}-{slug}.md`. The `name` frontmatter field is the
-human-readable title.
+Tasks stored as `{6hex}-{slug}.md`. The `ttask_name` property is the
+human-readable title. Every plugin property is prefixed `ttask_` (MD-1);
+`TASK_PERSISTENCE` in `src/schema/taskPersistence.ts` is the single source of
+key names.
 
 ```yaml
 ---
-type: task | project
-name: "Human readable name"
+ttask_type: task | project
+ttask_name: "Human readable name"
 cssclasses: [ttask]
-area: string | null
-status: Active | Future | In Progress | Hold | Blocked | Cancelled | Done
-priority: High | Medium | Low | None
-labels:
+ttask_area: string
+ttask_status: Active | Future | In Progress | Hold | Blocked | Cancelled | Done
+ttask_priority: High | Medium | Low      # absent = None
+ttask_labels:
   - feature | bug | research | docs | action | <custom>
-parent_task: '[[path/without/ext|Name]]' | null
-depends_on:
+ttask_parent_task: '[[path/without/ext|Name]]'
+ttask_depends_on:
   - '[[path/without/ext|Name]]'
-blocked_reason: ""
-assigned_to: ""
-source: ""
-start_date: 'YYYY-MM-DD' | null
-due_date: 'YYYY-MM-DD' | null
-estimated_days: number | null
-created: 'YYYY-MM-DD'
-completed: 'YYYY-MM-DD' | null
-status_changed: 'YYYY-MM-DD' | null
-recurrence_anchor_day: number | null
+ttask_blocked_reason: ""
+ttask_assigned_to: ""
+ttask_source: ""
+ttask_start_date: 'YYYY-MM-DD'
+ttask_due_date: 'YYYY-MM-DD'
+ttask_due_time: 'HH:MM'
+ttask_estimated_days: number
+ttask_workweek_only: true
+ttask_holiday_dates: ['YYYY-MM-DD']
+ttask_created: 'YYYY-MM-DD'
+ttask_completed: 'YYYY-MM-DD'
+ttask_status_changed: 'YYYY-MM-DD'
+ttask_pomodoro_count: number
+ttask_focused_minutes: number
+ttask_reminder_override: urgent | mute
+ttask_archive_history: [...]
+ttask_repeat_every: number          # presence = repeats; see src/repeat/normalize.ts
+ttask_repeat_unit: day | week | month | year
+# optional: _weekdays, _monthday, _month, _nth, _nth_target, _basis, _roll, _until, _count
 ---
 ```
 
-**Sparse by design:** only `type`, `name`, `status`, `created` and
-`status_changed` (plus `cssclasses`) are always written; every other key is
+**Sparse by design:** only `ttask_type`, `ttask_name`, `ttask_status`,
+`ttask_created` and `ttask_status_changed` (plus `cssclasses`) are always written; every other key is
 written when it has a value and **deleted** when it becomes blank (null, `""`,
 `[]`, `false`, priority `None`). The reader treats an absent key as that blank
 value. Write through `writeStoredField()` (`src/schema/taskCodec.ts`), never
@@ -109,8 +120,11 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
 - `depends_on` — tasks that must finish before this one (forward index)
 - `blocks` — reverse index of `depends_on`. **Derived in memory, never stored**:
   `TaskStore.tasks` runs every write through `deriveBlocks` (MD-3), so `task.blocks`
-  is always right. Old notes may still carry a stale `blocks:` key; it is ignored
+  is always right
 - `parent_task` — the project this task belongs to
+- `repeat` — a `RepeatRule` (`src/repeat/`), stored as the `ttask_repeat_*` key
+  group. `nextOccurrence` is anchor-based; a fixed monthly/yearly rule pins
+  `monthday`, and rescheduling the due date moves the pin (RP-1)
 - Wiki-links stored with aliases (`[[path|Name]]`) so they display human names in
   native Obsidian views
 
@@ -127,8 +141,12 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
 - Settings accessed via `this.plugin.settings.tasksFolder`
 - Dates are **local calendar dates**; `dateUtils.ts` documents the hybrid
   local-date/UTC-arithmetic policy. No bare `new Date()` outside the boundary.
+- **No legacy keys.** The plugin reads only `ttask_*`. An unconverted vault is
+  *recognised* (`src/store/schemaGuard.ts`) so the user is told and writes are
+  paused, but never read. Conversion is the one-shot
+  `Scripts/migrate-prefixed-schema.mjs`.
 - **Never derive a display name from a file path.** A task's title comes from
-  its `name` frontmatter and nowhere else — `TaskStore.fileToTask` refuses to
+  its `ttask_name` frontmatter and nowhere else — `TaskStore.fileToTask` refuses to
   build a `Task` with a blank `name`, so **any `Task` you hold has a real
   title** and `task.name` needs no fallback.
 - **Resolve links to `TaskRef`s, don't carry paths into the UI.**

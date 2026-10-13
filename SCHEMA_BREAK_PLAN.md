@@ -243,7 +243,8 @@ YAML, or a failed check) and are listed. A second `--apply` is a no-op, so it is
 also the fix for an out-of-date device that syncs an old-format note back in.
 To undo: copy the backup folder's files back over the notes.
 
-**Still to do for the cutover** (in order): flip `TASK_PERSISTENCE` to `ttask_*`
+**Cutover status (2026-10-13): done** except PB-2 and running the script on the
+real vault. Originally listed as still to do: flip `TASK_PERSISTENCE` to `ttask_*`
 and the repeat fields; wire `src/repeat/` into completion/duplicate/writer/UI and
 delete `recurrence.ts` + `legacy.ts`; add `ttask_repeat_of` (RP-3); the
 unmigrated-vault notice; PB-2 `localStorage` namespacing; update README /

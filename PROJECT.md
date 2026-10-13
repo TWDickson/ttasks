@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **2029 passing, 147 files** (`npm run check` = lint → build → test) |
+| Tests | **1935 passing, 149 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -38,9 +38,11 @@ search/filter, dependency graph, reminders, quick actions, archive/logbook, the
 `area`/`labels` data model, the shared query engine, Smart Lists, native
 Pomodoro, and Share/Sync all ship.
 
-**Two things gate a public release** (both 🔴 below): **MD-1/MD-2** (schema
-prefix + sparse writes) and **PB-2's last bullet** (`localStorage` namespacing).
-*(DT-2 landed 2026-10-09, pending an on-device check.)*
+**One thing gates a public release** (🔴 below): **PB-2's last bullet**
+(`localStorage` namespacing). The `ttask_*` schema cutover (MD-1…MD-4 + RP
+wiring + the unmigrated-vault guard) landed 2026-10-13 and ships in the next
+release, which **requires running the migration script** — see the README and
+§B. *(Taylor is the only user, so the gate is about a public release, not this one.)*
 Everything else is 🟡/🟢.
 
 **No ⚖ call blocks any 🔴 item.** DT-2 and DT-5 are *decided* (2026-07-25) and
@@ -155,10 +157,9 @@ flowchart LR
 > the rename; only the rename + migration is the cutover. **MD-0** (route every
 > frontmatter key through `fmKey()`) is done — see HISTORY.
 
-- `[ ]` **MD-1 🔴 prefix the schema `ttask_*`** — the plugin's generic property
-  names (`type`, `name`, `status`, `priority`, …) pollute the vault-wide property
-  suggestion pool and collide with other plugins' conventions. *(No `ttask_`
-  keys exist in `src` yet; README's "planned" note is accurate.)*
+- `[x]` **MD-1 🔴 prefix the schema `ttask_*`** — *(2026-10-13, unreleased; see
+  HISTORY)* every stored key is `ttask_*`; `cssclasses` stays. Includes the
+  unmigrated-vault guard (`schemaGuard.ts`: notice + writes paused).
 - `[x]` **MD-2 🔴 sparse writes** — *(2026-10-11, unreleased; see HISTORY)* only
   `type`/`name`/`status`/`created`/`status_changed` are always written; other keys
   are omitted on creation and deleted when cleared. Existing notes keep their full
@@ -166,10 +167,10 @@ flowchart LR
 - `[x]` **MD-3 🟡 stop persisting `blocks`** *(2026-10-11, unreleased; see HISTORY)* — it was a pure reverse index of
   `depends_on` and can be derived at load, which deletes the whole sync machinery
   and the `sync-blocks` command. CLAUDE.md and README updated.
-- `[ ]` **MD-4 🟡 one-shot vault migration + dev-command pruning** — a standalone
-  `Scripts/migrate-prefixed-schema.mjs`, run once with Obsidian closed, does
-  MD-1/MD-2/MD-3 plus the legacy-recurrence conversion, so **zero legacy code
-  ships**. The dev-phase migration commands then get deleted.
+- `[~]` **MD-4 🟡 one-shot vault migration + dev-command pruning** — script
+  written and tested (2026-10-11); dev-phase migration commands deleted
+  (2026-10-13). **Remaining:** Taylor runs it on the real vault; then delete the
+  script, `Scripts/lib/`, `src/repeat/legacy.ts` and `migrationScript.test.ts`.
 - `[ ]` **MD-5 🟢 property registry cleanup** — hand-edit the vault's `types.json`
   (Obsidian closed) to drop the old generic entries; document recommended
   property types.
@@ -181,11 +182,18 @@ remaining two items are resolved by the redesign below, which is specified in
 full because it's the largest single piece of open work. **RP-core landed 2026-10-11** (unreleased,
 unwired): `src/repeat/` holds the rule model, `normalize`, `describe` and
 `nextOccurrence`, proven equivalent to `store/recurrence.ts` by a differential
-test. The live completion path still uses `recurrence.ts` until the cutover.
+test. **Wired 2026-10-13:** `Task.repeat` replaced the recurrence trio,
+completion/duplicate/capture/Share-Sync use the engine, `recurrence.ts` is gone.
 
-- `[~]` **RP-2 🟡 expressiveness** — *engine done (RP-core); builder UI and wiring open.* no "every N", weekday sets, nth-weekday,
-  weekday classes, end conditions, or working-day awareness.
-- `[ ]` **RP-3 🟡 fragile recurrence identity** — *(needs the `ttask_repeat_of` key, so it rides the cutover.)* the spawn dedupe guard in
+- `[~]` **RP-2 🟡 expressiveness** — *engine and wiring done (2026-10-13); the
+  rule can express every N, weekday sets, nth-weekday, weekday classes, end
+  conditions and working days (your holidays included), and the pane previews the
+  next three dates. **Remaining: a builder UI** — today richer rules are written
+  by hand and shown as "Custom — …".*
+- `[ ]` **RP-3 🟡 fragile recurrence identity** — *(still open: `ttask_repeat_of` was
+  not added at the cutover; the guard now matches name + series, so a rename still
+  defeats it. Adding the key later needs no migration — it only appears on new
+  spawns.)* the spawn dedupe guard in
   `decideCompletion` matches on task **name**, so renaming a recurring task with
   an open instance breaks the guard and double-spawns. Fixed by construction in
   the redesign via stable series identity.
@@ -343,6 +351,7 @@ flowchart LR
 | `[~]` | **Detail pane fits the drawer** | Single column below 768 px, no horizontal scroll | 0.1.x |
 | `[~]` | **Ghost sidebar tabs** — disable → relaunch → re-enable | Exactly one live tab, no ghost/duplicate (`views/leafHygiene.ts`) | 0.1.3 |
 | `[ ]` | **Agenda calendar weeks** (DT-5) — Agenda view, then flip Settings → Working calendar → Week starts on | Tomorrow / This Week / Next Week follow real weeks; This Week hides when tomorrow is already next week; setting change re-buckets live | next |
+| `[ ]` | **Repeats on phone** — Repeats menu, Repeat Type, and the "Next: …" line fit the drawer | No clipping; the preview wraps cleanly | next |
 | `[ ]` | **Sparse notes** (MD-2) — create a task, set then clear a due date and a label | New note has only the five core keys; clearing removes the key (Properties panel); detail pane and lists unaffected | next |
 | `[ ]` | **Derived `blocks`** (MD-3) — add/remove a dependency; rename and delete a task that others depend on | Detail pane "unblocks" and the kanban/graph counts update immediately and match after a restart; no `blocks:` is written to notes; the "Sync blocks" command is gone | next |
 | `[ ]` | **Midnight rollover** (DT-1) — leave a view open across midnight | Today/Overdue buckets refresh without reopening | 0.1.16 |
@@ -361,6 +370,12 @@ flowchart LR
 | | Check | Pass looks like | Ships |
 | --- | --- | --- | --- |
 | `[ ]` | **Week starts on** (DT-5) — Settings → Working calendar | Dropdown at top of the section, default "System default (Mon/Sun)" matching your device locale; Monday vs Sunday moves Sunday between This/Next Week | next |
+| `[ ]` | **⚠ Migration first** (MD-4) — before installing the new release: Obsidian closed everywhere, run the script's dry run on `Planner/Tasks` + `Planner/Archive`, then `--apply` | Summary shows ~170 notes migrated, 0 skipped; backups folder exists | next |
+| `[ ]` | **Unmigrated-vault guard** — (optional) open an *unconverted copy* of the vault with the new release | Persistent notice explaining the empty board; creating/editing a task is refused | next |
+| `[ ]` | **Migrated vault opens normally** | Board shows every task; no notice; a note's Properties show `ttask_*` keys | next |
+| `[ ]` | **Repeats** — set Weekly on a task with a due date, then Monthly on one due the 31st; complete each | Pane shows "Next: …" dates; completing spawns the next instance on the right date (31st → Feb 28 → Mar 31) | next |
+| `[ ]` | **Settings rename** — rename a label in Settings | Notes carrying it are rewritten (this was silently broken before) | next |
+| `[ ]` | **Update your own files** — `Planner/_Templates/task.md` and `Planner/Tasks.base` | They refer to `ttask_*` names (old ones no longer match anything) | next |
 | `[ ]` | **Sparse notes** (MD-2) — open a few existing notes and a freshly created one in the Properties panel | Old notes unchanged; new note has the five core keys; `Planner/Tasks.base` views still list new tasks | next |
 | `[ ]` | **"Due now" reminder** (DT-2) — task due today with `due_time` a few minutes ahead; wait for the 5-min poll | Notice reads "N due now"; fires once; task is *not* styled overdue; follows the "Due today" toggle | next |
 | `[ ]` | **Pomodoro → "Send test"** notification | Reports shown/denied/unsupported; "shown" with nothing visible = Focus Assist / per-app setting | 0.1.16 |

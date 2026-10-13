@@ -10,9 +10,11 @@ cohesive plugin, without giving up the thing that makes Obsidian worth using:
 normal frontmatter. Disable the plugin and you still have a folder of readable
 files — no proprietary database, no lock-in.
 
-> **Status: early.** Versions are `0.x`, the schema is still moving (a `ttask_*`
-> property prefix is planned), and TTasks is **not** in Obsidian's community
-> plugin list. Install it via BRAT if you want to follow along.
+> **Status: early.** Versions are `0.x` and TTasks is **not** in Obsidian's
+> community plugin list. Install it via BRAT if you want to follow along.
+>
+> **Upgrading from a version before the `ttask_*` properties?** Your notes need a
+> one-time conversion — see [Migrating to `ttask_*` properties](#migrating-to-ttask_-properties).
 
 ![The task list](docs/screenshots/list-dark.png)
 
@@ -127,39 +129,71 @@ frontmatter; the body is yours.
 
 ```yaml
 ---
-type: task
-name: "Ship the release workflow"
+ttask_type: task
+ttask_name: "Ship the release workflow"
 cssclasses: [ttask]
-area: Work
-status: In Progress
-priority: High
-labels:
+ttask_area: Work
+ttask_status: In Progress
+ttask_priority: High
+ttask_labels:
   - feature
-parent_task: '[[Tasks/a1b2c3-infra|Infrastructure]]'
-depends_on:
+ttask_parent_task: '[[Tasks/a1b2c3-infra|Infrastructure]]'
+ttask_depends_on:
   - '[[Tasks/d4e5f6-ci-workflow|CI workflow]]'
-start_date: '2026-08-01'
-due_date: '2026-08-08'
-estimated_days: 2
-created: '2026-07-28'
-status_changed: '2026-08-01'
+ttask_start_date: '2026-08-01'
+ttask_due_date: '2026-08-08'
+ttask_estimated_days: 2
+ttask_created: '2026-07-28'
+ttask_status_changed: '2026-08-01'
+ttask_repeat_every: 1
+ttask_repeat_unit: month
+ttask_repeat_monthday: 8
 ---
 
 Free-form notes go here. The plugin renders all structured UI on top.
 ```
 
-- **Only five keys are always present** (`type`, `name`, `status`, `created`,
-  `status_changed`). Everything else is written when it has a value and removed
+- **Every property is prefixed `ttask_`**, so TTasks doesn't crowd Obsidian's
+  property suggestions or collide with other plugins' `status` / `type` / `name`.
+  (`cssclasses` is Obsidian's own and stays as it is.)
+- **Only five keys are always present** (`ttask_type`, `ttask_name`,
+  `ttask_status`, `ttask_created`, `ttask_status_changed`). Everything else is written when it has a value and removed
   when it's cleared, so a bare task is a handful of lines. To set an absent field
   by hand, add the property in Obsidian's Properties panel.
-- **`type`** is `task` or `project`; a project groups tasks via `parent_task`.
-- **`depends_on`** is what you edit. **`blocks`** (what a task unblocks) is its
-  reverse index, worked out by the plugin on load and never written to the note.
-  Older notes may still have a `blocks:` property; it's ignored.
+- **`ttask_type`** is `task` or `project`; a project groups tasks via
+  `ttask_parent_task`.
+- **`ttask_depends_on`** is what you edit. What a task *unblocks* is its reverse
+  index, worked out by the plugin on load and never written to the note.
+- **Repeats** are a small group of `ttask_repeat_*` keys — `every` + `unit`
+  (`day` / `week` / `month` / `year`), plus optional `weekdays`, `monthday`
+  (a number or `last`), `month`, `nth` + `nth_target` ("first working day"),
+  `basis: completion`, `roll`, `until` and `count`. The task pane sets the common
+  ones; anything richer can be written by hand and shows as "Custom". A
+  combination that doesn't make sense is ignored with a warning on the task,
+  never guessed at.
 - Wiki-links are stored with aliases (`[[path|Name]]`) so they read as human names
   in Obsidian's own link views and graph.
 - **Statuses, priorities, areas, and labels are configurable** in settings. The
   defaults are Active / Future / In Progress / Hold / Blocked / Cancelled / Done.
+
+### Migrating to `ttask_*` properties
+
+Versions before the prefix wrote unprefixed properties (`type`, `name`,
+`status`, …). The plugin no longer reads those, so convert your notes once with
+the script in this repository. It is a **dry run unless you pass `--apply`**,
+backs up every note it changes, checks each one after writing, and is safe to
+run again.
+
+```sh
+# With Obsidian closed on every device:
+node Scripts/migrate-prefixed-schema.mjs "<vault>/<tasks folder>" "<vault>/<archive folder>"          # look first
+node Scripts/migrate-prefixed-schema.mjs "<vault>/<tasks folder>" "<vault>/<archive folder>" --apply  # then convert
+```
+
+If you open an unconverted vault with the new version, TTasks shows a notice
+explaining why the board is empty and **pauses editing** until the notes are
+converted, so old- and new-format notes never get mixed. Afterwards, update any
+templates or Bases views of your own that refer to the old property names.
 
 ### A note on dates
 

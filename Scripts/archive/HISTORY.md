@@ -12,6 +12,49 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-13 — The `ttask_*` cutover (MD-1, RP wiring, unmigrated-vault guard)
+
+Three commits on top of MD-0/2/3, RP-core and the migration script. The plugin
+now reads and writes only `ttask_*` keys; the vault is converted once by the
+script, and the plugin never reads an old key.
+
+- **MD-1:** `TASK_PERSISTENCE` / `EXTRA_FM_KEYS` name `ttask_*` keys. Test
+  fixtures are written in field names and translated through
+  `toStoredFrontmatter`, so they can't drift from the table again. The migration
+  script's mapping is now asserted equal to `fmKey()` for every field.
+- **Bug found and fixed on the way:** renaming a *label* in Settings read a
+  non-existent `label` key, so label renames never reached the notes. Value
+  renames now go through `fmKey` / `writeStoredField` (`remapLabels` handles the
+  list, removal and de-duplication). The three dev-era migration commands were
+  deleted.
+- **RP wiring:** `Task.repeat: RepeatRule | null` replaced `recurrence`,
+  `recurrence_type` and `recurrence_anchor_day`. The codec reads the
+  `ttask_repeat_*` group via `normalizeRepeat` (a nonsensical hand-edit → null
+  plus `repeat_warning`, shown in the pane) and writes it via
+  `repeatToFrontmatter`. Completion uses `nextOccurrence` with a calendar built
+  from the configured holidays; `count` decrements per spawn, `until`/`count` end
+  the series; the dedupe guard compares the series ignoring `count`. The next
+  instance keeps the same start→due lead time. Rescheduling a pinned
+  monthly/yearly rule moves the pin (`repinToDueDate`, the old RP-1 rule).
+  `store/recurrence.ts` deleted.
+- **UI:** the pane keeps the familiar preset menu + Repeat Type, adds
+  "Custom — <description>" for richer rules (never flattened), a warning chip, and
+  a next-three-dates preview (rig-verified desktop + phone). The create modal
+  builds a rule from the preset.
+- **Share/Sync contract unchanged:** `repeatContract.ts` exports presets as the
+  same `recurrence` / `recurrence_type` strings and a custom rule as its
+  description; importing that text back is "unchanged", and import only ever
+  sets a rule from a cadence it understands.
+- **Tripwire:** `schemaGuard.ts` classifies notes; a folder with only old-format
+  notes is *unmigrated* → persistent notice and every write refused (writer,
+  convert-to-project, Settings renames). A few stray old notes in a migrated vault
+  → a notice to re-run the script; they stay hidden.
+- **End-to-end guarantee:** `migrationScript.test.ts` migrates a fully populated
+  legacy note with the script and reads it back through the plugin's codec —
+  every value, including the repeat rule, comes out intact.
+- **Not done:** RP-3 (`ttask_repeat_of`), the repeat builder UI, PB-2. The
+  user's own template and Bases file need updating by hand.
+
 ## 2026-10-11 — MD-4 (part 1): the vault migration script
 
 - **`Scripts/migrate-prefixed-schema.mjs`** + pure `Scripts/lib/schemaMigration.mjs`.
