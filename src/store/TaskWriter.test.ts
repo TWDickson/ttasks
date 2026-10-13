@@ -430,3 +430,41 @@ describe('nextStartFor', () => {
 		expect(nextStartFor({ start_date: null, due_date: '2026-01-31' }, '2026-02-28', '2026-01-31')).toBeNull();
 	});
 });
+
+describe('TaskWriter refuses writes while the vault is unmigrated', () => {
+	function blockedWriter() {
+		const { file, frontmatter, processFrontMatter, tasks } = makeWriterForUpdateTest({ status: 'Active' }, { status: 'Active' });
+		const plugin = {
+			settings: { statuses: ['Active', 'Done'], completionStatus: 'Done', holidays: [] },
+			get statusPolicy() { return buildStatusPolicy(this.settings); },
+			app: {
+				vault: { getAbstractFileByPath: vi.fn(() => file), create: vi.fn() },
+				fileManager: { processFrontMatter },
+			},
+			log: vi.fn(),
+			logError: vi.fn(),
+		};
+		const writer = new TaskWriter(plugin as any, tasks, 'Planner/Tasks', () => undefined, () => false);
+		return { writer, file, frontmatter, processFrontMatter, plugin };
+	}
+
+	it('update, dependency and relationship writes are no-ops', async () => {
+		const { writer, file, processFrontMatter } = blockedWriter();
+		await writer.update(file.path, { priority: 'High' });
+		await writer.addDependency(file.path, 'Planner/Tasks/other');
+		await writer.removeDependency(file.path, 'Planner/Tasks/other');
+		await writer.updateParentTask(file.path, null);
+		expect(processFrontMatter).not.toHaveBeenCalled();
+	});
+
+	it('create throws rather than writing a new-format note into an old-format vault', async () => {
+		const { writer, plugin } = blockedWriter();
+		await expect(writer.create({ type: 'task', name: 'X' } as never)).rejects.toThrow(/paused/);
+		expect(plugin.app.vault.create).not.toHaveBeenCalled();
+	});
+
+	it('completion does not spawn', async () => {
+		const { writer } = blockedWriter();
+		expect(await writer.completeAndRecur({ path: 'Planner/Tasks/abc123-test-task.md', repeat: { every: 1, unit: 'day' } } as never)).toBeNull();
+	});
+});

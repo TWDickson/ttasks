@@ -64,6 +64,7 @@ describe('architecture boundaries', () => {
 		for (const relativePath of [
 			'src/utils/dateUtils.ts',
 			'src/store/deriveBlocks.ts',
+			'src/store/schemaGuard.ts',
 			'src/repeat/types.ts',
 			'src/repeat/dates.ts',
 			'src/repeat/next.ts',

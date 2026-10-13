@@ -101,3 +101,33 @@ describe('TaskStore derives blocks (MD-3)', () => {
 		expect(store.getByPath('Tasks/a.md')?.blocks).toEqual([]);
 	});
 });
+
+describe('TaskStore schema guard', () => {
+	function storeWith(frontmatters: Record<string, unknown>[]) {
+		const files = frontmatters.map((fm, i) => ({ path: `Tasks/f${i}.md`, fm }));
+		const plugin = {
+			app: { metadataCache: { getFileCache: (f: { fm: Record<string, unknown> }) => ({ frontmatter: f.fm }) } },
+			settings: { tasksFolder: 'Tasks' },
+			log: () => undefined,
+			logError: () => undefined,
+			register: () => undefined,
+			registerEvent: () => undefined,
+		} as any;
+		const store = new TaskStore(plugin);
+		(store as unknown as { assessSchema(files: unknown[]): void }).assessSchema(files);
+		return store;
+	}
+
+	it('blocks writes in a vault the migration script has not touched', () => {
+		const store = storeWith([{ type: 'task', name: 'Old' }, { type: 'project', name: 'Old P' }]);
+		expect(store.writesBlocked).toBe(true);
+		expect(store.vaultSchema).toEqual({ kind: 'unmigrated', legacy: 2 });
+	});
+
+	it('allows writes once migrated, even with a stray old-format note', () => {
+		const store = storeWith([{ ttask_type: 'task', ttask_name: 'New' }, { type: 'task', name: 'Stray' }]);
+		expect(store.writesBlocked).toBe(false);
+		expect(store.vaultSchema.kind).toBe('stray-legacy');
+		expect(storeWith([{ ttask_type: 'task', ttask_name: 'New' }]).vaultSchema).toEqual({ kind: 'ok' });
+	});
+});

@@ -1,6 +1,7 @@
 import { fmKey } from '../schema/taskPersistence';
 import { readStoredFields, writeStoredField } from '../schema/taskCodec';
 import { deriveBlocks } from './deriveBlocks';
+import { assessVault, schemaNotice, type VaultSchemaState } from './schemaGuard';
 import { Notice, TFile, normalizePath } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
@@ -41,7 +42,7 @@ export class TaskStore {
 		this.tasks.subscribe((tasks) => {
 			this.taskMap = new Map(tasks.map((task) => [normalizePath(task.path), task]));
 		});
-		this.writer = new TaskWriter(plugin, this.tasks, this.folderPath, (path) => this.getByPath(path));
+		this.writer = new TaskWriter(plugin, this.tasks, this.folderPath, (path) => this.getByPath(path), () => !this.writesBlocked);
 		this.migrations = new TaskMigrations(plugin);
 		this.relationships = new TaskRelationships(plugin);
 		this.syncQueue = new TaskStoreSyncQueue({
@@ -59,6 +60,31 @@ export class TaskStore {
 	}
 
 	get app() { return this.plugin.app; }
+
+	// ── Schema guard (cutover tripwire) ─────────────────────────────────────────
+
+	private schemaState: VaultSchemaState = { kind: 'ok' };
+	private notifiedSchemaKind: VaultSchemaState['kind'] = 'ok';
+
+	/** True while the tasks folder holds only pre-`ttask_*` notes — see `schemaGuard.ts`. */
+	get writesBlocked(): boolean {
+		return this.schemaState.kind === 'unmigrated';
+	}
+
+	get vaultSchema(): VaultSchemaState {
+		return this.schemaState;
+	}
+
+	private assessSchema(files: TFile[]): void {
+		this.schemaState = assessVault(files.map((f) => this.app.metadataCache.getFileCache(f)?.frontmatter));
+		if (this.schemaState.kind === this.notifiedSchemaKind) return;
+		this.notifiedSchemaKind = this.schemaState.kind;
+		const message = schemaNotice(this.schemaState);
+		if (!message) return;
+		this.plugin.logError(message);
+		// Unmigrated stays up until dismissed: it explains an empty board.
+		new Notice(message, this.schemaState.kind === 'unmigrated' ? 0 : 15000);
+	}
 
 	get folderPath(): string {
 		return normalizePath(this.plugin.settings.tasksFolder);
@@ -104,6 +130,7 @@ export class TaskStore {
 		);
 
 		this.plugin.log(`found ${files.length} file(s) in ${this.folderPath}`);
+		this.assessSchema(files);
 
 		const loaded = (await Promise.all(files.map(f => this.fileToTask(f))))
 			.filter((t): t is Task => t !== null);
@@ -226,6 +253,7 @@ export class TaskStore {
 	 * Clears `task_type` (a task-only field) as part of the conversion.
 	 */
 	async convertToProject(path: string): Promise<void> {
+		if (this.writesBlocked) return;
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return;
 
@@ -263,12 +291,14 @@ export class TaskStore {
 
 
 	async migrateFieldValues(field: MigratableField, mappings: Record<string, string | null>): Promise<number> {
+		if (this.writesBlocked) return 0;
 		return this.migrations.migrateFieldValues(field, mappings);
 	}
 
 
 
 	async migrateStatuses(validStatuses: string[]): Promise<number> {
+		if (this.writesBlocked) return 0;
 		return this.migrations.migrateStatuses(validStatuses);
 	}
 

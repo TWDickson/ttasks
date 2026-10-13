@@ -30,12 +30,36 @@ export class TaskWriter {
 	private tasks: Writable<Task[]>;
 	private folderPath: string;
 	private getTaskByPath: (path: string) => Task | undefined;
+	private canWrite: () => boolean;
+	private lastBlockedNotice = 0;
 
-	constructor(plugin: TTasksPlugin, tasks: Writable<Task[]>, folderPath: string, getTaskByPath: (path: string) => Task | undefined) {
+	constructor(
+		plugin: TTasksPlugin,
+		tasks: Writable<Task[]>,
+		folderPath: string,
+		getTaskByPath: (path: string) => Task | undefined,
+		canWrite: () => boolean = () => true,
+	) {
 		this.plugin = plugin;
 		this.tasks = tasks;
 		this.folderPath = folderPath;
 		this.getTaskByPath = getTaskByPath;
+		this.canWrite = canWrite;
+	}
+
+	/**
+	 * False while the vault is still in the pre-`ttask_*` format (see
+	 * `schemaGuard.ts`): writing then would scatter new-format notes through an
+	 * old-format vault. Every public write checks this first.
+	 */
+	private writesAllowed(): boolean {
+		if (this.canWrite()) return true;
+		const now = Date.now();
+		if (now - this.lastBlockedNotice > 5000) {
+			this.lastBlockedNotice = now;
+			new Notice('TTasks: editing is paused until the task notes are migrated — see the notice from startup.');
+		}
+		return false;
 	}
 
 	get app(): App { return this.plugin.app; }
@@ -43,6 +67,7 @@ export class TaskWriter {
 	// ── CRUD ────────────────────────────────────────────────────────────────────
 
 	async create(input: TaskCreateInput): Promise<Task> {
+		if (!this.writesAllowed()) throw new Error('TTasks: editing is paused until the vault is migrated');
 		const unique = getUniqueTaskPath(
 			this.folderPath,
 			input.name,
@@ -94,6 +119,7 @@ export class TaskWriter {
 	}
 
 	async update(path: string, incoming: Partial<Task>): Promise<void> {
+		if (!this.writesAllowed()) return;
 		const normalizedPath = normalizePath(path);
 		const file = this.app.vault.getAbstractFileByPath(normalizedPath);
 		if (!(file instanceof TFile)) return;
@@ -226,6 +252,7 @@ export class TaskWriter {
 	}
 
 	async updateNotes(path: string, notes: string): Promise<string> {
+		if (!this.writesAllowed()) return notes;
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return notes;
 
@@ -246,6 +273,7 @@ export class TaskWriter {
 	}
 
 	async delete(path: string, options?: { prompt?: boolean }): Promise<void> {
+		if (!this.writesAllowed()) return;
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return;
 
@@ -264,6 +292,7 @@ export class TaskWriter {
 	// ── Dependency mutations ────────────────────────────────────────────────────
 
 	async addDependency(taskPath: string, depPathWithoutExt: string): Promise<void> {
+		if (!this.writesAllowed()) return;
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(taskPath));
 		if (!(file instanceof TFile)) return;
 		const selfClean = taskPath.replace(/\.md$/, '');
@@ -284,6 +313,7 @@ export class TaskWriter {
 	}
 
 	async removeDependency(taskPath: string, depPathWithoutExt: string): Promise<void> {
+		if (!this.writesAllowed()) return;
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(taskPath));
 		if (!(file instanceof TFile)) return;
 
@@ -295,6 +325,7 @@ export class TaskWriter {
 	}
 
 	async updateParentTask(taskPath: string, parentPath: string | null): Promise<void> {
+		if (!this.writesAllowed()) return;
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(taskPath));
 		if (!(file instanceof TFile)) return;
 
@@ -326,6 +357,7 @@ export class TaskWriter {
 	}
 
 	async completeAndRecur(task: Task): Promise<Task | null> {
+		if (!this.writesAllowed()) return null;
 		const today = localDateString();
 		const completionStatus = this.plugin.statusPolicy.completion;
 
@@ -373,6 +405,7 @@ export class TaskWriter {
 	}
 
 	async duplicate(path: string): Promise<Task | null> {
+		if (!this.writesAllowed()) return null;
 		const task = this.getTaskByPath(normalizePath(path));
 		if (!task) return null;
 
@@ -383,6 +416,7 @@ export class TaskWriter {
 	}
 
 	async restore(path: string): Promise<void> {
+		if (!this.writesAllowed()) return;
 		const task = this.getTaskByPath(normalizePath(path));
 		if (!task) return;
 
