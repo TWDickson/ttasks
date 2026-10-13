@@ -9,7 +9,7 @@ describe('Task Field Schema', () => {
 				'start_date', 'due_date', 'due_time', 'estimated_days',
 				'parent_task', 'depends_on', 'blocks',
 				'assigned_to', 'blocked_reason',
-				'recurrence', 'recurrence_type', 'reminder_override',
+				'repeat', 'reminder_override',
 				'notes', 'created', 'completed', 'status_changed'
 			];
 
@@ -99,14 +99,6 @@ describe('Task Field Schema', () => {
 			expect(visibleWithDeps).toBe(false);
 		});
 
-		it('recurrence_type should only be visible when recurrence is set', () => {
-			const field = TASK_FIELD_DEFINITIONS.find(f => f.name === 'recurrence_type');
-			expect(field?.visible).toBeDefined();
-
-			expect(field!.visible!({ recurrence: 'weekly' })).toBe(true);
-			expect(field!.visible!({ recurrence: null })).toBe(false);
-			expect(field!.visible!({ recurrence: '' })).toBe(false);
-		});
 	});
 
 	describe('Validation rules', () => {
@@ -201,14 +193,11 @@ describe('Task Field Schema', () => {
 			expect(field?.options).toContain('project');
 		});
 
-		it('recurrence fields should have static options', () => {
-			const recurrenceField = TASK_FIELD_DEFINITIONS.find(f => f.name === 'recurrence');
-			const recurrenceTypeField = TASK_FIELD_DEFINITIONS.find(f => f.name === 'recurrence_type');
+		it('the repeat field offers the static presets', () => {
+			const recurrenceField = TASK_FIELD_DEFINITIONS.find(f => f.name === 'repeat');
 
 			expect(Array.isArray(recurrenceField?.options)).toBe(true);
 			expect(recurrenceField?.options).toContain('weekly');
-			expect(Array.isArray(recurrenceTypeField?.options)).toBe(true);
-			expect(recurrenceTypeField?.options).toContain('fixed');
 		});
 
 		it('reminder_override should have static options with empty support', () => {

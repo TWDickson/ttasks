@@ -17,8 +17,7 @@ export interface TaskDetailOptionState {
 	statusOptions: string[];
 	areaOptions: string[];
 	labelOptions: string[];
-	recurrenceOptions: string[];
-	recurrenceTypeOptions: string[];
+	repeatPresetOptions: string[];
 	reminderOverrideOptions: string[];
 	statusOptionColors: Record<string, string>;
 	priorityOptionColors: Record<string, string>;
@@ -39,8 +38,7 @@ export function deriveTaskDetailOptionState(input: TaskDetailOptionInput): TaskD
 		statusOptions: withCurrentOption(resolveFieldOptions('status', settings), status),
 		areaOptions: withCurrentOption(resolveFieldOptions('area', settings), area),
 		labelOptions: withCurrentOption(resolveFieldOptions('labels', settings), selectedLabel),
-		recurrenceOptions: resolveFieldOptions('recurrence', settings),
-		recurrenceTypeOptions: resolveFieldOptions('recurrence_type', settings),
+		repeatPresetOptions: resolveFieldOptions('repeat', settings),
 		reminderOverrideOptions: resolveFieldOptions('reminder_override', settings),
 		statusOptionColors: resolveFieldOptionColors('status', settings),
 		priorityOptionColors: resolveFieldOptionColors('priority', settings),

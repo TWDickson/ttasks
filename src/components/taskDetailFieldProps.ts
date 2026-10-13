@@ -2,6 +2,7 @@ import { adaptFieldForDetail, type FieldComponentProps } from '../schema/fieldAd
 import { getFieldByName } from '../schema/taskFields';
 import type { TTasksSettings } from '../settings/types';
 import type { Task, TaskPriority, TaskStatus } from '../types';
+import type { RepeatRule } from '../repeat/types';
 
 export interface TaskDetailEditableValues {
 	name: string;
@@ -16,8 +17,7 @@ export interface TaskDetailEditableValues {
 	assigned_to: string;
 	estimated_days: number | null;
 	blocked_reason: string;
-	recurrence: string | null;
-	recurrence_type: string | null;
+	repeat: RepeatRule | null;
 }
 
 export interface TaskDetailFieldPropsInput {
@@ -33,8 +33,7 @@ export interface TaskDetailFieldPropsState {
 	statusFieldProps: FieldComponentProps | null;
 	priorityFieldProps: FieldComponentProps | null;
 	parentTaskFieldProps: FieldComponentProps | null;
-	recurrenceFieldProps: FieldComponentProps | null;
-	recurrenceTypeFieldProps: FieldComponentProps | null;
+	repeatFieldProps: FieldComponentProps | null;
 	reminderOverrideFieldProps: FieldComponentProps | null;
 	estimatedDaysFieldProps: FieldComponentProps | null;
 	areaFieldProps: FieldComponentProps | null;
@@ -51,8 +50,7 @@ const EMPTY_FIELD_PROPS: TaskDetailFieldPropsState = {
 	statusFieldProps: null,
 	priorityFieldProps: null,
 	parentTaskFieldProps: null,
-	recurrenceFieldProps: null,
-	recurrenceTypeFieldProps: null,
+	repeatFieldProps: null,
 	reminderOverrideFieldProps: null,
 	estimatedDaysFieldProps: null,
 	areaFieldProps: null,
@@ -88,8 +86,7 @@ function deriveInlineFieldProps(
 			assigned_to: values.assigned_to,
 			estimated_days: values.estimated_days,
 			blocked_reason: values.blocked_reason,
-			recurrence: values.recurrence,
-			recurrence_type: values.recurrence_type,
+			repeat: values.repeat,
 			blockStatus,
 		},
 		allTasks,
@@ -131,8 +128,7 @@ export function deriveTaskDetailFieldProps(input: TaskDetailFieldPropsInput): Ta
 		statusFieldProps: deriveInlineFieldProps('status', input),
 		priorityFieldProps: deriveInlineFieldProps('priority', input),
 		parentTaskFieldProps: deriveInlineFieldProps('parent_task', input),
-		recurrenceFieldProps: deriveInlineFieldProps('recurrence', input),
-		recurrenceTypeFieldProps: deriveInlineFieldProps('recurrence_type', input),
+		repeatFieldProps: deriveInlineFieldProps('repeat', input),
 		reminderOverrideFieldProps: deriveInlineFieldProps('reminder_override', input),
 		estimatedDaysFieldProps: deriveInlineFieldProps('estimated_days', input),
 		areaFieldProps: deriveInlineFieldProps('area', input),

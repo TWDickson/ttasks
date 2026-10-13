@@ -3,7 +3,7 @@ import { buildStatusPolicy } from '../settings/statusPolicy';
 import { TFile } from 'obsidian';
 import { fmKey, toStoredFrontmatter } from '../schema/taskPersistence';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { buildTaskFrontmatter, TaskWriter } from './TaskWriter';
+import { buildTaskFrontmatter, nextStartFor, TaskWriter } from './TaskWriter';
 import type { Task } from '../types';
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -32,8 +32,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 		created: '2026-05-20',
 		completed: null,
 		notes: '',
-		recurrence: null,
-		recurrence_type: null,
+		repeat: null,
 		is_complete: false,
 		is_inbox: true,
 		status_changed: null,
@@ -215,20 +214,14 @@ describe('buildTaskFrontmatter', () => {
 		expect(parseYaml(fm)[fmKey('status_changed')]).toBe("'2026-03-15'");
 	});
 
-	it('renders recurrence and recurrence_type', () => {
-		const fm = buildTaskFrontmatter(
-			makeTask({ recurrence: '1w', recurrence_type: 'due' }),
-			noName,
-		);
-		const parsed = parseYaml(fm);
-		expect(parsed['recurrence']).toBe('"1w"');
-		expect(parsed['recurrence_type']).toBe('"due"');
+	it('renders a repeat rule as its ttask_repeat_* keys', () => {
+		const fm = buildTaskFrontmatter(makeTask({ repeat: { every: 2, unit: 'week', weekdays: ['mon', 'wed'], until: '2026-12-31' } }), noName);
+		expect(fm).toContain('ttask_repeat_every: 2\nttask_repeat_unit: week\nttask_repeat_weekdays:\n  - mon\n  - wed');
+		expect(fm).toContain("ttask_repeat_until: '2026-12-31'");
 	});
 
-	it('omits recurrence fields when the task does not repeat', () => {
-		const parsed = parseYaml(buildTaskFrontmatter(makeTask(), noName));
-		expect(parsed).not.toHaveProperty('recurrence');
-		expect(parsed).not.toHaveProperty('recurrence_type');
+	it('writes no repeat keys when the task does not repeat', () => {
+		expect(buildTaskFrontmatter(makeTask(), noName)).not.toContain('repeat');
 	});
 
 	it('produces project type frontmatter', () => {
@@ -236,33 +229,10 @@ describe('buildTaskFrontmatter', () => {
 		expect(fm).toContain(`${fmKey('type')}: project`);
 	});
 
-	describe('recurrence_anchor_day (RP-1)', () => {
-		it('omits the key entirely for a non-recurring task', () => {
-			const fm = buildTaskFrontmatter(makeTask({ recurrence: null, due_date: '2026-01-31' }), noName);
-			expect(fm).not.toContain('recurrence_anchor_day');
-		});
-
-		it('derives the anchor from the due date for a recurring task', () => {
-			const fm = buildTaskFrontmatter(
-				makeTask({ recurrence: 'monthly', due_date: '2026-01-31' }),
-				noName,
-			);
-			expect(fm).toContain('recurrence_anchor_day: 31');
-		});
-
-		it('prefers an explicitly carried anchor over the due date’s day', () => {
-			// The spawned instance is due Feb 28 but the schedule is still the 31st.
-			const fm = buildTaskFrontmatter(
-				makeTask({ recurrence: 'monthly', due_date: '2026-02-28', recurrence_anchor_day: 31 }),
-				noName,
-			);
-			expect(fm).toContain('recurrence_anchor_day: 31');
-		});
-
-		it('omits the key for a recurring task with no due date', () => {
-			const fm = buildTaskFrontmatter(makeTask({ recurrence: 'monthly', due_date: null }), noName);
-			expect(fm).not.toContain('recurrence_anchor_day');
-		});
+	it('keeps a pinned day-of-month rule exactly as given (RP-1)', () => {
+		// The spawned instance is due Feb 28 but the schedule is still the 31st.
+		const fm = buildTaskFrontmatter(makeTask({ repeat: { every: 1, unit: 'month', monthday: 31 }, due_date: '2026-02-28' }), noName);
+		expect(fm).toContain('ttask_repeat_monthday: 31');
 	});
 
 	it('marks a project type', () => {
@@ -330,83 +300,57 @@ describe('TaskWriter.update status_changed transitions', () => {
 	});
 });
 
-describe('TaskWriter.update recurrence anchor (RP-1)', () => {
-	beforeEach(() => {
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date('2026-05-25T12:00:00'));
-	});
+describe('TaskWriter.update re-pins a repeat rule to a rescheduled due date (RP-1)', () => {
+	const MONTHLY_31 = { every: 1, unit: 'month', monthday: 31 } as const;
+	const repeatKeys = (fm: Record<string, unknown>) =>
+		Object.fromEntries(Object.entries(fm).filter(([k]) => k.startsWith('ttask_repeat_')));
 
-	afterEach(() => {
-		vi.useRealTimers();
-	});
-
-	it('derives the anchor from a newly written due date', async () => {
-		const { writer, file, frontmatter } = makeWriterForUpdateTest(
-			{ status: 'Active', recurrence: 'monthly' },
-			{ status: 'Active', recurrence: 'monthly' },
+	it('moves the pinned day with a manual reschedule', async () => {
+		const { writer, file, frontmatter, tasks } = makeWriterForUpdateTest(
+			{ status: 'Active', ttask_repeat_every: 1, ttask_repeat_unit: 'month', ttask_repeat_monthday: 31 },
+			{ status: 'Active', repeat: { ...MONTHLY_31 } },
 		);
 
-		await writer.update(file.path, { due_date: '2026-01-31' });
-
-		expect(frontmatter.recurrence_anchor_day).toBe(31);
-	});
-
-	it('re-derives the anchor when the user reschedules to a different day', async () => {
-		const { writer, file, frontmatter } = makeWriterForUpdateTest(
-			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
-			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
-		);
-
-		// A manual reschedule redefines the schedule; the old anchor must not stick.
 		await writer.update(file.path, { due_date: '2026-06-15' });
 
-		expect(frontmatter.recurrence_anchor_day).toBe(15);
+		expect(repeatKeys(frontmatter)).toEqual({ ttask_repeat_every: 1, ttask_repeat_unit: 'month', ttask_repeat_monthday: 15 });
+		expect(get(tasks).find((t) => t.path === file.path)?.repeat).toEqual({ every: 1, unit: 'month', monthday: 15 });
 	});
 
-	it('honours an explicit anchor over the derived one (the spawn hand-off)', async () => {
+	it('honours an explicit rule over the re-pin (the spawn hand-off)', async () => {
 		const { writer, file, frontmatter } = makeWriterForUpdateTest(
-			{ status: 'Active', recurrence: 'monthly' },
-			{ status: 'Active', recurrence: 'monthly' },
+			{ status: 'Active' },
+			{ status: 'Active', repeat: { ...MONTHLY_31 } },
 		);
 
-		// completeAndRecur writes the clamped due date but passes the inherited
-		// anchor, which is the whole point — deriving from Feb 28 would lose the 31.
-		await writer.update(file.path, { due_date: '2026-02-28', recurrence_anchor_day: 31 });
+		// completeAndRecur writes the clamped due date with the inherited rule —
+		// re-pinning from Feb 28 would lose the 31st.
+		await writer.update(file.path, { due_date: '2026-02-28', repeat: { ...MONTHLY_31 } });
 
-		expect(frontmatter.recurrence_anchor_day).toBe(31);
+		expect(frontmatter.ttask_repeat_monthday).toBe(31);
 	});
 
-	it('clears the anchor when the due date is cleared', async () => {
+	it('leaves the rule alone when the due date is cleared, and on unrelated updates', async () => {
 		const { writer, file, frontmatter } = makeWriterForUpdateTest(
-			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
-			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
+			{ status: 'Active', ttask_repeat_every: 1, ttask_repeat_unit: 'month', ttask_repeat_monthday: 31 },
+			{ status: 'Active', repeat: { ...MONTHLY_31 } },
 		);
 
 		await writer.update(file.path, { due_date: null });
-
-		expect(frontmatter).not.toHaveProperty('recurrence_anchor_day');
-	});
-
-	it('leaves the anchor alone on an unrelated update', async () => {
-		const { writer, file, frontmatter } = makeWriterForUpdateTest(
-			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
-			{ status: 'Active', recurrence: 'monthly', recurrence_anchor_day: 31 },
-		);
-
 		await writer.update(file.path, { priority: 'High' });
 
-		expect(frontmatter.recurrence_anchor_day).toBe(31);
+		expect(frontmatter.ttask_repeat_monthday).toBe(31);
 	});
 
-	it('mirrors the derived anchor into the in-memory task', async () => {
-		const { writer, file, tasks } = makeWriterForUpdateTest(
-			{ status: 'Active', recurrence: 'monthly' },
-			{ status: 'Active', recurrence: 'monthly' },
+	it('clearing the rule removes every repeat key', async () => {
+		const { writer, file, frontmatter } = makeWriterForUpdateTest(
+			{ status: 'Active', ttask_repeat_every: 1, ttask_repeat_unit: 'week', ttask_repeat_weekdays: ['mon'] },
+			{ status: 'Active', repeat: { every: 1, unit: 'week', weekdays: ['mon'] } },
 		);
 
-		await writer.update(file.path, { due_date: '2026-01-31' });
+		await writer.update(file.path, { repeat: null });
 
-		expect(get(tasks).find((t) => t.path === file.path)?.recurrence_anchor_day).toBe(31);
+		expect(repeatKeys(frontmatter)).toEqual({});
 	});
 });
 
@@ -472,5 +416,17 @@ describe('TaskWriter.update optimistic in-memory patch', () => {
 		const patched = get(tasks).find((t) => t.path === file.path);
 		expect(patched?.area).toBe('Work');
 		expect(patched?.is_inbox).toBe(false);
+	});
+});
+
+describe('nextStartFor', () => {
+	it('keeps the same lead time before the next due date', () => {
+		expect(nextStartFor({ start_date: '2026-01-29', due_date: '2026-01-31' }, '2026-02-28', '2026-01-31')).toBe('2026-02-26');
+	});
+	it('moves a start with no due date by as much as the due date moved', () => {
+		expect(nextStartFor({ start_date: '2026-03-01', due_date: null }, '2026-03-12', '2026-03-05')).toBe('2026-03-08');
+	});
+	it('is null without a start date', () => {
+		expect(nextStartFor({ start_date: null, due_date: '2026-01-31' }, '2026-02-28', '2026-01-31')).toBeNull();
 	});
 });

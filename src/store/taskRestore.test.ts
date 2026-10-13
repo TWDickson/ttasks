@@ -10,8 +10,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 		priority: 'None', labels: [], parent_task: null, depends_on: [],
 		blocks: [], blocked_reason: '', assigned_to: '', source: '',
 		start_date: null, due_date: null, due_time: null, estimated_days: null,
-		created: '2026-01-01', completed: null, recurrence: null,
-		recurrence_type: null, notes: '', is_complete: false, is_inbox: true,
+		created: '2026-01-01', completed: null, repeat: null, notes: '', is_complete: false, is_inbox: true,
 		status_changed: null,
 		...overrides,
 	};

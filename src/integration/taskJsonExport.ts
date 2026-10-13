@@ -8,6 +8,7 @@
 //             graph-derived fields (see taskDerivedState) so the receiving AI
 //             reads the answer instead of having to derive it.
 
+import { repeatToContract } from './repeatContract';
 import type { Task } from '../types';
 import type { DerivedStateContext, DerivedTaskState } from './taskDerivedState';
 import { computeDerivedTaskState } from './taskDerivedState';
@@ -313,8 +314,8 @@ function exportOne(
 			due_time: task.due_time || undefined,
 			estimated_days: task.estimated_days,
 			completed: task.completed,
-			recurrence: task.recurrence || undefined,
-			recurrence_type: task.recurrence_type || undefined,
+			recurrence: repeatToContract(task.repeat).recurrence || undefined,
+			recurrence_type: repeatToContract(task.repeat).recurrence_type || undefined,
 			pomodoro_count: task.pomodoro_count ?? undefined,
 			focused_minutes: task.focused_minutes ?? undefined,
 			notes,
@@ -348,8 +349,7 @@ function exportOne(
 		created: task.created,
 		completed: task.completed,
 		status_changed: task.status_changed,
-		recurrence: task.recurrence,
-		recurrence_type: task.recurrence_type,
+		...repeatToContract(task.repeat),
 		reminder_override: task.reminder_override ?? null,
 		pomodoro_count: task.pomodoro_count ?? null,
 		focused_minutes: task.focused_minutes ?? null,

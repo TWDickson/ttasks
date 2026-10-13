@@ -21,6 +21,7 @@
 //    frontmatter key, so it needs a separate write path and its own apply toggle.
 //    A create carries its notes through the create input, so only updates land here.
 
+import { repeatFromContract, repeatToContract } from './repeatContract';
 import type { Task } from '../types';
 import type { ParsedImportTask } from './taskJsonImport';
 
@@ -160,6 +161,17 @@ function diffField(
 		if (to === null) return null;
 		const from = existing[field] ?? null;
 		return to !== from ? { field, from, to } : null;
+	}
+	if (field === 'recurrence' || field === 'recurrence_type') {
+		// Compared in the contract's terms, not the vault's: the task stores a rule.
+		const to = parsed[field];
+		if (to === null || to === '') return null;
+		const from = repeatToContract(existing.repeat)[field];
+		if (to === from) return null;
+		const next = field === 'recurrence'
+			? repeatFromContract(to, parsed.recurrence_type, parsed.due_date ?? existing.due_date, existing.repeat)
+			: repeatFromContract(parsed.recurrence, to, parsed.due_date ?? existing.due_date, existing.repeat);
+		return next === undefined ? null : { field, from, to };
 	}
 	// string-ish fields: null or '' means "not specified" → no change
 	const to = parsed[field];
@@ -584,9 +596,21 @@ export function isEmptyImportPlan(plan: ImportPlan): boolean {
 }
 
 /** Turn an update's field changes into a Partial<Task> patch for TaskStore.update. */
-export function changesToPatch(changes: FieldChange[]): Partial<Task> {
+export function changesToPatch(changes: FieldChange[], existing?: Task | null): Partial<Task> {
 	const patch: Record<string, unknown> = {};
-	for (const change of changes) patch[change.field] = change.to;
+	let recurrence: string | null | undefined;
+	let recurrenceType: string | null | undefined;
+	for (const change of changes) {
+		if (change.field === 'recurrence') recurrence = change.to as string;
+		else if (change.field === 'recurrence_type') recurrenceType = change.to as string;
+		else patch[change.field] = change.to;
+	}
+	// The two contract fields become one rule on the task.
+	if (recurrence !== undefined || recurrenceType !== undefined) {
+		const due = (patch.due_date as string | null | undefined) ?? existing?.due_date ?? null;
+		const next = repeatFromContract(recurrence, recurrenceType, due, existing?.repeat ?? null);
+		if (next !== undefined) patch.repeat = next;
+	}
 	return patch as Partial<Task>;
 }
 

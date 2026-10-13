@@ -7,8 +7,7 @@ function t(path: string, depends_on: string[] = [], blocks: string[] = []): Task
 		id: path, slug: '', path, type: 'task', name: path, area: null, status: 'Active', priority: 'None',
 		labels: [], parent_task: null, depends_on, blocks, blocked_reason: '', assigned_to: '', source: '',
 		start_date: null, due_date: null, due_time: null, estimated_days: null, workweek_only: false,
-		holiday_dates: [], created: '2026-01-01', completed: null, status_changed: null, recurrence: null,
-		recurrence_type: null, notes: '', is_complete: false, is_inbox: true,
+		holiday_dates: [], created: '2026-01-01', completed: null, status_changed: null, repeat: null, notes: '', is_complete: false, is_inbox: true,
 	};
 }
 

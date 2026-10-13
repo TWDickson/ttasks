@@ -30,8 +30,9 @@ const CANONICAL_FRONTMATTER = {
 	pomodoro_count: 4,
 	focused_minutes: 100,
 	due_time: '09:30',
-	recurrence: 'weekly',
-	recurrence_type: 'fixed',
+	// The repeat group is not a field-named key; written as stored.
+	ttask_repeat_every: 1,
+	ttask_repeat_unit: 'week',
 	reminder_override: 'urgent',
 };
 
@@ -97,7 +98,7 @@ describe('TaskStore frontmatter type handling — canonical shapes', () => {
 			pomodoro_count: 4,
 			focused_minutes: 100,
 			due_time: '09:30',
-			recurrence: 'weekly',
+			repeat: { every: 1, unit: 'week' },
 			reminder_override: 'urgent',
 			is_inbox: false,
 		});

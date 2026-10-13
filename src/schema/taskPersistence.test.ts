@@ -11,7 +11,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 		labels: [], parent_task: null, depends_on: [], blocks: [], blocked_reason: '',
 		assigned_to: '', source: '', start_date: null, due_date: null, due_time: null,
 		estimated_days: null, workweek_only: false, holiday_dates: [], created: '2026-05-20',
-		completed: null, notes: '', recurrence: null, recurrence_type: null,
+		completed: null, notes: '', repeat: null,
 		is_complete: false, is_inbox: true, status_changed: null,
 		...overrides,
 	};
@@ -65,9 +65,10 @@ describe('creation frontmatter vs. the descriptor table', () => {
 			area: 'Work', priority: 'High', labels: ['bug'], parent_task: 'Tasks/p-1.md', depends_on: ['Tasks/a-1.md'],
 			blocked_reason: 'x', assigned_to: 'me', source: 'src', start_date: '2026-05-01', due_date: '2026-05-25',
 			due_time: '09:00', estimated_days: 2, workweek_only: true, holiday_dates: ['2026-07-04'],
-			recurrence: 'weekly', recurrence_type: 'fixed', recurrence_anchor_day: 25,
+			repeat: { every: 1, unit: 'week' },
 		}), noName);
-		const present = new Set(keysOf(fm));
+		// The repeat group writes only the keys its rule needs; count the main one.
+		const present = new Set(keysOf(fm).filter((k) => !k.startsWith('ttask_repeat_') || k === 'ttask_repeat_every'));
 		// `completed` is seeded blank, so even a full task omits it.
 		const expected = createTimeFrontmatterKeys().filter((k) => k !== TASK_PERSISTENCE.completed.fmKey);
 		expect([...present].filter((k) => k !== 'cssclasses').sort()).toEqual(expected.sort());

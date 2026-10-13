@@ -37,8 +37,7 @@ describe('TaskDetail.svelte', () => {
 			assigned_to: '',
 			blocked_reason: '',
 			source: '',
-			recurrence: null,
-			recurrence_type: null,
+			repeat: null,
 			reminder_override: null,
 			notes: '',
 			created: '2026-05-19',
@@ -179,13 +178,11 @@ describe('TaskDetail.svelte', () => {
 			expect(completedField?.readOnly).toBe(true);
 		});
 
-		it('should render recurrence and reminder override as select fields', () => {
-			const recurrenceField = getFieldByName('recurrence');
-			const recurrenceTypeField = getFieldByName('recurrence_type');
+		it('should render repeat and reminder override as select fields', () => {
+			const recurrenceField = getFieldByName('repeat');
 			const reminderField = getFieldByName('reminder_override');
 
 			expect(recurrenceField?.type).toBe('select');
-			expect(recurrenceTypeField?.type).toBe('select');
 			expect(reminderField?.type).toBe('select');
 		});
 	});

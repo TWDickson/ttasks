@@ -56,8 +56,7 @@ export async function seedGraphTestData(deps: GraphSandboxSeederDeps): Promise<{
 		created: overrides.created ?? iso(-2),
 		completed: overrides.completed ?? null,
 		notes: overrides.notes ?? '',
-		recurrence: overrides.recurrence ?? null,
-		recurrence_type: overrides.recurrence_type ?? null,
+		repeat: overrides.repeat ?? null,
 	});
 
 	const created: Task[] = [];

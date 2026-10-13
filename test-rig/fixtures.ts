@@ -54,8 +54,7 @@ export function makeTask(overrides: Partial<Task> & { name: string }): Task {
 		created: isoDaysFromToday(-14),
 		completed: null,
 		status_changed: isoDaysFromToday(-3),
-		recurrence: null,
-		recurrence_type: null,
+		repeat: null,
 		notes: '',
 		reminder_override: null,
 		is_inbox: overrides.area == null,
@@ -202,8 +201,7 @@ export function buildFixtureTasks(): Task[] {
 		name: 'Walk Gary',
 		area: 'Pineapple',
 		due_date: isoDaysFromToday(0),
-		recurrence: 'weekly',
-		recurrence_type: 'fixed',
+		repeat: { every: 1, unit: 'week' },
 	});
 
 	const inbox = makeTask({

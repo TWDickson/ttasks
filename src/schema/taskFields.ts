@@ -3,6 +3,7 @@ import type { Task } from '../types';
 import { isBlockedStatus } from './fieldVisibility';
 import { parseIsoDate } from '../utils/dateUtils';
 import { PRIORITIES } from '../constants';
+import { REPEAT_PRESETS } from '../repeat/presets';
 
 /**
  * Validation rules for fields.
@@ -265,21 +266,14 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 
 	// ── RECURRENCE + REMINDERS (Advanced) ───────────────────────────────────────
 	{
-		name: 'recurrence',
+		// The preset menu over `repeat` (a RepeatRule). The schedule/after-completion
+		// switch beside it is not a field of its own — it's part of the rule.
+		name: 'repeat',
 		label: 'Repeats',
 		type: 'select',
 		section: 'advanced',
-		options: ['daily', 'weekly', 'biweekly', 'monthly', 'yearly'],
+		options: [...REPEAT_PRESETS],
 		selectAllowEmpty: true,
-	},
-
-	{
-		name: 'recurrence_type',
-		label: 'Repeat Type',
-		type: 'select',
-		section: 'advanced',
-		options: ['fixed', 'from_completion'],
-		visible: (values) => !!values.recurrence,
 	},
 
 	{

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
-import { decideCompletion } from './completeTask';
+import { decideCompletion, sameSeries } from './completeTask';
+import type { RepeatRule } from '../repeat/types';
 
 function makeTask(overrides: Partial<Task> = {}): Task {
 	return {
@@ -25,8 +26,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 		estimated_days: null,
 		created: '2026-04-01',
 		completed: null,
-		recurrence: null,
-		recurrence_type: null,
+		repeat: null,
 		notes: '',
 		is_complete: false,
 		is_inbox: false,
@@ -36,138 +36,119 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 }
 
 const DEPS = { completionStatus: 'Done', today: '2026-04-16' };
+const WEEKLY: RepeatRule = { every: 1, unit: 'week' };
+const MONTHLY_31: RepeatRule = { every: 1, unit: 'month', monthday: 31 };
 
 describe('decideCompletion', () => {
-	it('completes a non-recurring task without recurrence', () => {
+	it('completes a non-repeating task without spawning', () => {
 		const task = makeTask();
 		const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
 		expect(decision.kind).toBe('complete-only');
 		expect(decision.updates).toEqual({ status: 'Done', completed: '2026-04-16' });
 	});
 
-	it('recurs a recurring task with no existing next instance', () => {
-		const task = makeTask({ recurrence: 'weekly', recurrence_type: 'fixed', due_date: '2026-04-16' });
+	it('spawns a repeating task with no existing next instance', () => {
+		const task = makeTask({ repeat: WEEKLY, due_date: '2026-04-16' });
 		const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
-		expect(decision.kind).toBe('complete-and-recur');
+		expect(decision).toMatchObject({ kind: 'complete-and-recur', nextDue: '2026-04-23', nextRule: WEEKLY });
 		expect(decision.updates).toEqual({ status: 'Done', completed: '2026-04-16' });
 	});
 
-	it('always stamps the completion status and date in updates', () => {
-		const task = makeTask({ recurrence: 'daily', due_date: '2026-04-16' });
-		const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
-		expect(decision.updates).toEqual({ status: 'Done', completed: '2026-04-16' });
+	it('advances from today when there is no due date', () => {
+		const task = makeTask({ repeat: { every: 1, unit: 'day' } });
+		expect(decideCompletion(task, { ...DEPS, allTasks: [task] })).toMatchObject({ nextDue: '2026-04-17' });
 	});
 
-	describe('recurrence anchor (RP-1)', () => {
-		it('uses a stored anchor so a month-end schedule recovers its day', () => {
-			// Instance due Feb 28 was itself clamped from a 31st schedule; the next
-			// one must go back to the 31st, not stay on the 28th.
-			const task = makeTask({
-				recurrence: 'monthly',
-				recurrence_type: 'fixed',
-				due_date: '2026-02-28',
-				recurrence_anchor_day: 31,
-			});
-			const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
-			expect(decision).toMatchObject({ kind: 'complete-and-recur', nextDue: '2026-03-31' });
-		});
-
-		it('falls back to the due date’s own day when no anchor is stored', () => {
-			// Tasks created before the anchor field existed keep their old behaviour.
-			const task = makeTask({
-				recurrence: 'monthly',
-				recurrence_type: 'fixed',
-				due_date: '2026-02-28',
-			});
-			const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
-			expect(decision).toMatchObject({ kind: 'complete-and-recur', nextDue: '2026-03-28' });
+	describe('pinned day-of-month (RP-1)', () => {
+		it('recovers the 31st after a clamped February', () => {
+			const task = makeTask({ repeat: MONTHLY_31, due_date: '2026-02-28' });
+			expect(decideCompletion(task, { ...DEPS, allTasks: [task] })).toMatchObject({ kind: 'complete-and-recur', nextDue: '2026-03-31' });
 		});
 
 		it('holds a month-end schedule across a simulated 4-month chain', () => {
 			let due = '2026-01-31';
+			let rule: RepeatRule = MONTHLY_31;
 			const chain: string[] = [];
 			for (let i = 0; i < 4; i++) {
-				const task = makeTask({
-					recurrence: 'monthly',
-					recurrence_type: 'fixed',
-					due_date: due,
-					recurrence_anchor_day: 31,
-				});
+				const task = makeTask({ repeat: rule, due_date: due });
 				const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
 				if (decision.kind !== 'complete-and-recur') throw new Error('expected a spawn');
 				due = decision.nextDue;
+				rule = decision.nextRule;
 				chain.push(due);
 			}
 			expect(chain).toEqual(['2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31']);
 		});
 
-		it('ignores the anchor in from_completion mode', () => {
-			const task = makeTask({
-				recurrence: 'monthly',
-				recurrence_type: 'from_completion',
-				due_date: '2026-01-31',
-				recurrence_anchor_day: 31,
-			});
-			const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
-			// Advances from `today` (2026-04-16), not from the anchored due date.
-			expect(decision).toMatchObject({ kind: 'complete-and-recur', nextDue: '2026-05-16' });
+		it('a completion-based rule advances from today, not the due date', () => {
+			const task = makeTask({ repeat: { every: 1, unit: 'month', basis: 'completion' }, due_date: '2026-01-31' });
+			expect(decideCompletion(task, { ...DEPS, allTasks: [task] })).toMatchObject({ kind: 'complete-and-recur', nextDue: '2026-05-16' });
+		});
+	});
+
+	describe('end conditions', () => {
+		it('decrements count on the spawned rule, and stops at zero', () => {
+			const task = makeTask({ repeat: { every: 1, unit: 'week', count: 2 }, due_date: '2026-04-16' });
+			expect(decideCompletion(task, { ...DEPS, allTasks: [task] })).toMatchObject({ nextRule: { every: 1, unit: 'week', count: 1 } });
+			const last = makeTask({ repeat: { every: 1, unit: 'week', count: 0 }, due_date: '2026-04-16' });
+			expect(decideCompletion(last, { ...DEPS, allTasks: [last] }).kind).toBe('complete-only');
+		});
+
+		it('stops once the next date would pass `until`', () => {
+			const task = makeTask({ repeat: { every: 1, unit: 'week', until: '2026-04-20' }, due_date: '2026-04-16' });
+			expect(decideCompletion(task, { ...DEPS, allTasks: [task] }).kind).toBe('complete-only');
+		});
+	});
+
+	describe('working-day rules use the supplied calendar', () => {
+		it('first working day of the month skips a holiday', () => {
+			const calendar = { isWorkingDay: (d: string) => d !== '2026-06-01' && ![0, 6].includes(new Date(`${d}T12:00:00Z`).getUTCDay()) };
+			const task = makeTask({ repeat: { every: 1, unit: 'month', nth: { n: 1, target: 'working-day' } }, due_date: '2026-05-01' });
+			expect(decideCompletion(task, { ...DEPS, allTasks: [task], calendar })).toMatchObject({ nextDue: '2026-06-02' });
 		});
 	});
 
 	describe('idempotence guard', () => {
-		it('skips the spawn when an open next instance already exists (same name + rule, due >= next)', () => {
-			const task = makeTask({ recurrence: 'weekly', recurrence_type: 'fixed', due_date: '2026-04-16' });
-			// nextDue for a fixed weekly task due 2026-04-16 is 2026-04-23.
-			const existing = makeTask({
-				path: 'Tasks/def456-water-plants.md',
-				recurrence: 'weekly',
-				due_date: '2026-04-23',
-			});
-			const decision = decideCompletion(task, { ...DEPS, allTasks: [task, existing] });
-			expect(decision.kind).toBe('complete-only');
+		const base = () => makeTask({ repeat: WEEKLY, due_date: '2026-04-16' });
+
+		it('skips the spawn when an open next instance already exists (same name + series, due >= next)', () => {
+			const existing = makeTask({ path: 'Tasks/def456-water-plants.md', repeat: WEEKLY, due_date: '2026-04-23' });
+			expect(decideCompletion(base(), { ...DEPS, allTasks: [base(), existing] }).kind).toBe('complete-only');
+		});
+
+		it('treats a decremented count as the same series', () => {
+			const task = makeTask({ repeat: { ...WEEKLY, count: 3 }, due_date: '2026-04-16' });
+			const existing = makeTask({ path: 'Tasks/def456-water-plants.md', repeat: { ...WEEKLY, count: 2 }, due_date: '2026-04-23' });
+			expect(decideCompletion(task, { ...DEPS, allTasks: [task, existing] }).kind).toBe('complete-only');
 		});
 
 		it('still spawns when the existing candidate is completed', () => {
-			const task = makeTask({ recurrence: 'weekly', recurrence_type: 'fixed', due_date: '2026-04-16' });
-			const completed = makeTask({
-				path: 'Tasks/def456-water-plants.md',
-				recurrence: 'weekly',
-				due_date: '2026-04-23',
-				is_complete: true,
-			});
-			const decision = decideCompletion(task, { ...DEPS, allTasks: [task, completed] });
-			expect(decision.kind).toBe('complete-and-recur');
+			const completed = makeTask({ path: 'Tasks/def456-water-plants.md', repeat: WEEKLY, due_date: '2026-04-23', is_complete: true });
+			expect(decideCompletion(base(), { ...DEPS, allTasks: [base(), completed] }).kind).toBe('complete-and-recur');
 		});
 
-		it('still spawns when the existing candidate has a different name', () => {
-			const task = makeTask({ recurrence: 'weekly', recurrence_type: 'fixed', due_date: '2026-04-16' });
-			const other = makeTask({
-				path: 'Tasks/def456-mow-lawn.md',
-				name: 'Mow lawn',
-				recurrence: 'weekly',
-				due_date: '2026-04-23',
-			});
-			const decision = decideCompletion(task, { ...DEPS, allTasks: [task, other] });
-			expect(decision.kind).toBe('complete-and-recur');
+		it('still spawns when the existing candidate has a different name or series', () => {
+			const other = makeTask({ path: 'Tasks/def456-mow-lawn.md', name: 'Mow lawn', repeat: WEEKLY, due_date: '2026-04-23' });
+			const otherRule = makeTask({ path: 'Tasks/def456-water-plants.md', repeat: { every: 1, unit: 'day' }, due_date: '2026-04-23' });
+			expect(decideCompletion(base(), { ...DEPS, allTasks: [base(), other, otherRule] }).kind).toBe('complete-and-recur');
 		});
 
 		it('still spawns when the existing candidate is due before the next due date', () => {
-			const task = makeTask({ recurrence: 'weekly', recurrence_type: 'fixed', due_date: '2026-04-16' });
-			const stale = makeTask({
-				path: 'Tasks/def456-water-plants.md',
-				recurrence: 'weekly',
-				due_date: '2026-04-16',
-			});
-			const decision = decideCompletion(task, { ...DEPS, allTasks: [task, stale] });
-			expect(decision.kind).toBe('complete-and-recur');
+			const stale = makeTask({ path: 'Tasks/def456-water-plants.md', repeat: WEEKLY, due_date: '2026-04-16' });
+			expect(decideCompletion(base(), { ...DEPS, allTasks: [base(), stale] }).kind).toBe('complete-and-recur');
 		});
 
 		it('does not treat the task itself as an existing instance', () => {
-			const task = makeTask({ recurrence: 'weekly', recurrence_type: 'fixed', due_date: '2026-05-01' });
-			// The task's own due_date is >= its next due date is false, but guard must
-			// exclude self regardless — verify a lone recurring task always recurs.
-			const decision = decideCompletion(task, { ...DEPS, allTasks: [task] });
-			expect(decision.kind).toBe('complete-and-recur');
+			const task = makeTask({ repeat: WEEKLY, due_date: '2026-05-01' });
+			expect(decideCompletion(task, { ...DEPS, allTasks: [task] }).kind).toBe('complete-and-recur');
 		});
+	});
+});
+
+describe('sameSeries', () => {
+	it('ignores count, compares everything else', () => {
+		expect(sameSeries({ ...WEEKLY, count: 1 }, { ...WEEKLY, count: 5 })).toBe(true);
+		expect(sameSeries(WEEKLY, { every: 2, unit: 'week' })).toBe(false);
+		expect(sameSeries(null, WEEKLY)).toBe(false);
 	});
 });

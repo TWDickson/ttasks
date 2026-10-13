@@ -1,4 +1,5 @@
 import type { Task } from '../types';
+import { REPEAT_KEYS } from '../repeat/normalize';
 
 /**
  * How each `Task` field relates to frontmatter — the one place that says which
@@ -38,7 +39,8 @@ export type FieldKind =
 	| 'time'         // HH:MM text, single-quoted or null
 	| 'number'       // finite number or null
 	| 'flag'         // boolean
-	| 'dates';       // list of calendar dates
+	| 'dates'        // list of calendar dates
+	| 'repeat';      // the `ttask_repeat_*` key group, as one RepeatRule
 
 export interface FieldPersistence {
 	/** Frontmatter key; `null` for file-derived or computed fields never stored in it. */
@@ -117,9 +119,10 @@ export const TASK_PERSISTENCE: Record<keyof Task, FieldPersistence> = {
 	pomodoro_count: lazy('ttask_pomodoro_count', 'number'),
 	focused_minutes: lazy('ttask_focused_minutes', 'number'),
 
-	recurrence: editable('recurrence', 'textOrNull'),
-	recurrence_type: editable('recurrence_type', 'textOrNull'),
-	recurrence_anchor_day: editable('recurrence_anchor_day', 'number'),
+	// A group of keys (`ttask_repeat_every`, `_unit`, …); `fmKey` names the one whose
+	// presence means "repeats". The codec reads and writes the whole group.
+	repeat: editable(REPEAT_KEYS.every, 'repeat'),
+	repeat_warning: derived,
 	reminder_override: lazy('ttask_reminder_override', 'reminder'),
 };
 
@@ -172,6 +175,7 @@ export function isBlankStoredValue(kind: FieldKind, value: unknown): boolean {
 		case 'strings':
 		case 'links':
 		case 'dates': return Array.isArray(value) ? value.length === 0 : value === '';
+		case 'repeat': return false; // a rule object; null was handled above
 		default: return value === '';
 	}
 }

@@ -28,8 +28,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 		created: '2026-04-01',
 		completed: null,
 		notes: '## Notes\nSome context here.',
-		recurrence: 'weekly',
-		recurrence_type: 'fixed',
+		repeat: { every: 1, unit: 'week' },
 		is_complete: false,
 		is_inbox: false,
 		status_changed: null,
@@ -121,14 +120,12 @@ describe('buildDuplicateInput', () => {
 			expect(result.notes).toBe('## Notes\nSome context here.');
 		});
 
-		it('preserves recurrence', () => {
-			const result = buildDuplicateInput(makeTask({ recurrence: 'weekly' }), TODAY, FIRST_STATUS);
-			expect(result.recurrence).toBe('weekly');
-		});
-
-		it('preserves recurrence_type', () => {
-			const result = buildDuplicateInput(makeTask({ recurrence_type: 'fixed' }), TODAY, FIRST_STATUS);
-			expect(result.recurrence_type).toBe('fixed');
+		it('preserves the repeat rule, as a copy', () => {
+			const rule = { every: 2, unit: 'week', weekdays: ['mon'], basis: 'completion' } as const;
+			const task = makeTask({ repeat: { ...rule, weekdays: [...rule.weekdays] } });
+			const result = buildDuplicateInput(task, TODAY, FIRST_STATUS);
+			expect(result.repeat).toEqual(task.repeat);
+			expect(result.repeat).not.toBe(task.repeat);
 		});
 
 		it('preserves assigned_to', () => {
@@ -163,10 +160,9 @@ describe('buildDuplicateInput', () => {
 			expect(result.estimated_days).toBeNull();
 		});
 
-		it('handles null recurrence', () => {
-			const result = buildDuplicateInput(makeTask({ recurrence: null, recurrence_type: null }), TODAY, FIRST_STATUS);
-			expect(result.recurrence).toBeNull();
-			expect(result.recurrence_type).toBeNull();
+		it('handles a non-repeating task', () => {
+			const result = buildDuplicateInput(makeTask({ repeat: null }), TODAY, FIRST_STATUS);
+			expect(result.repeat).toBeNull();
 		});
 
 		it('handles empty notes', () => {
@@ -174,24 +170,13 @@ describe('buildDuplicateInput', () => {
 			expect(result.notes).toBe('');
 		});
 
-		it('carries a stored recurrence anchor instead of re-deriving it (RP-1)', () => {
-			// due_date is a clamped occurrence; re-deriving would give 28 and the copy
-			// would drift from then on.
+		it('carries the pinned day instead of re-pinning from a clamped due date (RP-1)', () => {
 			const result = buildDuplicateInput(
-				makeTask({ recurrence: 'monthly', due_date: '2026-02-28', recurrence_anchor_day: 31 }),
+				makeTask({ repeat: { every: 1, unit: 'month', monthday: 31 }, due_date: '2026-02-28' }),
 				TODAY,
 				FIRST_STATUS,
 			);
-			expect(result.recurrence_anchor_day).toBe(31);
-		});
-
-		it('derives the anchor from the due date when none is stored', () => {
-			const result = buildDuplicateInput(
-				makeTask({ recurrence: 'monthly', due_date: '2026-01-31', recurrence_anchor_day: null }),
-				TODAY,
-				FIRST_STATUS,
-			);
-			expect(result.recurrence_anchor_day).toBe(31);
+			expect(result.repeat).toEqual({ every: 1, unit: 'month', monthday: 31 });
 		});
 	});
 

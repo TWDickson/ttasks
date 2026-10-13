@@ -11,7 +11,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 		labels: [], parent_task: null, depends_on: [], blocks: [], blocked_reason: '',
 		assigned_to: '', source: '', start_date: null, due_date: null, due_time: null,
 		estimated_days: null, workweek_only: false, holiday_dates: [], created: '2026-05-20',
-		completed: null, notes: '', recurrence: null, recurrence_type: null,
+		completed: null, notes: '', repeat: null,
 		is_complete: false, is_inbox: true, status_changed: null,
 		...overrides,
 	};
@@ -58,9 +58,10 @@ describe('serializeNewTaskFrontmatter', () => {
 		expect(fm.ttask_status_changed).toBe('2026-05-20');
 	});
 
-	it('emits the anchor key only when the task carries one', () => {
-		expect(body(serializeNewTaskFrontmatter(makeTask(), noName))).not.toHaveProperty('recurrence_anchor_day');
-		expect(body(serializeNewTaskFrontmatter(makeTask({ recurrence_anchor_day: 31 }), noName))).toHaveProperty('recurrence_anchor_day', 31);
+	it('emits repeat keys only when the task repeats', () => {
+		expect(Object.keys(body(serializeNewTaskFrontmatter(makeTask(), noName))).some((k) => k.startsWith('ttask_repeat_'))).toBe(false);
+		expect(body(serializeNewTaskFrontmatter(makeTask({ repeat: { every: 1, unit: 'month', monthday: 31 } }), noName)))
+			.toMatchObject({ ttask_repeat_every: 1, ttask_repeat_unit: 'month', ttask_repeat_monthday: 31 });
 	});
 });
 
@@ -72,7 +73,7 @@ describe('write → read round-trip', () => {
 			blocked_reason: 'waiting', assigned_to: 'me', source: 'email',
 			start_date: '2026-01-02', due_date: '2026-02-03', due_time: '09:30', estimated_days: 2.5,
 			workweek_only: true, holiday_dates: ['2026-07-04'],
-			recurrence: 'monthly', recurrence_type: 'fixed', recurrence_anchor_day: 31,
+			repeat: { every: 2, unit: 'week', weekdays: ['mon', 'wed'], basis: 'completion', until: '2026-12-31', count: 4 },
 		});
 		const read = readStoredFields(body(serializeNewTaskFrontmatter(task, noName)), ctx);
 		expect(read).toMatchObject({
@@ -81,7 +82,8 @@ describe('write → read round-trip', () => {
 			blocked_reason: 'waiting', assigned_to: 'me', source: 'email',
 			start_date: '2026-01-02', due_date: '2026-02-03', due_time: '09:30', estimated_days: 2.5,
 			workweek_only: true, holiday_dates: ['2026-07-04'],
-			recurrence: 'monthly', recurrence_type: 'fixed', recurrence_anchor_day: 31,
+			repeat: { every: 2, unit: 'week', weekdays: ['mon', 'wed'], basis: 'completion', until: '2026-12-31', count: 4 },
+			repeat_warning: null,
 			created: '2026-05-20', completed: null, status_changed: '2026-05-20',
 		});
 	});
@@ -120,7 +122,7 @@ describe('sparse notes read back as the blank task', () => {
 			area: null, priority: 'None', labels: [], parent_task: null, depends_on: [],
 			blocked_reason: '', assigned_to: '', source: '', start_date: null, due_date: null, due_time: null,
 			estimated_days: null, workweek_only: false, holiday_dates: [], completed: null,
-			recurrence: null, recurrence_type: null, recurrence_anchor_day: null,
+			repeat: null, repeat_warning: null,
 		});
 	});
 });

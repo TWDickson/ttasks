@@ -5,7 +5,9 @@
 	import type TTasksPlugin from '../main';
 	import type { Task, TaskStatus, TaskPriority } from '../types';
 	import type { TaskStore } from '../store/TaskStore';
-	import { RECURRENCE_LABELS, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
+	import { REPEAT_BASES, REPEAT_BASIS_LABELS, basisName, type RepeatBasisName } from '../repeat/presets';
+	import { repeatCalendarFromHolidays, type RepeatRule } from '../repeat/types';
+	import { previewOccurrences, repeatMenuOptions, repeatMenuValue, ruleForBasisChoice, ruleForMenuChoice } from './taskDetailRepeat';
 	import { localDateString } from '../utils/dateUtils';
 	import { today } from '../utils/todayStore';
 	import { buildTaskSchedule, resolveProjectedSchedule } from '../store/taskSchedule';
@@ -77,8 +79,7 @@
 	let workweek_only = false;
 	let holiday_dates_text = '';
 	let blocked_reason = '';
-	let recurrence: string | null = null;
-	let recurrence_type: string | null = null;
+	let repeat: RepeatRule | null = null;
 	let formTaskPath: string | null = null;
 	let formTaskSnapshotKey: string | null = null;
 	let pendingSaves = 0;
@@ -114,8 +115,7 @@
 			task.workweek_only,
 			task.holiday_dates,
 			task.blocked_reason,
-			task.recurrence,
-			task.recurrence_type,
+			task.repeat,
 		])
 		: null;
 
@@ -137,8 +137,7 @@
 		workweek_only = task.workweek_only === true;
 		holiday_dates_text = (task.holiday_dates ?? []).join(', ');
 		blocked_reason  = task.blocked_reason ?? '';
-		recurrence      = task.recurrence ?? null;
-		recurrence_type = task.recurrence_type ?? null;
+		repeat          = task.repeat ?? null;
 		formTaskPath    = task.path;
 		formTaskSnapshotKey = taskSnapshotKey;
 	}
@@ -300,16 +299,22 @@
 		void saveController.saveImmediate({ holiday_dates: parseHolidayDates(nextValue) });
 	}
 
-	function onRecurrenceFieldChange(nextValue: string): void {
-		recurrence = nextValue || null;
-		if (!recurrence) recurrence_type = null;
-		void saveController.saveImmediate({ recurrence: recurrence || null, recurrence_type: recurrence_type || null });
+	function onRepeatMenuChange(nextValue: string): void {
+		const next = ruleForMenuChoice(repeat, nextValue, due_date || null);
+		if (next === undefined) return;
+		repeat = next;
+		void saveController.saveImmediate({ repeat: next });
 	}
 
-	function onRecurrenceTypeFieldChange(nextValue: string): void {
-		recurrence_type = nextValue || null;
-		void saveController.saveImmediate({ recurrence_type: recurrence_type || null });
+	function onRepeatBasisChange(nextValue: string): void {
+		const next = ruleForBasisChoice(repeat, nextValue as RepeatBasisName, due_date || null);
+		repeat = next;
+		void saveController.saveImmediate({ repeat: next });
 	}
+
+	$: repeatMenu = repeatMenuOptions(repeat, repeatPresetOptions);
+	$: repeatCalendar = repeatCalendarFromHolidays(detailHolidayCalendar.holidays, detailHolidayCalendar.recurringHolidays);
+	$: repeatPreview = previewOccurrences(repeat, due_date || null, $today, 3, repeatCalendar);
 
 	function onReminderOverrideFieldChange(nextValue: string): void {
 		const reminderOverride = nextValue === 'urgent' || nextValue === 'mute' ? nextValue : null;
@@ -326,8 +331,7 @@
 	let statusOptions: string[] = [];
 	let areaOptions: string[] = [];
 	let labelOptions: string[] = [];
-	let recurrenceOptions: string[] = [];
-	let recurrenceTypeOptions: string[] = [];
+	let repeatPresetOptions: string[] = [];
 	let reminderOverrideOptions: string[] = [];
 	let statusOptionColors: Record<string, string> = {};
 	let priorityOptionColors: Record<string, string> = {};
@@ -335,8 +339,7 @@
 	let statusFieldProps: FieldComponentProps | null = null;
 	let priorityFieldProps: FieldComponentProps | null = null;
 	let parentTaskFieldProps: FieldComponentProps | null = null;
-	let recurrenceFieldProps: FieldComponentProps | null = null;
-	let recurrenceTypeFieldProps: FieldComponentProps | null = null;
+	let repeatFieldProps: FieldComponentProps | null = null;
 	let reminderOverrideFieldProps: FieldComponentProps | null = null;
 	let estimatedDaysFieldProps: FieldComponentProps | null = null;
 	let areaFieldProps: FieldComponentProps | null = null;
@@ -359,8 +362,7 @@
 		statusOptions = detailOptions.statusOptions;
 		areaOptions = detailOptions.areaOptions;
 		labelOptions = detailOptions.labelOptions;
-		recurrenceOptions = detailOptions.recurrenceOptions;
-		recurrenceTypeOptions = detailOptions.recurrenceTypeOptions;
+		repeatPresetOptions = detailOptions.repeatPresetOptions;
 		reminderOverrideOptions = detailOptions.reminderOverrideOptions;
 		statusOptionColors = detailOptions.statusOptionColors;
 		priorityOptionColors = detailOptions.priorityOptionColors;
@@ -385,8 +387,7 @@
 				assigned_to,
 				estimated_days,
 				blocked_reason,
-				recurrence,
-				recurrence_type,
+				repeat,
 			},
 		});
 
@@ -394,8 +395,7 @@
 		statusFieldProps = detailFieldProps.statusFieldProps;
 		priorityFieldProps = detailFieldProps.priorityFieldProps;
 		parentTaskFieldProps = detailFieldProps.parentTaskFieldProps;
-		recurrenceFieldProps = detailFieldProps.recurrenceFieldProps;
-		recurrenceTypeFieldProps = detailFieldProps.recurrenceTypeFieldProps;
+		repeatFieldProps = detailFieldProps.repeatFieldProps;
 		reminderOverrideFieldProps = detailFieldProps.reminderOverrideFieldProps;
 		estimatedDaysFieldProps = detailFieldProps.estimatedDaysFieldProps;
 		areaFieldProps = detailFieldProps.areaFieldProps;
@@ -694,29 +694,37 @@
 				{/if}
 			{/if}
 
-			<label class="tt-label" for="recurrence">Repeats</label>
-			{#if recurrenceFieldProps}
-				<SelectField
-					definition={recurrenceFieldProps.definition}
-					error={recurrenceFieldProps.error}
-					readonly={recurrenceFieldProps.readonly}
-					value={recurrence ?? ''}
-					options={recurrenceOptions}
-					optionLabels={RECURRENCE_LABELS}
-					onChange={onRecurrenceFieldChange}
-				/>
+			<label class="tt-label" for="repeat">Repeats</label>
+			{#if repeatFieldProps}
+				<div class="tt-repeat-field">
+					<SelectField
+						definition={repeatFieldProps.definition}
+						error={repeatFieldProps.error}
+						readonly={repeatFieldProps.readonly}
+						value={repeatMenuValue(repeat)}
+						options={repeatMenu.options}
+						optionLabels={repeatMenu.labels}
+						onChange={onRepeatMenuChange}
+					/>
+					{#if task.repeat_warning}
+						<span class="tt-chip-warning tt-repeat-warning" title={task.repeat_warning}>Repeat ignored: {task.repeat_warning}</span>
+					{/if}
+					{#if repeatPreview.length > 0}
+						<span class="tt-repeat-preview">Next: {repeatPreview.map((d) => formatHumanDate(d, $today)).join(' · ')}</span>
+					{/if}
+				</div>
 			{/if}
 
-			{#if recurrence && recurrenceTypeFieldProps}
-				<label class="tt-label" for="recurrence_type">Repeat Type</label>
+			{#if repeat}
+				<label class="tt-label" for="repeat_basis">Repeat Type</label>
 				<SelectField
-					definition={recurrenceTypeFieldProps.definition}
-					error={recurrenceTypeFieldProps.error}
-					readonly={recurrenceTypeFieldProps.readonly}
-					value={recurrence_type ?? ''}
-					options={recurrenceTypeOptions}
-					optionLabels={RECURRENCE_TYPE_LABELS}
-					onChange={onRecurrenceTypeFieldChange}
+					definition={{ name: 'repeat', label: '', type: 'select' }}
+					error={null}
+					readonly={false}
+					value={basisName(repeat) ?? 'fixed'}
+					options={[...REPEAT_BASES]}
+					optionLabels={REPEAT_BASIS_LABELS}
+					onChange={onRepeatBasisChange}
 				/>
 			{/if}
 
@@ -913,6 +921,23 @@
 		font-size: 0.72rem;
 		font-style: italic;
 		opacity: 0.85;
+	}
+
+	/* Repeats: the preset menu, then a muted preview of the next dates. */
+	.tt-repeat-field {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+	}
+
+	.tt-repeat-preview {
+		font-size: 0.72rem;
+		color: var(--text-muted);
+	}
+
+	.tt-repeat-warning {
+		white-space: normal;
 	}
 
 	.tt-fields {

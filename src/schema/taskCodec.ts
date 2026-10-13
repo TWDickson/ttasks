@@ -12,6 +12,8 @@ import {
 	toFrontmatterStringOrNull,
 } from '../utils/frontmatterValue';
 import { TASK_PERSISTENCE, fmKey, isBlankStoredValue, type FieldKind, type FieldPersistence } from './taskPersistence';
+import { REPEAT_KEYS, normalizeRepeat, repeatToFrontmatter } from '../repeat/normalize';
+import type { RepeatRule } from '../repeat/types';
 
 /**
  * The frontmatter ↔ `Task` codec, driven by `TASK_PERSISTENCE`. Reading and
@@ -25,6 +27,8 @@ import { TASK_PERSISTENCE, fmKey, isBlankStoredValue, type FieldKind, type Field
 
 /** Fields that live in frontmatter (everything except file metadata, the body, and derived flags). */
 export type StoredTaskFields = Omit<Task, 'id' | 'slug' | 'path' | 'notes' | 'is_complete' | 'is_inbox' | 'blocks'>;
+
+const ALL_REPEAT_KEYS = Object.values(REPEAT_KEYS);
 
 export interface ReadContext {
 	/** The user's configured statuses; an unrecognised value falls back to `initialStatus`. */
@@ -59,6 +63,7 @@ function decode(kind: FieldKind, raw: unknown, ctx: ReadContext): unknown {
 		case 'number': return toFrontmatterNumber(toFrontmatterScalar(raw));
 		case 'flag': return toFrontmatterBoolean(raw);
 		case 'dates': return asList(raw).map((v) => toCalendarDate(v)).filter((v): v is string => v !== null);
+		case 'repeat': // read as a group in readStoredFields
 		case 'derived': return undefined;
 	}
 }
@@ -68,6 +73,14 @@ export function readStoredFields(fm: Record<string, unknown>, ctx: ReadContext):
 	const out: Record<string, unknown> = {};
 	for (const [field, p] of ENTRIES) {
 		if (p.fmKey === null) continue;
+		if (p.kind === 'repeat') {
+			// A hand-edited combination that doesn't hold together reads as "doesn't
+			// repeat" plus a warning the UI shows — never a guessed rule.
+			const { rule, warning } = normalizeRepeat(fm);
+			out[field] = rule;
+			out.repeat_warning = warning;
+			continue;
+		}
 		out[field] = decode(p.kind, fm[p.fmKey], ctx);
 	}
 	return out as unknown as StoredTaskFields;
@@ -116,8 +129,16 @@ function encode(kind: FieldKind, value: unknown, resolveName: (pathWithoutExt: s
 					.filter((v): v is string => typeof v === 'string' && ISO_DATE.test(v))
 					.map((v) => `'${v}'`),
 			);
+		case 'repeat':
 		case 'derived': return 'null';
 	}
+}
+
+/** One `ttask_repeat_*` line. Dates are quoted like every other date key. */
+function encodeRepeatLine(key: string, value: unknown): string {
+	if (Array.isArray(value)) return `${key}:${yamlList(value.map(String))}`;
+	if (key === REPEAT_KEYS.until) return `${key}: '${String(value)}'`;
+	return `${key}: ${String(value)}`;
 }
 
 /**
@@ -135,6 +156,10 @@ export function serializeNewTaskFrontmatter(
 		const value = p.seed === 'blank' ? blankFor(p.kind) : p.seed === 'created' ? task.created : own;
 		// Sparse: an optional field with nothing to say gets no key at all.
 		if (p.onCreate === 'when-set' && isBlankStoredValue(p.kind, value)) continue;
+		if (p.kind === 'repeat') {
+			for (const [key, v] of Object.entries(repeatToFrontmatter(value as RepeatRule))) lines.push(encodeRepeatLine(key, v));
+			continue;
+		}
 		const encoded = encode(p.kind, value, resolveName);
 		// List encodings carry their own leading space/newline; scalars need one.
 		lines.push(/^[ \n]/.test(encoded) ? `${p.fmKey}:${encoded}` : `${p.fmKey}: ${encoded}`);
@@ -154,6 +179,12 @@ export function serializeNewTaskFrontmatter(
  */
 export function writeStoredField(fm: Record<string, unknown>, field: keyof Task, value: unknown): void {
 	const p = TASK_PERSISTENCE[field];
+	if (p.kind === 'repeat') {
+		// The rule owns its whole key group: clear it, then write what the new rule needs.
+		for (const key of ALL_REPEAT_KEYS) delete fm[key];
+		if (value) Object.assign(fm, repeatToFrontmatter(value as RepeatRule));
+		return;
+	}
 	const key = fmKey(field);
 	if (p.onCreate !== 'always' && isBlankStoredValue(p.kind, value)) delete fm[key];
 	else fm[key] = value ?? null;

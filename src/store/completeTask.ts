@@ -8,55 +8,66 @@
  * Pure: no Obsidian or plugin dependencies.
  */
 import type { Task } from '../types';
-import { deriveAnchorDay, nextDueDate, type RecurrenceType } from './recurrence';
+import type { RepeatCalendar, RepeatRule } from '../repeat/types';
+import { nextOccurrence } from '../repeat/next';
 
 export interface CompleteTaskDeps {
 	completionStatus: string;
 	today: string;
 	/** All known tasks — used to detect an already-spawned next instance. */
 	allTasks: Task[];
+	/** Working calendar for working-day rules; without one, working days are Mon–Fri. */
+	calendar?: RepeatCalendar;
 }
 
 export type CompleteTaskDecision =
 	| { kind: 'complete-only'; updates: Partial<Task> }
-	| { kind: 'complete-and-recur'; updates: Partial<Task>; nextDue: string };
+	| { kind: 'complete-and-recur'; updates: Partial<Task>; nextDue: string; nextRule: RepeatRule };
+
+/** Two rules describe the same series — `count` is ignored, since each spawn decrements it. */
+export function sameSeries(a: RepeatRule | null, b: RepeatRule | null): boolean {
+	if (!a || !b) return false;
+	const strip = ({ count: _count, ...rest }: RepeatRule) => JSON.stringify(rest, Object.keys(rest).sort());
+	return strip(a) === strip(b);
+}
 
 /**
  * Decides how to complete `task`:
  *
- * - Non-recurring → `complete-only`.
- * - Recurring, but an open instance already exists (same name + recurrence rule,
- *   due on/after the computed next due date) → `complete-only`. This is the
- *   idempotence guard that makes checklist re-checks and kanban drag jitter safe:
- *   it *prevents* the duplicate spawn rather than cleaning it up afterwards.
- * - Recurring with no such instance → `complete-and-recur`.
+ * - No repeat rule, or the series has ended (`until` passed, no `count` left)
+ *   → `complete-only`.
+ * - Repeating, but an open instance already exists (same name and series, due
+ *   on/after the computed next date) → `complete-only`. This is the idempotence
+ *   guard that makes checklist re-checks and kanban drag jitter safe: it
+ *   *prevents* the duplicate spawn rather than cleaning it up afterwards.
+ * - Otherwise → `complete-and-recur`, with the next due date and the rule the
+ *   next instance carries (`count` decremented).
+ *
+ * A schedule-based rule advances from the due date (falling back to today when
+ * there is none); a completion-based rule advances from today. The rule's pinned
+ * day-of-month keeps month-end schedules from drifting (RP-1).
  *
  * The `updates` always stamp the completion status and today's date.
  */
 export function decideCompletion(task: Task, deps: CompleteTaskDeps): CompleteTaskDecision {
 	const updates: Partial<Task> = { status: deps.completionStatus, completed: deps.today };
+	const rule = task.repeat;
+	if (!rule) return { kind: 'complete-only', updates };
 
-	if (!task.recurrence) {
-		return { kind: 'complete-only', updates };
-	}
-
-	const recurType = (task.recurrence_type ?? 'fixed') as RecurrenceType;
-	// The anchor keeps a month-end schedule from collapsing onto February's day
-	// (RP-1). Falls back to the current due date's own day, which reproduces the
-	// un-anchored result for tasks created before the anchor existed.
-	const anchorDay = task.recurrence_anchor_day ?? deriveAnchorDay(task.due_date);
-	const nextDue = nextDueDate(task.recurrence, recurType, task.due_date, deps.today, anchorDay);
+	const anchor = rule.basis === 'completion' ? deps.today : (task.due_date ?? deps.today);
+	const nextDue = nextOccurrence(rule, anchor, anchor, deps.calendar);
+	if (nextDue === null) return { kind: 'complete-only', updates };
 
 	const alreadySpawned = deps.allTasks.some((candidate) =>
 		candidate.path !== task.path &&
 		!candidate.is_complete &&
 		candidate.name === task.name &&
-		candidate.recurrence === task.recurrence &&
+		sameSeries(candidate.repeat, rule) &&
 		candidate.due_date != null &&
 		candidate.due_date >= nextDue,
 	);
+	if (alreadySpawned) return { kind: 'complete-only', updates };
 
-	return alreadySpawned
-		? { kind: 'complete-only', updates }
-		: { kind: 'complete-and-recur', updates, nextDue };
+	const nextRule: RepeatRule = rule.count !== undefined ? { ...rule, count: rule.count - 1 } : rule;
+	return { kind: 'complete-and-recur', updates, nextDue, nextRule };
 }

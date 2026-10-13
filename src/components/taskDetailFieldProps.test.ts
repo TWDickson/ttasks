@@ -27,8 +27,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 		estimated_days: null,
 		created: '2026-04-01',
 		completed: null,
-		recurrence: null,
-		recurrence_type: null,
+		repeat: null,
 		notes: '',
 		is_complete: false,
 		is_inbox: false,
@@ -76,8 +75,7 @@ describe('deriveTaskDetailFieldProps', () => {
 				assigned_to: '',
 				estimated_days: null,
 				blocked_reason: '',
-				recurrence: null,
-				recurrence_type: null,
+				repeat: null,
 			},
 		});
 
@@ -109,8 +107,7 @@ describe('deriveTaskDetailFieldProps', () => {
 				assigned_to: task.assigned_to ?? '',
 				estimated_days: task.estimated_days,
 				blocked_reason: task.blocked_reason ?? '',
-				recurrence: task.recurrence ?? null,
-				recurrence_type: task.recurrence_type ?? null,
+				repeat: task.repeat ?? null,
 			},
 		});
 

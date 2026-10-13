@@ -4,7 +4,6 @@
  */
 
 import type { Task, TaskCreateInput } from '../types';
-import { deriveAnchorDay } from './recurrence';
 
 /**
  * Builds a TaskCreateInput for a duplicate of `task`.
@@ -18,8 +17,7 @@ import { deriveAnchorDay } from './recurrence';
  *   - blocked_reason → ''
  *
  * Preserved fields: name, type, area, priority, labels,
- *   parent_task, due_date, estimated_days, notes, recurrence,
- *   recurrence_type, recurrence_anchor_day, assigned_to, source.
+ *   parent_task, due_date, estimated_days, notes, repeat, assigned_to, source.
  */
 export function buildDuplicateInput(
 	task: Task,
@@ -47,10 +45,8 @@ export function buildDuplicateInput(
 		created:         today,
 		completed:       null,
 		notes:           task.notes,
-		recurrence:      task.recurrence,
-		recurrence_type: task.recurrence_type,
-		// Carried, not re-derived: due_date may be a clamped occurrence, and
-		// re-deriving from it would reintroduce the RP-1 drift in the copy.
-		recurrence_anchor_day: task.recurrence_anchor_day ?? deriveAnchorDay(task.due_date),
+		// Carried as-is, pinned day included: due_date may be a clamped occurrence,
+		// and re-pinning from it would reintroduce the RP-1 drift in the copy.
+		repeat:          task.repeat ? { ...task.repeat } : null,
 	};
 }

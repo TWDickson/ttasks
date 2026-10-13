@@ -1,3 +1,5 @@
+import { presetFromText, ruleFromPreset } from '../repeat/presets';
+import type { RepeatRule } from '../repeat/types';
 import { parseCheckboxLine, isTTasksLink } from './checkboxParser';
 import { parseEmojiFields } from './emojiFieldParser';
 import { parseDatesFromFilename } from './filenameDateParser';
@@ -120,8 +122,9 @@ export function scanFileForCapturableTasks(
 			created: createdDate,
 			completed: emoji.completedDate,
 			status_changed: null,
-			recurrence: emoji.recurrence,
-			recurrence_type: null,
+			// 🔁 text the presets understand ("every week") becomes a rule; anything
+			// else is not a repeat we can honour, so it isn't guessed at.
+			repeat: repeatFromCaptureText(emoji.recurrence, dueDate),
 			notes: '',
 			is_complete: false,
 			is_inbox: area === null,
@@ -136,4 +139,10 @@ export function scanFileForCapturableTasks(
 	}
 
 	return results;
+}
+
+/** A captured `🔁 every week` → a rule, pinned to the due date like the UI does. */
+export function repeatFromCaptureText(text: string | null, dueDate: string | null): RepeatRule | null {
+	const preset = presetFromText(text);
+	return preset ? ruleFromPreset(preset, 'fixed', dueDate) : null;
 }

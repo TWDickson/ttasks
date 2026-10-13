@@ -45,3 +45,20 @@ export interface RepeatRule {
 export interface RepeatCalendar {
 	isWorkingDay(date: string): boolean;
 }
+
+/**
+ * A working calendar for repeat rules: weekends and the configured holidays are
+ * non-working. (Repeat "working days" are the same for every task — the per-area
+ * "skip weekends" toggle is about *scheduling* chains, not what a working day is.)
+ */
+export function repeatCalendarFromHolidays(holidays: readonly string[], recurringMonthDays: readonly string[]): RepeatCalendar {
+	const dates = new Set(holidays);
+	const yearly = new Set(recurringMonthDays);
+	return {
+		isWorkingDay(date: string): boolean {
+			const [y, m, d] = date.split('-').map(Number);
+			const dow = new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay();
+			return dow !== 0 && dow !== 6 && !dates.has(date) && !yearly.has(date.slice(5));
+		},
+	};
+}

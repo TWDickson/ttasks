@@ -24,8 +24,7 @@ describe('TaskDetail controlled-field contract', () => {
 		expect(content).toContain('definition={assignedToFieldProps.definition}');
 		expect(content).toContain('definition={estimatedDaysFieldProps.definition}');
 		expect(content).toContain('definition={blockedReasonFieldProps.definition}');
-		expect(content).toContain('definition={recurrenceFieldProps.definition}');
-		expect(content).toContain('definition={recurrenceTypeFieldProps.definition}');
+		expect(content).toContain('definition={repeatFieldProps.definition}');
 		expect(content).toContain('definition={reminderOverrideFieldProps.definition}');
 		expect(content).toContain('definition={parentTaskFieldProps.definition}');
 		expect(content).toContain('context={parentTaskFieldProps.context}');
@@ -40,8 +39,7 @@ describe('TaskDetail controlled-field contract', () => {
 		expect(content).not.toContain('{...assignedToFieldProps}');
 		expect(content).not.toContain('{...estimatedDaysFieldProps}');
 		expect(content).not.toContain('{...blockedReasonFieldProps}');
-		expect(content).not.toContain('{...recurrenceFieldProps}');
-		expect(content).not.toContain('{...recurrenceTypeFieldProps}');
+		expect(content).not.toContain('{...repeatFieldProps}');
 		expect(content).not.toContain('{...reminderOverrideFieldProps}');
 	});
 });

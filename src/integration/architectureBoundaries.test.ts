@@ -70,6 +70,8 @@ describe('architecture boundaries', () => {
 			'src/repeat/normalize.ts',
 			'src/repeat/describe.ts',
 			'src/repeat/legacy.ts',
+			'src/repeat/presets.ts',
+			'src/integration/repeatContract.ts',
 			'src/utils/frontmatterValue.ts',
 			'src/utils/pathUtils.ts',
 			'src/utils/taskLabel.ts',

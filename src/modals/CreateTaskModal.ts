@@ -2,7 +2,7 @@ import { App, Component, MarkdownRenderer, Modal, Notice, setIcon } from 'obsidi
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { TaskPriority, TaskRecordType, TaskStatus } from '../types';
-import { RECURRENCE_OPTIONS, RECURRENCE_LABELS, RECURRENCE_TYPES, RECURRENCE_TYPE_LABELS } from '../store/recurrence';
+import { REPEAT_BASES, REPEAT_BASIS_LABELS, REPEAT_PRESETS, REPEAT_PRESET_LABELS, isRepeatPreset, ruleFromPreset, type RepeatBasisName } from '../repeat/presets';
 import { priorityColor } from '../constants';
 import { localDateString } from '../utils/dateUtils';
 import { sortDependencyFirst } from '../utils/dependencySort';
@@ -36,8 +36,9 @@ export class CreateTaskModal extends Modal {
 		workweek_only: false,
 		holiday_dates: [] as string[],
 		notes: '',
-		recurrence: null as string | null,
-		recurrence_type: null as string | null,
+		// Form state for the Repeats menu; turned into a RepeatRule on submit.
+		repeatPreset: null as string | null,
+		repeatBasis: null as RepeatBasisName | null,
 	};
 
 	private submitting = false;
@@ -626,24 +627,24 @@ export class CreateTaskModal extends Modal {
 		const recurrenceRow = recurrenceField.createDiv('tt-modal-recurrence-row');
 		const recurrenceSelect = recurrenceRow.createEl('select', { cls: 'tt-modal-select' });
 		recurrenceSelect.createEl('option', { text: '— never —', value: '' });
-		for (const r of RECURRENCE_OPTIONS) {
-			recurrenceSelect.createEl('option', { text: RECURRENCE_LABELS[r], value: r });
+		for (const r of REPEAT_PRESETS) {
+			recurrenceSelect.createEl('option', { text: REPEAT_PRESET_LABELS[r], value: r });
 		}
 
 		const recurrenceTypeSelect = recurrenceRow.createEl('select', {
 			cls: 'tt-modal-select tt-modal-recurrence-type',
 		});
-		for (const t of RECURRENCE_TYPES) {
-			recurrenceTypeSelect.createEl('option', { text: RECURRENCE_TYPE_LABELS[t], value: t });
+		for (const t of REPEAT_BASES) {
+			recurrenceTypeSelect.createEl('option', { text: REPEAT_BASIS_LABELS[t], value: t });
 		}
 		recurrenceTypeSelect.style.display = 'none';
 
 		recurrenceSelect.addEventListener('change', () => {
-			this.formValues.recurrence = recurrenceSelect.value || null;
-			recurrenceTypeSelect.style.display = this.formValues.recurrence ? '' : 'none';
+			this.formValues.repeatPreset = recurrenceSelect.value || null;
+			recurrenceTypeSelect.style.display = this.formValues.repeatPreset ? '' : 'none';
 		});
 		recurrenceTypeSelect.addEventListener('change', () => {
-			this.formValues.recurrence_type = recurrenceTypeSelect.value || null;
+			this.formValues.repeatBasis = (recurrenceTypeSelect.value || null) as RepeatBasisName | null;
 		});
 
 		// ── Buttons ──────────────────────────────────────────────────────────────
@@ -822,8 +823,9 @@ export class CreateTaskModal extends Modal {
 				created:         localDateString(),
 				completed:       null,
 				notes:           this.formValues.notes,
-				recurrence:      this.formValues.recurrence,
-				recurrence_type: this.formValues.recurrence_type,
+				repeat:          isRepeatPreset(this.formValues.repeatPreset)
+					? ruleFromPreset(this.formValues.repeatPreset, this.formValues.repeatBasis, dueDate)
+					: null,
 			});
 			// "Add a blocker" flow: make each target task depend on the new one, so
 			// the new task blocks them (the reverse of the depends_on we set above).

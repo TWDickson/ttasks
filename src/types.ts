@@ -1,3 +1,4 @@
+import type { RepeatRule } from './repeat/types';
 export type TaskStatus = string;
 export type TaskPriority = 'High' | 'Medium' | 'Low' | 'None';
 export type TaskRecordType = 'task' | 'project';
@@ -47,17 +48,13 @@ export interface Task {
 	pomodoro_count?: number | null;   // completed focus sessions
 	focused_minutes?: number | null;  // total focused minutes
 
-	// Recurrence (stored in frontmatter; null = no recurrence)
-	recurrence: string | null;
-	// 'fixed' = advance from due_date (default); 'from_completion' = advance from completion date
-	recurrence_type: string | null;
-	// Day-of-month the monthly/yearly schedule is pinned to. Derived from due_date
-	// whenever due_date is written, then carried across recurrence spawns so a
-	// month-end schedule doesn't collapse onto February's day (Jan 31 → Feb 28 →
-	// Mar 28 → …). See `advanceDate` in store/recurrence.ts and RP-1 in
-	// Scripts/archive/HISTORY.md. Not user-editable: it's derived, so it stays out of the
-	// TASK_FIELD_DEFINITIONS form registry.
-	recurrence_anchor_day?: number | null;
+	// Repeat rule (RP). Stored as the flat `ttask_repeat_*` keys and normalized by
+	// `src/repeat/normalize.ts`; null = doesn't repeat. A fixed monthly/yearly
+	// rule pins its `monthday`, so a month-end schedule keeps its day (RP-1).
+	repeat: RepeatRule | null;
+	// Why a hand-edited repeat rule couldn't be read — derived, never stored. The
+	// rule is then null (the task doesn't repeat) rather than a silent guess.
+	repeat_warning?: string | null;
 
 	// Free-form body content (everything after frontmatter)
 	notes: string;

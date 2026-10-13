@@ -29,8 +29,7 @@ export function buildPromoteInput(
 		created: external.created,
 		completed: null,
 		notes: external.notes,
-		recurrence: external.recurrence,
-		recurrence_type: external.recurrence_type,
+		repeat: external.repeat,
 	};
 }
 

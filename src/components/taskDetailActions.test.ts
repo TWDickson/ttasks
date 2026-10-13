@@ -26,8 +26,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 		created: '2026-05-19',
 		completed: null,
 		status_changed: '2026-05-19',
-		recurrence: null,
-		recurrence_type: null,
+		repeat: null,
 		reminder_override: null,
 		notes: '',
 		is_complete: false,
@@ -63,7 +62,7 @@ describe('runMarkCompleteFlow', () => {
 		const notice = vi.fn();
 
 		await runMarkCompleteFlow({
-			task: makeTask({ recurrence: 'weekly' }),
+			task: makeTask({ repeat: { every: 1, unit: 'week' } }),
 			completionStatus: 'Done',
 			today: '2026-05-19',
 			saveImmediate,
@@ -82,7 +81,7 @@ describe('runMarkCompleteFlow', () => {
 		const notice = vi.fn();
 
 		await runMarkCompleteFlow({
-			task: makeTask({ recurrence: 'weekly' }),
+			task: makeTask({ repeat: { every: 1, unit: 'week' } }),
 			completionStatus: 'Done',
 			today: '2026-05-19',
 			saveImmediate,

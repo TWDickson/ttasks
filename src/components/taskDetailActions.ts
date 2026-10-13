@@ -13,7 +13,7 @@ export interface MarkCompleteFlowDeps {
 export async function runMarkCompleteFlow(deps: MarkCompleteFlowDeps): Promise<void> {
 	const { task, completionStatus, today, saveImmediate, completeAndRecur, notice } = deps;
 
-	if (task.recurrence) {
+	if (task.repeat) {
 		const next = await completeAndRecur(task);
 		if (next) {
 			notice(`Completed. Next due ${next.due_date ?? 'TBD'} (${next.name})`);

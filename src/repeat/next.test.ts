@@ -184,3 +184,15 @@ describe('nextOccurrence — completion basis is the same maths from a new ancho
 		expect(nextOccurrence(rule, '2026-03-04', '2026-03-04')).toBe('2026-03-18');
 	});
 });
+
+describe('repeatCalendarFromHolidays', () => {
+	it('treats weekends, dated and yearly holidays as non-working', async () => {
+		const { repeatCalendarFromHolidays } = await import('./types');
+		const cal = repeatCalendarFromHolidays(['2027-01-04'], ['12-25']);
+		expect(cal.isWorkingDay('2027-01-05')).toBe(true);  // Tue
+		expect(cal.isWorkingDay('2027-01-02')).toBe(false); // Sat
+		expect(cal.isWorkingDay('2027-01-04')).toBe(false); // dated holiday
+		expect(cal.isWorkingDay('2026-12-25')).toBe(false); // yearly holiday
+		expect(cal.isWorkingDay('2027-12-24')).toBe(true);
+	});
+});

@@ -7,6 +7,7 @@ import {
 	CORE_FIELDS, KEY_MAP, applyPlanToObject, isBlank, planMigration, verifyMigration,
 } from '../../Scripts/lib/schemaMigration.mjs';
 import { EXTRA_FM_KEYS, TASK_PERSISTENCE } from './taskPersistence';
+import { readStoredFields } from './taskCodec';
 import { REPEAT_KEYS, normalizeRepeat, repeatToFrontmatter } from '../repeat/normalize';
 import { ruleFromLegacy } from '../repeat/legacy';
 import type { Task } from '../types';
@@ -22,9 +23,10 @@ const fm = (extra: Record<string, unknown> = {}) => ({
 });
 
 describe('KEY_MAP vs. the persistence table', () => {
-	// `blocks` is derived (MD-3) and recurrence is converted (RP); neither is a plain rename.
+	// `blocks` is derived (MD-3) and `repeat` is converted from the recurrence trio
+	// (RP); neither is a plain rename.
 	const renamed = (Object.keys(TASK_PERSISTENCE) as (keyof Task)[]).filter(
-		(f) => TASK_PERSISTENCE[f].fmKey !== null && f !== 'blocks' && !f.startsWith('recurrence'),
+		(f) => TASK_PERSISTENCE[f].fmKey !== null && f !== 'blocks' && f !== 'repeat',
 	);
 
 	it('renames exactly the stored fields, each to ttask_<field>', () => {
@@ -133,6 +135,47 @@ describe('recurrence conversion agrees with the repeat engine', () => {
 		expect(out).toMatchObject(repeatToFrontmatter({ every: 1, unit: 'week' }));
 		expect(Object.keys(out).filter((k) => k.startsWith('ttask_repeat_')).sort())
 			.toEqual([REPEAT_KEYS.every, REPEAT_KEYS.unit].sort());
+	});
+});
+
+describe('a migrated note reads back through the plugin\'s own codec', () => {
+	const ctx = {
+		statuses: ['Active', 'Hold', 'Completed'],
+		initialStatus: 'Active',
+		resolveLink: (raw: unknown) => {
+			const m = /\[\[([^\]|]+)/.exec(String(raw ?? ''));
+			return m ? `${m[1]}.md` : null;
+		},
+	};
+
+	it('every value the old note carried is what the plugin now reads', () => {
+		const legacy = {
+			type: 'project', name: 'Ship it', cssclasses: ['ttask'], area: 'database', status: 'Hold', priority: 'High',
+			labels: ['feature'], parent_task: '[[p-1|P]]', depends_on: ['[[a-1|A]]'], blocks: ['[[z-9|Z]]'],
+			blocked_reason: 'waiting', assigned_to: 'me', source: 'email', start_date: '2026-01-02', due_date: '2026-01-31',
+			due_time: '09:30', estimated_days: 0, workweek_only: true, holiday_dates: ['2026-07-04'],
+			created: '2026-01-01', completed: null, status_changed: '2026-01-05',
+			recurrence: 'monthly', recurrence_type: 'fixed', recurrence_anchor_day: 31,
+			pomodoro_count: 3, focused_minutes: 75, reminder_override: 'urgent', 'creation date': 'x',
+		};
+		const read = readStoredFields(applyPlanToObject(legacy, planMigration(legacy)) as Record<string, unknown>, ctx);
+		expect(read).toEqual({
+			type: 'project', name: 'Ship it', area: 'database', status: 'Hold', priority: 'High',
+			labels: ['feature'], parent_task: 'p-1.md', depends_on: ['a-1.md'],
+			blocked_reason: 'waiting', assigned_to: 'me', source: 'email', start_date: '2026-01-02', due_date: '2026-01-31',
+			due_time: '09:30', estimated_days: 0, workweek_only: true, holiday_dates: ['2026-07-04'],
+			created: '2026-01-01', completed: null, status_changed: '2026-01-05',
+			repeat: { every: 1, unit: 'month', monthday: 31 }, repeat_warning: null,
+			pomodoro_count: 3, focused_minutes: 75, reminder_override: 'urgent',
+		});
+	});
+
+	it('a sparse note reads back as the blank task', () => {
+		const legacy = { type: 'task', name: 'Bare', status: 'Active', created: '2026-01-01', status_changed: '2026-01-01',
+			area: null, labels: [], priority: 'None', recurrence: null, recurrence_type: null, recurrence_anchor_day: 1, blocks: [] };
+		const migrated = applyPlanToObject(legacy, planMigration(legacy));
+		expect(Object.keys(migrated)).toEqual(['ttask_type', 'ttask_name', 'ttask_status', 'ttask_created', 'ttask_status_changed']);
+		expect(readStoredFields(migrated as Record<string, unknown>, ctx)).toMatchObject({ area: null, labels: [], priority: 'None', repeat: null });
 	});
 });
 

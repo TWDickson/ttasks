@@ -1,3 +1,4 @@
+import { repeatFromContract } from './integration/repeatContract';
 import { Menu, Notice, Platform, Plugin, setIcon, setTooltip, TFile } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import {
@@ -610,7 +611,7 @@ export default class TTasksPlugin extends Plugin {
 		if (doUpdates) {
 			for (const update of plan.updates) {
 				try {
-					await this.taskStore.update(update.path, changesToPatch(update.changes));
+					await this.taskStore.update(update.path, changesToPatch(update.changes, this.taskStore.getByPath(update.path)));
 					updated++;
 				} catch (error) {
 					this.logError(`import update failed for ${update.path}: ${String(error)}`);
@@ -732,8 +733,7 @@ export default class TTasksPlugin extends Plugin {
 			holiday_dates: [],
 			created: parsed.created,
 			completed: parsed.completed,
-			recurrence: parsed.recurrence,
-			recurrence_type: parsed.recurrence_type,
+			repeat: repeatFromContract(parsed.recurrence, parsed.recurrence_type, parsed.due_date, null) ?? null,
 			notes: parsed.notes,
 			reminder_override: null,
 			pomodoro_count: parsed.pomodoro_count,
