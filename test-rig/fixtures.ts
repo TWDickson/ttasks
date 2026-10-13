@@ -2,6 +2,7 @@
    The store actually mutates its writable, so drag-drop, status changes, and
    detail edits update the UI just like the real plugin. */
 
+import { createMemoryDeviceStore, type DeviceStore } from '../src/utils/deviceStore';
 import { get, writable, type Writable } from 'svelte/store';
 import type { Task, TaskPriority, TaskStatus } from '../src/types';
 import type { ExternalTask } from '../src/integration/types';
@@ -250,6 +251,7 @@ export interface RigPlugin {
 	settings: RigSettings;
 	/** Mirrors TTasksPlugin.statusPolicy — the views read status pointers off this. */
 	statusPolicy: StatusPolicy;
+	deviceStore: DeviceStore;
 	taskStore: Record<string, unknown> & { tasks: Writable<Task[]> };
 	/** Captured (non-TTasks) tasks. Empty in the rig, but must match the real type. */
 	scanEngine: { tasks: Writable<ExternalTask[]> };
@@ -413,6 +415,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		// Mirrors TTasksPlugin.statusPolicy — the views read the resolved status
 		// pointers off this rather than re-deriving them from `settings.statuses`.
 		statusPolicy: buildStatusPolicy(settings),
+		deviceStore: createMemoryDeviceStore(),
 		taskStore,
 		scanEngine: { tasks: writable<ExternalTask[]>([]) },
 		archiveService: {

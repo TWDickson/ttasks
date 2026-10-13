@@ -77,6 +77,7 @@ describe('architecture boundaries', () => {
 			'src/utils/pathUtils.ts',
 			'src/utils/taskLabel.ts',
 			'src/utils/taskRef.ts',
+			'src/utils/deviceStore.ts',
 			'src/utils/badgePalette.ts',
 			'src/settings/statusPolicy.ts',
 		]) {
@@ -155,5 +156,13 @@ describe('architecture boundaries', () => {
 			expect(content).not.toContain("from 'obsidian'");
 			expect(content).not.toContain('from "obsidian"');
 		}
+	});
+
+	it('no shipped code touches raw localStorage — device state goes through the vault-scoped DeviceStore (PB-2)', () => {
+		// deviceStore.ts reads the old raw keys once, in its legacy hand-off.
+		const offenders = sourceFiles()
+			.filter((path) => !path.endsWith('utils/deviceStore.ts'))
+			.filter((path) => /\blocalStorage\.(getItem|setItem|removeItem)/.test(readWorkspaceFile(path)));
+		expect(offenders).toEqual([]);
 	});
 });

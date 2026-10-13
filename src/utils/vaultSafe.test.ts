@@ -1,9 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
 	safeRead,
 	safeProcess,
-	safeLocalStorage,
-	safeLocalStorageSet,
 	ensureFolderPath,
 } from './vaultSafe';
 
@@ -84,30 +82,5 @@ describe('safeProcess', () => {
 		);
 		expect(result.ok).toBe(false);
 		expect(result.error).toBeInstanceOf(Error);
-	});
-});
-
-describe('safeLocalStorage', () => {
-	it('returns null when getItem throws', () => {
-		const getItem = vi.fn(() => { throw new Error('blocked'); });
-		vi.stubGlobal('localStorage', { getItem, setItem: vi.fn() });
-		expect(safeLocalStorage('k')).toBeNull();
-	});
-
-	it('returns value when getItem succeeds', () => {
-		vi.stubGlobal('localStorage', { getItem: vi.fn(() => 'v'), setItem: vi.fn() });
-		expect(safeLocalStorage('k')).toBe('v');
-	});
-});
-
-describe('safeLocalStorageSet', () => {
-	it('returns false when setItem throws', () => {
-		vi.stubGlobal('localStorage', { getItem: vi.fn(), setItem: vi.fn(() => { throw new Error('quota'); }) });
-		expect(safeLocalStorageSet('k', 'v')).toBe(false);
-	});
-
-	it('returns true when setItem succeeds', () => {
-		vi.stubGlobal('localStorage', { getItem: vi.fn(), setItem: vi.fn() });
-		expect(safeLocalStorageSet('k', 'v')).toBe(true);
 	});
 });

@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import { localDateString, localTimeString } from '../utils/dateUtils';
-import { safeLocalStorage, safeLocalStorageSet } from '../utils/vaultSafe';
+import { DEVICE_KEYS } from '../utils/deviceStore';
 import { isSnoozed, purgeSnoozed, snoozeTask, type SnoozedState } from './reminderSnooze';
 import { NOTICE_DURATION_MS, REMINDER_POLL_INTERVAL_MS, REMINDER_LEAD_DAYS, REMINDER_STALE_DAYS } from '../constants';
 import { buildReminderNotice } from './reminderNoticeBuilder';
@@ -10,24 +10,18 @@ import { evaluateReminders, type ReminderRuleId } from './reminderRules';
 
 export class ReminderService {
 	private storage;
-	// Namespaced by vault name so multiple vaults on the same device don't collide.
-	private get snoozeKey(): string {
-		return `ttasks-snoozed-v1-${this.plugin.app.vault.getName()}`;
-	}
 
 	constructor(private plugin: TTasksPlugin) {
-		this.storage = createReminderStorage(this.plugin.app.vault.getName());
+		this.storage = createReminderStorage(this.plugin.deviceStore);
 	}
 
 	private loadSnoozed(): SnoozedState {
-		try {
-			const raw = safeLocalStorage(this.snoozeKey);
-			return raw ? JSON.parse(raw) : {};
-		} catch { return {}; }
+		const saved = this.plugin.deviceStore.get<unknown>(DEVICE_KEYS.snoozed);
+		return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved as SnoozedState : {};
 	}
 
 	private saveSnoozed(state: SnoozedState): void {
-		safeLocalStorageSet(this.snoozeKey, JSON.stringify(state));
+		this.plugin.deviceStore.set(DEVICE_KEYS.snoozed, state);
 	}
 
 	snooze(path: string, hours: number): void {

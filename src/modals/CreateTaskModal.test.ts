@@ -1,3 +1,4 @@
+import { DEVICE_KEYS, createMemoryDeviceStore } from '../utils/deviceStore';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildStatusPolicy } from '../settings/statusPolicy';
 import { writable } from 'svelte/store';
@@ -172,14 +173,10 @@ function flushPromises(): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+let deviceStore = createMemoryDeviceStore();
+
 function setupGlobals(isMobile = false): void {
-	const storage = new Map<string, string>();
-	(globalThis as any).localStorage = {
-		getItem: (key: string) => storage.get(key) ?? null,
-		setItem: (key: string, value: string) => {
-			storage.set(key, value);
-		},
-	};
+	deviceStore = createMemoryDeviceStore();
 	(globalThis as any).window = {
 		matchMedia: () => ({ matches: isMobile }),
 	};
@@ -240,6 +237,8 @@ function buildPluginMock(allTasks: Task[] = []) {
 		// Mirrors TTasksPlugin.statusPolicy: resolved from this fake's settings.
 		statusPolicy: buildStatusPolicy(settings),
 		manifest: { id: 'ttasks' },
+		// Read at call time, so a test's setupGlobals() reset is seen.
+		get deviceStore() { return deviceStore; },
 		taskStore: {
 			tasks: writable(allTasks),
 			create,
@@ -497,24 +496,24 @@ describe('CreateTaskModal mobile quick-create mode', () => {
 			expect(toggleBtn.textContent).toBe('Quick create off');
 		});
 
-		it('persists quick-create preference to localStorage on each toggle', async () => {
+		it('persists the quick-create preference to the device store on each toggle', async () => {
 			const { contentEl } = buildModal([], { mobile: true });
 			// Default: ON → initial applyQuickMode(true) already persisted '1'
-			expect(localStorage.getItem('ttasks.mobileQuickCreate')).toBe('1');
+			expect(deviceStore.get(DEVICE_KEYS.mobileQuickCreate)).toBe(true);
 
 			const toggleBtn = contentEl.querySelectorAll('.tt-modal-quick-toggle')[0];
 			if (!toggleBtn) throw new Error('Expected .tt-modal-quick-toggle button');
 
 			await toggleBtn.trigger('click');
-			expect(localStorage.getItem('ttasks.mobileQuickCreate')).toBe('0');
+			expect(deviceStore.get(DEVICE_KEYS.mobileQuickCreate)).toBe(false);
 
 			await toggleBtn.trigger('click');
-			expect(localStorage.getItem('ttasks.mobileQuickCreate')).toBe('1');
+			expect(deviceStore.get(DEVICE_KEYS.mobileQuickCreate)).toBe(true);
 		});
 
 		it('starts with quick-create OFF when saved preference is 0', () => {
 			setupGlobals(true);
-			localStorage.setItem('ttasks.mobileQuickCreate', '0');
+			deviceStore.set(DEVICE_KEYS.mobileQuickCreate, false);
 
 			const plugin = buildPluginMock();
 			const modal = new CreateTaskModal(new App(), plugin, 'task');

@@ -1,3 +1,4 @@
+import { DEVICE_KEYS } from '../utils/deviceStore';
 import { App, Component, MarkdownRenderer, Modal, Notice, setIcon } from 'obsidian';
 import { get } from 'svelte/store';
 import type TTasksPlugin from '../main';
@@ -13,8 +14,6 @@ import { getFieldOptions, getOptionColor } from './modalFieldHelpers';
 import { taskFields } from '../schema/taskFields';
 import { withCurrentOption } from './chipSelection';
 
-const MOBILE_QUICK_CREATE_PREF_KEY = 'ttasks.mobileQuickCreate';
-const MOBILE_QUICK_CREATE_HINT_DISMISSED_KEY = 'ttasks.mobileQuickCreateHintDismissed';
 
 export class CreateTaskModal extends Modal {
 	private plugin: TTasksPlugin;
@@ -662,40 +661,22 @@ export class CreateTaskModal extends Modal {
 		primaryBtn.addEventListener('click', () => void this.submit(primaryBtn));
 	}
 
+	// Per-device, per-vault preferences (PB-2); the store never throws.
 	private getInitialQuickCreateMode(isMobile: boolean): boolean {
 		if (!isMobile) return false;
-		try {
-			const saved = localStorage.getItem(MOBILE_QUICK_CREATE_PREF_KEY);
-			if (saved === '1') return true;
-			if (saved === '0') return false;
-		} catch {
-			// Ignore storage access issues and fall back to mobile default.
-		}
-		return true;
+		return this.plugin.deviceStore.get<boolean>(DEVICE_KEYS.mobileQuickCreate) ?? true;
 	}
 
 	private persistQuickCreateMode(enabled: boolean): void {
-		try {
-			localStorage.setItem(MOBILE_QUICK_CREATE_PREF_KEY, enabled ? '1' : '0');
-		} catch {
-			// Ignore storage access issues to avoid blocking task creation UX.
-		}
+		this.plugin.deviceStore.set(DEVICE_KEYS.mobileQuickCreate, enabled);
 	}
 
 	private shouldShowQuickCreateHint(): boolean {
-		try {
-			return localStorage.getItem(MOBILE_QUICK_CREATE_HINT_DISMISSED_KEY) !== '1';
-		} catch {
-			return true;
-		}
+		return this.plugin.deviceStore.get<boolean>(DEVICE_KEYS.mobileQuickCreateHintDismissed) !== true;
 	}
 
 	private dismissQuickCreateHint(): void {
-		try {
-			localStorage.setItem(MOBILE_QUICK_CREATE_HINT_DISMISSED_KEY, '1');
-		} catch {
-			// Ignore storage access issues to avoid blocking task creation UX.
-		}
+		this.plugin.deviceStore.set(DEVICE_KEYS.mobileQuickCreateHintDismissed, true);
 	}
 
 	// ── Helpers ──────────────────────────────────────────────────────────────────

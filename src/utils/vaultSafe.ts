@@ -74,22 +74,3 @@ export async function ensureFolderPath(vault: FolderVaultLike, path: string): Pr
 		}
 	}
 }
-
-export function safeLocalStorage(key: string): string | null {
-	try {
-		return localStorage.getItem(key);
-	} catch (error) {
-		console.error(`TTasks safeLocalStorage failed for key "${key}":`, error);
-		return null;
-	}
-}
-
-export function safeLocalStorageSet(key: string, value: string): boolean {
-	try {
-		localStorage.setItem(key, value);
-		return true;
-	} catch (error) {
-		console.error(`TTasks safeLocalStorageSet failed for key "${key}":`, error);
-		return false;
-	}
-}

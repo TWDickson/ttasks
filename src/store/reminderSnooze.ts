@@ -1,6 +1,6 @@
 /**
  * Pure utilities for reminder snooze state.
- * Storage key: 'ttasks-snoozed-v1' in localStorage (per-device, not synced).
+ * Stored under DEVICE_KEYS.snoozed in the per-vault device store (not synced).
  * State shape: Record<taskPath, isoTimestamp> — task is snoozed until that time.
  */
 

@@ -1,7 +1,5 @@
-import { safeLocalStorage, safeLocalStorageSet } from '../utils/vaultSafe';
+import { DEVICE_KEYS, type DeviceStore } from '../utils/deviceStore';
 import type { ReminderRuleId } from './reminderRules';
-
-const STORAGE_PREFIX = 'ttasks-reminders-fired';
 
 export interface ReminderStorage {
 	hasFired(taskPath: string, ruleId: ReminderRuleId, date: string): boolean;
@@ -9,30 +7,19 @@ export interface ReminderStorage {
 	clearExpired(today: string): void;
 }
 
-export function buildReminderStorageKey(vaultName: string): string {
-	return `${STORAGE_PREFIX}-${vaultName}`;
-}
-
-export function createReminderStorage(vaultName: string): ReminderStorage {
-	const storageKey = buildReminderStorageKey(vaultName);
+/** Fired-reminder keys, per device and per vault (PB-2 — see `deviceStore.ts`). */
+export function createReminderStorage(store: DeviceStore): ReminderStorage {
 	const readState = (): Set<string> => {
-		const raw = safeLocalStorage(storageKey);
-		if (!raw) return new Set();
-		try {
-			const parsed: unknown = JSON.parse(raw);
-			if (Array.isArray(parsed)) {
-				return new Set(parsed.filter((entry): entry is string => typeof entry === 'string'));
-			}
-		} catch {
-			// Fall through to an empty set when storage is corrupt.
-		}
-		return new Set();
+		const saved = store.get<unknown>(DEVICE_KEYS.remindersFired);
+		return Array.isArray(saved)
+			? new Set(saved.filter((entry): entry is string => typeof entry === 'string'))
+			: new Set(); // absent or corrupt
 	};
 
 	let firedKeys = readState();
 
 	const persist = (): void => {
-		safeLocalStorageSet(storageKey, JSON.stringify([...firedKeys]));
+		store.set(DEVICE_KEYS.remindersFired, [...firedKeys]);
 	};
 
 	const makeKey = (taskPath: string, ruleId: ReminderRuleId, date: string): string => {
