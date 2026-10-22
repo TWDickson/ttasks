@@ -17,6 +17,7 @@ import { REPEAT_KEYS } from '../repeat/normalize';
  *
  * Pure module — no Obsidian imports.
  */
+
 /**
  * How a field is read from and written to frontmatter. One entry per behaviour
  * the codec (`taskCodec.ts`) distinguishes — kept as named kinds rather than
@@ -183,13 +184,9 @@ export function isBlankStoredValue(kind: FieldKind, value: unknown): boolean {
 	}
 }
 
-const ENTRIES = Object.entries(TASK_PERSISTENCE) as [keyof Task, FieldPersistence][];
+/** `TASK_PERSISTENCE` as typed `[field, persistence]` pairs, in table order. */
+export const PERSISTENCE_ENTRIES = Object.entries(TASK_PERSISTENCE) as [keyof Task, FieldPersistence][];
 
 /** Fields `TaskWriter.update` mirrors into frontmatter and the in-memory Task. */
 export const UPDATABLE_TASK_FIELDS: readonly (keyof Task)[] =
-	ENTRIES.filter(([, p]) => p.updatable).map(([field]) => field);
-
-/** Frontmatter keys `buildTaskFrontmatter` can emit for a field, in table order. */
-export function createTimeFrontmatterKeys(): string[] {
-	return ENTRIES.flatMap(([, p]) => (p.fmKey !== null && p.onCreate !== false ? [p.fmKey] : []));
-}
+	PERSISTENCE_ENTRIES.filter(([, p]) => p.updatable).map(([field]) => field);

@@ -1,6 +1,7 @@
-import { Notice, Platform, Setting } from 'obsidian';
-import { POMODORO_ALERT_SOUNDS, POMODORO_ALERT_SOUND_LABELS, describeNotificationResult, playAlertSound, showSystemNotification } from '../integration/pomodoroAlert';
-import type { PomodoroAlertSound } from '../integration/pomodoroAlert';
+import { Notice, Platform, Setting, debounce } from 'obsidian';
+import { describeNotificationResult, playAlertSound, showSystemNotification } from '../integration/pomodoroAlert';
+import { POMODORO_ALERT_SOUNDS, POMODORO_ALERT_SOUND_LABELS } from '../integration/pomodoroSounds';
+import type { PomodoroAlertSound } from '../integration/pomodoroSounds';
 import type TTasksPlugin from '../main';
 
 interface RenderPomodoroSettingsParams {
@@ -113,6 +114,9 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 				}));
 	}
 
+	// A drag fires onChange on every 5-point step; save once it settles rather
+	// than running a full normalize + write per step.
+	const saveVolume = debounce(() => void plugin.saveSettings(), 400, true);
 	new Setting(containerEl)
 		.setName('Alert volume')
 		.setDesc('Sound played when a focus session or break finishes. Set to 0 to turn it off; use the preview buttons below to check the level.')
@@ -120,9 +124,9 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 			.setLimits(0, 100, 5)
 			.setValue(p.alertVolume)
 			.setDynamicTooltip()
-			.onChange(async (value) => {
+			.onChange((value) => {
 				plugin.settings.pomodoro.alertVolume = value;
-				await plugin.saveSettings();
+				saveVolume();
 			}));
 
 	const addSoundPicker = (name: string, desc: string, key: 'focusEndSound' | 'breakEndSound') => {

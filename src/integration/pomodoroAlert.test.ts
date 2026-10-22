@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { POMODORO_ALERT_SOUNDS, PhaseCueAudio, describeNotificationResult, isPomodoroAlertSound, playAlertSound, showSystemNotification } from './pomodoroAlert';
+import { PhaseCueAudio, describeNotificationResult, playAlertSound, showSystemNotification } from './pomodoroAlert';
+import { POMODORO_ALERT_SOUNDS, isPomodoroAlertSound } from './pomodoroSounds';
 
 function stubNotification(permission: NotificationPermission, opts: { throws?: boolean; grantOnRequest?: boolean } = {}) {
 	const created: Array<{ title: string; body?: string }> = [];

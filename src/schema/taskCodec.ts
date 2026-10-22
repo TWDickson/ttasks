@@ -11,7 +11,7 @@ import {
 	toFrontmatterStringArray,
 	toFrontmatterStringOrNull,
 } from '../utils/frontmatterValue';
-import { TASK_PERSISTENCE, fmKey, isBlankStoredValue, type FieldKind, type FieldPersistence } from './taskPersistence';
+import { PERSISTENCE_ENTRIES, TASK_PERSISTENCE, fmKey, isBlankStoredValue, type FieldKind } from './taskPersistence';
 import { REPEAT_KEYS, normalizeRepeat, repeatToFrontmatter } from '../repeat/normalize';
 import type { RepeatRule } from '../repeat/types';
 
@@ -37,8 +37,6 @@ export interface ReadContext {
 	/** Resolve one raw wiki-link value to a vault path (needs the metadata cache, so it is injected). */
 	resolveLink: (raw: unknown) => string | null;
 }
-
-const ENTRIES = Object.entries(TASK_PERSISTENCE) as [keyof Task, FieldPersistence][];
 
 // ── Read ──────────────────────────────────────────────────────────────────────
 
@@ -71,7 +69,7 @@ function decode(kind: FieldKind, raw: unknown, ctx: ReadContext): unknown {
 /** Decode every stored field of a note's frontmatter, tolerating Obsidian's retyped properties. */
 export function readStoredFields(fm: Record<string, unknown>, ctx: ReadContext): StoredTaskFields {
 	const out: Record<string, unknown> = {};
-	for (const [field, p] of ENTRIES) {
+	for (const [field, p] of PERSISTENCE_ENTRIES) {
 		if (p.fmKey === null) continue;
 		if (p.kind === 'repeat') {
 			// A hand-edited combination that doesn't hold together reads as "doesn't
@@ -150,7 +148,7 @@ export function serializeNewTaskFrontmatter(
 	resolveName: (pathWithoutExt: string) => string | null,
 ): string {
 	const lines: string[] = ['---'];
-	for (const [field, p] of ENTRIES) {
+	for (const [field, p] of PERSISTENCE_ENTRIES) {
 		if (p.fmKey === null || p.onCreate === false) continue;
 		const own = task[field];
 		const value = p.seed === 'blank' ? blankFor(p.kind) : p.seed === 'created' ? task.created : own;

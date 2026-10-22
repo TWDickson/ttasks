@@ -518,28 +518,16 @@ critical path except where noted above (AR-3, PB-4).
   runtime. Fix: a `KindValue` map (`strings → string[]`, `date → string | null`, …)
   and a mapped type so each entry's `kind` must produce `Task[field]`. Same
   change can drop the cast.
-- `[ ]` **AR-7 🟢 settings normalization imports the audio module** — *(code
-  audit 2026-10-09)* `settings/defaults.ts` imports `isPomodoroAlertSound` from
-  `integration/pomodoroAlert.ts`, which also holds the Web Audio synth and the
-  Electron notification code. Not a boundary violation (it's Obsidian-free), but
-  the sound *catalogue* (ids, labels, guard, note table) is data the settings
-  layer needs and playback is a side effect it doesn't. Split a
-  `pomodoroSounds.ts` out; `pomodoroAlert.ts` keeps `playAlertSound` /
-  `showSystemNotification`.
-- `[ ]` **🟢 Pomodoro volume slider saves on every step** — it calls
-  `saveSettings()` (full normalize + write) on each 5-point step while dragging.
-  Harmless at this size; worth a debounce if the settings payload grows.
+- `[x]` **AR-7 🟢 settings normalization imports the audio module** — *(2026-10-22)*
+  catalogue split into `integration/pomodoroSounds.ts`; `pomodoroAlert.ts` keeps playback.
+- `[x]` **🟢 Pomodoro volume slider saves on every step** — *(2026-10-22)* debounced
+  (400 ms) via Obsidian's `debounce`.
 - `[ ]` **AR-4 🟡 `TaskWriter` mixes four concerns** — extract a
   `ChecklistSyncService`.
-- `[ ]` **AR-5 🟢 smaller DRY / correctness items** — including the duplicate
+- `[~]` **AR-5 🟢 smaller DRY / correctness items** — the 2026-10-09 audit nits are
+  done *(2026-10-22: one module JSDoc, `PERSISTENCE_ENTRIES` exported once,
+  `createTimeFrontmatterKeys` moved into its test)*. **Still open:** the duplicate
   ISO-date regexes (with DT-6).
-  *Added by the 2026-10-09 audit (all comment/verbosity nits, no behaviour):*
-  `taskPersistence.ts` has two stacked JSDoc blocks, so the module header is
-  orphaned onto `FieldKind`; its `onCreate: 'when-set'` doc says "only for a
-  recurring task" (that's the one current user — the semantics are "only when
-  non-null"); the `ENTRIES` cast is duplicated in `taskPersistence.ts` and
-  `taskCodec.ts` (export it once); `createTimeFrontmatterKeys` is a test-only
-  export.
 - `[x]` **TD-6 🟡 nothing type-checks `.svelte` files** — *(2026-10-22; see HISTORY)*
   the 13 errors are fixed and `svelte-check --threshold error` runs in `lint`, so
   `check`, CI and the release build all type-check components.
@@ -556,18 +544,15 @@ critical path except where noted above (AR-3, PB-4).
   for={definition.name}>`). Fix is a deletion: stop blanking, drop the wrapper and
   span. Watch `.tt-detail > .tt-field-group` in `styles.css`, which centres the
   top block and would need rehoming.
-- `[ ]` **A plugin root misses the design tokens** — `.tt-graph-fullscreen-modal`
-  isn't in the token-root list in `styles.css` (`.tt-pomodoro-view` joined it
-  2026-10-08), so
-  `--tt-space-*` / `--tt-control-*` fall back to per-use defaults. Mostly a no-op
-  today because the fallbacks mirror the token values.
+- `[x]` **A plugin root misses the design tokens** — *(2026-10-22)*
+  `.tt-graph-fullscreen-modal` joined the token-root list.
 - `[ ]` **Hand-rolled popovers could be the native Popover API** —
   `FilterDropdown` and the graph's project filter each carry a window `mousedown`
   listener plus a capture-phase Escape handler to reimplement light-dismiss.
   `popover` + `popovertarget` gives both and puts the menu in the top layer. Check
-  the `minAppVersion` (1.7.2) Electron floor first.
-- `[ ]` **`ImportConfirmModal` duplicates `confirmModal.ts`** — same
-  open/cancel/confirm shape as its own `Modal` subclass. Small, low-risk.
+  the `minAppVersion` (1.8.7) Electron floor first.
+- `[x]` **`ImportConfirmModal` duplicates `confirmModal.ts`** — *(2026-10-22)* deleted;
+  `confirmModal` gained `list` + `ctaClass`, and `modals/importConfirm.ts` supplies the copy.
 
 ---
 

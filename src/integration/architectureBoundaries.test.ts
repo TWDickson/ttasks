@@ -143,6 +143,7 @@ describe('architecture boundaries', () => {
 			'src/integration/protocol.ts',
 			'src/integration/pomodoro.ts',
 			'src/integration/pomodoroAlert.ts',
+			'src/integration/pomodoroSounds.ts',
 			'src/integration/pomodoroLog.ts',
 			'src/integration/pomodoroPlan.ts',
 			'src/integration/pomodoroStatusBar.ts',

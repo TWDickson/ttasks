@@ -3,7 +3,7 @@ import type { Task } from '../types';
 import type { WeekStartSetting } from '../utils/dateUtils';
 import type { NotesPolicy, TaskJsonMode } from '../integration/taskJsonExport';
 import type { PomodoroLogSplit } from '../integration/pomodoroLog';
-import type { PomodoroAlertSound } from '../integration/pomodoroAlert';
+import type { PomodoroAlertSound } from '../integration/pomodoroSounds';
 import type { SharePayloadFormat, ShareOutputFormat, SharePreamblePreset, SharePreamblePresetId } from '../integration/sharePreamble';
 export type FabPosition = 'right' | 'left' | 'hidden';
 export type QuickActionId = 'none' | 'start' | 'complete' | 'block' | 'defer';

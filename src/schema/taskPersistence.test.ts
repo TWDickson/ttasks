@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { TASK_PERSISTENCE, UPDATABLE_TASK_FIELDS, createTimeFrontmatterKeys } from './taskPersistence';
+import { PERSISTENCE_ENTRIES, TASK_PERSISTENCE, UPDATABLE_TASK_FIELDS } from './taskPersistence';
+
+/** Frontmatter keys `buildTaskFrontmatter` can emit for a field, in table order. */
+function createTimeFrontmatterKeys(): string[] {
+	return PERSISTENCE_ENTRIES.flatMap(([, p]) => (p.fmKey !== null && p.onCreate !== false ? [p.fmKey] : []));
+}
 import { buildTaskFrontmatter } from '../store/TaskWriter';
 import { TASK_FIELD_DEFINITIONS } from './taskFields';
 import type { Task } from '../types';

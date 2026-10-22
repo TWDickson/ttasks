@@ -27,6 +27,7 @@
 .tt-share-modal,
 .tt-settings,
 .tt-managed-list-section,
+.tt-graph-fullscreen-modal,
 .tt-pomodoro-view {
 	--tt-space-1: var(--size-4-1, 4px);
 	--tt-space-2: var(--size-4-2, 8px);
@@ -58,9 +59,8 @@
    Same reason the file's other `!important`s exist. A component that ever
    wants a hover transform needs `!important` too; nothing does today.
 
-   The graph modal is not a token root (that gap is tracked separately) but
-   hosts plugin buttons: it is the worst case, where every node and
-   timeline bar is a <button>. */
+   The graph modal is the worst case: every node and timeline bar is a
+   <button>. */
 .tt-board button:hover,
 .tt-rail-view button:hover,
 .tt-detail-view button:hover,

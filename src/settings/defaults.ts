@@ -24,7 +24,7 @@ import { RENDERER_KANBAN, RENDERER_LIST } from '../constants';
 import { normalizeHolidayEntries } from './holidays';
 import { SHARE_PREAMBLE_PRESETS, mergePresetLibrary } from '../integration/sharePreamble';
 import type { SharePreamblePreset } from '../integration/sharePreamble';
-import { isPomodoroAlertSound } from '../integration/pomodoroAlert';
+import { isPomodoroAlertSound } from '../integration/pomodoroSounds';
 export const DEFAULT_STATUSES = ['Active', 'In Progress', 'Future', 'Hold', 'Blocked', 'Cancelled', 'Completed'];
 
 export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {

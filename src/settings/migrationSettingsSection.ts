@@ -2,7 +2,7 @@ import { Notice, Setting } from 'obsidian';
 import type TTasksPlugin from '../main';
 import { collectAllCapturableTasks } from '../integration/importScanner';
 import { promoteTaskToTTasks } from '../integration/promoteTaskToTTasks';
-import { ImportConfirmModal } from '../modals/ImportConfirmModal';
+import { confirmImport as confirmImportModal } from '../modals/importConfirm';
 import type { ExternalTask } from '../integration/types';
 import { handleScanError, type ScanErrorMeta } from '../integration/scanErrorPolicy';
 
@@ -48,7 +48,7 @@ export async function runMigrationImportFlow(params: RunMigrationImportFlowParam
 	const {
 		plugin,
 		collectTasks = ({ onFileError }) => collectAllCapturableTasks(plugin.app, plugin.settings, { onFileError }),
-		confirmImport = async (candidates) => new ImportConfirmModal(plugin.app, candidates).openAndWait(),
+		confirmImport = (candidates) => confirmImportModal(plugin.app, candidates),
 		promoteTask = promoteTaskToTTasks,
 		notice = (message, duration) => new Notice(message, duration),
 		log = defaultLog(plugin),
