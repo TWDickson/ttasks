@@ -1,7 +1,7 @@
 {
   "id": "ttasks",
   "name": "TTasks",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "minAppVersion": "1.8.7",
   "description": "Task management with kanban, dependency tracking, agenda, and a dependency graph — stored as plain markdown frontmatter.",
   "author": "Taylor Dickson",
