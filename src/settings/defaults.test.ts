@@ -78,6 +78,7 @@ describe('pomodoro settings normalization', () => {
 			breakEndSound: DEFAULT_SETTINGS.pomodoro.breakEndSound,
 			systemNotification: DEFAULT_SETTINGS.pomodoro.systemNotification,
 			logPartialOnStop: DEFAULT_SETTINGS.pomodoro.logPartialOnStop,
+			confirmQuitWhileRunning: DEFAULT_SETTINGS.pomodoro.confirmQuitWhileRunning,
 		});
 	});
 
@@ -91,13 +92,14 @@ describe('pomodoro settings normalization', () => {
 
 	it('applies persisted log settings', () => {
 		const merged = normalizeSettingsFromSources([
-			{ pomodoro: { logEnabled: false, logFolder: '/logs/pomo/', logSplit: 'month', logPartialOnStop: false, systemNotification: false } },
+			{ pomodoro: { logEnabled: false, logFolder: '/logs/pomo/', logSplit: 'month', logPartialOnStop: false, systemNotification: false, confirmQuitWhileRunning: false } },
 		]);
 		expect(merged.pomodoro.logEnabled).toBe(false);
 		expect(merged.pomodoro.logFolder).toBe('logs/pomo');
 		expect(merged.pomodoro.logSplit).toBe('month');
 		expect(merged.pomodoro.systemNotification).toBe(false);
 		expect(merged.pomodoro.logPartialOnStop).toBe(false);
+		expect(merged.pomodoro.confirmQuitWhileRunning).toBe(false);
 	});
 
 	it('applies valid alert sound settings, clamps volume, and ignores unknown sounds', () => {

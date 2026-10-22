@@ -101,6 +101,18 @@ export function renderPomodoroSettingsSection(params: RenderPomodoroSettingsPara
 				await plugin.saveSettings();
 			}));
 
+	if (Platform.isDesktopApp) {
+		new Setting(containerEl)
+			.setName('Ask before closing while running')
+			.setDesc('Closing Obsidian with a session running asks whether to stop and log it, discard it, or keep running.')
+			.addToggle(toggle => toggle
+				.setValue(p.confirmQuitWhileRunning)
+				.onChange(async (value) => {
+					plugin.settings.pomodoro.confirmQuitWhileRunning = value;
+					await plugin.saveSettings();
+				}));
+	}
+
 	new Setting(containerEl)
 		.setName('Alert volume')
 		.setDesc('Sound played when a focus session or break finishes. Set to 0 to turn it off; use the preview buttons below to check the level.')

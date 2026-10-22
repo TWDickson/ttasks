@@ -40,6 +40,19 @@ describe('showSystemNotification', () => {
 		expect(await showSystemNotification('t', 'b')).toBe('denied');
 	});
 
+	it('is silent by default and can ask the OS to play its sound', async () => {
+		const options: NotificationOptions[] = [];
+		const Api = vi.fn(function (this: { close: () => void }, _t: string, o?: NotificationOptions) {
+			options.push(o ?? {});
+			this.close = vi.fn();
+		});
+		Object.assign(Api, { permission: 'granted', requestPermission: vi.fn() });
+		vi.stubGlobal('Notification', Api);
+		await showSystemNotification('t', 'b');
+		await showSystemNotification('t', 'b', undefined, false);
+		expect(options.map((o) => o.silent)).toEqual([true, false]);
+	});
+
 	it('reports denied and error without throwing', async () => {
 		stubNotification('denied');
 		expect(await showSystemNotification('t', 'b')).toBe('denied');

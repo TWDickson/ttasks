@@ -35,7 +35,10 @@ import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration
 import { resolveQuickAction } from './integration/quickActions';
 import { ArchiveService } from './store/ArchiveService';
 import { type CompletedFocus, PomodoroService } from './store/PomodoroService';
-import { type PomodoroSession, phaseCueKey } from './integration/pomodoro';
+import { type PomodoroSession, formatRemaining, phaseCueKey } from './integration/pomodoro';
+import { startWorkerTicker } from './integration/workerTicker';
+import { setBackgroundThrottling } from './integration/backgroundThrottling';
+import { pomodoroQuitModal } from './modals/pomodoroQuitModal';
 import { type PomodoroLogEntry, formatLogRow, formatNewLogFile, pomodoroLogPath } from './integration/pomodoroLog';
 import { PhaseCueAudio, playAlertSound, showSystemNotification, vibrate } from './integration/pomodoroAlert';
 import { pomodoroStatusBarView } from './integration/pomodoroStatusBar';
@@ -86,6 +89,11 @@ export default class TTasksPlugin extends Plugin {
 	private pomodoroPhaseNotice: Notice | null = null;
 	/** Phase-end chime queued on the audio clock, so it survives a backgrounded window. */
 	private readonly pomodoroCue = new PhaseCueAudio();
+	/** True while this window's background throttling is switched off for a running session. */
+	private pomodoroThrottlingOff = false;
+	/** Set once the user has answered the close prompt, so the re-issued close goes through. */
+	private pomodoroCloseConfirmed = false;
+	private pomodoroQuitPromptOpen = false;
 	private isApplyingExternalSettings = false;
 	private reminderStartTimeoutId: number | null = null;
 	private cachedStatusPolicy: { source: TTasksSettings; policy: StatusPolicy } | null = null;
@@ -136,10 +144,17 @@ export default class TTasksPlugin extends Plugin {
 			logFocus: (focus) => this.logPomodoroFocus(focus),
 			notify: (message) => { new Notice(message); },
 			alert: (message, ended) => this.alertPomodoroPhase(message, ended),
+			// Desktop: a worker-driven tick survives a backgrounded window far better.
+			startTicker: Platform.isDesktopApp ? (onTick) => startWorkerTicker(onTick) : undefined,
 		});
 		this.register(() => this.pomodoroService.dispose());
-		this.register(this.pomodoroService.session.subscribe(session => this.syncPomodoroCue(session)));
+		this.register(this.pomodoroService.session.subscribe(session => {
+			this.syncPomodoroCue(session);
+			this.syncPomodoroThrottling(session);
+		}));
 		this.register(() => this.pomodoroCue.close());
+		this.register(() => this.syncPomodoroThrottling(null));
+		this.registerPomodoroLifecycle();
 		this.scanEngine = new ScanEngine();
 		this.registerEditorSuggest(new TaskLinkEditorSuggest(this.app, this));
 
@@ -541,18 +556,83 @@ export default class TTasksPlugin extends Plugin {
 		this.pomodoroCue.schedule(phaseCueKey(session), this.pomodoroEndSound(session.mode), this.settings.pomodoro.alertVolume, delaySec);
 	}
 
+	/**
+	 * Desktop: while a session runs, ask Electron not to throttle this window at
+	 * all; restore it when the session ends. Best effort — a no-op where Obsidian
+	 * doesn't expose the route (see `backgroundThrottling.ts`).
+	 */
+	private syncPomodoroThrottling(session: PomodoroSession | null): void {
+		if (!Platform.isDesktopApp) return;
+		const wantOff = session !== null;
+		if (wantOff === this.pomodoroThrottlingOff) return;
+		this.pomodoroThrottlingOff = wantOff;
+		setBackgroundThrottling(!wantOff);
+	}
+
+	/**
+	 * Session lifecycle around the window: catch the countdown up when the window
+	 * comes back, and (desktop) treat closing Obsidian mid-session like closing an
+	 * unsaved document. If the prompt is off, quitting still logs partial focus.
+	 */
+	private registerPomodoroLifecycle(): void {
+		this.registerDomEvent(document, 'visibilitychange', () => {
+			if (document.visibilityState === 'visible') this.pomodoroService.catchUp();
+		});
+		this.registerDomEvent(window, 'focus', () => this.pomodoroService.catchUp());
+
+		this.registerEvent(this.app.workspace.on('quit', (tasks) => {
+			if (this.pomodoroService.isActive() && !this.pomodoroCloseGuarded()) {
+				tasks.add(() => this.pomodoroService.stopAndFlush());
+			}
+		}));
+
+		if (!Platform.isDesktopApp) return;
+		this.registerDomEvent(window, 'beforeunload', (evt: BeforeUnloadEvent) => {
+			if (!this.pomodoroCloseGuarded() || !this.pomodoroService.isActive()) return;
+			// Electron cancels the close outright (it shows no dialog of its own),
+			// so cancel and ask with our own modal.
+			evt.preventDefault();
+			evt.returnValue = 'pomodoro';
+			if (!this.pomodoroQuitPromptOpen) void this.promptPomodoroClose();
+		});
+	}
+
+	/** True when closing the main window should stop and ask first. */
+	private pomodoroCloseGuarded(): boolean {
+		return Platform.isDesktopApp && this.settings.pomodoro.confirmQuitWhileRunning && !this.pomodoroCloseConfirmed;
+	}
+
+	private async promptPomodoroClose(): Promise<void> {
+		const session = get(this.pomodoroService.session);
+		if (!session) return;
+		const what = session.mode === 'focus' ? 'focus session' : 'break';
+		const task = session.taskName ? ` on “${session.taskName}”` : '';
+		this.pomodoroQuitPromptOpen = true;
+		const choice = await pomodoroQuitModal(this.app, `${formatRemaining(session)} left in this ${what}${task}.`);
+		this.pomodoroQuitPromptOpen = false;
+		if (choice === 'keep') return;
+		if (choice === 'stop') await this.pomodoroService.stopAndFlush();
+		else this.pomodoroService.discard();
+		this.pomodoroCloseConfirmed = true;
+		window.close();
+	}
+
 	private alertPomodoroPhase(message: string, ended: PomodoroSession): void {
 		const { alertVolume, systemNotification } = this.settings.pomodoro;
 		this.pomodoroPhaseNotice?.hide();
 		this.pomodoroPhaseNotice = new Notice(`Pomodoro — ${message}`, 0);
 		// The scheduled cue normally sounded on time already; chime here only if it didn't.
-		if (!this.pomodoroCue.hasPlayed(phaseCueKey(ended))) playAlertSound(this.pomodoroEndSound(ended.mode), alertVolume);
+		const chimed = this.pomodoroCue.hasPlayed(phaseCueKey(ended));
+		if (!chimed) playAlertSound(this.pomodoroEndSound(ended.mode), alertVolume);
 		vibrate();
 		if (systemNotification && Platform.isDesktop) {
+			// Unconfirmed chime (e.g. audio blocked while hidden): let the OS play its
+			// own notification sound rather than risk a silent phase end.
+			const silent = chimed || alertVolume === 0;
 			void showSystemNotification('TTasks Pomodoro', message, () => {
 				window.focus();
 				void this.openPomodoroPane();
-			});
+			}, silent);
 		}
 	}
 

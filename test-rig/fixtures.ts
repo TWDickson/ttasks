@@ -399,6 +399,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 				focusEndSound: 'chime',
 				breakEndSound: 'marimba',
 				systemNotification: false,
+				confirmQuitWhileRunning: true,
 			},
 	};
 

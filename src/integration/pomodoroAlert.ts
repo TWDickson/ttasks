@@ -229,14 +229,16 @@ export type SystemNotificationResult = 'shown' | 'unsupported' | 'denied' | 'err
  * that to focus the window and reveal the Pomodoro pane. 'shown' means the
  * runtime accepted it; the OS can still suppress it (Windows Focus Assist /
  * per-app notification settings, macOS Focus), which no API reports.
+ * `silent: false` lets the OS play its own notification sound — the fallback
+ * when our chime couldn't be confirmed.
  */
-export async function showSystemNotification(title: string, body: string, onClick?: () => void): Promise<SystemNotificationResult> {
+export async function showSystemNotification(title: string, body: string, onClick?: () => void, silent = true): Promise<SystemNotificationResult> {
 	const Api = (globalThis as { Notification?: typeof Notification }).Notification;
 	if (!Api) return 'unsupported';
 	try {
 		if (Api.permission === 'default') await Api.requestPermission();
 		if (Api.permission !== 'granted') return 'denied';
-		const n = new Api(title, { body, silent: true });
+		const n = new Api(title, { body, silent });
 		if (onClick) n.onclick = () => { onClick(); n.close(); };
 		return 'shown';
 	} catch {

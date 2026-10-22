@@ -12,6 +12,43 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-22 — Pomodoro timer audit: worker tick, stale-state fixes, close prompt
+
+Follow-up audit of the whole Pomodoro path (Taylor asked whether anything less
+freeze-prone was available).
+
+- **Stale state bugs.** Pause / Stop / Skip read the store's `remainingSec`,
+  which in a background window can be a minute old. Pause froze the stale
+  value (handing time back); Stop under-logged partial minutes; Skip past an
+  unnoticed phase end skipped the *next* phase. All three now catch up to the
+  wall clock first, and finish a phase that already ran out.
+- **Worker heartbeat** (`workerTicker.ts`, desktop). The 1 s tick comes from a
+  blob-URL Web Worker instead of a main-thread `setInterval`. Chromium's
+  intensive throttling targets main-thread timers that keep rescheduling
+  themselves; worker timers are the standard way around it. Falls back to
+  `setInterval` on CSP/`onerror`. `PomodoroService` takes an injectable
+  `startTicker`, so tests keep fake timers.
+- **Throttling off while running** (`backgroundThrottling.ts`): best-effort
+  `webContents.setBackgroundThrottling(false)` via `electron.remote` /
+  `@electron/remote`, restored when the session ends. Undocumented in
+  Obsidian; a miss is a silent no-op.
+- **Catch up on return**: `visibilitychange` / window `focus` tick immediately.
+- **Audible fallback**: the OS notification is no longer always `silent` — it
+  plays the OS sound when our chime can't be confirmed (`hasPlayed`).
+- **Close prompt** (new setting, default on, desktop): closing Obsidian
+  mid-session cancels `beforeunload` and asks Keep running / Discard and close
+  / Stop, log and close, like an unsaved document. Electron cancels silently on
+  a prevented unload, hence our own modal + `window.close()` after the answer.
+  Reload also triggers it, and the re-issued close quits rather than reloads,
+  which is accepted as a rare edge. With the prompt off, the workspace `quit`
+  event logs partial focus best-effort. Persisting the session across restarts
+  was deliberately not built (Taylor: the prompt covers "forgot it was
+  running").
+- All reasoned, not observed: the worker's exemption, the `remote` route and
+  the `beforeunload` behaviour need the on-device pass.
+
+---
+
 ## 2026-10-22 — Pomodoro chime survives a backgrounded window
 
 - **Symptom (Taylor, Windows desktop):** with Obsidian in the background the

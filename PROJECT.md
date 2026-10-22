@@ -381,6 +381,8 @@ flowchart LR
 | `[ ]` | **Pomodoro → "Send test"** notification | Reports shown/denied/unsupported; "shown" with nothing visible = Focus Assist / per-app setting | 0.1.16 |
 | `[ ]` | **Pomodoro sounds** — preview buttons, separate focus-end / break-end picks, volume slider (0 = off; saved "off" migrates to 0) | Audio plays at the set volume | 0.1.16 |
 | `[ ]` | **Pomodoro chime while backgrounded** (Windows) — set a short focus length, start it, minimise Obsidian / switch apps | Chime sounds on time at 00:00, once (not doubled when you return); break countdown already running from that moment | next |
+| `[ ]` | **Pomodoro close prompt** (desktop) — start a session, close Obsidian | "Pomodoro still running" modal: Keep running cancels the close; Stop, log and close writes a partial CSV row then closes; Discard closes with no row. Also try Ctrl+R (prompts too, and closes rather than reloads) | next |
+| `[ ]` | **Pomodoro in background, long run** (desktop) — 25-min focus, Obsidian minimised the whole time | Notice + OS notification arrive within a few seconds of 00:00 (worker tick), not up to a minute late. Dev console: no worker/CSP error | next |
 | `[ ]` | **Pomodoro rest** — CSV log (tasks folder, optional year/month split), two modals, sidebar pane, status-bar item (idle hides), OS notification click → pane | Each behaves as described | 0.1.x |
 | `[ ]` | **`tt-btn-primary`** (Mark complete, empty-list "+ New task") | Filled plugin-wide | 0.1.x |
 | `[ ]` | **Share/Sync** modal, both tabs | Renders and round-trips in the real shell | 0.1.x |

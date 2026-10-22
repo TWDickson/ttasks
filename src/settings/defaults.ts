@@ -123,6 +123,7 @@ export const DEFAULT_SETTINGS: TTasksSettings = {
 		breakEndSound: 'marimba',
 		systemNotification: true,
 		logPartialOnStop: true,
+		confirmQuitWhileRunning: true,
 	},
 	kanbanCardFields: ['area', 'dueDate', 'labels', 'depCount'] as KanbanCardField[],
 	kanbanCollapsedColumns: [],
@@ -318,6 +319,7 @@ function cloneSettings(settings: TTasksSettings): TTasksSettings {
 			breakEndSound: settings.pomodoro?.breakEndSound ?? DEFAULT_SETTINGS.pomodoro.breakEndSound,
 			systemNotification: settings.pomodoro?.systemNotification ?? DEFAULT_SETTINGS.pomodoro.systemNotification,
 			logPartialOnStop: settings.pomodoro?.logPartialOnStop ?? DEFAULT_SETTINGS.pomodoro.logPartialOnStop,
+			confirmQuitWhileRunning: settings.pomodoro?.confirmQuitWhileRunning ?? DEFAULT_SETTINGS.pomodoro.confirmQuitWhileRunning,
 		},
 		kanbanCardFields: settings.kanbanCardFields ?? [...DEFAULT_SETTINGS.kanbanCardFields],
 		kanbanCollapsedColumns: settings.kanbanCollapsedColumns ?? [...DEFAULT_SETTINGS.kanbanCollapsedColumns],
@@ -860,6 +862,9 @@ function applySettingsPatch(target: TTasksSettings, source: unknown): void {
 
 		const logPartialOnStop = asBoolean(pomodoro.logPartialOnStop);
 		if (logPartialOnStop !== null) target.pomodoro.logPartialOnStop = logPartialOnStop;
+
+		const confirmQuitWhileRunning = asBoolean(pomodoro.confirmQuitWhileRunning);
+		if (confirmQuitWhileRunning !== null) target.pomodoro.confirmQuitWhileRunning = confirmQuitWhileRunning;
 	}
 
 	const shareSync = asRecord(root.shareSync);

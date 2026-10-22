@@ -152,6 +152,11 @@ export interface PomodoroSettings {
 	 * not increment `pomodoro_count`.
 	 */
 	logPartialOnStop: boolean;
+	/**
+	 * Desktop: closing Obsidian while a session runs asks first — stop and log,
+	 * discard, or keep running — like closing an unsaved document.
+	 */
+	confirmQuitWhileRunning: boolean;
 }
 
 export interface TTasksSettings {

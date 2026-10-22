@@ -60,6 +60,18 @@ export interface PomodoroServiceDeps {
 	alert?: (message: string, ended: PomodoroSession) => void;
 	/** Wall-clock source (epoch ms); injectable for tests. Defaults to Date.now. */
 	now?: () => number;
+	/**
+	 * Start a once-a-second heartbeat that calls `onTick`; returns its stop
+	 * function. Defaults to `setInterval`. Desktop main swaps in a Web Worker
+	 * heartbeat (`startWorkerTicker`), which a backgrounded window throttles far
+	 * less than a main-thread interval.
+	 */
+	startTicker?: (onTick: () => void) => () => void;
+}
+
+function startIntervalTicker(onTick: () => void): () => void {
+	const id = setInterval(onTick, 1000);
+	return () => clearInterval(id);
 }
 
 function phaseLabel(mode: PomodoroSession['mode']): string {
@@ -74,9 +86,8 @@ function phaseLabel(mode: PomodoroSession['mode']): string {
  */
 export class PomodoroService {
 	readonly session: Writable<PomodoroSession | null> = writable(null);
-	// Unqualified global timers (not window.*) so this resolves in both the
-	// Obsidian runtime and the node test env; disposal is handled explicitly.
-	private intervalId: ReturnType<typeof setInterval> | null = null;
+	/** Stops the running heartbeat; null while idle. */
+	private stopTicker: (() => void) | null = null;
 
 	constructor(private readonly deps: PomodoroServiceDeps) {}
 
@@ -130,6 +141,9 @@ export class PomodoroService {
 	}
 
 	pause(): void {
+		// Catch up first: in a backgrounded window the store can be a minute stale,
+		// and pausing would freeze that stale remainder (handing time back).
+		this.tick();
 		this.session.update((s) => (s ? pauseSession(s) : s));
 	}
 
@@ -151,13 +165,37 @@ export class PomodoroService {
 
 	/** End the session entirely and clear the display. */
 	stop(): void {
+		void this.end(true);
+	}
+
+	/**
+	 * Stop without the "stopped" notice and resolve once any partial focus is
+	 * logged — for app quit / plugin unload, where the write must be awaited.
+	 */
+	stopAndFlush(): Promise<void> {
+		return this.end(false);
+	}
+
+	private async end(announce: boolean): Promise<void> {
+		// A phase that ran out while the tick was starved completes (and logs) first.
+		this.tick();
 		const current = get(this.session);
-		if (current) {
-			this.logPartialOnStop(current);
-			this.deps.notify('Pomodoro stopped');
-		}
 		this.session.set(null);
 		this.clearTicking();
+		if (!current) return;
+		if (announce) this.deps.notify('Pomodoro stopped');
+		await this.logPartialOnStop(current);
+	}
+
+	/** End the session without logging anything — the user chose to throw it away. */
+	discard(): void {
+		this.session.set(null);
+		this.clearTicking();
+	}
+
+	/** Recompute from the wall clock now — e.g. when the window becomes visible again. */
+	catchUp(): void {
+		this.tick();
 	}
 
 	/**
@@ -165,12 +203,12 @@ export class PomodoroService {
 	 * partial session (if the setting allows) so the work isn't discarded. Breaks
 	 * and sub-minute focus are ignored; partials never count as a completed pomodoro.
 	 */
-	private logPartialOnStop(session: PomodoroSession): void {
+	private async logPartialOnStop(session: PomodoroSession): Promise<void> {
 		if (session.mode !== 'focus') return;
 		if (!this.deps.getConfig().logPartialOnStop) return;
 		const minutes = elapsedMinutes(session);
 		if (minutes < 1) return;
-		void this.deps.logFocus({
+		await this.deps.logFocus({
 			taskPath: session.taskPath,
 			taskName: session.taskName,
 			minutes,
@@ -181,8 +219,15 @@ export class PomodoroService {
 
 	/** Jump to the next phase now (no focus logging — a manual skip). */
 	skip(): void {
-		const s = get(this.session);
-		if (!s) return;
+		const stale = get(this.session);
+		if (!stale) return;
+		// If the phase already ran out unnoticed, finishing it *is* the skip —
+		// don't also jump the phase after it.
+		const s = syncSession(stale, this.now());
+		if (isPhaseComplete(s) && s.running) {
+			this.tick();
+			return;
+		}
 		const config = this.deps.getConfig();
 		let next = advancePhase({ ...s, remainingSec: 0 }, config);
 		if (!config.autoStartNext) next = pauseSession(next);
@@ -201,14 +246,14 @@ export class PomodoroService {
 	}
 
 	private ensureTicking(): void {
-		if (this.intervalId !== null) return;
-		this.intervalId = setInterval(() => this.tick(), 1000);
+		if (this.stopTicker !== null) return;
+		this.stopTicker = (this.deps.startTicker ?? startIntervalTicker)(() => this.tick());
 	}
 
 	private clearTicking(): void {
-		if (this.intervalId !== null) {
-			clearInterval(this.intervalId);
-			this.intervalId = null;
+		if (this.stopTicker !== null) {
+			this.stopTicker();
+			this.stopTicker = null;
 		}
 	}
 

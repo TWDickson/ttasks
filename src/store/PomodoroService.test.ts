@@ -106,6 +106,87 @@ describe('PomodoroService', () => {
 		service.dispose();
 	});
 
+	it('pause catches up to the wall clock before freezing (no time handed back)', () => {
+		let clock = 0;
+		const { service } = makeService({ now: () => clock });
+		service.start('a.md', 'A');
+		clock = 60_000; // a minute passes with the tick starved — the store still reads 1500
+		service.pause();
+		expect(get(service.session)?.remainingSec).toBe(1440);
+		service.dispose();
+	});
+
+	it('pause past an unnoticed phase end completes that phase first', () => {
+		let clock = 0;
+		const { service, logFocus } = makeService({ now: () => clock });
+		service.start('a.md', 'A');
+		clock = 1510_000;
+		service.pause();
+		expect(logFocus).toHaveBeenCalledWith(expect.objectContaining({ minutes: 25, partial: false }));
+		expect(get(service.session)).toMatchObject({ mode: 'short-break', running: false });
+		service.dispose();
+	});
+
+	it('skip after an unnoticed phase end finishes that phase instead of skipping the next', () => {
+		let clock = 0;
+		const { service, logFocus } = makeService({ now: () => clock });
+		service.start('a.md', 'A');
+		clock = 1510_000;
+		service.skip();
+		expect(logFocus).toHaveBeenCalledTimes(1); // the focus genuinely completed
+		expect(get(service.session)?.mode).toBe('short-break');
+		service.dispose();
+	});
+
+	it('stop logs partial minutes from the wall clock, not a stale store', () => {
+		let clock = 0;
+		const { service, logFocus } = makeService({ now: () => clock });
+		service.start('a.md', 'A');
+		clock = 10 * 60_000;
+		service.stop();
+		expect(logFocus).toHaveBeenCalledWith(expect.objectContaining({ minutes: 10, partial: true }));
+	});
+
+	it('stopAndFlush resolves after the partial log is written, without a notice', async () => {
+		let clock = 0;
+		let written = false;
+		const logFocus = vi.fn(async () => { await Promise.resolve(); written = true; });
+		const { service, notify } = makeService({ now: () => clock, logFocus });
+		service.start('a.md', 'A');
+		notify.mockClear();
+		clock = 5 * 60_000;
+		await service.stopAndFlush();
+		expect(written).toBe(true);
+		expect(notify).not.toHaveBeenCalled();
+		expect(get(service.session)).toBeNull();
+	});
+
+	it('discard ends the session without logging', () => {
+		let clock = 0;
+		const { service, logFocus } = makeService({ now: () => clock });
+		service.start('a.md', 'A');
+		clock = 5 * 60_000;
+		service.discard();
+		expect(logFocus).not.toHaveBeenCalled();
+		expect(get(service.session)).toBeNull();
+	});
+
+	it('drives the tick through an injected ticker and stops it when the session ends', () => {
+		const stop = vi.fn();
+		let fire = () => {};
+		const startTicker = vi.fn((onTick: () => void) => { fire = onTick; return stop; });
+		let clock = 0;
+		const { service } = makeService({ now: () => clock, startTicker });
+		service.start('a.md', 'A');
+		service.start('a.md', 'A'); // restart reuses the running ticker
+		expect(startTicker).toHaveBeenCalledTimes(1);
+		clock = 30_000;
+		fire();
+		expect(get(service.session)?.remainingSec).toBe(1470);
+		service.stop();
+		expect(stop).toHaveBeenCalledTimes(1);
+	});
+
 	it('does not accrue time while paused even as the wall clock advances', () => {
 		let clock = 0;
 		const { service } = makeService({ now: () => clock });
