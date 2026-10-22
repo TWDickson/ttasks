@@ -67,7 +67,7 @@ flowchart LR
   MD4 --> N7["N7 Bases"]
   MD4 --> N3["N3 public API"]
   PB2["PB-2 ✅<br/>localStorage"] -.-> MD4
-  PB4["PB-4 🟡<br/>Svelte CSS external"] -.-> N3
+  PB4["PB-4 ✅<br/>Svelte CSS external"] -.-> N3
 ```
 
 | # | Step | Why here |
@@ -81,7 +81,7 @@ flowchart LR
 | 7 | **RP** `src/repeat/` engine ✅ (2026-10-11) → integration (at the cutover) → builder UI | Adds `ttask_repeat_*` keys, so it rides the same break. Folds in DT-4. |
 | 8 | **MD-4** one-shot migration script, then **MD-5** | Converts the vault once; **zero legacy code ships**. Handle `localStorage` (PB-2) before this so the script's cutover is the only one. |
 | 9 | **N7 Bases**, **N3 public API** | Both expose property names. Do them *after* MD-1 or rewrite them. README's data-model section and the API doc examples also change at step 5. |
-| — | **PB-4** Svelte CSS external | Before `styles.css` becomes a public surface for theme authors. Not on the arrows' path; do it any time before N3/publishing. |
+| — | ~~**PB-4** Svelte CSS external~~ ✅ 2026-10-22 | Component CSS ships in `styles.css`; theme snippets can override it. |
 | — | **AR-2** TaskGraph decomposition | Before further graph work (GP5, §C #12, #16). |
 | — | **DT-6 + AR-5** ISO-date / DRY sweep | Opportunistic; ride along with DT-1. |
 
@@ -296,13 +296,9 @@ Review-bot sweep, README, release scaffolding, and manifest polish are **done**
   `DeviceStore` over `app.loadLocalStorage`/`saveLocalStorage` for fired
   reminders, snoozes and the quick-create prefs; a one-time hand-off moves the old
   raw keys; `minAppVersion` → 1.8.7; a boundary test forbids raw `localStorage`.
-- `[ ]` **PB-4 🟡 Svelte CSS is JS-injected** — `esbuild.config.mjs` runs
-  `esbuild-svelte` with `css: "injected"`, so component styles become runtime
-  `<style>` elements, contradicting the "all CSS belongs in `styles.css`" rule.
-  Effect: component CSS bypasses `styles.css`, can't be overridden predictably by
-  theme snippets, and briefly FOUCs on view open. Switch to `css: 'external'` and
-  concatenate onto `styles.css` at build. **Do it before `styles.css` becomes a
-  public API for theme authors.**
+- `[x]` **PB-4 🟡 Svelte CSS is JS-injected** — *(2026-10-22; see HISTORY)*
+  `css: "external"`; the build writes `styles.css` = `src/styles.css` +
+  compiled component CSS. Root `styles.css` is now a gitignored build output.
 - `[ ]` **`fundingUrl`** — not set; optional, Taylor's call.
 
 *Already publication-clean (PB-5):* no network calls, no telemetry, no

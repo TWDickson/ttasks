@@ -12,3 +12,7 @@ test-rig/.cache/
 
 # Large self-contained workshop artifact (embedded screenshots — kept out of history)
 Scripts/graph-c2/colour-workshop.html
+
+# Build output (PB-4): src/styles.css + compiled Svelte component CSS
+/styles.css
+main.css

@@ -8,7 +8,7 @@ style work can be reviewed (and screenshotted) without launching Obsidian.
 
 | Command | What it does |
 | --- | --- |
-| `npm run rig` | Vite dev server on <http://localhost:5199> with HMR — edit `styles.css` or a component and the browser updates live. |
+| `npm run rig` | Vite dev server on <http://localhost:5199> with HMR — edit `src/styles.css` or a component and the browser updates live. |
 | `npm run rig:shots` | Headless screenshot matrix → `test-rig/shots/*.png` (desktop + mobile, dark + light, list/kanban/agenda/graph/detail/create-modal). Pass a filter: `npm run rig:shots mobile`. Starts the dev server itself if it isn't running. |
 | `npm run rig:sync-css` | Refresh `vendor/` — from the local Obsidian install + vault when present, otherwise downloaded from GitHub. |
 | `npm run rig:browser` | Download a Chromium into `.browser/` for the screenshot/driver scripts. |

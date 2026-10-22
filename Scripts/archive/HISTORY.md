@@ -12,6 +12,35 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-22 — PB-4: component CSS ships in styles.css
+
+Svelte compiled each component's scoped `<style>` into a runtime-injected
+`<style>` tag. That broke the "all CSS in `styles.css`" rule: theme snippets
+couldn't override component CSS reliably (it landed in `<head>` after them,
+whenever a view first mounted), and views could flash unstyled on open.
+
+```mermaid
+flowchart LR
+  S[src/styles.css<br/>hand-written] --> C[esbuild onEnd]
+  V[component style blocks] -->|css: external| M[main.css, temp] --> C
+  C --> O[styles.css<br/>shipped, gitignored]
+```
+
+- **The hand-written sheet moved to `src/styles.css`.** Root `styles.css` is a
+  build output, like `main.js`. The release workflow already runs `check`
+  (which builds) before it uploads, so nothing there changed.
+- **Cascade order kept:** component CSS goes after the hand-written rules,
+  where the injected tags used to sit.
+- esbuild's per-block comments carried the build machine's absolute path; the
+  build rewrites them to `/* TaskRow.svelte */` so output is deterministic.
+- styles.css grows from 61 KB to 146 KB; main.js loses the same CSS as strings.
+- **Verified:** `check:all` green, no `<style>` injection left in main.js, all 22
+  styled components present. **Reasoned, not observed:** inside real Obsidian.
+  The rig compiles Svelte through Vite, so it can't exercise the shipped file.
+  On-device check: views look identical, and nothing is unstyled on first open.
+
+---
+
 ## 2026-10-22 — AR-3 slice 3: Share/Sync and form controls get keyed tables
 
 AR-3 closes. Every `Task` field is now described in three `Record<keyof Task, …>`

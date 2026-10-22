@@ -6,7 +6,7 @@
 
 import './vendor/obsidian-app.css';
 import './vendor/theme-underwater.css';
-import '../styles.css';
+import '../src/styles.css';
 import './rig.css';
 
 import { derived, get, writable } from 'svelte/store';

@@ -232,17 +232,21 @@ golden path on iOS or a narrow-viewport browser.
 
 ## CSS notes
 
-- The plugin ships `styles.css`, loaded automatically when enabled.
+- The plugin ships `styles.css`, loaded automatically when enabled. **It is a
+  build output** (gitignored, PB-4): `npm run build` writes hand-written
+  `src/styles.css` followed by every component's compiled scoped `<style>`.
+  Edit `src/styles.css` or the component, never the root file. `npm run dev`
+  doesn't watch `src/styles.css` — use the rig (HMR) for CSS work.
 - Selector pattern:
   `.markdown-source-view.ttask .metadata-container { display: none !important; }`
   — `!important` is required; Obsidian's built-in styles have higher specificity.
 
 ### Design system
 
-- **Tokens are defined once** at the top of `styles.css` on the plugin roots
+- **Tokens are defined once** at the top of `src/styles.css` on the plugin roots
   (`.tt-board`, `.tt-create-modal`, …) and inherit. Never redefine
   `--tt-space-*` / `--tt-control-*` inside a component's `<style>` block.
-- **Shared primitives live in `styles.css`** as plugin-global classes: `.tt-label`,
+- **Shared primitives live in `src/styles.css`** as plugin-global classes: `.tt-label`,
   `.tt-divider`, `.tt-field-group`, `.tt-badge` (+variants), `.tt-count`,
   `.tt-group-heading`, `.tt-empty`, `.tt-chip-warning`, the title system
   `.tt-title` / `.tt-title-sm` / `.tt-title-strong` / `.tt-truncate`, and the
@@ -263,9 +267,9 @@ golden path on iOS or a narrow-viewport browser.
   `r, g, b` triplet; wrap it: `rgba(var(--interactive-accent-rgb), 0.2)`.
 - **Icons**: Lucide via `setIcon` (TS) or the `icon` action from `src/utils/icon.ts`
   (Svelte) — no unicode glyph buttons.
-- **No JS-injected `<style>` elements** — all CSS belongs in `styles.css`.
-  *(Svelte's scoped styles currently compile to injected `<style>` tags, so this
-  rule is only honoured for hand-written CSS — see PB-4 in `PROJECT.md`.)*
+- **No JS-injected `<style>` elements** — all CSS ends up in the shipped
+  `styles.css`. Svelte compiles with `css: "external"`, so a component's scoped
+  `<style>` is fine; creating `<style>` elements from code is not.
 - **The colour spine** — identity colour lives on the card/row **left edge**, keyed
   to the task's project `area`; badges stay monochrome. A new coloured badge will
   fight this model, so check before adding one.

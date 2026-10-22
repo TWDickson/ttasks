@@ -72,7 +72,7 @@ npm run rig:shots            # full matrix → test-rig/shots/*.png
 npm run rig:shots detail     # only shots whose name contains "detail"
 ```
 
-Interactive HMR session (edit `styles.css` / a component, browser updates):
+Interactive HMR session (edit `src/styles.css` / a component, browser updates):
 
 ```bash
 npm run rig                  # vite on http://localhost:5199, Ctrl-C to stop
