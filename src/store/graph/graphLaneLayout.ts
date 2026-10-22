@@ -14,7 +14,7 @@ export interface LaneHeader {
 
 /**
  * Converts group band data into pixel-positioned lane header descriptors.
- * Parameters match the constants used in TaskGraph.svelte.
+ * Parameters match the constants used in graph/DependencyGraph.svelte and graph/TimelineTrack.svelte.
  */
 export function buildLaneHeaders(
 	groups: Array<{ key: string; label: string; startRow: number; endRow: number; count?: number; gapOffsetPx?: number; isSatellite?: boolean }>,

@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **1996 passing, 155 files** (`npm run check` = lint → build → test) |
+| Tests | **2013 passing, 157 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -82,7 +82,7 @@ flowchart LR
 | 8 | **MD-4** one-shot migration script, then **MD-5** | Converts the vault once; **zero legacy code ships**. Handle `localStorage` (PB-2) before this so the script's cutover is the only one. |
 | 9 | **N7 Bases**, **N3 public API** | Both expose property names. Do them *after* MD-1 or rewrite them. README's data-model section and the API doc examples also change at step 5. |
 | — | ~~**PB-4** Svelte CSS external~~ ✅ 2026-10-22 | Component CSS ships in `styles.css`; theme snippets can override it. |
-| — | **AR-2** TaskGraph decomposition | Before further graph work (GP5, §C #12, #16). |
+| — | ~~**AR-2** TaskGraph decomposition~~ ✅ 2026-10-22 | Graph work (GP5, §C #12, #16) now lands in `src/components/graph/`. |
 | — | **DT-6 + AR-5** ISO-date / DRY sweep | Opportunistic; ride along with DT-1. |
 
 ---
@@ -418,7 +418,7 @@ isn't Obsidian itself.
 
 ### Graph polish
 
-*Schedule AR-2 (TaskGraph decomposition) before the larger items here.*
+*AR-2 landed 2026-10-22: graph work goes in `src/components/graph/` (`DependencyGraph` for the canvas, `GraphNodeCard` for a card).*
 
 - `[~]` **GP5 — lane-header focus interaction** — the `+` add-subshape shipped
   (tap → add a task parented to the project). A first rev made the header body a
@@ -506,8 +506,10 @@ critical path except where noted above (AR-3, PB-4).
   callbacks/service refs, migrated component by component, each with a render test
   (TD-4). *(Demoted from 🔴 on 2026-10-08: it's a code-health rule, no user sees
   it, and the release-gate summary never counted it.)*
-- `[ ]` **AR-2 🟡 `TaskGraph.svelte` is a ~2,750-line god component** (was
-  ~2,125 at audit time and has grown) — schedule ahead of further graph work.
+- `[x]` **AR-2 🟡 `TaskGraph.svelte` is a ~2,750-line god component** — *(2026-10-22;
+  see HISTORY)* now a 185-line plugin-facing shell over six plugin-free
+  components in `src/components/graph/`, plus tested pure helpers (chain trace,
+  edge attachment, pan/pinch gestures). Pixel-identical in the rig.
 - `[ ]` **AR-6 🟢 the codec's `kind` is not type-checked against the field** —
   *(code audit 2026-10-09)* `TASK_PERSISTENCE` forces every `Task` key to be
   described, but nothing ties the `kind` to the field's TypeScript type:

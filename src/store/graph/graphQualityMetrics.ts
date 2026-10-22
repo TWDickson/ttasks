@@ -78,3 +78,20 @@ export function computeGraphQualityMetrics(
 		laneMetrics,
 	};
 }
+
+/**
+ * A fingerprint of a layout's structure — node placement and edges, order-
+ * independent — so diagnostics log once per real layout change rather than on
+ * every reactive re-run.
+ */
+export function graphLayoutKey(layout: { nodes: TaskGraphNode[]; edges: TaskGraphEdge[]; lanes: GraphLane[] }): string {
+	const edgeKey = layout.edges
+		.map((edge) => `${edge.id}:${edge.from}:${edge.to}:${edge.isParentEdge ? 'p' : 'd'}`)
+		.sort()
+		.join('|');
+	const nodeKey = layout.nodes
+		.map((node) => `${node.path}:${node.row}:${node.column}:${node.laneKey ?? '__u__'}`)
+		.sort()
+		.join('|');
+	return `${layout.nodes.length}:${layout.edges.length}:${layout.lanes.length}:${nodeKey}:${edgeKey}`;
+}

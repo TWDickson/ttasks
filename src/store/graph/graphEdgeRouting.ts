@@ -79,3 +79,67 @@ export function computeEdgePath(
 	const midY = Math.min(startY, endY) - lift;
 	return `M ${startX} ${startY} C ${startX + hook} ${startY}, ${startX + hook} ${midY}, ${startX + shoulder} ${midY} S ${endX - hook} ${midY}, ${endX} ${endY}`;
 }
+
+export interface EdgeAttachment {
+	startY: number;
+	endY: number;
+}
+
+/**
+ * Where each edge meets its two nodes. A node's outgoing edges spread evenly
+ * down its right side and its incoming edges down its left, in routing-rank
+ * order, so several edges never draw on top of each other.
+ */
+export function computeEdgeAttachments(
+	nodes: TaskGraphNode[],
+	edges: TaskGraphEdge[],
+	nodesByPath: Map<string, TaskGraphNode>,
+): Map<string, EdgeAttachment> {
+	const outgoing = new Map<string, TaskGraphEdge[]>();
+	const incoming = new Map<string, TaskGraphEdge[]>();
+	const push = (map: Map<string, TaskGraphEdge[]>, key: string, edge: TaskGraphEdge): void => {
+		const list = map.get(key);
+		if (list) list.push(edge);
+		else map.set(key, [edge]);
+	};
+	for (const edge of edges) {
+		push(outgoing, edge.from, edge);
+		push(incoming, edge.to, edge);
+	}
+	const attachments = new Map<string, EdgeAttachment>();
+	const mid = (node: TaskGraphNode): number => node.y + node.height / 2;
+	for (const node of nodes) {
+		const out = sortOutgoingEdges(node, outgoing.get(node.path) ?? [], nodesByPath);
+		for (const [i, edge] of out.entries()) {
+			const startY = node.y + node.height * (i + 1) / (out.length + 1);
+			attachments.set(edge.id, { startY, endY: attachments.get(edge.id)?.endY ?? mid(node) });
+		}
+	}
+	for (const node of nodes) {
+		const inc = sortIncomingEdges(node, incoming.get(node.path) ?? [], nodesByPath);
+		for (const [i, edge] of inc.entries()) {
+			const endY = node.y + node.height * (i + 1) / (inc.length + 1);
+			attachments.set(edge.id, { startY: attachments.get(edge.id)?.startY ?? mid(node), endY });
+		}
+	}
+	return attachments;
+}
+
+/** The SVG path for an edge in a laid-out graph, or `''` when an endpoint isn't on it. */
+export function layoutEdgePath(
+	edge: TaskGraphEdge,
+	nodesByPath: Map<string, TaskGraphNode>,
+	attachments: Map<string, EdgeAttachment>,
+): string {
+	const from = nodesByPath.get(edge.from);
+	const to = nodesByPath.get(edge.to);
+	if (!from || !to) return '';
+	const attachment = attachments.get(edge.id);
+	return computeEdgePath(
+		edge,
+		from,
+		to,
+		attachment?.startY ?? (from.y + from.height / 2),
+		attachment?.endY ?? (to.y + to.height / 2),
+	);
+}

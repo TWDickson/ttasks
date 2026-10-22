@@ -12,6 +12,52 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-22 — AR-2: TaskGraph decomposed
+
+`TaskGraph.svelte` was 2,751 lines: 950 of script, 480 of markup and 1,325 of
+CSS, serving two modes that share almost nothing. It's now a 185-line shell.
+
+```mermaid
+flowchart TD
+  TG["TaskGraph.svelte — shell, the only plugin reader"] --> DG[graph/DependencyGraph]
+  TG --> TO[graph/TimelineOverview]
+  DG --> PF[GraphProjectFilter]
+  DG --> LH[DependencyLaneHeaders]
+  DG --> NC[GraphNodeCard]
+  DG -.-> PZ[panZoomGestures.ts]
+  TO --> TT[TimelineTrack ×2]
+```
+
+- **Coupling rule honoured below the shell.** The six `graph/` components take
+  props and callbacks: settings values in, `onHiddenProjectsChange` /
+  `onCreateDependent` / `onHoverPreview` out. A boundary test fails if one
+  imports `main` or `TaskStore`. The shell still takes `plugin` (TaskBoard and
+  GraphExpandModal are unchanged), so AR-1's count of ten stands, but this one is thin now.
+- **Logic moved out to tested modules:** `computeTrace` (`graphTrace.ts`),
+  `computeEdgeAttachments` / `layoutEdgePath` (now grouped by endpoint rather
+  than O(nodes × edges), and checked against the old scan as an oracle),
+  `nodeSubtitle` / `isReadyNode` / `summarizeByStatus`, `graphLayoutKey`, and
+  the pan/pinch state machine (`panZoomGestures.ts`), which now has a test for
+  the double-tap-to-open regression.
+- **The Defined and Underdefined tracks were copy-pasted markup**; they're one
+  `TimelineTrack`.
+- **CSS moved verbatim** with its markup. Toolbar pills are shared by both
+  modes, so they went to `src/styles.css` under `.tt-graph-toolbar …`. A
+  compound selector is needed because a bare `.tt-graph-pill` loses to
+  Obsidian's `button:not(.clickable-icon)`. The node-dimming rules keyed on the
+  stage's state use `:global(.tt-graph-stage.…)` from `GraphNodeCard`. Two dead
+  rules (`.tt-lane-title`, `.tt-lane-count`) were dropped.
+- **Verified:** `check:all` green, svelte-check clean for every new file, and
+  rig screenshots before/after are pixel-identical (graph, pinned chain,
+  project filter, timeline ungrouped and grouped, phone). The timeline's
+  1–5 px differences match the run-to-run noise of HEAD itself.
+- **One small behaviour change:** each mode is now its own component. Switching
+  between the Dependencies and Timeline views resets the graph's zoom and its
+  Ready/Independent toggles; the scroll position already reset. Persisted
+  choices (hidden projects, timeline grouping, show-completed) are unaffected.
+
+---
+
 ## 2026-10-22 — PB-4: component CSS ships in styles.css
 
 Svelte compiled each component's scoped `<style>` into a runtime-injected

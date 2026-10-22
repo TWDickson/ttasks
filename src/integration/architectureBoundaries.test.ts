@@ -108,6 +108,21 @@ describe('architecture boundaries', () => {
 		expect(offenders, 'read leaf.getViewState() instead — see src/views/openFileLeaves.ts').toEqual([]);
 	});
 
+	// AR-2 split TaskGraph into a plugin-facing shell and these children, which
+	// take props and callbacks so they stay testable (the coupling rule).
+	it('graph view components never reach the plugin or the store; their helpers stay Obsidian-free', () => {
+		const graphDir = 'src/components/graph';
+		const components = readdirSync(resolve(process.cwd(), graphDir))
+			.filter((name) => /\.(svelte|ts)$/.test(name) && !name.endsWith('.test.ts'))
+			.map((name) => join(graphDir, name));
+		expect(components.length).toBeGreaterThan(0);
+		for (const path of [...components, 'src/store/graph/graphTrace.ts']) {
+			const content = readWorkspaceFile(path);
+			expect(content, path).not.toMatch(/from '\.\.\/\.\.\/main'|from '\.\.\/\.\.\/store\/TaskStore'/);
+			expect(content, path).not.toContain("from 'obsidian'");
+		}
+	});
+
 	it('BoardStateService stays pure and free of Obsidian imports', () => {
 		const content = readWorkspaceFile('src/store/BoardStateService.ts');
 
