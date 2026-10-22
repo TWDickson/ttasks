@@ -12,6 +12,29 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-22 — TD-6: svelte-check joins the gate
+
+`tsc --noEmit` never type-checks `.svelte` files, and nothing else did, so
+component scripts had drifted. First run: 13 errors, all fixed:
+
+- **Real typing holes:** TaskKanban's `store` was `any`, because a default
+  import of `TaskStore` resolved to nothing. TaskRow read `fromPreviousDay`
+  through a type guard that doesn't carry across `$:` statements; it now holds
+  the narrowed value. TaskRail compared a possibly-undefined `$inboxCount`.
+- **Drift:** TaskBoard's logbook-mode map and the readonly `statusPolicy.all`
+  passed into `string[]` props (TaskList/TaskKanban now take `readonly string[]`).
+- **`main.ts`:** Obsidian 1.13's typings added `settings?: unknown` to `Plugin`,
+  so the subclass uses `declare settings` (no emitted field, so no runtime change).
+- **Mocks:** the rig's TaskRail was missing the required `onOpenPomodoro`, exactly
+  the drift "Keeping the rig honest" warns about. The type-check now catches it.
+  Two component tests got the rig's `as never` cast and a typed `readable`.
+
+`lint` now runs `svelte-check --threshold error` after ESLint (about 20 s). A
+probe file with a deliberate type error fails it. Four warnings remain (all
+`-webkit-line-clamp` without the standard property) and are left as is.
+
+---
+
 ## 2026-10-22 — AR-2: TaskGraph decomposed
 
 `TaskGraph.svelte` was 2,751 lines: 950 of script, 480 of markup and 1,325 of

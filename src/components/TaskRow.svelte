@@ -77,14 +77,16 @@
 		return (candidate as ExternalTask).external === true;
 	}
 
-	$: isCaptured = isCapturedTask(task);
-	$: isFromPreviousDay = isCaptured && !!task.fromPreviousDay;
+	// Held as the narrowed value: a type guard doesn't carry across `$:` statements.
+	$: captured = isCapturedTask(task) ? task : null;
+	$: isCaptured = captured !== null;
+	$: isFromPreviousDay = !!captured?.fromPreviousDay;
 
 	function handlePromote(event: MouseEvent): void {
 		event.preventDefault();
 		event.stopPropagation();
-		if (!isCaptured || !onPromote) return;
-		onPromote(task);
+		if (!captured || !onPromote) return;
+		onPromote(captured);
 	}
 </script>
 

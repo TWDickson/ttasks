@@ -14,7 +14,7 @@
 	export let groups: Readable<TaskGroup[]>;
 	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
 	export let impedimentBadges: Map<string, ImpedimentBadge> | undefined = undefined;
-	export let statuses: string[];
+	export let statuses: readonly string[];
 	export let hierarchy: ListHierarchyMode = 'tree';
 	/** Resolved area/label/status colours. See utils/badgePalette. */
 	export let palette: BadgePalette;
@@ -31,7 +31,7 @@
 
 	let collapsedPaths = new Set<string>();
 
-	function buildSections(groups: TaskGroup[], configuredStatuses: string[]): ListSection[] {
+	function buildSections(groups: TaskGroup[], configuredStatuses: readonly string[]): ListSection[] {
 		const statusTasks = new Map<string, Task[]>();
 		const projectTasks: Task[] = [];
 

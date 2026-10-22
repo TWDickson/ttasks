@@ -67,7 +67,8 @@ import type { SettingsHost } from './types/settingsHost';
 export type BoardViewMode = string;
 
 export default class TTasksPlugin extends Plugin {
-	settings!: TTasksSettings;
+	// `declare`: narrows the base Plugin's `settings?: unknown` (Obsidian 1.13 typings) without emitting a field.
+	declare settings: TTasksSettings;
 	taskStore!: TaskStore;
 	archiveService!: ArchiveService;
 	reminderService!: ReminderService;

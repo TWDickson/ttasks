@@ -99,7 +99,7 @@ describe('PomodoroPane', () => {
 			props: {
 				session: writable(activeSession()),
 				focusMinutes: 25,
-				dialStyle: readable('digital'),
+				dialStyle: readable<PomodoroDialStyle>('digital'),
 				pickedTask: readable(null),
 				onStart: vi.fn(), onFocusUntil: vi.fn(), onToggle: vi.fn(), onSkip: vi.fn(), onStop: vi.fn(),
 				onOpenTask: vi.fn(), onOpenSettings: vi.fn(), onPickTask: vi.fn(), onClearPickedTask: vi.fn(),

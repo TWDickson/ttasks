@@ -540,13 +540,9 @@ critical path except where noted above (AR-3, PB-4).
   non-null"); the `ENTRIES` cast is duplicated in `taskPersistence.ts` and
   `taskCodec.ts` (export it once); `createTimeFrontmatterKeys` is a test-only
   export.
-- `[ ]` **TD-6 🟡 nothing type-checks `.svelte` files** — `tsc` skips them and
-  `svelte-check` isn't in `check`. Run on 2026-10-22 it found 13 errors, none
-  new: TaskRow (`fromPreviousDay`, ExternalTask), TaskKanban's TaskStore
-  default import, TaskBoard (readonly arrays, LogbookRendererModeMap),
-  TaskRail `$inboxCount`, `main.ts` `settings` override, two component tests,
-  and the rig's missing `onOpenPomodoro`. Fix those, then add
-  `svelte-check --threshold error` to `lint`.
+- `[x]` **TD-6 🟡 nothing type-checks `.svelte` files** — *(2026-10-22; see HISTORY)*
+  the 13 errors are fixed and `svelte-check --threshold error` runs in `lint`, so
+  `check`, CI and the release build all type-check components.
 - `[ ]` **TD-3 🟡 coverage visibility** — no coverage reporting configured.
 - `[ ]` **TD-4 🟢 component-test debt** — tracks AR-1; fold "add a render test"
   into each component migration.

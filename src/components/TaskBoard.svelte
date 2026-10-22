@@ -17,7 +17,7 @@
 	import { resolveManagedOptions } from '../settings/managedListUtils';
 	import FilterDropdown from './FilterDropdown.svelte';
 	import { canToggleBuiltinCompleted, defaultCompletedVisibility } from './builtinViewCompletionToggle';
-	import { canToggleLogbookRenderer, resolveViewRenderer, toggleLogbookRendererMode } from './logbookViewMode';
+	import { canToggleLogbookRenderer, resolveViewRenderer, toggleLogbookRendererMode, type LogbookRendererModeMap } from './logbookViewMode';
 	import TaskArchiveView from './TaskArchiveView.svelte';
 	import BatchActionBar from './BatchActionBar.svelte';
 	import { batchEligibility, clearSelection, selectAll, toggleSelection } from '../store/taskSelection';
@@ -155,7 +155,7 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 	let filterDateFrom = '';
 	let filterDateTo   = '';
 	let showCompletedByViewId: Record<string, boolean> = { ...(plugin.settings.showCompletedByViewId ?? {}) };
-	let logbookRendererModeByViewId: Record<string, 'list' | 'kanban'> = {
+	let logbookRendererModeByViewId: LogbookRendererModeMap = {
 		logbook: plugin.settings.logbookRendererMode,
 	};
 	let listGroupOverrideByViewId: Record<string, ListGroupOverride> = { ...(plugin.settings.listGroupOverrideByViewId ?? {}) };

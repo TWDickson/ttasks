@@ -218,6 +218,7 @@ new TaskRail({
 		currentViewId: boardState.currentViewId,
 		onSelectView: (id: string) => boardState.currentViewId.set(id),
 		onAddSmartList: () => console.info('[rig] addSmartList'),
+		onOpenPomodoro: () => console.info('[rig] openPomodoro'),
 		onSmartListContextMenu: (id: string) => console.info(`[rig] smartListMenu:${id}`),
 		onNewTask: () => new CreateTaskModal(plugin.app as never, plugin as never).open(),
 		onNewProject: () => new CreateTaskModal(plugin.app as never, plugin as never, 'project').open(),

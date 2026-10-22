@@ -33,7 +33,7 @@ thread closes or a decision is worth preserving.
 | --- | --- |
 | `npm run dev` | Watch mode. **Does not touch the vault.** |
 | `npm run build` | Production build **and the deploy step** — copies `main.js` / `manifest.json` / `styles.css` into the vault. |
-| `npm run check` | `lint && build && test` — the fast gate. Browser-free. |
+| `npm run check` | `lint && build && test` — the fast gate. Browser-free. `lint` = ESLint + `svelte-check` (`tsc` alone never sees `.svelte` files). |
 | `npm run check:all` | `check` + `rig:smoke` — **the full CI equivalent**. |
 | `npm run rig` | Visual rig at localhost:5199. |
 | `npm run rig:smoke` | Boots the rig headless, asserts all 11 scenes mount. |

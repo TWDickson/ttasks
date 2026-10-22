@@ -32,7 +32,7 @@
 			>
 				<span class="tt-rail-icon" use:icon={resolveTaskViewIcon(view)}></span>
 				<span class="tt-rail-label">{view.name}</span>
-				{#if view.id === 'inbox' && inboxCount && $inboxCount > 0}
+				{#if view.id === 'inbox' && ($inboxCount ?? 0) > 0}
 					<span class="tt-count tt-rail-item-count">{$inboxCount}</span>
 				{/if}
 			</button>

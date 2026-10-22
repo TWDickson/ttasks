@@ -112,7 +112,8 @@ describe('TaskBoard.svelte', () => {
 		const activeViewMode = createTrackedModeStore();
 		const view = render(TaskBoard, {
 			props: {
-				plugin: buildPlugin(activeViewMode),
+				// The mock can't structurally implement TTasksPlugin — same cast as the rig.
+				plugin: buildPlugin(activeViewMode) as never,
 			},
 		});
 
@@ -127,14 +128,16 @@ describe('TaskBoard.svelte', () => {
 		const activeViewMode = createTrackedModeStore();
 		const firstMount = render(TaskBoard, {
 			props: {
-				plugin: buildPlugin(activeViewMode),
+				// The mock can't structurally implement TTasksPlugin — same cast as the rig.
+				plugin: buildPlugin(activeViewMode) as never,
 			},
 		});
 		firstMount.unmount();
 
 		const secondMount = render(TaskBoard, {
 			props: {
-				plugin: buildPlugin(activeViewMode),
+				// The mock can't structurally implement TTasksPlugin — same cast as the rig.
+				plugin: buildPlugin(activeViewMode) as never,
 			},
 		});
 

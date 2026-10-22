@@ -4,7 +4,7 @@
 	import type { Task, TaskStatus } from '../types';
 	import type { TaskGroup } from '../query/types';
 	import type { ImpedimentBadge } from '../query/taskImpediment';
-	import type TaskStore from '../store/TaskStore';
+	import type { TaskStore } from '../store/TaskStore';
 	import type TTasksPlugin from '../main';
 	import { priorityColor } from '../constants';
 	import type { BadgePalette } from '../utils/badgePalette';
@@ -19,7 +19,7 @@
 	export let groups: Readable<TaskGroup[]>;
 	/** Resolved dependency-chain schedule, used for the projected-date badge (mirrors TaskRow). */
 	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
-	export let statuses: string[];
+	export let statuses: readonly string[];
 	/** Resolved area/label/status colours. See utils/badgePalette. */
 	export let palette: BadgePalette;
 	export let blockStatus = 'Blocked';
