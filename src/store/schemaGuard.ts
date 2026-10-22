@@ -1,7 +1,7 @@
 /**
  * The unmigrated-vault tripwire (schema cutover). After the `ttask_*` rename the
- * plugin reads no old keys, so a vault that hasn't been through
- * `Scripts/migrate-prefixed-schema.mjs` would show an empty board — and, worse,
+ * plugin reads no old keys, so a vault that hasn't been through the one-shot
+ * migration script (shipped in the `0.2.2` tag, deleted after) would show an empty board — and, worse,
  * new tasks created there would be the only new-format notes in an old-format
  * vault. This spots that state so the plugin can say so and refuse to write.
  *
@@ -53,10 +53,10 @@ export function schemaNotice(state: VaultSchemaState): string | null {
 		case 'unmigrated':
 			return `TTasks: your ${state.legacy} task note${state.legacy === 1 ? ' uses' : 's use'} the old property names, `
 				+ 'so the board is empty and editing is paused to keep the vault consistent. Close Obsidian on every '
-				+ 'device and run Scripts/migrate-prefixed-schema.mjs (see the README), then reopen.';
+				+ 'device and run Scripts/migrate-prefixed-schema.mjs from the TTasks 0.2.2 source (see the README), then reopen.';
 		case 'stray-legacy':
 			return `TTasks: ${state.legacy} task note${state.legacy === 1 ? ' still uses' : 's still use'} the old property `
 				+ 'names (probably synced from a device that hadn\'t updated) and are hidden. Re-run '
-				+ 'Scripts/migrate-prefixed-schema.mjs to bring them back.';
+				+ 'Scripts/migrate-prefixed-schema.mjs (TTasks 0.2.2 source) to bring them back.';
 	}
 }

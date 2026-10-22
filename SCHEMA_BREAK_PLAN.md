@@ -5,6 +5,10 @@ only user). **MD-0, MD-2, MD-3 and RP-core are done**; the migration *script* is
 (2026-10-11); the plugin-side cutover is open.
 Written 2026-10-09 from a survey of every place frontmatter keys are touched.
 
+> **Closed 2026-10-22.** The vault is converted and the script, its tests and the
+> repeat/device-storage legacy bridges are deleted from `main` (MD-4). To run it
+> again, check out the `0.2.2` tag. Kept as a record of the reasoning.
+
 ## TL;DR
 
 The plan in `PROJECT.md` bundles MD-1, MD-2, MD-3 and RP into *one* break so the

@@ -154,8 +154,9 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
   local-date/UTC-arithmetic policy. No bare `new Date()` outside the boundary.
 - **No legacy keys.** The plugin reads only `ttask_*`. An unconverted vault is
   *recognised* (`src/store/schemaGuard.ts`) so the user is told and writes are
-  paused, but never read. Conversion is the one-shot
-  `Scripts/migrate-prefixed-schema.mjs`.
+  paused, but never read. Conversion was the one-shot
+  `Scripts/migrate-prefixed-schema.mjs`, deleted after the vault ran it (MD-4);
+  it lives on in the `0.2.2` tag.
 - **Never derive a display name from a file path.** A task's title comes from
   its `ttask_name` frontmatter and nowhere else — `TaskStore.fileToTask` refuses to
   build a `Task` with a blank `name`, so **any `Task` you hold has a real

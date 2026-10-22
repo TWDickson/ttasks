@@ -1,4 +1,4 @@
-import { createDeviceStore, migrateLegacyDeviceStorage, type DeviceStore } from './utils/deviceStore';
+import { createDeviceStore, type DeviceStore } from './utils/deviceStore';
 import { repeatFromContract } from './integration/repeatContract';
 import { Menu, Notice, Platform, Plugin, setIcon, setTooltip, TFile } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
@@ -122,13 +122,6 @@ export default class TTasksPlugin extends Plugin {
 
 	async onload() {
 		this.deviceStore = createDeviceStore(this.app, (message) => this.logError(message));
-		// One-time hand-off from the pre-PB-2 raw localStorage keys.
-		try {
-			const moved = migrateLegacyDeviceStorage(window.localStorage, this.deviceStore, this.app.vault.getName());
-			if (moved > 0) this.log(`moved ${moved} device-storage entr${moved === 1 ? 'y' : 'ies'} to vault storage`);
-		} catch (error) {
-			this.logError(`device storage hand-off failed: ${String(error)}`);
-		}
 		await this.loadSettings();
 
 		this.boardState = createBoardStateService({

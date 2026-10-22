@@ -70,7 +70,6 @@ describe('architecture boundaries', () => {
 			'src/repeat/next.ts',
 			'src/repeat/normalize.ts',
 			'src/repeat/describe.ts',
-			'src/repeat/legacy.ts',
 			'src/repeat/presets.ts',
 			'src/repeat/builder.ts',
 			'src/integration/repeatContract.ts',
@@ -179,9 +178,7 @@ describe('architecture boundaries', () => {
 	});
 
 	it('no shipped code touches raw localStorage — device state goes through the vault-scoped DeviceStore (PB-2)', () => {
-		// deviceStore.ts reads the old raw keys once, in its legacy hand-off.
 		const offenders = sourceFiles()
-			.filter((path) => !path.endsWith('utils/deviceStore.ts'))
 			.filter((path) => /\blocalStorage\.(getItem|setItem|removeItem)/.test(readWorkspaceFile(path)));
 		expect(offenders).toEqual([]);
 	});

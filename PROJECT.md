@@ -61,7 +61,7 @@ flowchart LR
   AR3 --> MD12["MD-1/2 🔴<br/>ttask_* prefix + sparse"]
   MD12 --> MD3["MD-3 ✅<br/>derive blocks"]
   MD12 --> RP["RP-2/3 🟡<br/>repeat engine"]
-  MD3 --> MD4["MD-4 🟡<br/>migration script"]
+  MD3 --> MD4["MD-4 ✅<br/>migration script"]
   RP --> MD4
   MD4 --> MD5["MD-5 🟢<br/>types.json cleanup"]
   MD4 --> N7["N7 Bases"]
@@ -148,8 +148,8 @@ flowchart LR
 
 ### Frontmatter / schema hygiene (MD)
 
-> **Migration script written 2026-10-11** (`Scripts/migrate-prefixed-schema.mjs`;
-> dry-run by default; runbook in `SCHEMA_BREAK_PLAN.md`). Not yet run on the real vault.
+> **Vault converted; migration code deleted 2026-10-22** (MD-4). The script lives
+> on in the `0.2.2` tag.
 >
 > **Plan approved 2026-10-10:** see `SCHEMA_BREAK_PLAN.md`. MD-2/MD-3 ship ahead of
 > the rename; only the rename + migration is the cutover. **MD-0** (route every
@@ -165,14 +165,11 @@ flowchart LR
 - `[x]` **MD-3 🟡 stop persisting `blocks`** *(2026-10-11, unreleased; see HISTORY)* — it was a pure reverse index of
   `depends_on` and can be derived at load, which deletes the whole sync machinery
   and the `sync-blocks` command. CLAUDE.md and README updated.
-- `[~]` **MD-4 🟡 one-shot vault migration + dev-command pruning** — script
-  written and tested (2026-10-11); dev-phase migration commands deleted
-  (2026-10-13). **Remaining — the cleanup, once Taylor has run it on the real
-  vault** (checked 2026-10-13: not yet): delete `Scripts/migrate-prefixed-schema.mjs`,
-  `Scripts/lib/`, `src/repeat/legacy.ts`, `src/schema/migrationScript.test.ts`,
-  `migrateLegacyDeviceStorage` (deviceStore.ts), and the `yaml` dev dependency;
-  drop the README migration section. `schemaGuard.ts` can stay a while longer as
-  a safety net for a device that missed the conversion.
+- `[x]` **MD-4 🟡 one-shot vault migration + dev-command pruning** — *(2026-10-22)*
+  vault converted (Taylor); script, `Scripts/lib/`, `src/repeat/legacy.ts`, the
+  migration tests, `migrateLegacyDeviceStorage` and the `yaml` dev dependency are
+  deleted. The script survives in the `0.2.2` tag (README points there).
+  `schemaGuard.ts` stays as the safety net for a device that missed it.
 - `[ ]` **MD-5 🟢 property registry cleanup** — hand-edit the vault's `types.json`
   (Obsidian closed) to drop the old generic entries; document recommended
   property types.

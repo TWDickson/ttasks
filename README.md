@@ -178,13 +178,14 @@ Free-form notes go here. The plugin renders all structured UI on top.
 
 ### Migrating to `ttask_*` properties
 
-Versions before the prefix wrote unprefixed properties (`type`, `name`,
+Versions before 0.2.1 wrote unprefixed properties (`type`, `name`,
 `status`, …). The plugin no longer reads those, so convert your notes once with
-the script in this repository. It is a **dry run unless you pass `--apply`**,
-backs up every note it changes, checks each one after writing, and is safe to
-run again.
+the one-shot script, which lives in the **`0.2.2` tag** (removed from `main`
+once converted). It is a **dry run unless you pass `--apply`**, backs up every
+note it changes, checks each one after writing, and is safe to run again.
 
 ```sh
+git checkout 0.2.2 && npm ci   # the script needs the `yaml` dev dependency
 # With Obsidian closed on every device:
 node Scripts/migrate-prefixed-schema.mjs "<vault>/<tasks folder>" "<vault>/<archive folder>"          # look first
 node Scripts/migrate-prefixed-schema.mjs "<vault>/<tasks folder>" "<vault>/<archive folder>" --apply  # then convert
