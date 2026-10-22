@@ -35,9 +35,9 @@ import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration
 import { resolveQuickAction } from './integration/quickActions';
 import { ArchiveService } from './store/ArchiveService';
 import { type CompletedFocus, PomodoroService } from './store/PomodoroService';
-import type { PomodoroSession } from './integration/pomodoro';
+import { type PomodoroSession, phaseCueKey } from './integration/pomodoro';
 import { type PomodoroLogEntry, formatLogRow, formatNewLogFile, pomodoroLogPath } from './integration/pomodoroLog';
-import { playAlertSound, showSystemNotification, vibrate } from './integration/pomodoroAlert';
+import { PhaseCueAudio, playAlertSound, showSystemNotification, vibrate } from './integration/pomodoroAlert';
 import { pomodoroStatusBarView } from './integration/pomodoroStatusBar';
 import { type NotesPolicy, type TaskJsonMode, type TaskJsonValidValues, serializeTasksToJson } from './integration/taskJsonExport';
 import type { DerivedStateContext } from './integration/taskDerivedState';
@@ -84,6 +84,8 @@ export default class TTasksPlugin extends Plugin {
 	private pomodoroStatusBarEl: HTMLElement | null = null;
 	private pomodoroStatusBarTextEl: HTMLElement | null = null;
 	private pomodoroPhaseNotice: Notice | null = null;
+	/** Phase-end chime queued on the audio clock, so it survives a backgrounded window. */
+	private readonly pomodoroCue = new PhaseCueAudio();
 	private isApplyingExternalSettings = false;
 	private reminderStartTimeoutId: number | null = null;
 	private cachedStatusPolicy: { source: TTasksSettings; policy: StatusPolicy } | null = null;
@@ -133,9 +135,11 @@ export default class TTasksPlugin extends Plugin {
 			getConfig: () => this.settings.pomodoro,
 			logFocus: (focus) => this.logPomodoroFocus(focus),
 			notify: (message) => { new Notice(message); },
-			alert: (message, endedMode) => this.alertPomodoroPhase(message, endedMode),
+			alert: (message, ended) => this.alertPomodoroPhase(message, ended),
 		});
 		this.register(() => this.pomodoroService.dispose());
+		this.register(this.pomodoroService.session.subscribe(session => this.syncPomodoroCue(session)));
+		this.register(() => this.pomodoroCue.close());
 		this.scanEngine = new ScanEngine();
 		this.registerEditorSuggest(new TaskLinkEditorSuggest(this.app, this));
 
@@ -512,11 +516,37 @@ export default class TTasksPlugin extends Plugin {
 	 * for focus ending, another for a break ending; volume 0 silences it), a
 	 * vibration where supported (Android), and on desktop an OS notification whose click brings Obsidian forward on the Pomodoro pane.
 	 */
-	private alertPomodoroPhase(message: string, endedMode: PomodoroSession['mode']): void {
-		const { alertVolume, focusEndSound, breakEndSound, systemNotification } = this.settings.pomodoro;
+	/** The configured end-of-phase sound for a phase of this mode. */
+	private pomodoroEndSound(mode: PomodoroSession['mode']) {
+		const { focusEndSound, breakEndSound } = this.settings.pomodoro;
+		return mode === 'focus' ? focusEndSound : breakEndSound;
+	}
+
+	/**
+	 * Keep the pre-scheduled phase-end chime in step with the session: queue it
+	 * for a running phase, drop it on pause, release the audio context when the
+	 * session ends. Runs on every store update; `schedule` ignores a key it
+	 * already holds, so the per-second ticks are free.
+	 */
+	private syncPomodoroCue(session: PomodoroSession | null): void {
+		if (!session) {
+			this.pomodoroCue.release();
+			return;
+		}
+		if (!session.running || session.phaseEndsAtMs === null) {
+			this.pomodoroCue.cancel();
+			return;
+		}
+		const delaySec = (session.phaseEndsAtMs - Date.now()) / 1000;
+		this.pomodoroCue.schedule(phaseCueKey(session), this.pomodoroEndSound(session.mode), this.settings.pomodoro.alertVolume, delaySec);
+	}
+
+	private alertPomodoroPhase(message: string, ended: PomodoroSession): void {
+		const { alertVolume, systemNotification } = this.settings.pomodoro;
 		this.pomodoroPhaseNotice?.hide();
 		this.pomodoroPhaseNotice = new Notice(`Pomodoro — ${message}`, 0);
-		playAlertSound(endedMode === 'focus' ? focusEndSound : breakEndSound, alertVolume);
+		// The scheduled cue normally sounded on time already; chime here only if it didn't.
+		if (!this.pomodoroCue.hasPlayed(phaseCueKey(ended))) playAlertSound(this.pomodoroEndSound(ended.mode), alertVolume);
 		vibrate();
 		if (systemNotification && Platform.isDesktop) {
 			void showSystemNotification('TTasks Pomodoro', message, () => {

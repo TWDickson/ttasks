@@ -380,6 +380,7 @@ flowchart LR
 | `[ ]` | **"Due now" reminder** (DT-2) — task due today with `due_time` a few minutes ahead; wait for the 5-min poll | Notice reads "N due now"; fires once; task is *not* styled overdue; follows the "Due today" toggle | next |
 | `[ ]` | **Pomodoro → "Send test"** notification | Reports shown/denied/unsupported; "shown" with nothing visible = Focus Assist / per-app setting | 0.1.16 |
 | `[ ]` | **Pomodoro sounds** — preview buttons, separate focus-end / break-end picks, volume slider (0 = off; saved "off" migrates to 0) | Audio plays at the set volume | 0.1.16 |
+| `[ ]` | **Pomodoro chime while backgrounded** (Windows) — set a short focus length, start it, minimise Obsidian / switch apps | Chime sounds on time at 00:00, once (not doubled when you return); break countdown already running from that moment | next |
 | `[ ]` | **Pomodoro rest** — CSV log (tasks folder, optional year/month split), two modals, sidebar pane, status-bar item (idle hides), OS notification click → pane | Each behaves as described | 0.1.x |
 | `[ ]` | **`tt-btn-primary`** (Mark complete, empty-list "+ New task") | Filled plugin-wide | 0.1.x |
 | `[ ]` | **Share/Sync** modal, both tabs | Renders and round-trips in the real shell | 0.1.x |

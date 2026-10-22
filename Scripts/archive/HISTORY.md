@@ -12,6 +12,31 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-22 — Pomodoro chime survives a backgrounded window
+
+- **Symptom (Taylor, Windows desktop):** with Obsidian in the background the
+  phase-end chime didn't sound; the timer just rolled into the next phase.
+- **Cause:** the chime was played from the `setInterval` tick. The 2026-07-21
+  wall-clock anchor fixed the *countdown*, but the tick itself still fires late
+  when hidden (Chromium aligns hidden timers to ~once a minute), and a fresh
+  `AudioContext` created at that moment, from a hidden window with no user
+  gesture, can start `suspended` and play nothing.
+- **Fix:** `PhaseCueAudio` (`pomodoroAlert.ts`) keeps one `AudioContext`,
+  opened inside the Start/Resume click, and queues the chime **on the audio
+  clock** for the phase end the moment a phase is anchored. The audio thread
+  isn't throttled. `main.ts` syncs it from the session store (cancel on pause,
+  release on stop); the late tick checks `hasPlayed(phaseCueKey(...))` and only
+  plays the old one-shot chime as a fallback, so it never doubles.
+- **Also:** an auto-started phase now anchors at the previous phase's real end
+  (`continuationAnchor`), not the late tick, so a 50 s-late tick no longer
+  stretches the break by 50 s. If the machine slept through the next phase too,
+  it still re-anchors at wake rather than fast-forwarding.
+- **Still tick-bound:** the Notice and OS notification fire on the tick, so in
+  the background they can lag up to ~1 min. Reasoned, not observed — sessions
+  are headless.
+
+---
+
 ## 2026-10-13 — RP-3, PB-2 and the repeat builder (→ 0.2.1)
 
 - **RP-3:** spawned instances carry `ttask_repeat_of` (link to the instance they

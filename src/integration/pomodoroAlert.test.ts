@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { POMODORO_ALERT_SOUNDS, describeNotificationResult, isPomodoroAlertSound, playAlertSound, showSystemNotification } from './pomodoroAlert';
+import { POMODORO_ALERT_SOUNDS, PhaseCueAudio, describeNotificationResult, isPomodoroAlertSound, playAlertSound, showSystemNotification } from './pomodoroAlert';
 
 function stubNotification(permission: NotificationPermission, opts: { throws?: boolean; grantOnRequest?: boolean } = {}) {
 	const created: Array<{ title: string; body?: string }> = [];
@@ -99,5 +99,96 @@ describe('playAlertSound', () => {
 	it('recognises only known sound ids', () => {
 		expect(isPomodoroAlertSound('bell')).toBe(true);
 		expect(isPomodoroAlertSound('kazoo')).toBe(false);
+	});
+});
+
+describe('PhaseCueAudio', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.useRealTimers();
+	});
+
+	function stubClock(state: AudioContextState = 'running') {
+		const starts: number[] = [];
+		const stopped = vi.fn();
+		const ctx = {
+			currentTime: 0,
+			state,
+			destination: {},
+			createOscillator: () => ({
+				frequency: {},
+				connect: (n: unknown) => n,
+				start: (t: number) => starts.push(t),
+				stop: (t?: number) => { if (t === undefined) stopped(); },
+				disconnect: vi.fn(),
+			}),
+			createGain: () => ({ gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() }, connect: (n: unknown) => n }),
+			resume: vi.fn(async () => undefined),
+			close: vi.fn(async () => undefined),
+		};
+		const Ctor = vi.fn(() => ctx);
+		vi.stubGlobal('AudioContext', Ctor);
+		return { ctx, Ctor, starts, stopped };
+	}
+
+	it('queues the cue on the audio clock at the phase end, once per key', () => {
+		const { Ctor, starts } = stubClock();
+		const cue = new PhaseCueAudio();
+		cue.schedule('focus@1', 'chime', 80, 1500);
+		cue.schedule('focus@1', 'chime', 80, 1499); // per-second store update — ignored
+		expect(Ctor).toHaveBeenCalledTimes(1);
+		expect(starts[0]).toBe(1500);
+		expect(starts).toHaveLength(2); // chime = two notes
+	});
+
+	it('reports a cue as played once the audio clock reaches it', () => {
+		const { ctx } = stubClock();
+		const cue = new PhaseCueAudio();
+		cue.schedule('focus@1', 'chime', 80, 60);
+		expect(cue.hasPlayed('focus@1')).toBe(false);
+		ctx.currentTime = 60;
+		expect(cue.hasPlayed('focus@1')).toBe(true);
+		// The next phase replaces it; the played cue is still remembered for the late tick.
+		cue.schedule('short-break@2', 'bell', 80, 300);
+		expect(cue.hasPlayed('focus@1')).toBe(true);
+		expect(cue.hasPlayed('short-break@2')).toBe(false);
+	});
+
+	it('cancels a future cue (pause/skip) so it never sounds', () => {
+		const { stopped } = stubClock();
+		const cue = new PhaseCueAudio();
+		cue.schedule('focus@1', 'chime', 80, 600);
+		cue.cancel();
+		expect(stopped).toHaveBeenCalledTimes(2);
+		expect(cue.hasPlayed('focus@1')).toBe(false);
+	});
+
+	it('does not count a cue as played while the context is suspended', () => {
+		const { ctx } = stubClock('suspended');
+		const cue = new PhaseCueAudio();
+		cue.schedule('focus@1', 'chime', 80, 0);
+		expect(ctx.resume).toHaveBeenCalled();
+		expect(cue.hasPlayed('focus@1')).toBe(false); // so the tick falls back to a fresh chime
+	});
+
+	it('schedules nothing at volume 0', () => {
+		const { Ctor } = stubClock();
+		new PhaseCueAudio().schedule('focus@1', 'chime', 0, 10);
+		expect(Ctor).not.toHaveBeenCalled();
+	});
+
+	it('closes the context after a grace period on release, unless a new cue arrives', () => {
+		vi.useFakeTimers();
+		const { ctx } = stubClock();
+		const cue = new PhaseCueAudio();
+		cue.schedule('focus@1', 'chime', 80, 10);
+		cue.release();
+		vi.advanceTimersByTime(1000);
+		cue.schedule('focus@2', 'chime', 80, 10); // restarted within the grace period
+		vi.advanceTimersByTime(10_000);
+		expect(ctx.close).not.toHaveBeenCalled();
+		cue.release();
+		vi.advanceTimersByTime(5000);
+		expect(ctx.close).toHaveBeenCalledTimes(1);
 	});
 });

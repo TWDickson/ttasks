@@ -5,6 +5,7 @@ import {
 	type PomodoroSession,
 	advancePhase,
 	anchorPhase,
+	continuationAnchor,
 	isPhaseComplete,
 	nextMode,
 	elapsedMinutes,
@@ -52,10 +53,11 @@ export interface PomodoroServiceDeps {
 	 * Surface a phase boundary — focus done, break over, target reached. These are
 	 * the moments the user may be looking elsewhere, so main upgrades them to a
 	 * chime + OS notification. One call per boundary, with the whole story in one
-	 * line, plus which phase just ended so main can pick the matching sound.
+	 * line, plus the phase that just ended so main can pick the matching sound
+	 * and check whether its pre-scheduled cue (`phaseCueKey`) already played.
 	 * Falls back to `notify` when not provided.
 	 */
-	alert?: (message: string, endedMode: PomodoroSession['mode']) => void;
+	alert?: (message: string, ended: PomodoroSession) => void;
 	/** Wall-clock source (epoch ms); injectable for tests. Defaults to Date.now. */
 	now?: () => number;
 }
@@ -88,10 +90,11 @@ export class PomodoroService {
 	 * `setInterval` throttling — see `syncSession`). Every place that begins,
 	 * advances, or resumes a phase goes through here; `tick()` does not (it reads
 	 * the existing anchor instead of resetting it). A paused/idle session is
-	 * published unchanged.
+	 * published unchanged. `anchorAt` defaults to now; a phase that follows a
+	 * completed one anchors where the previous one ended (`continuationAnchor`).
 	 */
-	private publishPhase(session: PomodoroSession | null): void {
-		this.session.set(session ? anchorPhase(session, this.now()) : null);
+	private publishPhase(session: PomodoroSession | null, anchorAt = this.now()): void {
+		this.session.set(session ? syncSession(anchorPhase(session, anchorAt), this.now()) : null);
 	}
 
 	/** Start (or restart) a focus session on a task, or untethered when path/name are null. */
@@ -223,8 +226,8 @@ export class PomodoroService {
 		else this.session.set(ticked);
 	}
 
-	private alert(message: string, endedMode: PomodoroSession['mode']): void {
-		if (this.deps.alert) this.deps.alert(message, endedMode);
+	private alert(message: string, ended: PomodoroSession): void {
+		if (this.deps.alert) this.deps.alert(message, ended);
 		else this.deps.notify(message);
 	}
 
@@ -248,18 +251,20 @@ export class PomodoroService {
 
 		const then = completed.targetEndMs !== null
 			? this.handleUntilBoundary(completed, config)
-			: this.announcePhase(advancePhase(completed, config), config);
-		this.alert(`${done}. ${then}`, completed.mode);
+			: this.announcePhase(advancePhase(completed, config), config, completed.phaseEndsAtMs);
+		this.alert(`${done}. ${then}`, completed);
 	}
 
 	/**
 	 * Start or arm `next`, honoring the auto-start setting, then publish it.
+	 * `endedAtMs` is when the previous phase ended, so an auto-started phase runs
+	 * from that instant rather than from a late tick.
 	 * Returns the sentence describing what happens next, for the phase alert.
 	 */
-	private announcePhase(next: PomodoroSession, config: PomodoroConfig & { autoStartNext: boolean }): string {
+	private announcePhase(next: PomodoroSession, config: PomodoroConfig & { autoStartNext: boolean }, endedAtMs: number | null): string {
 		const label = phaseLabel(next.mode);
 		if (config.autoStartNext) {
-			this.publishPhase(next);
+			this.publishPhase(next, continuationAnchor(endedAtMs, this.now(), next.durationSec));
 			return `${label} started.`;
 		}
 		this.publishPhase(pauseSession(next));
@@ -284,7 +289,7 @@ export class PomodoroService {
 		const upcoming = nextMode(completed, config);
 		const fullSec = phaseDurationSec(upcoming, config);
 
-		if (remainingMs >= fullSec * 1000) return this.announcePhase(advancePhase(completed, config), config);
+		if (remainingMs >= fullSec * 1000) return this.announcePhase(advancePhase(completed, config), config, completed.phaseEndsAtMs);
 
 		const fillMin = upcoming === 'focus' ? fillFocusMinutes(remainingMs / 60_000) : 0;
 		if (fillMin >= 1) {

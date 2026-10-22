@@ -151,6 +151,27 @@ export function advancePhase(session: PomodoroSession, config: PomodoroConfig): 
 	return { ...session, mode, completedFocus, durationSec, remainingSec: durationSec, running: true, isFill: false, phaseEndsAtMs: null };
 }
 
+/**
+ * Identity of a running phase's end-of-phase cue — mode plus its wall-clock end.
+ * Shared by the scheduler and the late tick so the tick can tell whether the
+ * pre-scheduled chime for this exact phase already sounded.
+ */
+export function phaseCueKey(session: Pick<PomodoroSession, 'mode' | 'phaseEndsAtMs'>): string {
+	return `${session.mode}@${session.phaseEndsAtMs ?? 'unanchored'}`;
+}
+
+/**
+ * Wall-clock instant to anchor the phase that follows one which ended at
+ * `endedAtMs`. Normally that's the moment it ended, so a tick that fires late
+ * (throttled, backgrounded window) doesn't stretch the next phase by the delay.
+ * If the next phase would already be over by `nowMs` — the machine slept through
+ * it — anchor at `nowMs` instead of fast-forwarding through phases.
+ */
+export function continuationAnchor(endedAtMs: number | null, nowMs: number, nextDurationSec: number): number {
+	if (endedAtMs === null || endedAtMs > nowMs) return nowMs;
+	return nowMs - endedAtMs < nextDurationSec * 1000 ? endedAtMs : nowMs;
+}
+
 /** True when the current phase is a *completed* focus phase (time to log it). */
 export function shouldLogFocus(session: PomodoroSession): boolean {
 	return session.mode === 'focus' && isPhaseComplete(session);

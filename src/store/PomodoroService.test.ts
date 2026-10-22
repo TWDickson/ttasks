@@ -73,7 +73,36 @@ describe('PomodoroService', () => {
 		expect(logFocus).toHaveBeenCalledWith({ taskPath: 'a.md', taskName: 'A', minutes: 25, mode: 'focus', partial: false });
 		const s = get(service.session);
 		expect(s?.mode).toBe('short-break');
-		expect(s?.remainingSec).toBe(300); // fresh break, re-anchored at wake time
+		expect(s?.remainingSec).toBe(240); // the break began at the focus end, a minute ago
+		service.dispose();
+	});
+
+	it('re-anchors at wake time when the machine slept through the next phase too', () => {
+		let clock = 0;
+		const { service } = makeService({ now: () => clock });
+		service.start('a.md', 'A');
+		clock = 40 * 60_000; // focus ended at 25m; the 5m break would have ended at 30m
+		vi.advanceTimersByTime(1000);
+		const s = get(service.session);
+		expect(s?.mode).toBe('short-break');
+		expect(s?.remainingSec).toBe(300); // fresh break, not fast-forwarded through phases
+		service.dispose();
+	});
+
+	it('starts the next phase from when the last one ended, not from a late tick', () => {
+		// Backgrounded: the tick that notices the focus end fires 50s late. The break
+		// still began at the real focus end, so 50s of it are already gone.
+		let clock = 0;
+		const alert = vi.fn();
+		const { service } = makeService({ now: () => clock, alert });
+		service.start('a.md', 'A');
+		clock = 1500_000 + 50_000;
+		vi.advanceTimersByTime(1000);
+		expect(alert).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ mode: 'focus', phaseEndsAtMs: 1500_000 }));
+		const s = get(service.session);
+		expect(s?.mode).toBe('short-break');
+		expect(s?.phaseEndsAtMs).toBe(1500_000 + 300_000);
+		expect(s?.remainingSec).toBe(250);
 		service.dispose();
 	});
 
@@ -116,9 +145,9 @@ describe('PomodoroService', () => {
 		notify.mockClear();
 		advanceSeconds(1500);
 		expect(alert).toHaveBeenCalledTimes(1);
-		expect(alert).toHaveBeenCalledWith('Focus complete — logged 25m to A. Short break started.', 'focus');
+		expect(alert).toHaveBeenCalledWith('Focus complete — logged 25m to A. Short break started.', expect.objectContaining({ mode: 'focus' }));
 		advanceSeconds(300);
-		expect(alert).toHaveBeenLastCalledWith('Short break complete. Focus started.', 'short-break');
+		expect(alert).toHaveBeenLastCalledWith('Short break complete. Focus started.', expect.objectContaining({ mode: 'short-break' }));
 		expect(notify).not.toHaveBeenCalled();
 		service.dispose();
 	});

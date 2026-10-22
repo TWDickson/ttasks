@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+	continuationAnchor,
+	phaseCueKey,
 	DEFAULT_POMODORO_CONFIG,
 	advancePhase,
 	anchorPhase,
@@ -199,5 +201,27 @@ describe('remainingFraction', () => {
 		const s = startSession('a.md', 'A', cfg);
 		expect(remainingFraction({ ...s, durationSec: 0, remainingSec: 0 })).toBe(0);
 		expect(remainingFraction({ ...s, remainingSec: -10 })).toBe(0);
+	});
+});
+
+describe('continuationAnchor', () => {
+	it('anchors at the previous phase end when the tick was late', () => {
+		expect(continuationAnchor(1_000, 51_000, 300)).toBe(1_000);
+	});
+
+	it('anchors at now when the next phase would already be over (slept through)', () => {
+		expect(continuationAnchor(1_000, 1_000 + 300_000, 300)).toBe(301_000);
+	});
+
+	it('anchors at now without a previous end, or one in the future', () => {
+		expect(continuationAnchor(null, 5_000, 300)).toBe(5_000);
+		expect(continuationAnchor(9_000, 5_000, 300)).toBe(5_000);
+	});
+});
+
+describe('phaseCueKey', () => {
+	it('differs per phase end and mode', () => {
+		expect(phaseCueKey({ mode: 'focus', phaseEndsAtMs: 1 })).not.toBe(phaseCueKey({ mode: 'focus', phaseEndsAtMs: 2 }));
+		expect(phaseCueKey({ mode: 'focus', phaseEndsAtMs: 1 })).not.toBe(phaseCueKey({ mode: 'short-break', phaseEndsAtMs: 1 }));
 	});
 });
