@@ -24,28 +24,7 @@
 import { repeatFromContract, repeatToContract } from './repeatContract';
 import type { Task } from '../types';
 import type { ParsedImportTask } from './taskJsonImport';
-
-/**
- * Fields an import may set on an existing task (mirrors TaskWriter.update, minus
- * links/notes).
- *
- * `name` is in here even though it doubles as the fallback match key. Leaving it
- * out meant a reply that only retitled tasks — the literal output of "suggest
- * better titles" — diffed to zero changes and showed an empty preview. It counts
- * as a change only on a REF-matched record (see `diffField`): there the ref
- * identifies the task and the name can only be a new title. On a name-matched
- * record the name IS the match key, so the only difference it can carry is
- * casing — treating that as a rename would silently re-case titles off an AI's
- * incidental capitalisation.
- */
-export const IMPORT_UPDATABLE_FIELDS = [
-	'name', 'status', 'priority', 'area', 'labels',
-	'blocked_reason', 'assigned_to', 'source',
-	'start_date', 'due_date', 'due_time', 'estimated_days', 'completed',
-	'recurrence', 'recurrence_type', 'pomodoro_count', 'focused_minutes',
-] as const;
-
-export type ImportUpdatableField = (typeof IMPORT_UPDATABLE_FIELDS)[number];
+import { IMPORT_UPDATABLE_FIELDS, type ImportUpdatableField } from './taskJsonContract';
 
 export interface FieldChange {
 	field: ImportUpdatableField;

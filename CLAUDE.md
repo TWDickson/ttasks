@@ -138,6 +138,10 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
 - Frontmatter mutations always use `app.fileManager.processFrontMatter()` — never
   write raw YAML to an existing file
 - Frontmatter is built as a raw string **only** at file-creation time
+- **A new `Task` field won't compile until three tables describe it:**
+  `TASK_PERSISTENCE` (frontmatter), `TASK_JSON_CONTRACT` (Share/Sync) and
+  `TASK_FIELD_UI` (form controls; `null` = no control). Decide all three —
+  don't widen a type to make the error go away.
 - **Never name a frontmatter key as a literal outside the codec.** Reach a task
   note's properties through `fmKey('due_date')` / `EXTRA_FM_KEYS`
   (`src/schema/taskPersistence.ts`), so the `ttask_*` rename is one table edit.

@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **1961 passing, 152 files** (`npm run check` = lint → build → test) |
+| Tests | **1996 passing, 155 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -55,7 +55,7 @@ shippable; dependencies are the arrows.
 
 ```mermaid
 flowchart LR
-  DT1["DT-1 ✅<br/>today injection"] --> AR3["AR-3 🟡<br/>field descriptor table"]
+  DT1["DT-1 ✅<br/>today injection"] --> AR3["AR-3 ✅<br/>field descriptor table"]
   AR3 --> DT2["DT-2 ✅<br/>due_time reminders"]
   DT2 --> DT5["DT-5 ✅<br/>calendar weeks"]
   AR3 --> MD12["MD-1/2 🔴<br/>ttask_* prefix + sparse"]
@@ -73,7 +73,7 @@ flowchart LR
 | # | Step | Why here |
 | --- | --- | --- |
 | 1 | ~~**DT-1** engine `today` injection~~ ✅ 2026-10-09 | Independent, user-visible bug, and makes every later date test deterministic (closes TD-5). |
-| 2 | **AR-3** field descriptor table | Slices 1–2 landed; the JSON export/import lists and `TASK_FIELD_DEFINITIONS` are still hand-listed. `due_time` was added to the latter ahead of that. *(Previously sequenced after DT-2 — flipped 2026-10-08.)* |
+| 2 | ~~**AR-3** field descriptor table~~ ✅ 2026-10-22 | Frontmatter, Share/Sync and form-control tables, all keyed by `Task` field. |
 | 3 | ~~**DT-2** `due_time` reminders~~ ✅ 2026-10-09 | UI + `due-time-passed` reminder. |
 | 4 | ~~**DT-5** calendar weeks + week-start setting~~ ✅ 2026-10-09 | Includes the Logbook "Last 7 Days" rename. |
 | 5 | **MD-1 / MD-2** `ttask_*` prefix + sparse writes | The schema change everything downstream depends on. |
@@ -497,16 +497,12 @@ status-bar countdown, log-partial-on-stop). Live sign-off is in §B.
 Phase 4 — ongoing, PR-sized. None of it is user-visible, so none of it blocks the
 critical path except where noted above (AR-3, PB-4).
 
-- `[~]` **AR-3 🟡 the Task field schema is defined in four places** — *slices 1–2
-  landed 2026-10-09:* `src/schema/taskPersistence.ts` is a `Record<keyof Task,
-  FieldPersistence>` (`fmKey` / `kind` / `updatable` / `onCreate` / `seed`), and
-  `src/schema/taskCodec.ts` reads (`readStoredFields`) and writes
-  (`serializeNewTaskFrontmatter`) from it. `fileToTask`, `buildTaskFrontmatter`
-  and `update()`'s field list no longer carry their own lists; a new `Task` field
-  is a compile error until described. **Remaining:** the JSON export/import field
-  lists (`taskJsonExport`/`taskJsonImport`) and `TASK_FIELD_DEFINITIONS` still
-  hand-list fields (test-guarded against the table, not generated). MD-1 renames
-  keys via `fmKey`; MD-2 flips `onCreate` to omit-when-empty. **Unblocks DT-2.**
+- `[x]` **AR-3 🟡 the Task field schema is defined in four places** — *(2026-10-22; see
+  HISTORY)* three keyed tables, each `Record<keyof Task, …>`: `TASK_PERSISTENCE`
+  (frontmatter), `TASK_JSON_CONTRACT` (Share/Sync; the import whitelist and AI
+  meta list derive from it) and `TASK_FIELD_UI` (form controls;
+  `TASK_FIELD_DEFINITIONS` derives from it). A new `Task` field doesn't compile
+  until all three decide it.
 - `[ ]` **AR-1 🟡 the component→plugin coupling rule is violated by all ten legacy
   components** (`TaskAgenda`, `TaskArchiveView`, `TaskBoard`, `TaskDetail`,
   `TaskDetailNotes`, `TaskDetailRelationships`, `TaskGraph`, `TaskKanban`,

@@ -41,19 +41,23 @@ const VALIDATORS = {
 } as const;
 
 /**
- * Comprehensive field definitions for all task properties.
- * Used by CreateTaskModal and TaskDetail to render consistent UI.
+ * The create-modal and detail-pane definition of every task property, keyed by
+ * field — `null` for a field with no form control (AR-3). Typed against
+ * `Record<keyof Task, …>`, so adding a field to `Task` fails the type-check
+ * until it is decided here, as `TASK_PERSISTENCE` and `TASK_JSON_CONTRACT` do
+ * for frontmatter and Share/Sync.
  *
  * Each definition declares:
- * - What the field is (name, label, type)
+ * - What the field is (label, type)
  * - How to render it (options, colors, buttons)
  * - When to show it (visibility rules)
  * - How to validate it (validators)
+ *
+ * Entry order is render order within a section.
  */
-export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
+const TASK_FIELD_UI = {
 	// ── BASICS ──────────────────────────────────────────────────────────────────
-	{
-		name: 'name',
+	name: {
 		label: 'Task Name',
 		placeholder: 'Enter task name…',
 		type: 'text',
@@ -68,8 +72,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		width: 'full',
 	},
 
-	{
-		name: 'type',
+	type: {
 		label: 'Type',
 		type: 'chips',
 		section: 'basics',
@@ -77,8 +80,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		chipsType: 'single',
 	},
 
-	{
-		name: 'priority',
+	priority: {
 		label: 'Priority',
 		type: 'chips',
 		section: 'basics',
@@ -94,8 +96,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 	},
 
 	// ── SCHEDULING ──────────────────────────────────────────────────────────────
-	{
-		name: 'start_date',
+	start_date: {
 		label: 'Start Date',
 		type: 'date',
 		section: 'scheduling',
@@ -109,8 +110,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		],
 	},
 
-	{
-		name: 'due_date',
+	due_date: {
 		label: 'Due Date',
 		type: 'date',
 		section: 'scheduling',
@@ -123,8 +123,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		],
 	},
 
-	{
-		name: 'due_time',
+	due_time: {
 		label: 'Due Time',
 		type: 'time',
 		section: 'scheduling',
@@ -138,8 +137,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		],
 	},
 
-	{
-		name: 'estimated_days',
+	estimated_days: {
 		label: 'Est. Days',
 		type: 'number',
 		section: 'scheduling',
@@ -153,8 +151,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		],
 	},
 
-	{
-		name: 'depends_on',
+	depends_on: {
 		label: 'After Task(s)',
 		type: 'wikilink',
 		section: 'scheduling',
@@ -168,8 +165,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 	},
 
 	// ── NOTES ───────────────────────────────────────────────────────────────────
-	{
-		name: 'notes',
+	notes: {
 		label: 'Notes',
 		type: 'textarea',
 		section: 'notes',
@@ -179,8 +175,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 	},
 
 	// ── ADVANCED ────────────────────────────────────────────────────────────────
-	{
-		name: 'status',
+	status: {
 		label: 'Status',
 		type: 'chips',
 		section: 'advanced',
@@ -195,8 +190,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		chipsType: 'single',
 	},
 
-	{
-		name: 'area',
+	area: {
 		label: 'Area',
 		type: 'select',
 		section: 'advanced',
@@ -211,8 +205,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		selectAllowEmpty: true,
 	},
 
-	{
-		name: 'labels',
+	labels: {
 		label: 'Labels',
 		type: 'chips',
 		section: 'advanced',
@@ -227,8 +220,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		chipsType: 'multi',
 	},
 
-	{
-		name: 'parent_task',
+	parent_task: {
 		label: 'Parent Project',
 		type: 'wikilink',
 		section: 'advanced',
@@ -239,16 +231,14 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		selectAllowEmpty: true,
 	},
 
-	{
-		name: 'assigned_to',
+	assigned_to: {
 		label: 'Assigned To',
 		type: 'text',
 		section: 'advanced',
 		placeholder: 'Name or user…',
 	},
 
-	{
-		name: 'blocked_reason',
+	blocked_reason: {
 		label: 'Blocked Reason',
 		type: 'text',
 		section: 'advanced',
@@ -256,8 +246,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		visible: (values) => isBlockedStatus(values.status, values.blockStatus),
 	},
 
-	{
-		name: 'source',
+	source: {
 		label: 'Source',
 		type: 'text',
 		section: 'advanced',
@@ -265,10 +254,9 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 	},
 
 	// ── RECURRENCE + REMINDERS (Advanced) ───────────────────────────────────────
-	{
+	repeat: {
 		// The preset menu over `repeat` (a RepeatRule). The schedule/after-completion
 		// switch beside it is not a field of its own — it's part of the rule.
-		name: 'repeat',
 		label: 'Repeats',
 		type: 'select',
 		section: 'advanced',
@@ -276,8 +264,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		selectAllowEmpty: true,
 	},
 
-	{
-		name: 'reminder_override',
+	reminder_override: {
 		label: 'Reminders',
 		type: 'select',
 		section: 'advanced',
@@ -286,24 +273,21 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 	},
 
 	// ── METADATA (Read-only) ────────────────────────────────────────────────────
-	{
-		name: 'created',
+	created: {
 		label: 'Created',
 		type: 'text',
 		section: 'advanced',
 		readOnly: true,
 	},
 
-	{
-		name: 'completed',
+	completed: {
 		label: 'Completed',
 		type: 'text',
 		section: 'advanced',
 		readOnly: true,
 	},
 
-	{
-		name: 'status_changed',
+	status_changed: {
 		label: 'Status Changed',
 		type: 'text',
 		section: 'advanced',
@@ -311,8 +295,7 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 	},
 
 	// ── RELATIONSHIP METADATA (Read-only) ───────────────────────────────────────
-	{
-		name: 'blocks',
+	blocks: {
 		label: 'Unblocks',
 		type: 'wikilink',
 		section: 'advanced',
@@ -322,7 +305,28 @@ export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = [
 		},
 		readOnly: true,
 	},
-];
+
+	// ── NO FORM CONTROL ─────────────────────────────────────────────────────────
+	// File identity and derived state.
+	id: null,
+	slug: null,
+	path: null,
+	is_complete: null,
+	is_inbox: null,
+	repeat_warning: null,
+	// Project scheduling controls, edited in the project's own detail panel.
+	workweek_only: null,
+	holiday_dates: null,
+	// Written by the Pomodoro and repeat engines, never typed in.
+	pomodoro_count: null,
+	focused_minutes: null,
+	repeat_of: null,
+} satisfies Record<keyof Task, Omit<FieldDefinition, 'name'> | null>;
+
+/** The defined fields as a list, in render order. Used by CreateTaskModal and TaskDetail. */
+export const TASK_FIELD_DEFINITIONS: FieldDefinition[] = (
+	Object.entries(TASK_FIELD_UI) as [keyof Task, Omit<FieldDefinition, 'name'> | null][]
+).flatMap(([name, def]) => (def ? [{ name, ...def }] : []));
 
 /**
  * Get field definitions for a specific section (for modal layout).

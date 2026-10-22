@@ -269,3 +269,15 @@ describe('Task Field Schema', () => {
 		});
 	});
 });
+
+describe('TASK_FIELD_DEFINITIONS (AR-3: derived from a keyed table)', () => {
+	it('keeps the long-standing render order', () => {
+		expect(TASK_FIELD_DEFINITIONS.map((f) => f.name)).toEqual([
+			'name', 'type', 'priority',
+			'start_date', 'due_date', 'due_time', 'estimated_days', 'depends_on',
+			'notes',
+			'status', 'area', 'labels', 'parent_task', 'assigned_to', 'blocked_reason', 'source',
+			'repeat', 'reminder_override', 'created', 'completed', 'status_changed', 'blocks',
+		]);
+	});
+});

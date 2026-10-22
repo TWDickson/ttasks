@@ -12,6 +12,39 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-22 — AR-3 slice 3: Share/Sync and form controls get keyed tables
+
+AR-3 closes. Every `Task` field is now described in three `Record<keyof Task, …>`
+tables, so a new field is a compile error until each surface decides it:
+
+```mermaid
+flowchart LR
+  T[Task] --> P[TASK_PERSISTENCE<br/>frontmatter]
+  T --> J[TASK_JSON_CONTRACT<br/>Share/Sync]
+  T --> U[TASK_FIELD_UI<br/>form controls]
+  J --> W[IMPORT_UPDATABLE_FIELDS<br/>+ AI meta list]
+  U --> D[TASK_FIELD_DEFINITIONS]
+```
+
+- **`src/integration/taskJsonContract.ts`** (pure): per field, its contract
+  key(s) (`repeat` → `recurrence` + `recurrence_type`, `parent_task` →
+  `parent`), the export modes that carry it, and what import does with it
+  (`set` / `match` / `link` / `body` / `create` / ignored). The import
+  whitelist and its `ImportUpdatableField` type, and the AI meta's
+  `updatableFields`, are derived from it — previously two hand-kept lists.
+- **Guarded rather than generated:** `exportOne` and the parser stay
+  hand-written (each mode shapes values differently), but tests assert each
+  export mode emits exactly the table's keys and the parser reads every
+  imported key. Verified the guard fails when the table and exporter disagree.
+- **`TASK_FIELD_UI`** in `taskFields.ts`: the same definitions keyed by field,
+  with `null` for fields that have no form control. `TASK_FIELD_DEFINITIONS` is
+  derived from it in the same order (test-pinned).
+- **No behaviour change.** The table makes one existing gap visible: `repeat_of`
+  isn't in the 'full' export. Left out on purpose — it's a vault path into the
+  series, and import ignores it.
+
+---
+
 ## 2026-10-22 — Pomodoro timer audit: worker tick, stale-state fixes, close prompt
 
 Follow-up audit of the whole Pomodoro path (Taylor asked whether anything less

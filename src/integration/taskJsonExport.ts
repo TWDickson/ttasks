@@ -9,6 +9,7 @@
 //             reads the answer instead of having to derive it.
 
 import { repeatToContract } from './repeatContract';
+import { AI_UPDATABLE_FIELDS } from './taskJsonContract';
 import type { Task } from '../types';
 import type { DerivedStateContext, DerivedTaskState } from './taskDerivedState';
 import { computeDerivedTaskState } from './taskDerivedState';
@@ -78,7 +79,7 @@ export interface TaskJsonMeta {
 	projects: string;
 	/** Semantics of the free-form note body on the way back in. */
 	notes: string;
-	/** Fields an import can set on a matched task (mirrors taskImportPlan). */
+	/** Fields an import can set on a matched task (from `TASK_JSON_CONTRACT`). */
 	updatableFields: string[];
 	/** Fields present in the export but ignored on import. */
 	ignoredOnImport: string[];
@@ -171,12 +172,7 @@ const AI_IMPORT_META_BASE: Omit<TaskJsonMeta, 'validValues'> = {
 	notes:
 		'"notes" is the entry\'s markdown body. Sending it REPLACES the whole body. Leave "notes" out to ' +
 		'keep the body as it is. That is the safe default.',
-	updatableFields: [
-		'name', 'status', 'priority', 'area', 'labels', 'blocked_reason', 'assigned_to',
-		'source', 'start_date', 'due_date', 'due_time', 'estimated_days',
-		'completed', 'recurrence', 'recurrence_type', 'pomodoro_count', 'focused_minutes',
-		'notes',
-	],
+	updatableFields: [...AI_UPDATABLE_FIELDS],
 	ignoredOnImport: ['blocks', 'impeded', 'impeded_by', 'in_cycle', 'scheduled_start', 'scheduled_end'],
 };
 

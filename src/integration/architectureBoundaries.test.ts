@@ -137,6 +137,7 @@ describe('architecture boundaries', () => {
 			'src/integration/taskDerivedState.ts',
 			'src/integration/taskToonExport.ts',
 			'src/integration/taskJsonImport.ts',
+			'src/integration/taskJsonContract.ts',
 			'src/integration/taskExportFilter.ts',
 			'src/integration/taskImportPlan.ts',
 			'src/integration/sharePreamble.ts',

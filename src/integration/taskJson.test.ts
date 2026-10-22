@@ -8,7 +8,7 @@ import {
 	serializeTasksToJson,
 } from './taskJsonExport';
 import { parseTasksJson } from './taskJsonImport';
-import { IMPORT_UPDATABLE_FIELDS } from './taskImportPlan';
+import { IMPORT_UPDATABLE_FIELDS } from './taskJsonContract';
 
 function makeTask(overrides: Partial<Task> = {}): Task {
 	return {
