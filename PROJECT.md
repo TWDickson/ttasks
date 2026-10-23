@@ -366,6 +366,7 @@ flowchart LR
 | `[ ]` | **Rename doesn't double-spawn** (RP-3) — complete a repeating task, rename the new instance, then re-complete the *old* one from the Logbook/checklist | No second spawn | next |
 | `[ ]` | **Reminders survive the upgrade** (PB-2) — a reminder that fired today, or a snooze, before updating | Not re-fired / still snoozed after the update | next |
 | `[ ]` | **Repeats** — set Weekly on a task with a due date, then Monthly on one due the 31st; complete each | Pane shows "Next: …" dates; completing spawns the next instance on the right date (31st → Feb 28 → Mar 31) | next |
+| `[ ]` | **Rename refreshes link aliases** — rename a task that others depend on / that has children; open a dependent note's Properties panel | `ttask_depends_on` / `ttask_parent_task` show the new name within a second | next |
 | `[ ]` | **Settings rename** — rename a label in Settings | Notes carrying it are rewritten (this was silently broken before) | next |
 | `[ ]` | **Update your own files** — `Planner/_Templates/task.md` and `Planner/Tasks.base` | They refer to `ttask_*` names (old ones no longer match anything) | next |
 | `[ ]` | **Sparse notes** (MD-2) — open a few existing notes and a freshly created one in the Properties panel | Old notes unchanged; new note has the five core keys; `Planner/Tasks.base` views still list new tasks | next |
@@ -461,12 +462,10 @@ isn't Obsidian itself.
   out of it" (adjacent to the checkbox-scan/promote flow) or something else.
 - `[ ]` **Share/Sync import command surface** *(deferred)* — a direct
   import-from-clipboard command.
-- `[ ]` **A renamed task leaves stale link aliases** — links are stored
-  `[[path|Name]]`, and neither the detail-pane rename nor the import rename
-  rewrites the alias on inbound `depends_on`/`blocks`/`parent_task` entries. The
-  TTasks UI is unaffected (it resolves through `resolveTaskRef`), so this only
-  shows in **native Obsidian views**. Pre-existing. *(MD-3 removes the `blocks`
-  half of this.)*
+- `[x]` **A renamed task leaves stale link aliases** — *(2026-10-23)* a `name`
+  change through `TaskStore.update` (detail pane, Share/Sync import) now
+  re-aliases inbound `parent_task` / `depends_on` / `repeat_of` links.
+  `blocked_reason` is free text and keeps its own wording.
 - `[x]` Subprojects UI; Future cascades down; right-click Open; Share/Sync graph
   answers + weak-model wording; hover-transform scrollbar flicker; field CSS
   dedupe *(2026-08-24 → 2026-09-06; see HISTORY)*.

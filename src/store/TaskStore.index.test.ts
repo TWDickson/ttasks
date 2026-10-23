@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TaskStore } from './TaskStore';
 import type { Task } from '../types';
 
@@ -129,5 +129,39 @@ describe('TaskStore schema guard', () => {
 		expect(store.writesBlocked).toBe(false);
 		expect(store.vaultSchema.kind).toBe('stray-legacy');
 		expect(storeWith([{ ttask_type: 'task', ttask_name: 'New' }]).vaultSchema).toEqual({ kind: 'ok' });
+	});
+});
+
+describe('TaskStore.update rename → alias refresh', () => {
+	function storeWithFakeWriter(applies: boolean) {
+		const store = createStore();
+		store.tasks.set([makeTask({ name: 'Old name' })]);
+		(store as any).writer = {
+			update: async (path: string, updates: Partial<Task>) => {
+				if (!applies) return; // a failed write leaves the store untouched
+				store.tasks.update((all) => all.map((t) => (t.path === path ? { ...t, ...updates } : t)));
+			},
+		};
+		const realias = vi.spyOn(store.relationships, 'rewriteRelationshipAliases').mockResolvedValue();
+		return { store, realias };
+	}
+
+	it('re-aliases inbound links once a rename lands', async () => {
+		const { store, realias } = storeWithFakeWriter(true);
+		await store.update('Tasks/abc123-task.md', { name: 'New name' });
+		expect(realias).toHaveBeenCalledWith('Tasks/abc123-task.md', 'New name');
+	});
+
+	it('does nothing when the name is unchanged or not part of the update', async () => {
+		const { store, realias } = storeWithFakeWriter(true);
+		await store.update('Tasks/abc123-task.md', { name: 'Old name' });
+		await store.update('Tasks/abc123-task.md', { priority: 'High' });
+		expect(realias).not.toHaveBeenCalled();
+	});
+
+	it('does nothing when the write failed', async () => {
+		const { store, realias } = storeWithFakeWriter(false);
+		await store.update('Tasks/abc123-task.md', { name: 'New name' });
+		expect(realias).not.toHaveBeenCalled();
 	});
 });

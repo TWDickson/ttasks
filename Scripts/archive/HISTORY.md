@@ -12,6 +12,19 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-23 — Renames refresh inbound link aliases
+
+Links are stored `[[path|Name]]`, so renaming a task left every inbound
+relationship showing the old title in native Obsidian views (TTasks' own UI
+resolves through `resolveTaskRef` and never noticed). `TaskStore.update` now
+compares the name before and after the write and, only if the rename landed,
+calls `TaskRelationships.rewriteRelationshipAliases`, which re-aliases
+`parent_task`, `depends_on` and `repeat_of` in every task note. One hook covers
+the detail pane and Share/Sync import, which both write through
+`TaskStore.update`. `blocked_reason` is deliberately skipped: links there are
+the user's prose. The link-matching regex is now shared with the path-rename
+rewriter (`linkPattern`).
+
 ## 2026-10-23 — DT-6: one ISO-date check, and a clock-read ratchet
 
 - **`isIsoDateString(value: unknown): value is string`** in `dateUtils.ts` is now

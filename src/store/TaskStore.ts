@@ -205,7 +205,15 @@ export class TaskStore {
 	}
 
 	async update(path: string, updates: Partial<Task>): Promise<void> {
-		return this.writer.update(path, updates);
+		const previousName = this.getByPath(path)?.name;
+		await this.writer.update(path, updates);
+		// A rename leaves `[[path|Old name]]` on every inbound link; refresh the
+		// aliases once the write has landed (the optimistic patch shows it did).
+		const task = this.getByPath(path);
+		if (previousName !== undefined && task && task.name !== previousName) {
+			void this.relationships.rewriteRelationshipAliases(task.path, task.name)
+				.catch((err: unknown) => this.plugin.logError(`rewriteRelationshipAliases failed: ${String(err)}`));
+		}
 	}
 
 	async updateNotes(path: string, notes: string): Promise<string> {

@@ -17,6 +17,21 @@ export function rewriteWikiLinkValue(val: string, oldPattern: RegExp, newClean: 
 }
 
 /**
+ * Re-aliases every link in `val` that targets `targetClean`, so it displays
+ * `alias`. A bare `[[path]]` gains the alias too. Other links are untouched.
+ */
+export function realiasWikiLinkValue(val: string, targetClean: string, alias: string): string {
+	// A function replacer, so a `$` in the name isn't read as a substitution.
+	return val.replace(linkPattern(targetClean), () => `[[${targetClean}|${alias}]]`);
+}
+
+/** Matches `[[clean]]` / `[[clean|any alias]]`, the shape relationship links are stored in. */
+function linkPattern(clean: string): RegExp {
+	const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	return new RegExp(`\\[\\[${escaped}(\\|[^\\]]+)?\\]\\]`, 'g');
+}
+
+/**
  * Filters a list of wiki-link values, removing any that resolve to deletedClean.
  */
 export function filterOutDeletedPath(
@@ -47,8 +62,7 @@ export class TaskRelationships {
 			(f): f is TFile => f instanceof TFile && f.extension === 'md' && f.path !== newPath
 		);
 
-		const oldPattern = oldClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		const linkRegex = new RegExp(`\\[\\[${oldPattern}(\\|[^\\]]+)?\\]\\]`, 'g');
+		const linkRegex = linkPattern(oldClean);
 
 		await withConcurrencyLimit(files.map((file) => async () => {
 			const cache = this.app.metadataCache.getFileCache(file);
@@ -83,6 +97,48 @@ export class TaskRelationships {
 		}), 5);
 
 		this.plugin.log(`Rewrote relationship references: ${oldClean} → ${newClean}`);
+	}
+
+	/**
+	 * After a task's `name` changes, rewrite the alias on every inbound
+	 * relationship link (`parent_task`, `depends_on`, `repeat_of`) so native
+	 * Obsidian views show the new title. TTasks' own UI resolves through
+	 * `resolveTaskRef` and never reads the alias. `blocked_reason` is free text
+	 * the user wrote, so its links keep whatever alias they were given.
+	 */
+	async rewriteRelationshipAliases(targetPath: string, newName: string): Promise<void> {
+		const targetClean = stripMdExt(normalizePath(targetPath));
+		const alias = newName.trim();
+		if (!alias) return;
+
+		const folder = this.app.vault.getFolderByPath(this.folderPath);
+		if (!folder) return;
+
+		const files = folder.children.filter(
+			(f): f is TFile => f instanceof TFile && f.extension === 'md' && stripMdExt(f.path) !== targetClean
+		);
+		const relink = (val: unknown): unknown =>
+			typeof val === 'string' ? realiasWikiLinkValue(val, targetClean, alias) : val;
+
+		await withConcurrencyLimit(files.map((file) => async () => {
+			const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+			if (!fm || !JSON.stringify(fm).includes(targetClean)) return;
+
+			try {
+				await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+					for (const key of [fmKey('parent_task'), fmKey('repeat_of')]) {
+						const next = relink(frontmatter[key]);
+						if (next !== frontmatter[key]) frontmatter[key] = next;
+					}
+					const deps = frontmatter[fmKey('depends_on')];
+					if (Array.isArray(deps) && deps.some((v: unknown) => relink(v) !== v)) {
+						frontmatter[fmKey('depends_on')] = deps.map(relink);
+					}
+				});
+			} catch (error) {
+				this.plugin.logError(`Failed to re-alias relationships in ${file.path}: ${String(error)}`);
+			}
+		}), 5);
 	}
 
 	async removeRelationshipReferences(deletedPath: string): Promise<void> {
