@@ -54,7 +54,7 @@ export class TaskStore {
 			},
 			parseFile: (file) => this.fileToTask(file),
 			applyParsedTasks: (parsed) => this.applyParsedTasks(parsed),
-			onTaskParsed: (task) => this.writer.syncParentChecklistFromChildPublic(task),
+			onTaskParsed: (task) => this.writer.checklistSync.syncParentFromChild(task),
 			log: (message) => this.plugin.log(message),
 		});
 	}

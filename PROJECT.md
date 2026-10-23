@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.2.3` published 2026-10-23 (link-alias refresh on rename, form-control labels). Rows below name the first version carrying each change. Not on the community list — deliberate |
-| Tests | **1995 passing, 156 files** (`npm run check` = lint → build → test) |
+| Tests | **2005 passing, 157 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -359,6 +359,7 @@ flowchart LR
 
 | | Check | Pass looks like | Ships |
 | --- | --- | --- | --- |
+| `[ ]` | **Pomodoro ribbon icon** (#15) | A timer icon in the left ribbon opens the Pomodoro pane; can be hidden via the ribbon's right-click menu | 0.2.4 |
 | `[ ]` | **Week starts on** (DT-5) — Settings → Working calendar | Dropdown at top of the section, default "System default (Mon/Sun)" matching your device locale; Monday vs Sunday moves Sunday between This/Next Week | 0.2.2 |
 | `[ ]` | **⚠ Migration first** (MD-4) — before installing the new release: Obsidian closed everywhere, run the script's dry run on `Planner/Tasks` + `Planner/Archive`, then `--apply` | Summary shows ~170 notes migrated, 0 skipped; backups folder exists | 0.2.2 |
 | `[ ]` | **Unmigrated-vault guard** — (optional) open an *unconverted copy* of the vault with the new release | Persistent notice explaining the empty board; creating/editing a task is refused | 0.2.2 |
@@ -478,10 +479,9 @@ Core and all optional slices are done (state machine, service, detail-pane
 control, settings, untethered sessions, CSV log, "focus until", sidebar pane,
 status-bar countdown, log-partial-on-stop). Live sign-off is in §B.
 
-- `[ ]` **(15) Pomodoro discoverability** — no obvious way to find the sidebar
-  icon or open the pane. Needs a clearer entry point: ribbon icon (the only
-  ribbon icon today opens the board), command-palette hint, or an onboarding
-  nudge.
+- `[x]` **(15) Pomodoro discoverability** — *(2026-10-23)* a `timer` ribbon icon
+  opens the pane, alongside the rail button, palette commands and the one-shot
+  pane on first enable. Awaiting on-device check.
 
 ---
 
@@ -514,8 +514,9 @@ critical path except where noted above (AR-3, PB-4).
   catalogue split into `integration/pomodoroSounds.ts`; `pomodoroAlert.ts` keeps playback.
 - `[x]` **🟢 Pomodoro volume slider saves on every step** — *(2026-10-22)* debounced
   (400 ms) via Obsidian's `debounce`.
-- `[ ]` **AR-4 🟡 `TaskWriter` mixes four concerns** — extract a
-  `ChecklistSyncService`.
+- `[x]` **AR-4 🟡 `TaskWriter` mixes four concerns** — *(2026-10-23)* checklist
+  sync extracted: pure `store/checklistSync.ts` (boundary-listed, now tested)
+  + I/O-only `ChecklistSyncService`, reached as `writer.checklistSync`.
 - `[x]` **AR-5 🟢 smaller DRY / correctness items** — *(2026-10-22 / 10-23)* audit
   nits, then the duplicate ISO-date regexes via DT-6.
 - `[x]` **TD-6 🟡 nothing type-checks `.svelte` files** — *(2026-10-22; see HISTORY)*

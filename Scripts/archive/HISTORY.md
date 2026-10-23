@@ -12,6 +12,25 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-23 — AR-4: checklist sync leaves TaskWriter; Pomodoro gets a ribbon icon
+
+**AR-4.** The parent-checklist ↔ child-status sync was four private methods in
+`TaskWriter` with no direct tests. It now splits along the usual line: the
+decisions (which links a body holds, what each child must do, how a parent line
+is rewritten, what a materialised child inherits) are pure functions in
+`store/checklistSync.ts`, boundary-listed and unit-tested; `ChecklistSyncService`
+does only the vault reads/writes and takes a deps object, not the plugin.
+`TaskStore` reaches it as `writer.checklistSync`, replacing the
+`syncParentChecklistFromChildPublic` shim. Behaviour is unchanged.
+
+**#15 Pomodoro discoverability.** The rail button, palette commands and the
+one-shot pane on first enable already existed; the ribbon was the missing entry
+point. A `timer` ribbon icon now opens the pane — users who don't want it hide it
+from Obsidian's own ribbon menu, so no setting was added.
+
+Also: the rail shows `v<version>` under Settings, with a `BETA` tag while the
+major version is 0.
+
 ## 2026-10-23 — AR-6: a field's codec kind must fit its type
 
 `TASK_PERSISTENCE` forced every `Task` key to be described but not *correctly*:

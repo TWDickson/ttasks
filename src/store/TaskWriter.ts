@@ -3,7 +3,7 @@ import { get, type Writable } from 'svelte/store';
 import type TTasksPlugin from '../main';
 import type { Task, TaskCreateInput } from '../types';
 import { getUniqueTaskPath, sanitizeDependsOnPaths } from './taskCreateGuards';
-import { materializeChecklistChildren } from './checklistMaterializer';
+import { ChecklistSyncService } from './ChecklistSyncService';
 import { repinToDueDate } from '../repeat/presets';
 import { repeatCalendarFromHolidays } from '../repeat/types';
 import { splitHolidayCalendar } from '../settings/holidays';
@@ -14,8 +14,7 @@ import { buildDuplicateInput } from './taskDuplicate';
 import { resetChecklistCompletionInNotes } from './recurrenceNotes';
 import { deleteFileSafely, buildDeleteDeps } from '../integration/safeDelete';
 import { buildAliasedLink } from '../integration/relationshipLink';
-import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
-import { extractChecklistLink } from '../utils/wikiLink';
+import { stripMdExt } from '../utils/pathUtils';
 import { buildRestoreInput } from './taskRestore';
 import { linkReferencesTaskPath } from './relationshipLinkMatch';
 import { syncCompletionToSource } from '../integration/completionSync';
@@ -32,6 +31,8 @@ export class TaskWriter {
 	private getTaskByPath: (path: string) => Task | undefined;
 	private canWrite: () => boolean;
 	private lastBlockedNotice = 0;
+	/** Parent-checklist ↔ child-status sync (AR-4). */
+	readonly checklistSync: ChecklistSyncService;
 
 	constructor(
 		plugin: TTasksPlugin,
@@ -45,6 +46,15 @@ export class TaskWriter {
 		this.folderPath = folderPath;
 		this.getTaskByPath = getTaskByPath;
 		this.canWrite = canWrite;
+		this.checklistSync = new ChecklistSyncService({
+			app: plugin.app,
+			tasks: () => get(this.tasks),
+			getTaskByPath,
+			statusPolicy: () => plugin.statusPolicy,
+			create: (input) => this.create(input),
+			update: (path, updates) => this.update(path, updates),
+			completeAndRecur: (task) => this.completeAndRecur(task),
+		});
 	}
 
 	/**
@@ -256,7 +266,7 @@ export class TaskWriter {
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return notes;
 
-		const rewritten = await this.materializeChecklistChildrenFromBody(path, notes);
+		const rewritten = await this.checklistSync.materializeChildren(path, notes);
 
 		if (this.isFileOpenInEditor(file)) {
 			await new Promise(resolve => setTimeout(resolve, 100));
@@ -268,7 +278,7 @@ export class TaskWriter {
 			return frontmatter + (rewritten ? '\n\n' + rewritten : '') + '\n';
 		});
 
-		await this.syncChildrenFromParentChecklist(path, rewritten);
+		await this.checklistSync.syncChildrenFromParent(path, rewritten);
 		return rewritten;
 	}
 
@@ -432,142 +442,6 @@ export class TaskWriter {
 		return isPathOpenInMarkdownEditor(this.app.workspace, file.path);
 	}
 
-	private async syncChildrenFromParentChecklist(parentPath: string, body: string): Promise<void> {
-		if (!body) return;
-		const wanted = new Map<string, boolean>();
-		const lines = body.split('\n');
-
-		for (const line of lines) {
-			const parsed = extractChecklistLink(line);
-			if (!parsed?.path) continue;
-			wanted.set(parsed.path, parsed.checked);
-		}
-
-		if (wanted.size === 0) return;
-
-		const complete = this.completionStatus();
-		const fallback = this.plugin.statusPolicy.initial;
-		const tasksByPath = new Map(get(this.tasks).map((t) => [t.path, t]));
-		const today = localDateString();
-		const updates: Promise<void>[] = [];
-
-		for (const [childPath, checked] of wanted.entries()) {
-			if (childPath === parentPath) continue;
-			const child = tasksByPath.get(childPath);
-			if (!child) continue;
-
-			const targetStatus = checked ? complete : (child.status === complete ? fallback : child.status);
-			const targetCompleted = checked ? today : null;
-			const statusChanged = child.status !== targetStatus;
-			const completedChanged = (child.completed ?? null) !== targetCompleted;
-			if (!statusChanged && !completedChanged) continue;
-
-			// Checking a recurring child completes it like any other path — route
-			// through completeAndRecur so the next instance is spawned (guarded).
-			if (checked) {
-				updates.push(this.completeAndRecur(child).then(() => undefined));
-			} else {
-				updates.push(this.update(child.path, {
-					status: targetStatus,
-					completed: targetCompleted,
-				}));
-			}
-		}
-
-		if (updates.length > 0) {
-			await Promise.all(updates);
-		}
-	}
-
-	private async syncParentChecklistFromChild(child: Task): Promise<void> {
-		if (!child.parent_task) return;
-		const parentPath = ensureMdExt(child.parent_task.trim());
-		const parentFile = this.app.vault.getAbstractFileByPath(normalizePath(parentPath));
-		if (!(parentFile instanceof TFile)) return;
-
-		const content = await this.app.vault.cachedRead(parentFile);
-		const fmEnd = content.indexOf('\n---', 3);
-		if (fmEnd < 0) return;
-
-		const body = content.substring(fmEnd + 4).trim();
-		if (!body) return;
-
-		const lines = body.split('\n');
-		const childPathWithoutExt = stripMdExt(child.path);
-		const shouldBeChecked = this.isCompleteStatus(child.status);
-		let changed = false;
-
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			const match = line.match(/^(\s*)- \[( |x|X)\](\s+\[\[([^\]|]+)(?:\|[^\]]+)?\]\].*)$/);
-			if (!match) continue;
-			const linked = ensureMdExt((match[4] ?? '').trim());
-			if (linked !== child.path && stripMdExt(linked) !== childPathWithoutExt) continue;
-
-			const currentChecked = (match[2] ?? ' ').toLowerCase() === 'x';
-			if (currentChecked === shouldBeChecked) continue;
-
-			const marker = shouldBeChecked ? 'x' : ' ';
-			lines[i] = `${match[1]}- [${marker}]${match[3]}`;
-			changed = true;
-		}
-
-		if (!changed) return;
-
-		if (this.isFileOpenInEditor(parentFile)) {
-			await new Promise(resolve => setTimeout(resolve, 100));
-		}
-
-		const rewritten = lines.join('\n').trim();
-		await this.app.vault.process(parentFile, (current) => {
-			const currentFmEnd = current.indexOf('\n---', 3);
-			if (currentFmEnd < 0) return current;
-			const frontmatter = current.substring(0, currentFmEnd + 4);
-			return frontmatter + (rewritten ? '\n\n' + rewritten : '') + '\n';
-		});
-	}
-
-	private buildChildTaskInput(parent: Task, title: string, parentPath: string): TaskCreateInput {
-		const today = localDateString();
-		return {
-			type: 'task',
-			name: title,
-			area: parent.area,
-			status: parent.status,
-			priority: parent.priority,
-			labels: [...parent.labels],
-			due_time: null,
-			parent_task: parentPath.replace(/\.md$/, ''),
-			depends_on: [],
-			blocked_reason: '',
-			assigned_to: parent.assigned_to,
-			source: parent.source,
-			start_date: parent.start_date,
-			due_date: null,
-			estimated_days: null,
-			created: today,
-			completed: null,
-			notes: '',
-			repeat: null,
-		};
-	}
-
-	private async materializeChecklistChildrenFromBody(parentPath: string, body: string): Promise<string> {
-		if (!body) return body;
-		const parent = this.getTaskByPath(parentPath);
-		if (!parent) return body;
-
-		return materializeChecklistChildren({
-			body,
-			parentPath,
-			extractChecklistLink,
-			createChecklistChild: async (content, effectiveParentPath) => {
-				const child = await this.create(this.buildChildTaskInput(parent, content, effectiveParentPath));
-				return { path: child.path, name: child.name };
-			},
-		});
-	}
-
 	private extractLinkStrings(value: unknown): string[] {
 		if (!Array.isArray(value)) return [];
 		return value.filter((entry): entry is string => typeof entry === 'string');
@@ -611,18 +485,6 @@ export class TaskWriter {
 	 */
 	private resolveNameForPath(pathWithoutExt: string): string | null {
 		return this.getTaskByPath(pathWithoutExt)?.name ?? null;
-	}
-
-	private completionStatus(): string {
-		return this.plugin.statusPolicy.completion;
-	}
-
-	private isCompleteStatus(status: string): boolean {
-		return status === this.completionStatus();
-	}
-
-	public async syncParentChecklistFromChildPublic(child: Task): Promise<void> {
-		await this.syncParentChecklistFromChild(child);
 	}
 }
 

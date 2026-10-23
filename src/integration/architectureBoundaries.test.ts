@@ -65,6 +65,7 @@ describe('architecture boundaries', () => {
 			'src/utils/dateUtils.ts',
 			'src/store/deriveBlocks.ts',
 			'src/store/schemaGuard.ts',
+			'src/store/checklistSync.ts',
 			'src/repeat/types.ts',
 			'src/repeat/dates.ts',
 			'src/repeat/next.ts',

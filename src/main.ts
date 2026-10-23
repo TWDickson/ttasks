@@ -171,6 +171,8 @@ export default class TTasksPlugin extends Plugin {
         this.registerHoverLinkSource('ttasks-board', { display: 'TTasks Board', defaultMod: true });
 
 		this.addRibbonIcon('check-square', 'TTasks', () => this.openBoard());
+		// #15: the pane is otherwise only reachable from the rail or the palette.
+		this.addRibbonIcon('timer', 'TTasks Pomodoro', () => this.openPomodoroPane());
 
 		this.addCommand({
 			id: 'open-board',
