@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import TaskRow from './TaskRow.svelte';
 import type { Task } from '../types';
+import type { ExternalTask } from '../integration/types';
 import { buildBadgePalette } from '../utils/badgePalette';
 
 function buildTask(overrides: Partial<Task> = {}): Task {
@@ -48,17 +49,15 @@ function renderRow(props: Partial<{
 	onSelect: (path: string) => void;
 	onOpen: (path: string) => void;
 	onExpand: () => void;
+	onOpenCaptured: (task: ExternalTask) => void;
+	onHoverPreview: (path: string, event: MouseEvent) => void;
 }> = {}) {
-	const plugin = {
-		triggerTaskHoverPreview: vi.fn(),
-	} as any;
 	const onOpen = props.onOpen ?? vi.fn();
 	const onSelect = props.onSelect ?? vi.fn();
 	const onExpand = props.onExpand ?? vi.fn();
 
 	render(TaskRow, {
 		props: {
-			plugin,
 			task: props.task ?? buildTask(),
 			viewId: 'list',
 			active: false,
@@ -74,6 +73,8 @@ function renderRow(props: Partial<{
 			selected: props.selected ?? false,
 			onSelect,
 			keyboardFocused: props.keyboardFocused ?? false,
+			onOpenCaptured: props.onOpenCaptured,
+			onHoverPreview: props.onHoverPreview,
 		},
 	});
 
@@ -129,5 +130,24 @@ describe('TaskRow.svelte', () => {
 		const { onOpen } = renderRow();
 		await fireEvent.click(screen.getByRole('button', { name: /test task/i }));
 		expect(onOpen).toHaveBeenCalledWith('Planner/Tasks/abc123-test-task.md');
+	});
+
+	it('routes a captured task to onOpenCaptured instead of onOpen', async () => {
+		const onOpen = vi.fn();
+		const onOpenCaptured = vi.fn();
+		const captured = { ...buildTask({ name: 'Captured' }), external: true } as unknown as ExternalTask;
+		renderRow({ task: captured, onOpen, onOpenCaptured });
+
+		await fireEvent.click(screen.getByRole('button', { name: /captured/i }));
+		expect(onOpenCaptured).toHaveBeenCalledWith(captured);
+		expect(onOpen).not.toHaveBeenCalled();
+	});
+
+	it('asks for a hover preview of the row note on mouseenter', async () => {
+		const onHoverPreview = vi.fn();
+		renderRow({ onHoverPreview });
+
+		await fireEvent.mouseEnter(screen.getByRole('button', { name: /test task/i }));
+		expect(onHoverPreview).toHaveBeenCalledWith('Planner/Tasks/abc123-test-task.md', expect.any(MouseEvent));
 	});
 });

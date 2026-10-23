@@ -1,15 +1,14 @@
 <script lang="ts">
-	import type TTasksPlugin from '../main';
 	import TaskRow from './TaskRow.svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
+	import type { ExternalTask } from '../integration/types';
 	import type { TaskGroup } from '../query/types';
 	import type { ResolvedTaskDate } from '../store/taskSchedule';
 	import type { ImpedimentBadge } from '../query/taskImpediment';
 	import type { BadgePalette } from '../utils/badgePalette';
 	import { AGENDA_BUCKET_LABELS, AGENDA_BUCKET_COLORS, isAgendaBucketKey } from '../query/agendaBuckets';
 
-	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
 	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
 	export let impedimentBadges: Map<string, ImpedimentBadge> | undefined = undefined;
@@ -21,6 +20,8 @@
 	export let selectable = false;
 	export let selectedPaths: Set<string> = new Set();
 	export let onSelect: ((path: string) => void) | undefined = undefined;
+	export let onOpenCaptured: ((task: ExternalTask) => void) | undefined = undefined;
+	export let onHoverPreview: ((path: string, event: MouseEvent) => void) | undefined = undefined;
 
 	// Bucket keys/order/labels/colors live in query/agendaBuckets — the same source
 	// the engine assigns buckets from — so the view can't drift from the engine.
@@ -55,7 +56,8 @@
 				<ul class="tt-task-list">
 					{#each group.tasks as task (task.path)}
 						<TaskRow
-							{plugin}
+							{onOpenCaptured}
+							{onHoverPreview}
 							{task}
 							{schedule}
 							impediment={impedimentBadges?.get(task.path)}

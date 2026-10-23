@@ -43,10 +43,8 @@ function buildTask(overrides: Partial<Task> = {}): Task {
 function renderAgenda(groupList: TaskGroup[], options: { selectable?: boolean; onSelect?: (path: string) => void } = {}) {
 	const groups = writable<TaskGroup[]>(groupList);
 	const activeTaskPath: Writable<string | null> = writable(null);
-	const plugin = { triggerTaskHoverPreview: vi.fn() } as any;
 	render(TaskAgenda, {
 		props: {
-			plugin,
 			groups,
 			palette: buildBadgePalette({}),
 			activeTaskPath,

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import type TTasksPlugin from '../main';
 	import TaskRow from './TaskRow.svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
@@ -9,7 +8,6 @@
 	import type { ImpedimentBadge } from '../query/taskImpediment';
 	import type { BadgePalette } from '../utils/badgePalette';
 	import { buildListRows, labelForGroup, type ListSection, type ListHierarchyMode } from './viewAdapters';
-	export let plugin: TTasksPlugin;
 	export let viewId = '';
 	export let groups: Readable<TaskGroup[]>;
 	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
@@ -28,6 +26,8 @@
 	export let onSelect: ((path: string) => void) | undefined = undefined;
 	export let focusedTaskPath: string | null = null;
 	export let onPromote: ((task: ExternalTask) => void) | undefined = undefined;
+	export let onOpenCaptured: ((task: ExternalTask) => void) | undefined = undefined;
+	export let onHoverPreview: ((path: string, event: MouseEvent) => void) | undefined = undefined;
 
 	let collapsedPaths = new Set<string>();
 
@@ -96,7 +96,8 @@
 					<ul class="tt-task-list">
 						{#each rows as row (row.task.path)}
 							<TaskRow
-								{plugin}
+								{onOpenCaptured}
+								{onHoverPreview}
 								{viewId}
 								task={row.task}
 								{schedule}

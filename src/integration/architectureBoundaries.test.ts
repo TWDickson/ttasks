@@ -108,6 +108,27 @@ describe('architecture boundaries', () => {
 		expect(offenders, 'read leaf.getViewState() instead — see src/views/openFileLeaves.ts').toEqual([]);
 	});
 
+	// AR-1 ratchet: the legacy components still coupled to the plugin. Migrating
+	// one means deleting it here; a new component can never join the list.
+	it('only the legacy AR-1 components import the plugin or the store', () => {
+		const legacy = new Set([
+			'TaskArchiveView.svelte',
+			'TaskBoard.svelte',
+			'TaskDetail.svelte',
+			'TaskDetailNotes.svelte',
+			'TaskDetailRelationships.svelte',
+			'TaskGraph.svelte',
+			'TaskKanban.svelte',
+		]);
+		const dir = 'src/components';
+		const coupled = readdirSync(resolve(process.cwd(), dir))
+			.filter((name) => name.endsWith('.svelte'))
+			.filter((name) => /from '\.\.\/main'|from '\.\.\/store\/TaskStore'/.test(readWorkspaceFile(join(dir, name))));
+
+		expect(coupled.filter((name) => !legacy.has(name)), 'pass callbacks as props instead (CLAUDE.md coupling rule)').toEqual([]);
+		expect([...legacy].filter((name) => !coupled.includes(name)), 'migrated — remove it from the legacy list').toEqual([]);
+	});
+
 	// AR-2 split TaskGraph into a plugin-facing shell and these children, which
 	// take props and callbacks so they stay testable (the coupling rule).
 	it('graph view components never reach the plugin or the store; their helpers stay Obsidian-free', () => {

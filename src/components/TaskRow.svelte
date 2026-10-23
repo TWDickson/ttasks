@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { today } from '../utils/todayStore';
-	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import type { ExternalTask } from '../integration/types';
 	import { priorityColor } from '../constants';
@@ -12,7 +11,6 @@
 	import type { BadgePalette } from '../utils/badgePalette';
 	import { icon } from '../utils/icon';
 
-	export let plugin: TTasksPlugin;
 	export let task: Task;
 	export let viewId = '';
 	export let active = false;
@@ -21,6 +19,10 @@
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 	export let onRestore: ((path: string) => Promise<void>) | undefined = undefined;
+	/** Opens a captured (not-yet-promoted) task at its source line. */
+	export let onOpenCaptured: ((task: ExternalTask) => void) | undefined = undefined;
+	/** Obsidian's hover preview for the row's note. */
+	export let onHoverPreview: ((path: string, event: MouseEvent) => void) | undefined = undefined;
 	/** Hierarchical indent level — each level adds 20px left padding. */
 	export let indent = 0;
 	/** Show a collapse/expand chevron on this row. */
@@ -49,7 +51,7 @@
 
 	function handleOpen(): void {
 		if (isCapturedTask(task)) {
-			void plugin.openCapturedTask(task);
+			onOpenCaptured?.(task);
 			return;
 		}
 		onOpen(task.path);
@@ -62,7 +64,7 @@
 	}
 
 	function handleHoverPreview(event: MouseEvent): void {
-		plugin.triggerTaskHoverPreview(task.path, event);
+		onHoverPreview?.(task.path, event);
 	}
 
 	async function handleRestore(event: MouseEvent): Promise<void> {

@@ -372,6 +372,16 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 			new Notice(error instanceof Error ? error.message : 'Unable to promote captured task.');
 		}
 	}
+
+	// Row-level plugin calls, handed down as callbacks so TaskList / TaskAgenda /
+	// TaskRow stay plugin-free (AR-1).
+	function openCapturedTask(task: ExternalTask): void {
+		void plugin.openCapturedTask(task);
+	}
+
+	function triggerHoverPreview(path: string, event: MouseEvent): void {
+		plugin.triggerTaskHoverPreview(path, event);
+	}
 </script>
 
 <div class="tt-board">
@@ -531,7 +541,8 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 			<div class="tt-board-content">
 				{#if currentRenderer === RENDERER_LIST}
 					<TaskList
-						{plugin}
+						onOpenCaptured={openCapturedTask}
+						onHoverPreview={triggerHoverPreview}
 						viewId={currentView.id}
 						groups={groupedTasks}
 						{schedule}
@@ -589,7 +600,8 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 					<TaskArchiveView {plugin} />
 				{:else if currentRenderer === RENDERER_AGENDA}
 					<TaskAgenda
-						{plugin}
+						onOpenCaptured={openCapturedTask}
+						onHoverPreview={triggerHoverPreview}
 						groups={groupedTasks}
 						{schedule}
 						{impedimentBadges}
