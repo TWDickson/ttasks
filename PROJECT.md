@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **2013 passing, 157 files** (`npm run check` = lint → build → test) |
+| Tests | **1986 passing, 156 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -83,7 +83,7 @@ flowchart LR
 | 9 | **N7 Bases**, **N3 public API** | Both expose property names. Do them *after* MD-1 or rewrite them. README's data-model section and the API doc examples also change at step 5. |
 | — | ~~**PB-4** Svelte CSS external~~ ✅ 2026-10-22 | Component CSS ships in `styles.css`; theme snippets can override it. |
 | — | ~~**AR-2** TaskGraph decomposition~~ ✅ 2026-10-22 | Graph work (GP5, §C #12, #16) now lands in `src/components/graph/`. |
-| — | **DT-6 + AR-5** ISO-date / DRY sweep | Opportunistic; ride along with DT-1. |
+| — | ~~**DT-6 + AR-5** ISO-date / DRY sweep~~ ✅ 2026-10-23 | `isIsoDateString` + clock-read ratchet. |
 
 ---
 
@@ -138,11 +138,10 @@ flowchart LR
   comment and the duplicated days-in-month clamp are fixed (2026-07-25).
   **Still open:** folding `advanceDate` onto `dateUtils` primitives so the module
   stops carrying its own parse/format. Done as part of the RP redesign.
-- `[ ]` **DT-6 🟢 consolidation + enforcement** — add `isIsoDateString` and sweep
-  the duplicate ISO-date regexes (8 at audit time; **11 pattern hits in non-test
-  `src` on 2026-10-08**, including `holidays.ts`, `workingCalendarSettingsSection.ts`,
-  `protocol.ts`); move `formatHumanDate` next to `MONTH_ABBR`; enforce no bare
-  `new Date()` outside the boundary (**38 call sites outside tests/mocks today**).
+- `[x]` **DT-6 🟢 consolidation + enforcement** — *(2026-10-23; see HISTORY)*
+  `isIsoDateString` replaces 11 copies of the regex; `formatHumanDate` lives in
+  `dateUtils`; boundary tests forbid the pattern outside `dateUtils` and ratchet
+  bare `new Date()` to 14 reviewed sites.
 - `[x]` **DT-7** — agenda/kanban honour the dependency-chain-inferred date
   *(2026-09-09, 0.1.13; see HISTORY)*.
 
@@ -521,10 +520,8 @@ critical path except where noted above (AR-3, PB-4).
   (400 ms) via Obsidian's `debounce`.
 - `[ ]` **AR-4 🟡 `TaskWriter` mixes four concerns** — extract a
   `ChecklistSyncService`.
-- `[~]` **AR-5 🟢 smaller DRY / correctness items** — the 2026-10-09 audit nits are
-  done *(2026-10-22: one module JSDoc, `PERSISTENCE_ENTRIES` exported once,
-  `createTimeFrontmatterKeys` moved into its test)*. **Still open:** the duplicate
-  ISO-date regexes (with DT-6).
+- `[x]` **AR-5 🟢 smaller DRY / correctness items** — *(2026-10-22 / 10-23)* audit
+  nits, then the duplicate ISO-date regexes via DT-6.
 - `[x]` **TD-6 🟡 nothing type-checks `.svelte` files** — *(2026-10-22; see HISTORY)*
   the 13 errors are fixed and `svelte-check --threshold error` runs in `lint`, so
   `check`, CI and the release build all type-check components.

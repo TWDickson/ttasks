@@ -1,7 +1,7 @@
 import type { FieldDefinition } from './types';
 import type { Task } from '../types';
 import { isBlockedStatus } from './fieldVisibility';
-import { parseIsoDate } from '../utils/dateUtils';
+import { isIsoDateString, parseIsoDate } from '../utils/dateUtils';
 import { PRIORITIES } from '../constants';
 import { REPEAT_PRESETS } from '../repeat/presets';
 
@@ -18,7 +18,7 @@ const VALIDATORS = {
 	},
 	dateFormat: (value: string): string | null => {
 		if (!value) return null;
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		if (!isIsoDateString(value)) {
 			return 'Invalid date format (use YYYY-MM-DD)';
 		}
 		if (!parseIsoDate(value)) {

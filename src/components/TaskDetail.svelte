@@ -9,11 +9,10 @@
 	import { repeatCalendarFromHolidays, type RepeatRule } from '../repeat/types';
 	import { CUSTOM_REPEAT, previewOccurrences, repeatMenuOptions, repeatMenuValue, ruleForBasisChoice, ruleForMenuChoice } from './taskDetailRepeat';
 	import RepeatBuilder from './RepeatBuilder.svelte';
-	import { localDateString } from '../utils/dateUtils';
+	import { formatHumanDate, isIsoDateString, localDateString } from '../utils/dateUtils';
 	import { today } from '../utils/todayStore';
 	import { buildTaskSchedule, resolveProjectedSchedule } from '../store/taskSchedule';
 	import { splitHolidayCalendar } from '../settings/holidays';
-	import { formatHumanDate } from './taskDateMeta';
 	import { isBlockedStatus } from '../schema/fieldVisibility';
 	import type { FieldComponentProps } from '../schema/fieldAdapters';
 	import { deriveTaskDetailFieldProps } from './taskDetailFieldProps';
@@ -275,7 +274,7 @@
 		const seen = new Set<string>();
 		for (const part of raw.split(',')) {
 			const trimmed = part.trim();
-			if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) continue;
+			if (!isIsoDateString(trimmed)) continue;
 			seen.add(trimmed);
 		}
 		return [...seen].sort();

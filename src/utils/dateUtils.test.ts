@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localIsoTimestamp, localDateString, daysBetweenLocal, addDaysLocal, toCalendarDate, localTimeString, weekdayOfLocal, endOfWeekLocal, systemWeekStart, resolveWeekStart } from './dateUtils';
+import { localIsoTimestamp, localDateString, daysBetweenLocal, addDaysLocal, toCalendarDate, localTimeString, weekdayOfLocal, endOfWeekLocal, systemWeekStart, resolveWeekStart, isIsoDateString, formatHumanDate } from './dateUtils';
 
 // ── localDateString ───────────────────────────────────────────────────────────
 //
@@ -260,5 +260,36 @@ describe('system week start', () => {
 		expect(resolveWeekStart('monday', 'en-US')).toBe(1);
 		expect(resolveWeekStart('sunday', 'en-GB')).toBe(0);
 		expect(resolveWeekStart('system', 'en-GB')).toBe(1);
+	});
+});
+
+// ── isIsoDateString / formatHumanDate ─────────────────────────────────────────
+
+describe('isIsoDateString', () => {
+	it('accepts the YYYY-MM-DD shape only', () => {
+		expect(isIsoDateString('2026-04-25')).toBe(true);
+		expect(isIsoDateString('2026-4-25')).toBe(false);
+		expect(isIsoDateString('2026-04-25T10:00')).toBe(false);
+		expect(isIsoDateString('')).toBe(false);
+	});
+
+	it('rejects non-strings', () => {
+		expect(isIsoDateString(null)).toBe(false);
+		expect(isIsoDateString(undefined)).toBe(false);
+		expect(isIsoDateString(20260425)).toBe(false);
+	});
+
+	it('checks shape, not calendar validity', () => {
+		expect(isIsoDateString('2026-02-31')).toBe(true);
+	});
+});
+
+describe('formatHumanDate', () => {
+	it('omits year when same as today', () => {
+		expect(formatHumanDate('2026-04-25', '2026-04-30')).toBe('Apr 25');
+	});
+
+	it('includes year when different from today', () => {
+		expect(formatHumanDate('2025-12-01', '2026-04-30')).toBe('Dec 1, 2025');
 	});
 });

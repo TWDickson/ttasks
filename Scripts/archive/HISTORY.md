@@ -12,6 +12,21 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-23 — DT-6: one ISO-date check, and a clock-read ratchet
+
+- **`isIsoDateString(value: unknown): value is string`** in `dateUtils.ts` is now
+  the only home of `/^\d{4}-\d{2}-\d{2}$/`. It replaced 11 inline copies (codec,
+  repeat normalize/builder, protocol, holidays, settings, graph dates, both
+  forms, the save controller). Shape-only on purpose — `parseIsoDate` stays the
+  calendar-validity check — so behaviour is unchanged at every site.
+- **`formatHumanDate`** moved from `components/taskDateMeta.ts` to `dateUtils`,
+  next to `MONTH_ABBR`; components import it from there.
+- **Two boundary tests:** the regex may not appear outside `dateUtils`; and bare
+  `new Date()` is pinned per file (14 sites in 9 files — reminder poll, today
+  store, export/archive timestamps, focus-until parsing). The audit's "38" had
+  already shrunk via DT-1. A new clock read fails the test until it's injected
+  or deliberately listed; `dateUtils` itself is exempt as the boundary.
+
 ## 2026-10-22 — TD-6: svelte-check joins the gate
 
 `tsc --noEmit` never type-checks `.svelte` files, and nothing else did, so

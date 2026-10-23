@@ -1,18 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { formatHumanDate, getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
+import { getTaskDateBadge, isTaskOverdue } from './taskDateMeta';
 import { toCalendarDate } from '../utils/dateUtils';
 
 const TODAY = '2026-04-30';
-
-describe('formatHumanDate', () => {
-	it('omits year when same as today', () => {
-		expect(formatHumanDate('2026-04-25', TODAY)).toBe('Apr 25');
-	});
-
-	it('includes year when different from today', () => {
-		expect(formatHumanDate('2025-12-01', TODAY)).toBe('Dec 1, 2025');
-	});
-});
 
 describe('isTaskOverdue', () => {
 	it('treats incomplete past-due tasks as overdue', () => {

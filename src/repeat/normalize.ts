@@ -13,6 +13,7 @@ import {
 	NTH_CLASS_TARGETS, NTH_INDEXES, REPEAT_UNITS, WEEKDAYS,
 	type NthIndex, type NthTarget, type RepeatRule, type RepeatUnit, type Weekday,
 } from './types';
+import { isIsoDateString } from '../utils/dateUtils';
 
 /** The frontmatter keys, one per rule field. `ttask_repeat_of` (RP-3) is link bookkeeping, not rule data. */
 export const REPEAT_KEYS = {
@@ -35,8 +36,6 @@ export type NormalizedRepeat =
 
 const NO_REPEAT: NormalizedRepeat = { rule: null, warning: null };
 const bad = (warning: string): NormalizedRepeat => ({ rule: null, warning });
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function toInt(raw: unknown): number | null {
 	const n = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw;
@@ -123,7 +122,7 @@ export function normalizeRepeat(fm: Record<string, unknown>): NormalizedRepeat {
 
 	if (present(fm[k.until])) {
 		const until = String(fm[k.until]).slice(0, 10);
-		if (!ISO_DATE.test(until)) return bad(`"${k.until}" must be a YYYY-MM-DD date.`);
+		if (!isIsoDateString(until)) return bad(`"${k.until}" must be a YYYY-MM-DD date.`);
 		rule.until = until;
 	}
 

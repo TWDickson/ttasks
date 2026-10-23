@@ -9,7 +9,8 @@
 	import { priorityColor } from '../constants';
 	import type { BadgePalette } from '../utils/badgePalette';
 	import { labelForGroup } from './viewAdapters';
-	import { getTaskDateBadge, formatHumanDate } from './taskDateMeta';
+	import { getTaskDateBadge } from './taskDateMeta';
+	import { formatHumanDate } from '../utils/dateUtils';
 	import { resolveInferredDueDate, type ResolvedTaskDate } from '../store/taskSchedule';
 	import { buildDepCountBadge, isFieldEnabled, type KanbanCardField } from './kanbanCardFields';
 	import { deserializeCollapsed, isColumnCollapsed, serializeCollapsed, toggleColumnCollapse } from './kanbanCollapse';

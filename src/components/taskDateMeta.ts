@@ -1,4 +1,4 @@
-import { daysBetweenLocal, MONTH_ABBR } from '../utils/dateUtils';
+import { daysBetweenLocal, formatHumanDate } from '../utils/dateUtils';
 import type { Task } from '../types';
 
 export type TaskDateBadge = {
@@ -13,19 +13,6 @@ type TaskDateMetaInput = Pick<Task, 'completed' | 'due_date' | 'is_complete'>;
 export function isTaskOverdue(task: TaskDateMetaInput, today: string): boolean {
 	if (task.is_complete || !task.due_date) return false;
 	return task.due_date < today;
-}
-
-/**
- * Format an ISO date (YYYY-MM-DD) as "Apr 25" (same year) or "Apr 25, 2025" (different year).
- */
-export function formatHumanDate(iso: string, todayIso: string): string {
-	const year = parseInt(iso.slice(0, 4), 10);
-	const todayYear = parseInt(todayIso.slice(0, 4), 10);
-	const month = parseInt(iso.slice(5, 7), 10) - 1;
-	const day = parseInt(iso.slice(8, 10), 10);
-	return year === todayYear
-		? `${MONTH_ABBR[month]} ${day}`
-		: `${MONTH_ABBR[month]} ${day}, ${year}`;
 }
 
 export function getTaskDateBadge(task: TaskDateMetaInput, today: string): TaskDateBadge | null {

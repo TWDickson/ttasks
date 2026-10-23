@@ -5,7 +5,7 @@
 	import type { BadgePalette } from '../../utils/badgePalette';
 	import { priorityColor } from '../../constants';
 	import { nodeSubtitle } from '../../store/graph/graphPresentation';
-	import { formatHumanDate } from '../taskDateMeta';
+	import { formatHumanDate } from '../../utils/dateUtils';
 
 	export let node: TaskGraphNode;
 	export let palette: BadgePalette;

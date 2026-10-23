@@ -1,4 +1,5 @@
 import type { QuickActionId } from '../settings';
+import { isIsoDateString } from '../utils/dateUtils';
 import { ensureMdExt } from '../utils/pathUtils';
 
 export type ProtocolActionName =
@@ -57,14 +58,12 @@ function normalizeQuickAction(value: string | undefined): Exclude<QuickActionId,
 	return undefined;
 }
 
-const DATE_PARAM_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
 /** Collect recognised new-task prefill params; unknown/invalid values are ignored. */
 function parseNewTaskPrefill(params: Record<string, unknown>): NewTaskPrefill | undefined {
 	const name = firstString(params.name);
 	const area = firstString(params.area);
 	const rawDue = firstString(params.due) ?? firstString(params.due_date);
-	const due_date = rawDue && DATE_PARAM_PATTERN.test(rawDue) ? rawDue : undefined;
+	const due_date = isIsoDateString(rawDue) ? rawDue : undefined;
 
 	if (!name && !area && !due_date) return undefined;
 	return {

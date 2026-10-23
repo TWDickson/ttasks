@@ -8,7 +8,7 @@
 	import { describeRepeat } from '../repeat/describe';
 	import { WEEKDAYS, type NthTarget, type RepeatCalendar, type RepeatRule, type Weekday } from '../repeat/types';
 	import { previewOccurrences } from './taskDetailRepeat';
-	import { formatHumanDate } from './taskDateMeta';
+	import { formatHumanDate } from '../utils/dateUtils';
 
 	export let rule: RepeatRule | null;
 	export let dueDate: string | null;

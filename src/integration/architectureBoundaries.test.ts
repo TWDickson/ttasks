@@ -182,4 +182,36 @@ describe('architecture boundaries', () => {
 			.filter((path) => /\blocalStorage\.(getItem|setItem|removeItem)/.test(readWorkspaceFile(path)));
 		expect(offenders).toEqual([]);
 	});
+
+	it('the ISO-date pattern lives only in dateUtils — use isIsoDateString (DT-6)', () => {
+		const offenders = sourceFiles()
+			.filter((path) => path !== join('src', 'utils', 'dateUtils.ts'))
+			.filter((path) => readWorkspaceFile(path).includes('\\d{4}-\\d{2}-\\d{2}'));
+		expect(offenders).toEqual([]);
+	});
+
+	it('reads the clock only at known boundaries — no new bare `new Date()` (DT-6)', () => {
+		// "Now" belongs at the edge: injected into pure code (DT-1's `today`) or
+		// read by a service that owns timing. Each count here is a reviewed site;
+		// a new one fails until it's either injected or deliberately listed.
+		// dateUtils is the boundary itself and isn't counted.
+		const allowed: Record<string, number> = {
+			'src/utils/todayStore.ts': 1, // the midnight-rollover clock
+			'src/store/ReminderService.ts': 4, // the reminder poll
+			'src/store/archiveUtils.ts': 1, // injectable default
+			'src/store/ArchiveService.ts': 1, // archive-history timestamp
+			'src/integration/ScanEngine.ts': 1, // daily-note "yesterday" lookup
+			'src/modals/FocusUntilModal.ts': 2, // parses "focus until HH:MM" against now
+			'src/modals/ShareSyncModal.ts': 1, // export timestamp
+			'src/components/graph/DependencyGraph.svelte': 1, // layout-diagnostics log timestamp
+			'src/main.ts': 2, // Share/Sync export timestamp + filename
+		};
+		const actual: Record<string, number> = {};
+		for (const path of sourceFiles()) {
+			if (path === join('src', 'utils', 'dateUtils.ts')) continue;
+			const count = readWorkspaceFile(path).split('new Date()').length - 1;
+			if (count > 0) actual[path.split('\\').join('/')] = count;
+		}
+		expect(actual).toEqual(allowed);
+	});
 });

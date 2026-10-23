@@ -170,8 +170,32 @@ export function toCalendarDate(value: unknown): string | null {
 	return null;
 }
 
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Is `value` shaped like a YYYY-MM-DD date? A shape check only — use
+ * `parseIsoDate` when it must also be a real calendar day. The single home of
+ * the ISO-date pattern (DT-6); don't re-inline the regex.
+ */
+export function isIsoDateString(value: unknown): value is string {
+	return typeof value === 'string' && ISO_DATE_PATTERN.test(value);
+}
+
 /** Shared month abbreviations for human-readable date labels. */
 export const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+/**
+ * Format an ISO date (YYYY-MM-DD) as "Apr 25" (same year) or "Apr 25, 2025" (different year).
+ */
+export function formatHumanDate(iso: string, todayIso: string): string {
+	const year = parseInt(iso.slice(0, 4), 10);
+	const todayYear = parseInt(todayIso.slice(0, 4), 10);
+	const month = parseInt(iso.slice(5, 7), 10) - 1;
+	const day = parseInt(iso.slice(8, 10), 10);
+	return year === todayYear
+		? `${MONTH_ABBR[month]} ${day}`
+		: `${MONTH_ABBR[month]} ${day}, ${year}`;
+}
 
 // ── Date-object helpers ───────────────────────────────────────────────────────
 //
@@ -226,7 +250,7 @@ export function isWeekend(date: Date): boolean {
  * ISO-date parser — the string↔Date boundary for the whole app.
  */
 export function parseIsoDate(value: string | null | undefined): Date | null {
-	if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+	if (!isIsoDateString(value)) return null;
 	const parsed = new Date(`${value}T00:00:00`);
 	if (Number.isNaN(parsed.getTime())) return null;
 	parsed.setHours(0, 0, 0, 0);

@@ -9,6 +9,7 @@
  *
  * Pure module — no Obsidian imports.
  */
+import { isIsoDateString } from '../utils/dateUtils';
 import { normalizeRepeat, repeatToFrontmatter } from './normalize';
 import { WEEKDAYS, type NthIndex, type NthTarget, type RepeatRule, type RepeatUnit, type Weekday } from './types';
 
@@ -80,7 +81,7 @@ export function ruleFromBuilder(state: BuilderState): BuilderResult {
 	if (state.basis === 'completion') rule.basis = 'completion';
 	if (state.roll) rule.roll = state.roll;
 	if (state.end === 'until') {
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(state.until)) return { rule: null, error: 'Pick the date the repeat ends on.' };
+		if (!isIsoDateString(state.until)) return { rule: null, error: 'Pick the date the repeat ends on.' };
 		rule.until = state.until;
 	}
 	if (state.end === 'count') {

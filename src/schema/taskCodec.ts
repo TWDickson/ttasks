@@ -1,6 +1,6 @@
 import type { Task } from '../types';
 import { PRIORITIES, REMINDER_OVERRIDES, TASK_RECORD_TYPES } from '../constants';
-import { toCalendarDate } from '../utils/dateUtils';
+import { isIsoDateString, toCalendarDate } from '../utils/dateUtils';
 import {
 	toFrontmatterBoolean,
 	toFrontmatterEnum,
@@ -86,7 +86,6 @@ export function readStoredFields(fm: Record<string, unknown>, ctx: ReadContext):
 
 // ── Write (creation) ──────────────────────────────────────────────────────────
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const esc = (value: unknown) => String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
 function blankFor(kind: FieldKind): unknown {
@@ -124,7 +123,7 @@ function encode(kind: FieldKind, value: unknown, resolveName: (pathWithoutExt: s
 		case 'dates':
 			return yamlList(
 				(Array.isArray(value) ? value : [])
-					.filter((v): v is string => typeof v === 'string' && ISO_DATE.test(v))
+					.filter(isIsoDateString)
 					.map((v) => `'${v}'`),
 			);
 		case 'repeat':

@@ -1,7 +1,7 @@
 import { Notice, Setting } from 'obsidian';
 import type TTasksPlugin from '../main';
 import type { HolidayEntry } from './types';
-import { resolveWeekStart } from '../utils/dateUtils';
+import { isIsoDateString, resolveWeekStart } from '../utils/dateUtils';
 import { normalizeHolidayEntries, sortHolidayEntries } from './holidays';
 
 interface RenderWorkingCalendarSettingsParams {
@@ -10,7 +10,6 @@ interface RenderWorkingCalendarSettingsParams {
 	rerender: () => void;
 }
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * "Working calendar" settings: the shared holiday list. The per-area "skip
@@ -101,7 +100,7 @@ export function renderWorkingCalendarSettingsSection(params: RenderWorkingCalend
 			.setCta()
 			.onClick(async () => {
 				const date = pendingDate.trim();
-				if (!ISO_DATE_RE.test(date)) {
+				if (!isIsoDateString(date)) {
 					new Notice('TTasks: enter a valid date (YYYY-MM-DD).');
 					return;
 				}

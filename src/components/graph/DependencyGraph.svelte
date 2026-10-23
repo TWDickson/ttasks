@@ -15,7 +15,7 @@
 	import { computeTrace } from '../../store/graph/graphTrace';
 	import { formatDateISO } from '../../store/graph/graphTimeline';
 	import { buildTaskSchedule } from '../../store/taskSchedule';
-	import { formatHumanDate } from '../taskDateMeta';
+	import { formatHumanDate } from '../../utils/dateUtils';
 	import { icon } from '../../utils/icon';
 	import { today } from '../../utils/todayStore';
 	import { createPanZoomGestures } from './panZoomGestures';

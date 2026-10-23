@@ -1,18 +1,18 @@
 import type { HolidayEntry } from './types';
+import { isIsoDateString } from '../utils/dateUtils';
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Coerce arbitrary stored/legacy data into a valid HolidayEntry, or null. */
 export function normalizeHolidayEntry(raw: unknown): HolidayEntry | null {
 	// Legacy shape: a bare "YYYY-MM-DD" string (pre name/repeat).
 	if (typeof raw === 'string') {
-		return ISO_DATE_RE.test(raw) ? { date: raw, name: '', repeatYearly: false } : null;
+		return isIsoDateString(raw) ? { date: raw, name: '', repeatYearly: false } : null;
 	}
 	if (raw === null || typeof raw !== 'object') return null;
 
 	const record = raw as Record<string, unknown>;
 	const date = record.date;
-	if (typeof date !== 'string' || !ISO_DATE_RE.test(date)) return null;
+	if (!isIsoDateString(date)) return null;
 
 	return {
 		date,

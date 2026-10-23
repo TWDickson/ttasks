@@ -5,7 +5,7 @@ import type TTasksPlugin from '../main';
 import type { TaskPriority, TaskRecordType, TaskStatus } from '../types';
 import { REPEAT_BASES, REPEAT_BASIS_LABELS, REPEAT_PRESETS, REPEAT_PRESET_LABELS, isRepeatPreset, ruleFromPreset, type RepeatBasisName } from '../repeat/presets';
 import { priorityColor } from '../constants';
-import { localDateString } from '../utils/dateUtils';
+import { isIsoDateString, localDateString } from '../utils/dateUtils';
 import { sortDependencyFirst } from '../utils/dependencySort';
 import { missingTaskLabel } from '../utils/taskLabel';
 import { taskRefName } from '../utils/taskRef';
@@ -834,7 +834,7 @@ export class CreateTaskModal extends Modal {
 		const seen = new Set<string>();
 		for (const part of raw.split(',')) {
 			const trimmed = part.trim();
-			if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) continue;
+			if (!isIsoDateString(trimmed)) continue;
 			seen.add(trimmed);
 		}
 		return [...seen].sort();

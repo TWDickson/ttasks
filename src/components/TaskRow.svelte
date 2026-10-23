@@ -4,7 +4,8 @@
 	import type { Task } from '../types';
 	import type { ExternalTask } from '../integration/types';
 	import { priorityColor } from '../constants';
-	import { getTaskDateBadge, formatHumanDate } from './taskDateMeta';
+	import { getTaskDateBadge } from './taskDateMeta';
+	import { formatHumanDate } from '../utils/dateUtils';
 	import { canShowInlineReopen } from './taskRowActions';
 	import { resolveInferredDueDate, type ResolvedTaskDate } from '../store/taskSchedule';
 	import type { ImpedimentBadge } from '../query/taskImpediment';

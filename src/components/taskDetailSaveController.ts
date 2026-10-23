@@ -1,4 +1,5 @@
 import type { Task } from '../types';
+import { isIsoDateString } from '../utils/dateUtils';
 
 export type DebounceKey = 'name' | 'assigned_to' | 'blocked_reason';
 
@@ -23,7 +24,7 @@ export interface TaskDetailSaveController {
 
 export function normalizeDateValue(value: string): string | null {
 	if (!value) return null;
-	return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+	return isIsoDateString(value) ? value : null;
 }
 
 export function createTaskDetailSaveController(

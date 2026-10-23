@@ -1,4 +1,5 @@
 import type { Task } from '../../types';
+import { isIsoDateString } from '../../utils/dateUtils';
 import { addDays, formatDateISO, isWeekend, parseIsoDate } from './graphTimeline';
 import { normalizeTaskPath, resolveOwningProjectPath, dedupePaths } from './taskGraph';
 
@@ -55,7 +56,7 @@ export interface ResolveTaskDatesOptions {
 
 function parseHolidayDates(value: unknown): string[] {
 	if (!Array.isArray(value)) return [];
-	return value.filter((entry): entry is string => typeof entry === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry));
+	return value.filter(isIsoDateString);
 }
 
 function parseRecurringHolidays(value: unknown): string[] {
