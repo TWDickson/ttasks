@@ -15,6 +15,11 @@
 	export let onShareSync: () => void;
 	export let onOpenPomodoro: () => void;
 	export let onOpenSettings: () => void;
+	/** Plugin version from the manifest; shown under Settings. */
+	export let version: string | undefined = undefined;
+
+	// Pre-1.0 releases are beta; the tag drops on its own at 1.0.0.
+	$: isBeta = version !== undefined && version.startsWith('0.');
 
 	$: builtinViews = $views.filter((view) => view.source === 'builtin');
 	$: smartListViews = $views.filter((view) => view.source === 'custom');
@@ -84,6 +89,11 @@
 			<span class="tt-rail-icon" use:icon={'settings'}></span>
 			<span class="tt-rail-label">Settings</span>
 		</button>
+		{#if version}
+			<div class="tt-rail-version" aria-label="TTasks version {version}{isBeta ? ' beta' : ''}">
+				v{version}{#if isBeta}<span class="tt-rail-version-tag">beta</span>{/if}
+			</div>
+		{/if}
 	</div>
 </nav>
 
@@ -120,6 +130,23 @@
 
 	.tt-rail-group-title--smart {
 		margin-top: 10px;
+	}
+
+	.tt-rail-version {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 2px 10px 0;
+		font-size: 0.72rem;
+		color: var(--text-faint);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.tt-rail-version-tag {
+		font-size: 0.64rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 	}
 
 	.tt-rail-empty {

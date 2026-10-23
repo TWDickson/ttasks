@@ -116,4 +116,21 @@ describe('TaskRail.svelte', () => {
 		expect(props.onOpenPomodoro).toHaveBeenCalledTimes(1);
 		expect(props.onOpenSettings).toHaveBeenCalledTimes(1);
 	});
+
+	it('shows the version with a beta tag while pre-1.0', () => {
+		render(TaskRail, { props: buildProps({ version: '0.2.3' }) });
+
+		expect(screen.getByLabelText('TTasks version 0.2.3 beta').textContent).toContain('v0.2.3');
+		expect(screen.getByText('beta')).toBeTruthy();
+	});
+
+	it('drops the beta tag at 1.0 and hides the label without a version', () => {
+		const { unmount } = render(TaskRail, { props: buildProps({ version: '1.0.0' }) });
+		expect(screen.getByLabelText('TTasks version 1.0.0')).toBeTruthy();
+		expect(screen.queryByText('beta')).toBeNull();
+		unmount();
+
+		render(TaskRail, { props: buildProps() });
+		expect(screen.queryByText(/^v\d/)).toBeNull();
+	});
 });

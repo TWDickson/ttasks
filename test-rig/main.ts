@@ -224,6 +224,7 @@ new TaskRail({
 		onNewProject: () => new CreateTaskModal(plugin.app as never, plugin as never, 'project').open(),
 		onShareSync: () => console.info('[rig] shareSync'),
 		onOpenSettings: () => console.info('[rig] openSettings'),
+		version: '0.0.0-rig',
 	},
 });
 

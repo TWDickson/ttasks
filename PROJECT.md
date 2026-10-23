@@ -333,6 +333,7 @@ flowchart LR
 | | Check | Pass looks like | Ships |
 | --- | --- | --- | --- |
 | `[ ]` | **Due Time input** (DT-2) — create modal and detail pane | Native time picker opens; field appears only once a due date is set; clearing the date hides it | 0.2.2 |
+| `[ ]` | **Version under Settings** in the rail drawer | `v0.2.4 BETA` in faint text below Settings, not clipped | 0.2.4 |
 | `[ ]` | **Mobile golden path** floor check | Create → edit → complete a task at phone width, no clipped controls | — |
 | `[~]` | **Graph: detail drawer** after tapping a node in fullscreen graph | Modal closes, drawer is visible and on top (fix: rAF hand-off + `active: Platform.isMobile`) | 0.1.x |
 | `[~]` | **Graph: double-tap-to-open** | One tap opens (fix: `pointerup` on touch, 8 px drag threshold) | 0.1.x |

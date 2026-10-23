@@ -61,6 +61,7 @@ export class TaskRailView extends ItemView {
 				onShareSync: () => this.plugin.openShareSync(),
 				onOpenPomodoro: () => { void this.plugin.openPomodoroPane(); },
 				onOpenSettings: () => this.plugin.openPluginSettings(),
+				version: this.plugin.manifest.version,
 			},
 		});
 	}
