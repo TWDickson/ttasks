@@ -520,7 +520,9 @@ critical path except where noted above (AR-3, PB-4).
 - `[x]` **TD-6 🟡 nothing type-checks `.svelte` files** — *(2026-10-22; see HISTORY)*
   the 13 errors are fixed and `svelte-check --threshold error` runs in `lint`, so
   `check`, CI and the release build all type-check components.
-- `[ ]` **TD-3 🟡 coverage visibility** — no coverage reporting configured.
+- `[x]` **TD-3 🟡 coverage visibility** — *(2026-10-23)* `npm run test:coverage`
+  (v8, HTML in `coverage/`); CI's Node 24 leg posts the summary. Baseline: 70%
+  lines, 84% branches. No thresholds.
 - `[ ]` **TD-4 🟢 component-test debt** — tracks AR-1; fold "add a render test"
   into each component migration.
 - `[x]` **TD-5 🟢 date/time determinism** — closed for the query engine by DT-1's

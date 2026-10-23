@@ -10,6 +10,9 @@ test-rig/vendor/
 test-rig/.browser/
 test-rig/.cache/
 
+# Coverage report (TD-3, npm run test:coverage)
+coverage/
+
 # Large self-contained workshop artifact (embedded screenshots — kept out of history)
 Scripts/graph-c2/colour-workshop.html
 

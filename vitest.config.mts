@@ -16,6 +16,14 @@ export default defineConfig(async () => {
 				obsidian: path.resolve(__dirname, 'src/__mocks__/obsidian.ts'),
 			},
 			setupFiles: ['./src/test-setup.ts'],
+			// TD-3: `npm run test:coverage`. Visibility only — no thresholds; the
+			// HTML report lands in coverage/ (gitignored), CI posts the summary.
+			coverage: {
+				provider: 'v8',
+				include: ['src/**/*.{ts,svelte}'],
+				exclude: ['src/**/*.test.ts', 'src/__mocks__/**', 'src/test-setup.ts'],
+				reporter: ['text-summary', 'html', 'json-summary'],
+			},
 		},
 	};
 });

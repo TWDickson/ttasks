@@ -48,3 +48,11 @@ jobs:
       # rig stubs the Obsidian CSS it can't vendor here, which is fine because
       # mounting is a JS property, not a visual one.
       - run: npm run rig:smoke
+
+      # TD-3: coverage visibility, not a gate — no thresholds. One matrix leg is
+      # enough; the summary lands on the run page.
+      - name: Coverage summary
+        if: matrix.node == '24'
+        run: |
+          npm run test:coverage > coverage.log 2>&1
+          { echo '### Coverage'; echo '```'; sed -n '/Coverage summary/,/^=\{10,\}$/p' coverage.log | sed -n '2,5p'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
