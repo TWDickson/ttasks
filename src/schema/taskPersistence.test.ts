@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PERSISTENCE_ENTRIES, TASK_PERSISTENCE, UPDATABLE_TASK_FIELDS } from './taskPersistence';
+import { PERSISTENCE_ENTRIES, TASK_PERSISTENCE, UPDATABLE_TASK_FIELDS, type PersistenceTable } from './taskPersistence';
 
 /** Frontmatter keys `buildTaskFrontmatter` can emit for a field, in table order. */
 function createTimeFrontmatterKeys(): string[] {
@@ -86,5 +86,20 @@ describe('creation frontmatter vs. the descriptor table', () => {
 			.filter((p) => p.fmKey !== null && p.onCreate === 'always')
 			.map((p) => p.fmKey as string);
 		expect(keysOf(fm).filter((k) => k !== 'cssclasses').sort()).toEqual(expected.sort());
+	});
+});
+
+describe('kind ↔ field type check (AR-6)', () => {
+	// Compile-time assertions: `npm run lint` (svelte-check) fails if any
+	// `@ts-expect-error` below stops being an error. The runtime body is trivial.
+	it('rejects a kind whose decoded value does not fit the field', () => {
+		// @ts-expect-error — `number` decodes to number | null, not string[]
+		const labels: PersistenceTable['labels'] = { fmKey: 'k', kind: 'number', updatable: true, onCreate: false };
+		// @ts-expect-error — `textOrNull` can decode to null; `name` is a required string
+		const name: PersistenceTable['name'] = { fmKey: 'k', kind: 'textOrNull', updatable: true, onCreate: false };
+		// @ts-expect-error — free text is not the closed 'task' | 'project' union
+		const type: PersistenceTable['type'] = { fmKey: 'k', kind: 'text', updatable: false, onCreate: false };
+		const ok: PersistenceTable['due_date'] = { fmKey: 'k', kind: 'date', updatable: true, onCreate: false };
+		expect([labels, name, type, ok]).toHaveLength(4);
 	});
 });

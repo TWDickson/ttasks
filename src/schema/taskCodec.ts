@@ -11,7 +11,7 @@ import {
 	toFrontmatterStringArray,
 	toFrontmatterStringOrNull,
 } from '../utils/frontmatterValue';
-import { PERSISTENCE_ENTRIES, TASK_PERSISTENCE, fmKey, isBlankStoredValue, type FieldKind } from './taskPersistence';
+import { PERSISTENCE_ENTRIES, TASK_PERSISTENCE, fmKey, isBlankStoredValue, type FieldKind, type KindValue } from './taskPersistence';
 import { REPEAT_KEYS, normalizeRepeat, repeatToFrontmatter } from '../repeat/normalize';
 import type { RepeatRule } from '../repeat/types';
 
@@ -44,27 +44,31 @@ function asList(raw: unknown): unknown[] {
 	return Array.isArray(raw) ? raw : [raw];
 }
 
-function decode(kind: FieldKind, raw: unknown, ctx: ReadContext): unknown {
-	switch (kind) {
-		case 'recordType': return toFrontmatterEnum(raw, TASK_RECORD_TYPES, 'task');
-		case 'title': return toFrontmatterString(toFrontmatterScalar(raw));
-		case 'text': return toFrontmatterString(raw);
-		case 'textOrNull':
-		case 'time': return toFrontmatterStringOrNull(raw);
-		case 'status': return toFrontmatterEnum(raw, ctx.statuses, ctx.initialStatus);
-		case 'priority': return toFrontmatterEnum(raw, PRIORITIES, 'None');
-		case 'reminder': return toFrontmatterOptionalEnum(raw, REMINDER_OVERRIDES);
-		case 'strings': return toFrontmatterStringArray(raw);
-		case 'link': return ctx.resolveLink(raw);
-		case 'links': return asList(raw).map(ctx.resolveLink).filter((v): v is string => v !== null);
-		case 'date': return toCalendarDate(raw);
-		case 'number': return toFrontmatterNumber(toFrontmatterScalar(raw));
-		case 'flag': return toFrontmatterBoolean(raw);
-		case 'dates': return asList(raw).map((v) => toCalendarDate(v)).filter((v): v is string => v !== null);
-		case 'repeat': // read as a group in readStoredFields
-		case 'derived': return undefined;
-	}
-}
+/** Kinds decoded one key at a time (`repeat` is a key group; `derived` isn't stored). */
+type ScalarKind = Exclude<FieldKind, 'derived' | 'repeat'>;
+
+/**
+ * One decoder per kind, each typed to return that kind's `KindValue` — and
+ * `TASK_PERSISTENCE` proves every kind fits its field. Together they are what
+ * makes the `StoredTaskFields` cast in `readStoredFields` sound (AR-6).
+ */
+const DECODERS: { [K in ScalarKind]: (raw: unknown, ctx: ReadContext) => KindValue[K] } = {
+	recordType: (raw) => toFrontmatterEnum(raw, TASK_RECORD_TYPES, 'task'),
+	title: (raw) => toFrontmatterString(toFrontmatterScalar(raw)),
+	text: (raw) => toFrontmatterString(raw),
+	textOrNull: (raw) => toFrontmatterStringOrNull(raw),
+	time: (raw) => toFrontmatterStringOrNull(raw),
+	status: (raw, ctx) => toFrontmatterEnum(raw, ctx.statuses, ctx.initialStatus),
+	priority: (raw) => toFrontmatterEnum(raw, PRIORITIES, 'None'),
+	reminder: (raw) => toFrontmatterOptionalEnum(raw, REMINDER_OVERRIDES),
+	strings: (raw) => toFrontmatterStringArray(raw),
+	link: (raw, ctx) => ctx.resolveLink(raw),
+	links: (raw, ctx) => asList(raw).map(ctx.resolveLink).filter((v): v is string => v !== null),
+	date: (raw) => toCalendarDate(raw),
+	number: (raw) => toFrontmatterNumber(toFrontmatterScalar(raw)),
+	flag: (raw) => toFrontmatterBoolean(raw),
+	dates: (raw) => asList(raw).map((v) => toCalendarDate(v)).filter((v): v is string => v !== null),
+};
 
 /** Decode every stored field of a note's frontmatter, tolerating Obsidian's retyped properties. */
 export function readStoredFields(fm: Record<string, unknown>, ctx: ReadContext): StoredTaskFields {
@@ -79,8 +83,11 @@ export function readStoredFields(fm: Record<string, unknown>, ctx: ReadContext):
 			out.repeat_warning = warning;
 			continue;
 		}
-		out[field] = decode(p.kind, fm[p.fmKey], ctx);
+		if (p.kind === 'derived') continue;
+		out[field] = DECODERS[p.kind](fm[p.fmKey], ctx);
 	}
+	// Sound by construction: each value came from its kind's decoder, and the
+	// table's type proves that kind fits the field. TS can't follow the loop.
 	return out as unknown as StoredTaskFields;
 }
 

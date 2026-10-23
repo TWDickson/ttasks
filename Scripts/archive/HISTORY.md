@@ -12,6 +12,20 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-23 — AR-6: a field's codec kind must fit its type
+
+`TASK_PERSISTENCE` forced every `Task` key to be described but not *correctly*:
+`labels: editable('ttask_labels', 'number')` compiled. Now `KindValue` maps each
+`FieldKind` to the value it decodes to, and the table is a mapped
+`PersistenceTable` where field `F` only accepts kinds whose value is assignable
+to `Task[F]` (`derived` is `never`, so it fits anything). The codec's `decode`
+switch became `DECODERS`, typed `{ [K]: (raw, ctx) => KindValue[K] }`, so the
+decoders are checked against the same map. The `StoredTaskFields` cast in
+`readStoredFields` stays — TS can't follow a loop over a heterogeneous table —
+but it is now justified by those two checks rather than trusted. The check is
+assignability, so it can't tell `title` from `text` on a `string` field; it
+catches wrong-shape kinds, which is the bug class that reached runtime.
+
 ## 2026-10-23 — Form controls get accessible names; rig:smoke enforces it
 
 The 2026-09-06 audit said no detail-pane control had a programmatic label. A rig

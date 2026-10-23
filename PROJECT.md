@@ -506,14 +506,9 @@ critical path except where noted above (AR-3, PB-4).
   see HISTORY)* now a 185-line plugin-facing shell over six plugin-free
   components in `src/components/graph/`, plus tested pure helpers (chain trace,
   edge attachment, pan/pinch gestures). Pixel-identical in the rig.
-- `[ ]` **AR-6 🟢 the codec's `kind` is not type-checked against the field** —
-  *(code audit 2026-10-09)* `TASK_PERSISTENCE` forces every `Task` key to be
-  described, but nothing ties the `kind` to the field's TypeScript type:
-  `labels: editable('labels', 'number')` compiles, and `readStoredFields` returns
-  through `as unknown as StoredTaskFields`, so the mistake surfaces only at
-  runtime. Fix: a `KindValue` map (`strings → string[]`, `date → string | null`, …)
-  and a mapped type so each entry's `kind` must produce `Task[field]`. Same
-  change can drop the cast.
+- `[x]` **AR-6 🟢 the codec's `kind` is type-checked against the field** —
+  *(2026-10-23; see HISTORY)* `KindValue` + a mapped `PersistenceTable`; the
+  decoders are a typed per-kind table. `@ts-expect-error` tests pin it.
 - `[x]` **AR-7 🟢 settings normalization imports the audio module** — *(2026-10-22)*
   catalogue split into `integration/pomodoroSounds.ts`; `pomodoroAlert.ts` keeps playback.
 - `[x]` **🟢 Pomodoro volume slider saves on every step** — *(2026-10-22)* debounced

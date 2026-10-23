@@ -1,5 +1,6 @@
-import type { Task } from '../types';
+import type { Task, TaskPriority, TaskRecordType, TaskStatus } from '../types';
 import { REPEAT_KEYS } from '../repeat/normalize';
+import type { RepeatRule } from '../repeat/types';
 
 /**
  * How each `Task` field relates to frontmatter — the one place that says which
@@ -43,10 +44,39 @@ export type FieldKind =
 	| 'dates'        // list of calendar dates
 	| 'repeat';      // the `ttask_repeat_*` key group, as one RepeatRule
 
-export interface FieldPersistence {
+/**
+ * The value each kind decodes to. `TASK_PERSISTENCE` checks every entry's kind
+ * against its field's type, and the codec's decoder table is checked against
+ * this, so `labels: editable('ttask_labels', 'number')` no longer compiles
+ * (AR-6). `derived` is `never` because nothing is decoded — it fits any field.
+ */
+export interface KindValue {
+	derived: never;
+	recordType: TaskRecordType;
+	title: string;
+	text: string;
+	textOrNull: string | null;
+	status: TaskStatus;
+	priority: TaskPriority;
+	reminder: NonNullable<Task['reminder_override']> | null;
+	strings: string[];
+	link: string | null;
+	links: string[];
+	date: string | null;
+	time: string | null;
+	number: number | null;
+	flag: boolean;
+	dates: string[];
+	repeat: RepeatRule | null;
+}
+
+/** The kinds whose decoded value is assignable to `T`. */
+type KindFor<T> = { [K in FieldKind]: [KindValue[K]] extends [T] ? K : never }[FieldKind];
+
+export interface FieldPersistence<K extends FieldKind = FieldKind> {
 	/** Frontmatter key; `null` for file-derived or computed fields never stored in it. */
 	fmKey: string | null;
-	kind: FieldKind;
+	kind: K;
 	/** `TaskWriter.update` mirrors this field from a `Partial<Task>` into frontmatter. */
 	updatable: boolean;
 	/**
@@ -66,19 +96,22 @@ export interface FieldPersistence {
 	seed?: 'blank' | 'created';
 }
 
-const derived: FieldPersistence = { fmKey: null, kind: 'derived', updatable: false, onCreate: false };
+const derived: FieldPersistence<'derived'> = { fmKey: null, kind: 'derived', updatable: false, onCreate: false };
 /** Written once at creation and thereafter by a dedicated path (not `update`). */
-const createOnly = (fmKey: string, kind: FieldKind, seed?: FieldPersistence['seed']): FieldPersistence =>
+const createOnly = <K extends FieldKind>(fmKey: string, kind: K, seed?: FieldPersistence['seed']): FieldPersistence<K> =>
 	({ fmKey, kind, updatable: false, onCreate: 'when-set', ...(seed ? { seed } : {}) });
-const editable = (fmKey: string, kind: FieldKind, seed?: FieldPersistence['seed']): FieldPersistence =>
+const editable = <K extends FieldKind>(fmKey: string, kind: K, seed?: FieldPersistence['seed']): FieldPersistence<K> =>
 	({ fmKey, kind, updatable: true, onCreate: 'when-set', ...(seed ? { seed } : {}) });
 /** The few keys every note carries, even when empty. */
-const core = (p: FieldPersistence): FieldPersistence => ({ ...p, onCreate: 'always' });
+const core = <K extends FieldKind>(p: FieldPersistence<K>): FieldPersistence<K> => ({ ...p, onCreate: 'always' });
 /** Absent until first written by `update`. */
-const lazy = (fmKey: string, kind: FieldKind): FieldPersistence =>
+const lazy = <K extends FieldKind>(fmKey: string, kind: K): FieldPersistence<K> =>
 	({ fmKey, kind, updatable: true, onCreate: false });
 
-export const TASK_PERSISTENCE: Record<keyof Task, FieldPersistence> = {
+/** One entry per `Task` field, whose kind must decode to that field's type. */
+export type PersistenceTable = { [F in keyof Task]-?: FieldPersistence<KindFor<Task[F]>> };
+
+export const TASK_PERSISTENCE: PersistenceTable = {
 	// File metadata / derived flags — never in frontmatter.
 	id: derived,
 	slug: derived,
