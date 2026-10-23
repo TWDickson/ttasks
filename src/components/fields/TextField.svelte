@@ -20,7 +20,7 @@
 
 <div class="tt-field tt-field-text">
 	{#if definition.label}
-		<label class="tt-label" for={definition.name}>
+		<label class="tt-label" for={definition.id ?? definition.name}>
 			{definition.label}
 			{#if definition.required}
 				<span class="tt-field-required">*</span>
@@ -28,7 +28,8 @@
 		</label>
 	{/if}
 	<input
-		id={definition.name}
+		id={definition.id ?? definition.name}
+		aria-label={definition.label ? undefined : definition.ariaLabel}
 		type="text"
 		class="tt-field-input"
 		placeholder={definition.placeholder || ''}

@@ -38,8 +38,8 @@ const SCENES = [
 	{ name: 'graph', url: '/?view=graph' },
 	{ name: 'timeline', url: '/?view=timeline' },
 	{ name: 'logbook', url: '/?view=logbook' },
-	{ name: 'detail', url: '/?view=list&detail=1' },
-	{ name: 'modal', url: '/?view=list&modal=1' },
+	{ name: 'detail', url: '/?view=list&detail=1', formRoot: '.tt-detail' },
+	{ name: 'modal', url: '/?view=list&modal=1', formRoot: '.tt-create-modal' },
 	{ name: 'pomodoro', url: '/?pomo=focus' },
 	/* The Share/Sync modal reads more of the plugin surface than any other
 	   overlay (settings.shareSync, the prompt library, the task store) and was
@@ -49,6 +49,25 @@ const SCENES = [
 	{ name: 'share-export', url: '/?share=1' },
 	{ name: 'share-import', url: '/?share=import' },
 ];
+
+/* The two form surfaces also get an accessibility floor: every visible control
+   has an accessible name, and no two elements share an id (a duplicate id
+   silently re-targets a `<label for>`). Found 2026-10-23: the detail pane's
+   project/dependency pickers were unnamed, "Repeat Type" labelled the Repeats
+   menu, and most Create-modal labels pointed at nothing. Returns problems. */
+async function formA11yProblems(page, root) {
+	const problems = [];
+	for (const h of await page.$$(`${root} input, ${root} select, ${root} textarea, ${root} [role=group]`)) {
+		if (!(await h.evaluate((el) => el.checkVisibility()))) continue;
+		const node = await page.accessibility.snapshot({ root: h, interestingOnly: false });
+		if (!node?.name?.trim()) {
+			problems.push(`unnamed ${await h.evaluate((el) => `<${el.tagName.toLowerCase()} class="${el.className}">`)}`);
+		}
+	}
+	const ids = await page.$$eval(`${root} [id]`, (els) => els.map((el) => el.id));
+	for (const id of new Set(ids.filter((id, i) => ids.indexOf(id) !== i))) problems.push(`duplicate id "${id}"`);
+	return problems;
+}
 
 function sceneUrl(url) {
 	const u = new URL(url, BASE);
@@ -110,6 +129,10 @@ async function main() {
 				await page.goto(`${BASE}${sceneUrl(scene.url)}`, { waitUntil: 'networkidle0', timeout: 30000 });
 				await page.waitForSelector('body[data-rig-ready="1"]', { timeout: 15000 });
 				if (fatal.length) throw new Error(fatal.join(' | '));
+				if (scene.formRoot) {
+					const problems = await formA11yProblems(page, scene.formRoot);
+					if (problems.length) throw new Error(`accessibility: ${problems.join('; ')}`);
+				}
 				console.log('✓', scene.name, noise.length ? `(${noise.length} console error(s), not fatal)` : '');
 				for (const line of noise) console.log('    console.error:', line.slice(0, 300));
 			} catch (err) {
@@ -127,7 +150,8 @@ async function main() {
 
 	if (failures.length) {
 		console.error(
-			`\n  ✗ ${failures.length} of ${SCENES.length} rig scenes failed to mount.\n` +
+			`\n  ✗ ${failures.length} of ${SCENES.length} rig scenes failed.\n` +
+			'    An "accessibility:" failure names the control to label. Otherwise:\n' +
 			'    The rig plugin mock (test-rig/fixtures.ts) is probably missing something\n' +
 			'    the components now read off TTasksPlugin. `npm run check` cannot catch\n' +
 			'    this — the mount sites cast through `as never`.\n',

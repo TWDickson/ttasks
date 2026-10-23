@@ -19,11 +19,12 @@
 
 <div class="tt-field tt-field-time">
 	{#if definition.label}
-		<label class="tt-label" for={definition.name}>{definition.label}</label>
+		<label class="tt-label" for={definition.id ?? definition.name}>{definition.label}</label>
 	{/if}
 	<div class="tt-date-control">
 		<input
-			id={definition.name}
+			id={definition.id ?? definition.name}
+			aria-label={definition.label ? undefined : definition.ariaLabel}
 			type="time"
 			class="tt-field-input"
 			value={value || ''}

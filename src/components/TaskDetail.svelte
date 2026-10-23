@@ -756,7 +756,7 @@
 			{#if repeat && !repeatBuilderOpen}
 				<label class="tt-label" for="repeat_basis">Repeat Type</label>
 				<SelectField
-					definition={{ name: 'repeat', label: '', type: 'select' }}
+					definition={{ name: 'repeat', id: 'repeat_basis', label: '', ariaLabel: 'Repeat type', type: 'select' }}
 					error={null}
 					readonly={false}
 					value={basisName(repeat) ?? 'fixed'}

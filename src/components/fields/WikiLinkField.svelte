@@ -97,6 +97,7 @@
 
 		<select
 			class="tt-field-select-input"
+			aria-label={`Add to ${definition.label || definition.ariaLabel || 'list'}`}
 			value=""
 			disabled={readonly}
 			on:change={handleSelectChange}
@@ -117,6 +118,7 @@
 		<!-- Single-select mode: just dropdown -->
 		<select
 			class="tt-field-select-input"
+			aria-label={definition.label || definition.ariaLabel}
 			value={values[0] || ''}
 			disabled={readonly}
 			on:change={handleSelectChange}

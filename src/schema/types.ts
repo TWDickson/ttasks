@@ -63,6 +63,13 @@ export interface FieldDefinition {
 	// Identity
 	name: keyof Task;  // Must match Task property name
 	label: string;
+	/**
+	 * Accessible name when `label` is blank because the host renders its own
+	 * visible heading (the detail pane). Ignored when `label` is set.
+	 */
+	ariaLabel?: string;
+	/** DOM id override, for when one field renders two controls (default: `name`). */
+	id?: string;
 	placeholder?: string;
 
 	// Rendering

@@ -32,7 +32,7 @@
 
 <div class="tt-field tt-field-number">
 	{#if definition.label}
-		<label class="tt-label" for={definition.name}>
+		<label class="tt-label" for={definition.id ?? definition.name}>
 			{definition.label}
 			{#if definition.required}
 				<span class="tt-field-required">*</span>
@@ -42,7 +42,8 @@
 
 	<div class="tt-number-control">
 		<input
-			id={definition.name}
+			id={definition.id ?? definition.name}
+			aria-label={definition.label ? undefined : definition.ariaLabel}
 			type="number"
 			class="tt-field-input"
 			placeholder={definition.placeholder || '—'}

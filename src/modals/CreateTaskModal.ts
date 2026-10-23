@@ -145,6 +145,7 @@ export class CreateTaskModal extends Modal {
 			attr: {
 				type: 'text',
 				placeholder: this.formValues.type === 'project' ? 'Project name…' : 'Task name…',
+				'aria-label': 'Name',
 			},
 		});
 		nameInput.focus();
@@ -632,6 +633,7 @@ export class CreateTaskModal extends Modal {
 
 		const recurrenceTypeSelect = recurrenceRow.createEl('select', {
 			cls: 'tt-modal-select tt-modal-recurrence-type',
+			attr: { 'aria-label': 'Repeat type' },
 		});
 		for (const t of REPEAT_BASES) {
 			recurrenceTypeSelect.createEl('option', { text: REPEAT_BASIS_LABELS[t], value: t });
@@ -659,6 +661,29 @@ export class CreateTaskModal extends Modal {
 			primaryBtn.disabled = this.submitting || !this.formValues.name.trim();
 		});
 		primaryBtn.addEventListener('click', () => void this.submit(primaryBtn));
+		this.linkFieldLabels(contentEl);
+	}
+
+	/**
+	 * `field()` builds its `<label>` before the control exists, so link them once
+	 * the form is built: the label targets the field's first control, or — for a
+	 * chip row, which has none — names the row as a group.
+	 */
+	private linkFieldLabels(root: HTMLElement): void {
+		root.querySelectorAll<HTMLElement>('.tt-modal-field').forEach((wrap, i) => {
+			const label = wrap.querySelector<HTMLLabelElement>(':scope > .tt-modal-label');
+			if (!label) return;
+			const control = wrap.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea');
+			if (control) {
+				if (control.labels && control.labels.length > 0) return; // already has its own
+				control.id ||= `tt-create-field-${i}`;
+				label.htmlFor = control.id;
+				return;
+			}
+			label.id = `tt-create-label-${i}`;
+			wrap.setAttribute('role', 'group');
+			wrap.setAttribute('aria-labelledby', label.id);
+		});
 	}
 
 	// Per-device, per-vault preferences (PB-2); the store never throws.
@@ -738,6 +763,7 @@ export class CreateTaskModal extends Modal {
 		const setSelected = (nextSelected: string) => {
 			buttons.forEach((button) => {
 				button.removeClass('tt-chip-active');
+				button.setAttribute('aria-pressed', 'false');
 				button.style.removeProperty('background');
 				button.style.removeProperty('border-color');
 				button.style.removeProperty('box-shadow');
@@ -747,6 +773,7 @@ export class CreateTaskModal extends Modal {
 			const selectedButton = buttons.get(nextSelected);
 			if (!selectedButton) return;
 			selectedButton.addClass('tt-chip-active');
+			selectedButton.setAttribute('aria-pressed', 'true');
 			this.applyOptionStyle(selectedButton, nextSelected, field);
 		};
 

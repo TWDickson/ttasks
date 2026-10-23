@@ -29,7 +29,7 @@
 
 <div class="tt-field tt-field-date">
 	{#if definition.label}
-		<label class="tt-label" for={definition.name}>
+		<label class="tt-label" for={definition.id ?? definition.name}>
 			{definition.label}
 			{#if definition.required}
 				<span class="tt-field-required">*</span>
@@ -38,7 +38,8 @@
 	{/if}
 	<div class="tt-date-control">
 		<input
-			id={definition.name}
+			id={definition.id ?? definition.name}
+			aria-label={definition.label ? undefined : definition.ariaLabel}
 			type="date"
 			class="tt-field-input"
 			value={value || ''}

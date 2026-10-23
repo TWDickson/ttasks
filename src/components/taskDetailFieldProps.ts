@@ -99,6 +99,7 @@ function deriveInlineFieldProps(
 		definition: {
 			...props.definition,
 			label: '',
+			ariaLabel: props.definition.label,
 		},
 	};
 }
@@ -115,6 +116,7 @@ function deriveHeaderFieldProps(
 		definition: {
 			...props.definition,
 			label: '',
+			ariaLabel: 'Task name',
 			placeholder: 'Task name',
 		},
 	};

@@ -114,6 +114,10 @@ describe('deriveTaskDetailFieldProps', () => {
 		expect(state.nameFieldProps?.definition.label).toBe('');
 		expect(state.nameFieldProps?.definition.placeholder).toBe('Task name');
 		expect(state.parentTaskFieldProps?.definition.label).toBe('');
+		// The visible label is the pane's own heading; the control keeps an accessible name.
+		expect(state.nameFieldProps?.definition.ariaLabel).toBe('Task name');
+		expect(state.parentTaskFieldProps?.definition.ariaLabel).toBeTruthy();
+		expect(state.dueDateFieldProps?.definition.ariaLabel).toBeTruthy();
 
 		const parentOptions = state.parentTaskFieldProps?.options;
 		expect(Array.isArray(parentOptions)).toBe(true);

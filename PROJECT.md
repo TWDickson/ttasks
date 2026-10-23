@@ -367,6 +367,7 @@ flowchart LR
 | `[ ]` | **Reminders survive the upgrade** (PB-2) — a reminder that fired today, or a snooze, before updating | Not re-fired / still snoozed after the update | next |
 | `[ ]` | **Repeats** — set Weekly on a task with a due date, then Monthly on one due the 31st; complete each | Pane shows "Next: …" dates; completing spawns the next instance on the right date (31st → Feb 28 → Mar 31) | next |
 | `[ ]` | **Rename refreshes link aliases** — rename a task that others depend on / that has children; open a dependent note's Properties panel | `ttask_depends_on` / `ttask_parent_task` show the new name within a second | next |
+| `[ ]` | **Create modal labels** — click a field's label (e.g. "Due Date", "Area") | Focuses / opens that field's control; nothing else changes visually | next |
 | `[ ]` | **Settings rename** — rename a label in Settings | Notes carrying it are rewritten (this was silently broken before) | next |
 | `[ ]` | **Update your own files** — `Planner/_Templates/task.md` and `Planner/Tasks.base` | They refer to `ttask_*` names (old ones no longer match anything) | next |
 | `[ ]` | **Sparse notes** (MD-2) — open a few existing notes and a freshly created one in the Properties panel | Old notes unchanged; new note has the five core keys; `Planner/Tasks.base` views still list new tasks | next |
@@ -529,14 +530,12 @@ critical path except where noted above (AR-3, PB-4).
   into each component migration.
 - `[x]` **TD-5 🟢 date/time determinism** — closed for the query engine by DT-1's
   `today` injection (2026-10-09).
-- `[ ]` **Detail pane suppresses every field's real `<label>`** — found in the
-  2026-09-06 UI audit. `deriveInlineFieldProps` sets `definition.label = ''` so
-  `TaskDetail` can render its own `<div class="tt-field-group"><span
-  class="tt-label">`. Net effect: ~32 extra nodes and **no control in the detail
-  pane has a programmatic label** (the field components already emit `<label
-  for={definition.name}>`). Fix is a deletion: stop blanking, drop the wrapper and
-  span. Watch `.tt-detail > .tt-field-group` in `styles.css`, which centres the
-  top block and would need rehoming.
+- `[x]` **Form controls without accessible names** — *(2026-10-23; see HISTORY)*
+  the audit overstated it (the detail grid's `<label for>` already worked), but
+  the project/dependency pickers were unnamed, "Repeat Type" labelled the Repeats
+  menu (duplicate `id`), and most Create-modal labels pointed at nothing. Fixed
+  via `FieldDefinition.ariaLabel`/`id`; `rig:smoke` now fails on an unnamed
+  control or duplicate id in the detail pane or Create modal.
 - `[x]` **A plugin root misses the design tokens** — *(2026-10-22)*
   `.tt-graph-fullscreen-modal` joined the token-root list.
 - `[ ]` **Hand-rolled popovers could be the native Popover API** —

@@ -153,6 +153,7 @@
 	const addBlockerFieldDefinition: FieldDefinition = {
 		...(getFieldByName('depends_on') as FieldDefinition),
 		label: '',
+		ariaLabel: 'Add a dependency',
 		chipsType: 'single',
 		selectAllowEmpty: true,
 	};

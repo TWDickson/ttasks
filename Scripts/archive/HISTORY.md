@@ -12,6 +12,31 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-23 — Form controls get accessible names; rig:smoke enforces it
+
+The 2026-09-06 audit said no detail-pane control had a programmatic label. A rig
+audit (Chromium's accessibility tree) showed otherwise: the `.tt-fields` grid's
+sibling `<label for>` already resolved. The real gaps were narrower and partly
+worse:
+
+- **Detail pane:** the Project picker and "Add a dependency" picker
+  (`WikiLinkField`, whose label is a `<span>`) had no name; "Repeat Type"'s
+  `<SelectField name="repeat">` reused the Repeats menu's `id`, so both labels
+  pointed at the Repeats menu; Status/Priority chip rows had no group name.
+- **Create modal:** `field()` builds a `<label>` before its control exists, so
+  most labels pointed at nothing.
+
+Fixes: `FieldDefinition` gained `ariaLabel` (used when the host blanks `label`
+to draw its own heading — `deriveInlineFieldProps` now carries the label there)
+and `id` (DOM id override). Chip rows are `role="group"` with `aria-pressed`
+chips. The modal links each field's label to its first control after building
+(`linkFieldLabels`), or names a chip row as a group. The PROJECT.md "fix is a
+deletion" plan was dropped: the grid layout depends on the sibling labels.
+
+`rig:smoke` now asserts, for the detail and modal scenes, that every visible
+control has an accessible name and no id repeats — mutation-checked by removing
+one `ariaLabel`.
+
 ## 2026-10-23 — Renames refresh inbound link aliases
 
 Links are stored `[[path|Name]]`, so renaming a task left every inbound

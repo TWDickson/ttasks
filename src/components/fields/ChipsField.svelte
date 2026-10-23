@@ -60,7 +60,12 @@
 			{/if}
 		</span>
 	{/if}
-	<div class="tt-chips-container" class:tt-field-error={!!error}>
+	<div
+		class="tt-chips-container"
+		class:tt-field-error={!!error}
+		role="group"
+		aria-label={definition.label || definition.ariaLabel}
+	>
 		{#each options as opt}
 			{@const isSelected = values.includes(opt)}
 			{@const color = getOptionColor(opt)}
@@ -68,6 +73,7 @@
 				type="button"
 				class="tt-chip"
 				class:tt-chip-active={isSelected}
+				aria-pressed={isSelected}
 				class:tt-chip-readonly={readonly}
 				style={isSelected && color
 					? `background-color: color-mix(in srgb, ${color} 18%, var(--background-primary)); border-color: color-mix(in srgb, ${color} 60%, var(--background-modifier-border)); color: ${color}; box-shadow: inset 0 0 0 1px color-mix(in srgb, ${color} 60%, transparent);`
