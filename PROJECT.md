@@ -22,12 +22,12 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 
 ---
 
-## Current state (2026-10-09)
+## Current state (2026-10-23)
 
 | | |
 | --- | --- |
-| Version | `0.1.16` published 2026-10-09 — awaiting on-device check (Pomodoro sound pickers/volume, midnight rollover, new-task frontmatter). Not on the community list — deliberate |
-| Tests | **1986 passing, 156 files** (`npm run check` = lint → build → test) |
+| Version | `0.2.3` published 2026-10-23 (link-alias refresh on rename, form-control labels). Rows below name the first version carrying each change. Not on the community list — deliberate |
+| Tests | **1995 passing, 156 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -332,17 +332,17 @@ flowchart LR
 
 | | Check | Pass looks like | Ships |
 | --- | --- | --- | --- |
-| `[ ]` | **Due Time input** (DT-2) — create modal and detail pane | Native time picker opens; field appears only once a due date is set; clearing the date hides it | next |
+| `[ ]` | **Due Time input** (DT-2) — create modal and detail pane | Native time picker opens; field appears only once a due date is set; clearing the date hides it | 0.2.2 |
 | `[ ]` | **Mobile golden path** floor check | Create → edit → complete a task at phone width, no clipped controls | — |
 | `[~]` | **Graph: detail drawer** after tapping a node in fullscreen graph | Modal closes, drawer is visible and on top (fix: rAF hand-off + `active: Platform.isMobile`) | 0.1.x |
 | `[~]` | **Graph: double-tap-to-open** | One tap opens (fix: `pointerup` on touch, 8 px drag threshold) | 0.1.x |
 | `[~]` | **Detail pane fits the drawer** | Single column below 768 px, no horizontal scroll | 0.1.x |
 | `[~]` | **Ghost sidebar tabs** — disable → relaunch → re-enable | Exactly one live tab, no ghost/duplicate (`views/leafHygiene.ts`) | 0.1.3 |
-| `[ ]` | **Agenda calendar weeks** (DT-5) — Agenda view, then flip Settings → Working calendar → Week starts on | Tomorrow / This Week / Next Week follow real weeks; This Week hides when tomorrow is already next week; setting change re-buckets live | next |
-| `[ ]` | **Repeats on phone** — Repeats menu, Repeat Type, the "Next: …" line and the Custom… builder fit the drawer | No clipping; weekday chips fit one row (rig-checked at 390 px) | next |
-| `[ ]` | **Quick-create preference kept** (PB-2) — the mobile quick-create toggle and dismissed hint after updating | Same as before the update | next |
-| `[ ]` | **Sparse notes** (MD-2) — create a task, set then clear a due date and a label | New note has only the five core keys; clearing removes the key (Properties panel); detail pane and lists unaffected | next |
-| `[ ]` | **Derived `blocks`** (MD-3) — add/remove a dependency; rename and delete a task that others depend on | Detail pane "unblocks" and the kanban/graph counts update immediately and match after a restart; no `blocks:` is written to notes; the "Sync blocks" command is gone | next |
+| `[ ]` | **Agenda calendar weeks** (DT-5) — Agenda view, then flip Settings → Working calendar → Week starts on | Tomorrow / This Week / Next Week follow real weeks; This Week hides when tomorrow is already next week; setting change re-buckets live | 0.2.2 |
+| `[ ]` | **Repeats on phone** — Repeats menu, Repeat Type, the "Next: …" line and the Custom… builder fit the drawer | No clipping; weekday chips fit one row (rig-checked at 390 px) | 0.2.2 |
+| `[ ]` | **Quick-create preference kept** (PB-2) — the mobile quick-create toggle and dismissed hint after updating | Same as before the update | 0.2.2 |
+| `[ ]` | **Sparse notes** (MD-2) — create a task, set then clear a due date and a label | New note has only the five core keys; clearing removes the key (Properties panel); detail pane and lists unaffected | 0.2.2 |
+| `[ ]` | **Derived `blocks`** (MD-3) — add/remove a dependency; rename and delete a task that others depend on | Detail pane "unblocks" and the kanban/graph counts update immediately and match after a restart; no `blocks:` is written to notes; the "Sync blocks" command is gone | 0.2.2 |
 | `[ ]` | **Midnight rollover** (DT-1) — leave a view open across midnight | Today/Overdue buckets refresh without reopening | 0.1.16 |
 | `[ ]` | **New-task frontmatter** (AR-3) — create a task, inspect YAML | Same keys/order as before the codec change | 0.1.16 |
 
@@ -351,32 +351,32 @@ flowchart LR
 | | Check | Pass looks like | Ships |
 | --- | --- | --- | --- |
 | `[ ]` | **Pomodoro vibration** on phase end | Device vibrates; sticky Notice shows | 0.1.x |
-| `[ ]` | **Due Time input** (DT-2) | As iOS row | next |
+| `[ ]` | **Due Time input** (DT-2) | As iOS row | 0.2.2 |
 | `[ ]` | **Graph double-tap** — 700 ms ghost-click guard | One tap opens, no double-open | 0.1.x |
 
 ### 🖥 Desktop (Windows, Obsidian)
 
 | | Check | Pass looks like | Ships |
 | --- | --- | --- | --- |
-| `[ ]` | **Week starts on** (DT-5) — Settings → Working calendar | Dropdown at top of the section, default "System default (Mon/Sun)" matching your device locale; Monday vs Sunday moves Sunday between This/Next Week | next |
-| `[ ]` | **⚠ Migration first** (MD-4) — before installing the new release: Obsidian closed everywhere, run the script's dry run on `Planner/Tasks` + `Planner/Archive`, then `--apply` | Summary shows ~170 notes migrated, 0 skipped; backups folder exists | next |
-| `[ ]` | **Unmigrated-vault guard** — (optional) open an *unconverted copy* of the vault with the new release | Persistent notice explaining the empty board; creating/editing a task is refused | next |
-| `[ ]` | **Migrated vault opens normally** | Board shows every task; no notice; a note's Properties show `ttask_*` keys | next |
-| `[ ]` | **Repeat builder** — Repeats → Custom…; build "every 2 weeks on Mon/Wed" and "first working day of the month, 3 times"; save; complete one | Summary + Next dates update live; saving shows "Custom — …"; Edit reopens it; completing spawns on the right date | next |
-| `[ ]` | **Rename doesn't double-spawn** (RP-3) — complete a repeating task, rename the new instance, then re-complete the *old* one from the Logbook/checklist | No second spawn | next |
-| `[ ]` | **Reminders survive the upgrade** (PB-2) — a reminder that fired today, or a snooze, before updating | Not re-fired / still snoozed after the update | next |
-| `[ ]` | **Repeats** — set Weekly on a task with a due date, then Monthly on one due the 31st; complete each | Pane shows "Next: …" dates; completing spawns the next instance on the right date (31st → Feb 28 → Mar 31) | next |
-| `[ ]` | **Rename refreshes link aliases** — rename a task that others depend on / that has children; open a dependent note's Properties panel | `ttask_depends_on` / `ttask_parent_task` show the new name within a second | next |
-| `[ ]` | **Create modal labels** — click a field's label (e.g. "Due Date", "Area") | Focuses / opens that field's control; nothing else changes visually | next |
-| `[ ]` | **Settings rename** — rename a label in Settings | Notes carrying it are rewritten (this was silently broken before) | next |
-| `[ ]` | **Update your own files** — `Planner/_Templates/task.md` and `Planner/Tasks.base` | They refer to `ttask_*` names (old ones no longer match anything) | next |
-| `[ ]` | **Sparse notes** (MD-2) — open a few existing notes and a freshly created one in the Properties panel | Old notes unchanged; new note has the five core keys; `Planner/Tasks.base` views still list new tasks | next |
-| `[ ]` | **"Due now" reminder** (DT-2) — task due today with `due_time` a few minutes ahead; wait for the 5-min poll | Notice reads "N due now"; fires once; task is *not* styled overdue; follows the "Due today" toggle | next |
+| `[ ]` | **Week starts on** (DT-5) — Settings → Working calendar | Dropdown at top of the section, default "System default (Mon/Sun)" matching your device locale; Monday vs Sunday moves Sunday between This/Next Week | 0.2.2 |
+| `[ ]` | **⚠ Migration first** (MD-4) — before installing the new release: Obsidian closed everywhere, run the script's dry run on `Planner/Tasks` + `Planner/Archive`, then `--apply` | Summary shows ~170 notes migrated, 0 skipped; backups folder exists | 0.2.2 |
+| `[ ]` | **Unmigrated-vault guard** — (optional) open an *unconverted copy* of the vault with the new release | Persistent notice explaining the empty board; creating/editing a task is refused | 0.2.2 |
+| `[ ]` | **Migrated vault opens normally** | Board shows every task; no notice; a note's Properties show `ttask_*` keys | 0.2.2 |
+| `[ ]` | **Repeat builder** — Repeats → Custom…; build "every 2 weeks on Mon/Wed" and "first working day of the month, 3 times"; save; complete one | Summary + Next dates update live; saving shows "Custom — …"; Edit reopens it; completing spawns on the right date | 0.2.2 |
+| `[ ]` | **Rename doesn't double-spawn** (RP-3) — complete a repeating task, rename the new instance, then re-complete the *old* one from the Logbook/checklist | No second spawn | 0.2.2 |
+| `[ ]` | **Reminders survive the upgrade** (PB-2) — a reminder that fired today, or a snooze, before updating | Not re-fired / still snoozed after the update | 0.2.2 |
+| `[ ]` | **Repeats** — set Weekly on a task with a due date, then Monthly on one due the 31st; complete each | Pane shows "Next: …" dates; completing spawns the next instance on the right date (31st → Feb 28 → Mar 31) | 0.2.2 |
+| `[ ]` | **Rename refreshes link aliases** — rename a task that others depend on / that has children; open a dependent note's Properties panel | `ttask_depends_on` / `ttask_parent_task` show the new name within a second | 0.2.3 |
+| `[ ]` | **Create modal labels** — click a field's label (e.g. "Due Date", "Area") | Focuses / opens that field's control; nothing else changes visually | 0.2.3 |
+| `[ ]` | **Settings rename** — rename a label in Settings | Notes carrying it are rewritten (this was silently broken before) | 0.2.2 |
+| `[ ]` | **Update your own files** — `Planner/_Templates/task.md` and `Planner/Tasks.base` | They refer to `ttask_*` names (old ones no longer match anything) | 0.2.2 |
+| `[ ]` | **Sparse notes** (MD-2) — open a few existing notes and a freshly created one in the Properties panel | Old notes unchanged; new note has the five core keys; `Planner/Tasks.base` views still list new tasks | 0.2.2 |
+| `[ ]` | **"Due now" reminder** (DT-2) — task due today with `due_time` a few minutes ahead; wait for the 5-min poll | Notice reads "N due now"; fires once; task is *not* styled overdue; follows the "Due today" toggle | 0.2.2 |
 | `[ ]` | **Pomodoro → "Send test"** notification | Reports shown/denied/unsupported; "shown" with nothing visible = Focus Assist / per-app setting | 0.1.16 |
 | `[ ]` | **Pomodoro sounds** — preview buttons, separate focus-end / break-end picks, volume slider (0 = off; saved "off" migrates to 0) | Audio plays at the set volume | 0.1.16 |
-| `[ ]` | **Pomodoro chime while backgrounded** (Windows) — set a short focus length, start it, minimise Obsidian / switch apps | Chime sounds on time at 00:00, once (not doubled when you return); break countdown already running from that moment | next |
-| `[ ]` | **Pomodoro close prompt** (desktop) — start a session, close Obsidian | "Pomodoro still running" modal: Keep running cancels the close; Stop, log and close writes a partial CSV row then closes; Discard closes with no row. Also try Ctrl+R (prompts too, and closes rather than reloads) | next |
-| `[ ]` | **Pomodoro in background, long run** (desktop) — 25-min focus, Obsidian minimised the whole time | Notice + OS notification arrive within a few seconds of 00:00 (worker tick), not up to a minute late. Dev console: no worker/CSP error | next |
+| `[ ]` | **Pomodoro chime while backgrounded** (Windows) — set a short focus length, start it, minimise Obsidian / switch apps | Chime sounds on time at 00:00, once (not doubled when you return); break countdown already running from that moment | 0.2.2 |
+| `[ ]` | **Pomodoro close prompt** (desktop) — start a session, close Obsidian | "Pomodoro still running" modal: Keep running cancels the close; Stop, log and close writes a partial CSV row then closes; Discard closes with no row. Also try Ctrl+R (prompts too, and closes rather than reloads) | 0.2.2 |
+| `[ ]` | **Pomodoro in background, long run** (desktop) — 25-min focus, Obsidian minimised the whole time | Notice + OS notification arrive within a few seconds of 00:00 (worker tick), not up to a minute late. Dev console: no worker/CSP error | 0.2.2 |
 | `[ ]` | **Pomodoro rest** — CSV log (tasks folder, optional year/month split), two modals, sidebar pane, status-bar item (idle hides), OS notification click → pane | Each behaves as described | 0.1.x |
 | `[ ]` | **`tt-btn-primary`** (Mark complete, empty-list "+ New task") | Filled plugin-wide | 0.1.x |
 | `[ ]` | **Share/Sync** modal, both tabs | Renders and round-trips in the real shell | 0.1.x |
