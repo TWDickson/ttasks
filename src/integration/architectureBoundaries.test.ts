@@ -112,10 +112,8 @@ describe('architecture boundaries', () => {
 	// one means deleting it here; a new component can never join the list.
 	it('only the legacy AR-1 components import the plugin or the store', () => {
 		const legacy = new Set([
-			'TaskArchiveView.svelte',
 			'TaskBoard.svelte',
 			'TaskDetail.svelte',
-			'TaskDetailNotes.svelte',
 			'TaskDetailRelationships.svelte',
 			'TaskGraph.svelte',
 			'TaskKanban.svelte',

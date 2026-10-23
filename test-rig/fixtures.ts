@@ -6,6 +6,7 @@ import { createMemoryDeviceStore, type DeviceStore } from '../src/utils/deviceSt
 import { get, writable, type Writable } from 'svelte/store';
 import type { Task, TaskPriority, TaskStatus } from '../src/types';
 import type { ExternalTask } from '../src/integration/types';
+import type { ArchivedTaskSummary } from '../src/store/ArchiveService';
 import { PomodoroService } from '../src/store/PomodoroService';
 import { DEFAULT_POMODORO_CONFIG } from '../src/integration/pomodoro';
 import type { PomodoroSettings } from '../src/settings/types';
@@ -255,7 +256,11 @@ export interface RigPlugin {
 	taskStore: Record<string, unknown> & { tasks: Writable<Task[]> };
 	/** Captured (non-TTasks) tasks. Empty in the rig, but must match the real type. */
 	scanEngine: { tasks: Writable<ExternalTask[]> };
-	archiveService: { archiveTask: (path: string) => Promise<void> };
+	archiveService: {
+		archiveTask: (path: string) => Promise<void>;
+		loadArchivedTasks: () => Promise<ArchivedTaskSummary[]>;
+		restoreTask: (path: string) => Promise<void>;
+	};
 	pomodoroService: PomodoroService;
 	activeTaskPath: Writable<string | null>;
 	focusedTaskPath: Writable<string | null>;
@@ -280,6 +285,12 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 	const activeTaskPath = writable<string | null>(null);
 	const focusedTaskPath = writable<string | null>(null);
 	const activeViewMode = writable<string | null>(null);
+	// The Archive view reads summaries, not Tasks — a few fixed ones across two months.
+	let archived: ArchivedTaskSummary[] = [
+		{ path: 'Planner/Archive/2026/09/a1b2c3-fry-the-first-patty.md', id: 'a1b2c3', name: 'Fry the first Krabby Patty', status: 'Done', completed: '2026-09-14', area: 'Krusty Krab', archiveYear: '2026', archiveMonth: '09' },
+		{ path: 'Planner/Archive/2026/09/d4e5f6-polish-the-boat.md', id: 'd4e5f6', name: 'Polish the boatmobile', status: 'Done', completed: '2026-09-03', area: null, archiveYear: '2026', archiveMonth: '09' },
+		{ path: 'Planner/Archive/2026/08/0a1b2c-jellyfish-permit.md', id: '0a1b2c', name: 'Renew the jellyfishing permit', status: 'Cancelled', completed: null, area: 'Jellyfish Fields', archiveYear: '2026', archiveMonth: '08' },
+	];
 	const completionStatus = (options.settings?.completionStatus as string) ?? COMPLETION_STATUS;
 
 	const findByPath = (pathLike: string): Task | null => {
@@ -422,6 +433,11 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		archiveService: {
 			archiveTask: async (path: string) => {
 				tasks.update((all) => all.filter((t) => stripMd(t.path) !== stripMd(path)));
+			},
+			loadArchivedTasks: async () => archived.slice(),
+			restoreTask: async (path: string) => {
+				archived = archived.filter((t) => t.path !== path);
+				console.info('[rig] restoreArchived', path);
 			},
 		},
 		pomodoroService: new PomodoroService({

@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.2.3` published 2026-10-23 (link-alias refresh on rename, form-control labels). Rows below name the first version carrying each change. Not on the community list — deliberate |
-| Tests | **2008 passing, 157 files** (`npm run check` = lint → build → test) |
+| Tests | **2013 passing, 159 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -496,12 +496,14 @@ critical path except where noted above (AR-3, PB-4).
   meta list derive from it) and `TASK_FIELD_UI` (form controls;
   `TASK_FIELD_DEFINITIONS` derives from it). A new `Task` field doesn't compile
   until all three decide it.
-- `[~]` **AR-1 🟡 the component→plugin coupling rule is violated by seven legacy
-  components** (`TaskArchiveView`, `TaskBoard`, `TaskDetail`, `TaskDetailNotes`,
-  `TaskDetailRelationships`, `TaskGraph`, `TaskKanban`). **Plan:** migrate
+- `[~]` **AR-1 🟡 the component→plugin coupling rule is violated by five legacy
+  components** (`TaskBoard`, `TaskDetail`, `TaskDetailRelationships`,
+  `TaskGraph`, `TaskKanban`). **Plan:** migrate
   component by component, each with a render test (TD-4); `TaskBoard` stays the
   plugin-facing shell. *2026-10-23:* `TaskRow`, `TaskList`, `TaskAgenda` migrated
   (row-level plugin calls became `onOpenCaptured` / `onHoverPreview` callbacks);
+  `TaskDetailNotes` (`renderMarkdown` / `onSaveNotes`) and `TaskArchiveView`
+  (`loadArchived` / `restoreArchived`) followed, each with a render test.
   `architectureBoundaries.test.ts` now ratchets the legacy list — a new coupled
   component fails, and a migrated one must be removed from it. *(Demoted from 🔴
   on 2026-10-08: it's a code-health rule, no user sees it.)*
@@ -528,7 +530,9 @@ critical path except where noted above (AR-3, PB-4).
   (v8, HTML in `coverage/`); CI's Node 24 leg posts the summary. Baseline: 70%
   lines, 84% branches. No thresholds.
 - `[ ]` **TD-4 🟢 component-test debt** — tracks AR-1; fold "add a render test"
-  into each component migration.
+  into each component migration. *2026-10-23:* vitest now resolves Svelte's
+  `browser` build — before, `onMount` was a silent no-op in every component test,
+  so mount-time logic (loading, renderer setup) was untestable.
 - `[x]` **TD-5 🟢 date/time determinism** — closed for the query engine by DT-1's
   `today` injection (2026-10-09).
 - `[x]` **Form controls without accessible names** — *(2026-10-23; see HISTORY)*

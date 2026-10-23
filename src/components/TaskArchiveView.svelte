@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type TTasksPlugin from '../main';
 	import type { ArchivedTaskSummary } from '../store/ArchiveService';
 	import { filterBySearch } from '../query/hashSearch';
 
-	export let plugin: TTasksPlugin;
+	export let loadArchived: () => Promise<ArchivedTaskSummary[]>;
+	export let restoreArchived: (path: string) => Promise<void>;
 
 	const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
 		'July', 'August', 'September', 'October', 'November', 'December'];
@@ -22,8 +22,11 @@
 
 	async function load() {
 		loading = true;
-		allTasks = await plugin.archiveService.loadArchivedTasks();
-		loading = false;
+		try {
+			allTasks = await loadArchived();
+		} finally {
+			loading = false;
+		}
 	}
 
 	onMount(() => { void load(); });
@@ -56,7 +59,7 @@
 	async function restore(path: string) {
 		restoring = new Set([...restoring, path]);
 		try {
-			await plugin.archiveService.restoreTask(path);
+			await restoreArchived(path);
 			await load();
 		} finally {
 			restoring = new Set([...restoring].filter(p => p !== path));

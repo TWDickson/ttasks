@@ -11,6 +11,9 @@ export default defineConfig(async () => {
 				preprocess: sveltePreprocess(),
 			}),
 		],
+		// Resolve Svelte's client runtime: the default (server) build makes
+		// onMount a no-op, so component tests could never reach mount logic.
+		resolve: { conditions: ['browser'] },
 		test: {
 			alias: {
 				obsidian: path.resolve(__dirname, 'src/__mocks__/obsidian.ts'),

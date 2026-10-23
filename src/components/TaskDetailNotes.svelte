@@ -1,13 +1,13 @@
 <script lang="ts">
-	import { Component, MarkdownRenderer } from 'obsidian';
+	import { Component } from 'obsidian';
 	import { onDestroy, onMount } from 'svelte';
-	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
-	import type { TaskStore } from '../store/TaskStore';
 
 	export let task: Task;
-	export let plugin: TTasksPlugin;
-	export let store: TaskStore;
+	/** Obsidian's markdown renderer, bound to the app (MarkdownRenderer.render). */
+	export let renderMarkdown: (markdown: string, el: HTMLElement, sourcePath: string, component: Component) => Promise<void>;
+	/** Persists the notes; resolves to the body as written (checklists may be materialised). */
+	export let onSaveNotes: (path: string, notes: string) => Promise<string>;
 
 	let notesMode: 'preview' | 'edit' = 'preview';
 	let notes = task.notes ?? '';
@@ -46,7 +46,7 @@
 		// Render into a scratch node first so a stale/interrupted render can
 		// never leave the visible preview blank.
 		const scratch = document.createElement('div');
-		await MarkdownRenderer.render(plugin.app, markdown, scratch, task.path, markdownComponent);
+		await renderMarkdown(markdown, scratch, task.path, markdownComponent);
 		if (renderSeq !== previewRenderSeq || target !== notesPreviewEl || !target.isConnected) return;
 		target.replaceChildren(...Array.from(scratch.childNodes));
 	}
@@ -69,7 +69,7 @@
 			saveTimer = null;
 			pendingSaves += 1;
 			try {
-				const savedNotes = await store.updateNotes(taskPath, nextNotes);
+				const savedNotes = await onSaveNotes(taskPath, nextNotes);
 				// Adopt the normalized saved text only if the user hasn't typed
 				// more in the meantime — never overwrite in-progress edits.
 				if (task?.path === taskPath && notes === nextNotes) {

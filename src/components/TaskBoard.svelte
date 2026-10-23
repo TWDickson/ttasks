@@ -597,7 +597,10 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 						onToggleFullscreen={() => openGraphFullscreen(currentView.presentation.graphMode)}
 					/>
 				{:else if currentRenderer === RENDERER_ARCHIVE}
-					<TaskArchiveView {plugin} />
+					<TaskArchiveView
+						loadArchived={() => plugin.archiveService.loadArchivedTasks()}
+						restoreArchived={(path) => plugin.archiveService.restoreTask(path)}
+					/>
 				{:else if currentRenderer === RENDERER_AGENDA}
 					<TaskAgenda
 						onOpenCaptured={openCapturedTask}

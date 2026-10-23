@@ -12,6 +12,20 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-23 — AR-1 continues; component tests could never see onMount
+
+`TaskDetailNotes` and `TaskArchiveView` dropped their plugin/store props for
+callbacks, leaving five legacy components. Writing their first render tests
+surfaced a test-infra gap: vitest resolved Svelte's **server** build, where
+`onMount` is a no-op, so no component test had ever exercised mount-time logic.
+`vitest.config.mts` now sets `resolve.conditions: ['browser']`; the full suite
+stayed green, so nothing was quietly depending on the old behaviour.
+
+The rig's Archive scene had also never rendered — its mock `archiveService`
+lacked `loadArchivedTasks`, and the view's `load()` had no `finally`, so the
+throw left it on "Loading…" forever. The same throw in Obsidian would have done
+the same; both are fixed, and the rig now carries three archived summaries.
+
 ## 2026-10-23 — AR-4: checklist sync leaves TaskWriter; Pomodoro gets a ribbon icon
 
 **AR-4.** The parent-checklist ↔ child-status sync was four private methods in

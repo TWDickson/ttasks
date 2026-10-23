@@ -1,5 +1,5 @@
 ﻿<script lang="ts">
-	import { Notice } from 'obsidian';
+	import { MarkdownRenderer, Notice, type Component } from 'obsidian';
 	import { onDestroy } from 'svelte';
 	import type { Readable, Writable } from 'svelte/store';
 	import type TTasksPlugin from '../main';
@@ -494,6 +494,11 @@
 		});
 	}
 
+
+	// Handed to TaskDetailNotes so it needs no plugin reference (AR-1).
+	function renderMarkdown(markdown: string, el: HTMLElement, sourcePath: string, component: Component): Promise<void> {
+		return MarkdownRenderer.render(plugin.app, markdown, el, sourcePath, component);
+	}
 </script>
 
 {#if !task}
@@ -824,7 +829,11 @@
 			/>
 		{/if}
 
-		<TaskDetailNotes {task} {plugin} {store} />
+		<TaskDetailNotes
+			{task}
+			{renderMarkdown}
+			onSaveNotes={(path, notes) => store.updateNotes(path, notes)}
+		/>
 
 		<TaskDetailActions
 			{task}
