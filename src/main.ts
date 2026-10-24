@@ -24,11 +24,12 @@ import { PomodoroView, TASK_POMODORO_VIEW_TYPE } from './views/PomodoroView';
 import { createBoardStateService, type BoardStateStores } from './store/BoardStateService';
 import { resolveTaskViewId } from './views/viewRegistry';
 import { repairPluginLeaves } from './views/leafHygiene';
-import { CreateTaskModal } from './modals/CreateTaskModal';
+import { CreateTaskModal, type CreateTaskOptions } from './modals/CreateTaskModal';
+import type { GraphHost } from './components/hosts';
 import { FocusUntilModal } from './modals/FocusUntilModal';
 import { ShareSyncModal } from './modals/ShareSyncModal';
 import { ReminderService } from './store/ReminderService';
-import type { Task, TaskCreateInput, TaskPriority, TaskStatus } from './types';
+import type { Task, TaskCreateInput, TaskPriority, TaskRecordType, TaskStatus } from './types';
 import type { ParsedImportTask } from './integration/taskJsonImport';
 import { type ImportPlan, type LinkEndpoint, changesToPatch } from './integration/taskImportPlan';
 import { addTaskContextMenuItems, type TaskContextMenuDeps } from './integration/contextMenu';
@@ -66,7 +67,7 @@ import type { SettingsHost } from './types/settingsHost';
 
 export type BoardViewMode = string;
 
-export default class TTasksPlugin extends Plugin {
+export default class TTasksPlugin extends Plugin implements GraphHost {
 	// `declare`: narrows the base Plugin's `settings?: unknown` (Obsidian 1.13 typings) without emitting a field.
 	declare settings: TTasksSettings;
 	taskStore!: TaskStore;
@@ -941,6 +942,16 @@ export default class TTasksPlugin extends Plugin {
 			this.settings.captureSources = mergedSources;
 			await this.saveData(this.settings);
 		}
+	}
+
+	/** Merge a settings patch and persist it — the write path host interfaces expose (AR-8). */
+	async updateSettings(patch: Partial<TTasksSettings>): Promise<void> {
+		Object.assign(this.settings, patch);
+		await this.saveSettings();
+	}
+
+	openCreateTask(type: TaskRecordType = 'task', options?: CreateTaskOptions): void {
+		new CreateTaskModal(this.app, this, type, options).open();
 	}
 
 	async saveSettings() {

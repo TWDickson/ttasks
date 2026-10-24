@@ -216,11 +216,18 @@ one). **When you change what components read off the plugin, update
 
 **Plugin coupling** — new components must not import `TTasksPlugin` or `TaskStore`
 directly. Pass specific callbacks or service references as props. Components that
-follow this are testable with `@testing-library/svelte`. *(Three **shells** are
+follow this are testable with `@testing-library/svelte`. *(Two **shells** are
 the exception by design: `TaskBoard` and `TaskDetail`, each mounted by an
-`ItemView`, and `TaskGraph`, the shell over `src/components/graph/`. They turn
-plugin state into props and callbacks; `architectureBoundaries.test.ts` fails
-on any other component that imports the plugin or store — AR-1, closed.)*
+`ItemView`. They turn plugin state into props and callbacks;
+`architectureBoundaries.test.ts` fails on any other component that imports the
+plugin or store — AR-1, closed.)*
+
+**Host interfaces** (AR-8) — a component that needs plugin services takes a
+narrow interface from `src/components/hosts.ts` (e.g. `TaskGraph`'s
+`GraphHost`), not `TTasksPlugin`. The plugin `implements` it, and
+`test-rig/fixtures.ts` asserts the rig mock satisfies it, so mock drift is a
+type error rather than a blank rig scene. Settings writes go through
+`host.updateSettings(patch)`, never `settings.x = …; saveSettings()`.
 
 **No Obsidian imports in pure modules** — `src/query/`, `src/utils/`, `src/store/`
 helpers, and all `src/integration/` pure modules must stay free of Obsidian

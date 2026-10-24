@@ -1,21 +1,20 @@
 <script lang="ts">
-	// The graph view's shell and its one tie to the plugin (AR-2). It turns
-	// plugin state into props and callbacks for the two mode components, which
-	// never see the plugin: DependencyGraph (`dependency`) and TimelineOverview
-	// (`overview`, the Timeline view).
+	// The graph view's shell (AR-2). It turns `GraphHost` state into props and
+	// callbacks for the two mode components: DependencyGraph (`dependency`) and
+	// TimelineOverview (`overview`, the Timeline view). It sees the plugin only
+	// through `GraphHost` (AR-8), so the rig's mock is type-checked against it.
 	import type { Readable, Writable } from 'svelte/store';
 	import type { Task } from '../types';
 	import type { TaskGroup } from '../query/types';
-	import type TTasksPlugin from '../main';
+	import type { GraphHost } from './hosts';
 	import { flattenTaskGroups } from './viewAdapters';
 	import { splitHolidayCalendar } from '../settings/holidays';
-	import { CreateTaskModal } from '../modals/CreateTaskModal';
 	import { icon } from '../utils/icon';
 	import type { BadgePalette } from '../utils/badgePalette';
 	import DependencyGraph from './graph/DependencyGraph.svelte';
 	import TimelineOverview from './graph/TimelineOverview.svelte';
 
-	export let plugin: TTasksPlugin;
+	export let host: GraphHost;
 	export let groups: Readable<TaskGroup[]>;
 	/** Resolved area/label/status colours. See utils/badgePalette. */
 	export let palette: BadgePalette;
@@ -36,25 +35,21 @@
 	// Universal working-calendar config (holidays + per-area workweek toggle),
 	// threaded into every date resolution so the graph, timeline, and node cards
 	// all agree with the list/detail views.
-	$: holidayCalendar = splitHolidayCalendar(plugin.settings.holidays);
+	$: holidayCalendar = splitHolidayCalendar(host.settings.holidays);
 	$: calendarConfig = {
 		holidays: holidayCalendar.holidays,
 		recurringHolidays: holidayCalendar.recurringHolidays,
-		areaWorkweek: plugin.settings.areaWorkweek,
+		areaWorkweek: host.settings.areaWorkweek,
 	};
 
 	function showHoverPreview(event: MouseEvent, task: Task): void {
-		plugin.triggerTaskHoverPreview(task.path, event);
+		host.triggerTaskHoverPreview(task.path, event);
 	}
 
 	$: contextMenu = onContextMenu
 		? (event: MouseEvent, task: Task) => onContextMenu?.(task, event)
 		: undefined;
 
-	function persist(apply: () => void): void {
-		apply();
-		void plugin.saveSettings();
-	}
 
 	// New tasks spawned from the graph inherit the source task's grouping.
 	function prefillFrom(task: Task) {
@@ -62,29 +57,29 @@
 	}
 
 	function createDependentTask(task: Task): void {
-		new CreateTaskModal(plugin.app, plugin, 'task', {
+		host.openCreateTask('task', {
 			initialDependsOn: [task.path],
 			prefill: prefillFrom(task),
-		}).open();
+		});
 	}
 
 	function createBlockerTask(task: Task): void {
 		// The new task blocks this one — i.e. this task will depend_on the new task.
-		new CreateTaskModal(plugin.app, plugin, 'task', {
+		host.openCreateTask('task', {
 			initialBlocks: [task.path],
 			prefill: prefillFrom(task),
-		}).open();
+		});
 	}
 
 	// A project lane's `+` creates a new task already parented to it.
 	function createTaskInProject(projectPath: string): void {
 		const project = tasks.find((task) => task.path === projectPath);
-		new CreateTaskModal(plugin.app, plugin, 'task', {
+		host.openCreateTask('task', {
 			prefill: {
 				parent_task: projectPath.replace(/\.md$/, ''),
 				area: project?.area ?? undefined,
 			},
-		}).open();
+		});
 	}
 </script>
 
@@ -105,9 +100,9 @@
 			{palette}
 			{activeTaskPath}
 			{calendarConfig}
-			diagnosticsEnabled={plugin.settings.graphDiagnosticsEnabled}
-			initialHiddenProjects={plugin.settings.graphHiddenProjects ?? []}
-			onHiddenProjectsChange={(paths) => persist(() => { plugin.settings.graphHiddenProjects = paths; })}
+			diagnosticsEnabled={host.settings.graphDiagnosticsEnabled}
+			initialHiddenProjects={host.settings.graphHiddenProjects ?? []}
+			onHiddenProjectsChange={(paths) => void host.updateSettings({ graphHiddenProjects: paths })}
 			{onOpen}
 			onHoverPreview={showHoverPreview}
 			onContextMenu={contextMenu}
@@ -121,10 +116,10 @@
 			{palette}
 			{activeTaskPath}
 			{calendarConfig}
-			showCompleted={plugin.settings.overviewGraphShowCompleted}
-			grouping={plugin.settings.overviewGraphGrouping}
-			onShowCompletedChange={(show) => persist(() => { plugin.settings.overviewGraphShowCompleted = show; })}
-			onGroupingChange={(grouping) => persist(() => { plugin.settings.overviewGraphGrouping = grouping; })}
+			showCompleted={host.settings.overviewGraphShowCompleted}
+			grouping={host.settings.overviewGraphGrouping}
+			onShowCompletedChange={(show) => void host.updateSettings({ overviewGraphShowCompleted: show })}
+			onGroupingChange={(grouping) => void host.updateSettings({ overviewGraphGrouping: grouping })}
 			{onOpen}
 			onHoverPreview={showHoverPreview}
 			onContextMenu={contextMenu}

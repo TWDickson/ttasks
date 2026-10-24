@@ -12,6 +12,21 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-24 — AR-8 opens: shells talk to a host interface
+
+Asked whether three plugin-facing shells was right, the answer was yes — a thin
+container layer at the edge is the standard split — with two gaps: the shells
+took the whole `TTasksPlugin` (so the rig mounts them `as never` and mock drift
+only shows in `rig:smoke`), and `TaskBoard` / `TaskDetail` hold logic beyond
+wiring. AR-8 gives each shell a narrow host interface (`src/components/hosts.ts`)
+that the plugin `implements` and the rig mock is asserted against at compile
+time, and routes settings writes through one `plugin.updateSettings(patch)`.
+
+Step 1, `TaskGraph` → `GraphHost` (settings it reads, `updateSettings`, hover
+preview, `openCreateTask`), proved the point: the rig mock was missing
+`graphHiddenProjects`, and deleting a member from the mock now fails `tsc`
+naming it. `TaskGraph` no longer imports the plugin, so it left the shell list.
+
 ## 2026-10-24 — AR-1 closed: three shells, everything else on callbacks
 
 `TaskDetailRelationships` (hover preview → `onHoverPreview`) and `TaskKanban`

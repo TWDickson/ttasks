@@ -1,7 +1,7 @@
 import { type App, Modal } from 'obsidian';
 import type { Readable, Writable } from 'svelte/store';
 import TaskGraph from '../components/TaskGraph.svelte';
-import type TTasksPlugin from '../main';
+import type { GraphHost } from '../components/hosts';
 import type { Task } from '../types';
 import type { TaskGroup } from '../query/types';
 import type { BadgePalette } from '../utils/badgePalette';
@@ -15,7 +15,7 @@ type GraphMode = 'dependency' | 'overview';
  * board instance underneath it.
  */
 export interface GraphExpandProps {
-	plugin: TTasksPlugin;
+	host: GraphHost;
 	groups: Readable<TaskGroup[]>;
 	palette: BadgePalette;
 	activeTaskPath: Writable<string | null>;

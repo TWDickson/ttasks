@@ -14,6 +14,26 @@ import { getFieldOptions, getOptionColor } from './modalFieldHelpers';
 import { taskFields } from '../schema/taskFields';
 import { withCurrentOption } from './chipSelection';
 
+/** Pre-filled context for a new task (graph and "create dependent" flows). */
+export interface CreateTaskOptions {
+	initialDependsOn?: string[];
+	/**
+	 * Existing task paths the new task should block. After creation, each
+	 * gains the new task in its `depends_on` (the mirror of `initialDependsOn`).
+	 * Used by the graph's "add a blocker" affordance.
+	 */
+	initialBlocks?: string[];
+	/** Inherited context for "create dependent/sibling task" flows. */
+	prefill?: {
+		name?: string;
+		parent_task?: string | null;
+		area?: string | null;
+		labels?: string[];
+		priority?: TaskPriority;
+		start_date?: string | null;
+		due_date?: string | null;
+	};
+}
 
 export class CreateTaskModal extends Modal {
 	private plugin: TTasksPlugin;
@@ -51,25 +71,7 @@ export class CreateTaskModal extends Modal {
 		app: App,
 		plugin: TTasksPlugin,
 		defaultType: TaskRecordType = 'task',
-		options?: {
-			initialDependsOn?: string[];
-			/**
-			 * Existing task paths the new task should block. After creation, each
-			 * gains the new task in its `depends_on` (the mirror of `initialDependsOn`).
-			 * Used by the graph's "add a blocker" affordance.
-			 */
-			initialBlocks?: string[];
-			/** Inherited context for "create dependent/sibling task" flows. */
-			prefill?: {
-				name?: string;
-				parent_task?: string | null;
-				area?: string | null;
-				labels?: string[];
-				priority?: TaskPriority;
-				start_date?: string | null;
-				due_date?: string | null;
-			};
-		},
+		options?: CreateTaskOptions,
 	) {
 		super(app);
 		this.plugin = plugin;

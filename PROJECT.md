@@ -502,6 +502,20 @@ critical path except where noted above (AR-3, PB-4).
   each with a render test. Three **shells** keep the plugin by design —
   `TaskBoard`, `TaskDetail`, `TaskGraph` — and `architectureBoundaries.test.ts`
   fails on any other component that imports it.
+- `[~]` **AR-8 🟡 shells take a host interface, and stay thin** — opened
+  2026-10-24 after AR-1. The shells depended on the whole `TTasksPlugin`, so the
+  rig mounted them `as never` and a missing mock member only surfaced in
+  `rig:smoke`; and the two big ones carry logic beyond wiring. Each shell gets a
+  narrow interface in `src/components/hosts.ts` that the plugin `implements` and
+  `test-rig/fixtures.ts` asserts at compile time; settings writes go through one
+  `plugin.updateSettings(patch)`.
+  1. `[x]` **TaskGraph → `GraphHost`** *(2026-10-24)* — no longer imports the
+     plugin (left the shell list); `CreateTaskOptions` named; the rig mock gained
+     the missing `graphHiddenProjects`.
+  2. `[ ]` **TaskBoard → `BoardHost`** — its ~5 `plugin.settings.x = …;
+     saveSettings()` pairs become `updateSettings`; drop the board's `as never`.
+  3. `[ ]` **TaskDetail → `DetailHost`** — and move Pomodoro / archive logic
+     into plain modules beside `taskDetailSaveController`.
 - `[x]` **AR-2 🟡 `TaskGraph.svelte` is a ~2,750-line god component** — *(2026-10-22;
   see HISTORY)* now a 185-line plugin-facing shell over six plugin-free
   components in `src/components/graph/`, plus tested pure helpers (chain trace,

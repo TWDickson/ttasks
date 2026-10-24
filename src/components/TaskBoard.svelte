@@ -350,7 +350,7 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 
 	function openGraphFullscreen(mode: 'dependency' | 'overview') {
 		new GraphExpandModal(plugin.app, {
-			plugin,
+			host: plugin,
 			groups: groupedTasks,
 			palette,
 			activeTaskPath,
@@ -590,7 +590,7 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 					/>
 				{:else if currentRenderer === RENDERER_GRAPH}
 					<TaskGraph
-						{plugin}
+						host={plugin}
 						groups={groupedTasks}
 						defaultGraphMode={currentView.presentation.graphMode}
 						{palette}

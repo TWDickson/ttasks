@@ -11,6 +11,9 @@ import { PomodoroService } from '../src/store/PomodoroService';
 import { DEFAULT_POMODORO_CONFIG } from '../src/integration/pomodoro';
 import type { PomodoroSettings } from '../src/settings/types';
 import { normalizeColorMap } from '../src/settings/defaults';
+import type { GraphHost, GraphSettings } from '../src/components/hosts';
+import type { TaskRecordType } from '../src/types';
+import type { CreateTaskOptions } from '../src/modals/CreateTaskModal';
 import { buildStatusPolicy, type StatusPolicy, type StatusPolicySettings } from '../src/settings/statusPolicy';
 import type { BadgeColorSettings } from '../src/utils/badgePalette';
 import { SHARE_PREAMBLE_PRESETS } from '../src/integration/sharePreamble';
@@ -244,6 +247,7 @@ export function buildFixtureTasks(): Task[] {
 export type RigSettings = Record<string, unknown>
 	& StatusPolicySettings
 	& BadgeColorSettings
+	& GraphSettings
 	& { pomodoro: PomodoroSettings };
 
 export interface RigPlugin {
@@ -266,6 +270,8 @@ export interface RigPlugin {
 	focusedTaskPath: Writable<string | null>;
 	activeViewMode: Writable<string | null>;
 	saveSettings: () => Promise<void>;
+	updateSettings: (patch: Partial<GraphSettings>) => Promise<void>;
+	openCreateTask: (type: TaskRecordType, options?: CreateTaskOptions) => void;
 	/** Mirrors the plugin method the Share/Sync modal uses to seed its preamble. */
 	taskJsonValidValues: () => { statuses: string[]; priorities: string[]; areas: string[]; labels: string[] };
 	openPluginSettings: () => void;
@@ -399,6 +405,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			graphDiagnosticsEnabled: false,
 			overviewGraphShowCompleted: false,
 			overviewGraphGrouping: 'none',
+			graphHiddenProjects: [],
 			pomodoro: {
 				...DEFAULT_POMODORO_CONFIG,
 				autoStartNext: true,
@@ -451,6 +458,11 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		focusedTaskPath,
 		activeViewMode,
 		saveSettings: async () => {},
+		updateSettings: async (patch: Partial<GraphSettings>) => {
+			Object.assign(settings, patch);
+			console.info('[rig] updateSettings', patch);
+		},
+		openCreateTask: (type: TaskRecordType, options?: CreateTaskOptions) => console.info('[rig] openCreateTask', type, options),
 		taskJsonValidValues: () => ({
 			statuses: [...(settings.statuses as string[])],
 			priorities: ['High', 'Medium', 'Low', 'None'],
@@ -465,3 +477,10 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		openCapturedTask: async (task: Task) => console.info('[rig] openCapturedTask', task.name),
 	};
 }
+
+/**
+ * Compile-time: the rig mock must satisfy every host interface (AR-8), so a
+ * component can't read a plugin member the rig doesn't provide. Add each new
+ * host here as it lands.
+ */
+export const rigPluginIsGraphHost = (plugin: RigPlugin): GraphHost => plugin;
