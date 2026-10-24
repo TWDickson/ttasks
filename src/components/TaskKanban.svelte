@@ -4,8 +4,6 @@
 	import type { Task, TaskStatus } from '../types';
 	import type { TaskGroup } from '../query/types';
 	import type { ImpedimentBadge } from '../query/taskImpediment';
-	import type { TaskStore } from '../store/TaskStore';
-	import type TTasksPlugin from '../main';
 	import { priorityColor } from '../constants';
 	import type { BadgePalette } from '../utils/badgePalette';
 	import { labelForGroup } from './viewAdapters';
@@ -16,7 +14,6 @@
 	import { deserializeCollapsed, isColumnCollapsed, serializeCollapsed, toggleColumnCollapse } from './kanbanCollapse';
 	import { icon } from '../utils/icon';
 
-	export let plugin: TTasksPlugin;
 	export let groups: Readable<TaskGroup[]>;
 	/** Resolved dependency-chain schedule, used for the projected-date badge (mirrors TaskRow). */
 	export let schedule: Map<string, ResolvedTaskDate> | undefined = undefined;
@@ -28,7 +25,15 @@
 	export let impedimentBadges: Map<string, ImpedimentBadge> | undefined = undefined;
 	export let kanbanCardFields: KanbanCardField[] = ['area', 'dueDate', 'labels', 'depCount'];
 	export let activeTaskPath: Writable<string | null>;
-	export let store: TaskStore;
+	/** Looks a task up by path, including ones not on the board (completed deps). */
+	export let getTaskByPath: (path: string) => Task | undefined;
+	/** Moves a task to a status column (drag-drop or the mobile select). */
+	export let onSetStatus: (task: Task, status: string) => void;
+	/** Persisted collapsed column ids; read once on mount. */
+	export let collapsedColumnIds: readonly string[] = [];
+	/** Persists the collapsed column ids after a toggle. */
+	export let onCollapsedColumnsChange: (ids: string[]) => Promise<void>;
+	export let onHoverPreview: ((path: string, event: MouseEvent) => void) | undefined = undefined;
 	export let onOpen: (path: string) => void;
 	export let onContextMenu: ((task: Task, event: MouseEvent) => void) | undefined = undefined;
 
@@ -37,12 +42,11 @@
 	let activeColumn: TaskStatus = statuses?.[0] ?? 'Active';
 	let draggingPath: string | null = null;
 	let dragOverCol: TaskStatus | null = null;
-	let collapsedColumns = deserializeCollapsed(plugin.settings.kanbanCollapsedColumns);
+	let collapsedColumns = deserializeCollapsed([...collapsedColumnIds]);
 
 	async function handleToggleCollapse(columnId: string): Promise<void> {
 		collapsedColumns = toggleColumnCollapse(collapsedColumns, columnId);
-		plugin.settings.kanbanCollapsedColumns = serializeCollapsed(collapsedColumns);
-		await plugin.saveSettings();
+		await onCollapsedColumnsChange(serializeCollapsed(collapsedColumns));
 	}
 
 	$: COLUMNS = (() => {
@@ -75,7 +79,7 @@
 	// dependencies not visible on the board still count correctly). Kept
 	// consistent with the Detail panel's "blocked by open" number.
 	function resolveDependencyTask(link: string): { is_complete: boolean } | null {
-		return store.getByPath(link) ?? null;
+		return getTaskByPath(link) ?? null;
 	}
 
 	function onDragStart(e: DragEvent, path: string) {
@@ -107,10 +111,10 @@
 
 	function moveDraggingTaskTo(colId: TaskStatus) {
 		if (!draggingPath) return;
-		const task = store.getByPath(draggingPath);
+		const task = getTaskByPath(draggingPath);
 		draggingPath = null;
 		if (!task || task.status === colId) return;
-		store.setStatus(task, colId);
+		onSetStatus(task, colId);
 	}
 
 	function onCardKeyDown(e: KeyboardEvent, path: string) {
@@ -127,7 +131,7 @@
 	}
 
 	function onCardHover(event: MouseEvent, task: Task): void {
-		plugin.triggerTaskHoverPreview(task.path, event);
+		onHoverPreview?.(task.path, event);
 	}
 
 	function onDragEnd() {
@@ -301,7 +305,7 @@
 										on:change|stopPropagation={(e) => {
 											const target = e.currentTarget;
 											if (target.value !== task.status) {
-												store.setStatus(task, target.value);
+												onSetStatus(task, target.value);
 											}
 										}}
 									>

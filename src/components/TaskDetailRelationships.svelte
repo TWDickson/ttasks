@@ -1,5 +1,4 @@
 <script lang="ts">
-	import type TTasksPlugin from '../main';
 	import type { Task } from '../types';
 	import type { FieldDefinition } from '../schema/types';
 	import { getFieldByName } from '../schema/taskFields';
@@ -20,7 +19,8 @@
 
 	export let task: Task;
 	export let tasks: Task[];
-	export let plugin: TTasksPlugin;
+	/** Obsidian's hover preview for a related task's note. */
+	export let onHoverPreview: ((path: string, event: MouseEvent) => void) | undefined = undefined;
 	export let onAddDependency: (path: string) => Promise<void>;
 	export let onRemoveDependency: (path: string) => Promise<void>;
 	export let onOpenTask: (path: string) => void;
@@ -38,7 +38,7 @@
 	}
 
 	function showRefHoverPreview(event: MouseEvent, ref: TaskRef): void {
-		plugin.triggerTaskHoverPreview(ref.path, event);
+		onHoverPreview?.(ref.path, event);
 	}
 
 	// ── Relationship tree ───────────────────────────────────────────────────────

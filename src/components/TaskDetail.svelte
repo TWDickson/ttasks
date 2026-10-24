@@ -822,7 +822,7 @@
 		<TaskDetailRelationships
 				{task}
 				tasks={$tasks}
-				{plugin}
+				onHoverPreview={(path, event) => plugin.triggerTaskHoverPreview(path, event)}
 				onAddDependency={addDependency}
 				onRemoveDependency={removeDependency}
 				onOpenTask={openTaskFromRelationships}

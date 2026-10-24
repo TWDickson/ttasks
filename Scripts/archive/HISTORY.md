@@ -12,6 +12,21 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-24 — AR-1 closed: three shells, everything else on callbacks
+
+`TaskDetailRelationships` (hover preview → `onHoverPreview`) and `TaskKanban`
+(store lookups and status moves → `getTaskByPath` / `onSetStatus`; the collapsed
+columns setting → `collapsedColumnIds` / `onCollapsedColumnsChange`) finished the
+migration, each with render tests. Seven components moved in all.
+
+**Decision: the three left are shells, not debt.** `TaskBoard` and `TaskDetail`
+are mounted directly by an `ItemView`; `TaskGraph` was made the graph's shell on
+purpose in AR-2. Each exists to turn plugin state into props and callbacks for
+the plugin-free components below it, so splitting them further would only move
+the same plugin reads into a new wrapper. The boundary test now names them as
+the only components allowed to import the plugin or store. Overturnable — if a
+shell grows logic worth testing, extract that logic, not the plugin access.
+
 ## 2026-10-23 — AR-1 continues; component tests could never see onMount
 
 `TaskDetailNotes` and `TaskArchiveView` dropped their plugin/store props for

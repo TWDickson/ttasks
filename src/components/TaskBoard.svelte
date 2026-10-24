@@ -566,7 +566,14 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 					/>
 				{:else if currentRenderer === RENDERER_KANBAN}
 					<TaskKanban
-						{plugin}
+						getTaskByPath={(path) => plugin.taskStore.getByPath(path)}
+						onSetStatus={(task, status) => { void plugin.taskStore.setStatus(task, status); }}
+						collapsedColumnIds={plugin.settings.kanbanCollapsedColumns}
+						onCollapsedColumnsChange={async (ids) => {
+							plugin.settings.kanbanCollapsedColumns = ids;
+							await plugin.saveSettings();
+						}}
+						onHoverPreview={triggerHoverPreview}
 						groups={groupedTasks}
 						{schedule}
 						statuses={configuredStatuses}
@@ -575,7 +582,6 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 						{impedimentBadges}
 						kanbanCardFields={plugin.settings.kanbanCardFields}
 						{activeTaskPath}
-						store={plugin.taskStore}
 						onOpen={(path) => {
 							focusedTaskPath.set(path);
 							plugin.taskStore.openDetail(path);

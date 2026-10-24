@@ -216,10 +216,11 @@ one). **When you change what components read off the plugin, update
 
 **Plugin coupling** — new components must not import `TTasksPlugin` or `TaskStore`
 directly. Pass specific callbacks or service references as props. Components that
-follow this are testable with `@testing-library/svelte`. *(Five legacy
-components predate this rule and violate it — see AR-1 in `PROJECT.md`;
-`architectureBoundaries.test.ts` holds the list and only lets it shrink.
-`TaskGraph` is now only a thin shell; `src/components/graph/` follows the rule.)*
+follow this are testable with `@testing-library/svelte`. *(Three **shells** are
+the exception by design: `TaskBoard` and `TaskDetail`, each mounted by an
+`ItemView`, and `TaskGraph`, the shell over `src/components/graph/`. They turn
+plugin state into props and callbacks; `architectureBoundaries.test.ts` fails
+on any other component that imports the plugin or store — AR-1, closed.)*
 
 **No Obsidian imports in pure modules** — `src/query/`, `src/utils/`, `src/store/`
 helpers, and all `src/integration/` pure modules must stay free of Obsidian

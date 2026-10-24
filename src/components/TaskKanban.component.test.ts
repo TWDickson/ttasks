@@ -55,22 +55,14 @@ function renderKanban(options: {
 	const activeTaskPath: Writable<string | null> = writable(null);
 	const onOpen = vi.fn();
 	const onContextMenu = vi.fn();
-	const saveSettings = vi.fn(async () => {});
-	const update = vi.fn();
+	const onHoverPreview = vi.fn();
+	const onCollapsedColumnsChange = vi.fn(async (_ids: string[]) => {});
 	const setStatus = vi.fn();
 	// Dependencies resolve to open tasks by default so the badge shows an open count.
 	const getByPath = vi.fn((path: string) => ({ path, is_complete: false }));
-	const plugin = {
-		settings: {
-			kanbanCollapsedColumns: options.collapsedColumns ?? [],
-		},
-		saveSettings,
-		triggerTaskHoverPreview: vi.fn(),
-	} as any;
 
 	render(TaskKanban, {
 		props: {
-			plugin,
 			groups,
 			schedule: options.schedule,
 			statuses: ['Active', 'Blocked'],
@@ -78,13 +70,17 @@ function renderKanban(options: {
 			blockStatus: 'Blocked',
 			kanbanCardFields: options.kanbanCardFields ?? ['area', 'dueDate', 'labels', 'depCount'],
 			activeTaskPath,
-			store: { update, setStatus, getByPath } as any,
+			getTaskByPath: getByPath as any,
+			onSetStatus: setStatus,
+			collapsedColumnIds: options.collapsedColumns ?? [],
+			onCollapsedColumnsChange,
+			onHoverPreview,
 			onOpen,
 			onContextMenu,
 		},
 	});
 
-	return { onOpen, onContextMenu, saveSettings, update, setStatus, getByPath };
+	return { onOpen, onContextMenu, onCollapsedColumnsChange, setStatus, getByPath, onHoverPreview };
 }
 
 describe('TaskKanban.svelte', () => {
@@ -145,10 +141,16 @@ describe('TaskKanban.svelte', () => {
 		expect(screen.getByRole('button', { name: /^Expand/ })).toBeInTheDocument();
 	});
 
-	it('calls saveSettings when toggling collapse', async () => {
-		const { saveSettings } = renderKanban({ collapsedColumns: [] });
+	it('persists the collapsed column ids when toggling collapse', async () => {
+		const { onCollapsedColumnsChange } = renderKanban({ collapsedColumns: [] });
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Collapse' })[0]);
-		expect(saveSettings).toHaveBeenCalledTimes(1);
+		expect(onCollapsedColumnsChange).toHaveBeenCalledWith(['Active']);
+	});
+
+	it('asks for a hover preview of the card note', async () => {
+		const { onHoverPreview } = renderKanban();
+		await fireEvent.mouseEnter(screen.getByRole('button', { name: /test task/i }));
+		expect(onHoverPreview).toHaveBeenCalledWith('Planner/Tasks/abc123-test-task.md', expect.any(MouseEvent));
 	});
 
 	it('calls onOpen when card is clicked', async () => {
@@ -157,7 +159,7 @@ describe('TaskKanban.svelte', () => {
 		expect(onOpen).toHaveBeenCalledWith('Planner/Tasks/abc123-test-task.md');
 	});
 
-	it('calls store.setStatus when status select changes', async () => {
+	it('calls onSetStatus when status select changes', async () => {
 		const { setStatus } = renderKanban();
 		await fireEvent.change(screen.getByDisplayValue('Active'), { target: { value: 'Blocked' } });
 		expect(setStatus).toHaveBeenCalledWith(
