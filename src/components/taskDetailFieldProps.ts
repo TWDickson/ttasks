@@ -1,6 +1,6 @@
 import { adaptFieldForDetail, type FieldComponentProps } from '../schema/fieldAdapters';
 import { getFieldByName } from '../schema/taskFields';
-import type { TTasksSettings } from '../settings/types';
+import type { TaskSettings } from '../schema/types';
 import type { Task, TaskPriority, TaskStatus } from '../types';
 import type { RepeatRule } from '../repeat/types';
 
@@ -23,7 +23,7 @@ export interface TaskDetailEditableValues {
 export interface TaskDetailFieldPropsInput {
 	task: Task | null;
 	allTasks: Task[];
-	settings: TTasksSettings;
+	settings: TaskSettings;
 	values: TaskDetailEditableValues;
 	blockStatus: string;
 }

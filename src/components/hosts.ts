@@ -1,3 +1,4 @@
+import type { Component } from 'obsidian';
 import type { Readable, Writable } from 'svelte/store';
 import type { TTasksSettings } from '../settings/types';
 import type { StatusPolicy } from '../settings/statusPolicy';
@@ -8,6 +9,7 @@ import type { ConfirmModalOptions } from '../modals/confirmModal';
 import type { GraphExpandProps } from '../modals/GraphExpandModal';
 import type { TaskStore } from '../store/TaskStore';
 import type { ArchiveService } from '../store/ArchiveService';
+import type { PomodoroService } from '../store/PomodoroService';
 
 /**
  * Host interfaces (AR-8): what each plugin-facing component may ask of the
@@ -80,4 +82,33 @@ export interface BoardHost extends GraphHost {
 	confirm(options: ConfirmModalOptions): Promise<boolean>;
 	openGraphFullscreen(props: Omit<GraphExpandProps, 'host'>): void;
 	editSmartList(viewId: string): void;
+}
+
+/** The settings the detail pane reads (field options, colours, calendar). */
+export type DetailSettings = Pick<TTasksSettings,
+	| 'statuses'
+	| 'statusColors'
+	| 'areas'
+	| 'areaColors'
+	| 'labelValues'
+	| 'labelColors'
+	| 'holidays'
+	| 'areaWorkweek'
+>;
+
+/** The detail pane (TaskDetail). */
+export interface DetailHost {
+	readonly settings: Readonly<DetailSettings>;
+	readonly statusPolicy: StatusPolicy;
+	readonly taskStore: Pick<TaskStore,
+		| 'getByPath' | 'update' | 'setStatus' | 'completeAndRecur' | 'delete'
+		| 'updateParentTask' | 'addDependency' | 'removeDependency' | 'updateNotes' | 'openFile'>;
+	readonly archiveService: Pick<ArchiveService, 'archiveTask'>;
+	readonly pomodoroService: Pick<PomodoroService, 'session' | 'start' | 'toggle' | 'skip' | 'stop'>;
+	confirm(options: ConfirmModalOptions): Promise<boolean>;
+	triggerTaskHoverPreview(path: string, event: MouseEvent): void;
+	/** Obsidian's MarkdownRenderer, bound to the app. */
+	renderMarkdown(markdown: string, el: HTMLElement, sourcePath: string, component: Component): Promise<void>;
+	/** Opens the "focus until…" picker for a task. */
+	openFocusUntil(taskPath: string, taskName: string): void;
 }

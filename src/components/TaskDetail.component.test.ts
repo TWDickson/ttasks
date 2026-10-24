@@ -80,6 +80,9 @@ function renderDetail(options: {
 			stop: vi.fn(),
 		},
 		triggerTaskHoverPreview: vi.fn(),
+		confirm: vi.fn(async () => true),
+		renderMarkdown: vi.fn(async () => {}),
+		openFocusUntil: vi.fn(),
 	} as any;
 	const store = {
 		update: vi.fn(async () => {}),
@@ -96,10 +99,9 @@ function renderDetail(options: {
 
 	render(TaskDetail, {
 		props: {
-			plugin,
+			host: { ...plugin, taskStore: store },
 			tasks,
 			activeTaskPath,
-			store,
 		},
 	});
 

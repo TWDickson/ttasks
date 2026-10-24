@@ -58,10 +58,9 @@ export class TaskDetailView extends ItemView {
 		this.component = new TaskDetail({
 			target: this.contentEl,
 			props: {
-				plugin: this.plugin,
+				host: this.plugin,
 				tasks: combineBoardTasks(this.plugin.taskStore.tasks, this.plugin.scanEngine.tasks),
 				activeTaskPath: this.plugin.boardState.activeTaskPath,
-				store: this.plugin.taskStore,
 			},
 		});
 	}

@@ -12,6 +12,28 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-24 — AR-8 closed: no component imports the plugin
+
+Steps 2 and 3 followed `GraphHost`. `BoardHost` (extends it) covers the board's
+settings, stores, narrow `taskStore` / `archiveService` slices, and the four
+actions that used to need `app` or the whole plugin — `confirm`,
+`openGraphFullscreen`, `editSmartList`, `promoteCapturedTask` — now host methods.
+`DetailHost` does the same for the detail pane (`renderMarkdown`,
+`openFocusUntil`, Pomodoro/archive slices) and absorbed its separate `store`
+prop. Settings writes all go through `plugin.updateSettings(patch)`.
+
+**Typing the rig mock was the payoff.** Each host check surfaced drift the
+`as never` casts had hidden: `graphHiddenProjects` and `settingsRevision` were
+missing (the board carried a `?? writable(0)` to cope), and `getByPath`,
+`archiveTask`, `setStatus`, `openDetail` and `openFile` returned the wrong
+types. All fixed; the component mounts in `test-rig/main.ts` have no casts.
+
+Thin-shell clean-up rode along: the detail pane's Pomodoro session logic is
+`taskDetailPomodoro.ts` (tested), and `taskDetailOptions` / `taskDetailFieldProps`
+take the schema's `TaskSettings` instead of all of `TTasksSettings`. With no
+shell left importing the plugin, the boundary test is now a flat rule. Left for
+AR-9: three modals still take the whole plugin.
+
 ## 2026-10-24 — AR-8 opens: shells talk to a host interface
 
 Asked whether three plugin-facing shells was right, the answer was yes — a thin

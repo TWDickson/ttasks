@@ -11,7 +11,8 @@ import { PomodoroService } from '../src/store/PomodoroService';
 import { DEFAULT_POMODORO_CONFIG } from '../src/integration/pomodoro';
 import type { PomodoroSettings } from '../src/settings/types';
 import { normalizeColorMap } from '../src/settings/defaults';
-import type { BoardHost, BoardSettings, GraphSettings } from '../src/components/hosts';
+import type { BoardHost, BoardSettings, DetailHost, DetailSettings, GraphSettings } from '../src/components/hosts';
+import { MarkdownRenderer } from './obsidian-shim';
 import type { TaskRecordType } from '../src/types';
 import type { CreateTaskOptions } from '../src/modals/CreateTaskModal';
 import { buildStatusPolicy, type StatusPolicy, type StatusPolicySettings } from '../src/settings/statusPolicy';
@@ -248,6 +249,7 @@ export type RigSettings = Record<string, unknown>
 	& StatusPolicySettings
 	& BadgeColorSettings
 	& BoardSettings
+	& DetailSettings
 	& { pomodoro: PomodoroSettings };
 
 export interface RigPlugin {
@@ -258,7 +260,7 @@ export interface RigPlugin {
 	statusPolicy: StatusPolicy;
 	deviceStore: DeviceStore;
 	/** Typed against BoardHost so a signature drift is a compile error; extra members serve TaskDetail. */
-	taskStore: BoardHost['taskStore'] & Record<string, unknown>;
+	taskStore: BoardHost['taskStore'] & DetailHost['taskStore'] & Record<string, unknown>;
 	/** Captured (non-TTasks) tasks. Empty in the rig, but must match the real type. */
 	scanEngine: { tasks: Writable<ExternalTask[]> };
 	archiveService: BoardHost['archiveService'];
@@ -272,6 +274,8 @@ export interface RigPlugin {
 	confirm: BoardHost['confirm'];
 	openGraphFullscreen: BoardHost['openGraphFullscreen'];
 	editSmartList: BoardHost['editSmartList'];
+	renderMarkdown: DetailHost['renderMarkdown'];
+	openFocusUntil: DetailHost['openFocusUntil'];
 	updateSettings: (patch: Partial<GraphSettings>) => Promise<void>;
 	openCreateTask: (type: TaskRecordType, options?: CreateTaskOptions) => void;
 	/** Mirrors the plugin method the Share/Sync modal uses to seed its preamble. */
@@ -321,7 +325,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		tasks,
 		getByPath: (path: string) => findByPath(path) ?? undefined,
 		openDetail: async (path: string) => activeTaskPath.set(path),
-		openFile: (path: string) => console.info('[rig] openFile', path),
+		openFile: async (path: string) => console.info('[rig] openFile', path),
 		restore: async (path: string) => patchTask(path, { status: 'Active', completed: null }),
 		update: async (path: string, updates: Partial<Task>) => patchTask(path, updates),
 		updateNotes: async (path: string, notes: string) => { patchTask(path, { notes }); return notes; },
@@ -473,6 +477,8 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		},
 		openGraphFullscreen: () => console.info('[rig] openGraphFullscreen'),
 		editSmartList: (viewId: string) => console.info('[rig] editSmartList', viewId),
+		renderMarkdown: (markdown, el, sourcePath, component) => MarkdownRenderer.render({}, markdown, el, sourcePath, component),
+		openFocusUntil: (taskPath: string, taskName: string) => console.info('[rig] openFocusUntil', taskPath, taskName),
 		updateSettings: async (patch: Partial<GraphSettings>) => {
 			Object.assign(settings, patch);
 			console.info('[rig] updateSettings', patch);
@@ -499,3 +505,4 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
  * host here as it lands.
  */
 export const rigPluginIsBoardHost = (plugin: RigPlugin): BoardHost => plugin;
+export const rigPluginIsDetailHost = (plugin: RigPlugin): DetailHost => plugin;

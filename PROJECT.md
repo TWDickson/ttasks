@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.2.3` published 2026-10-23 (link-alias refresh on rename, form-control labels). Rows below name the first version carrying each change. Not on the community list — deliberate |
-| Tests | **2016 passing, 160 files** (`npm run check` = lint → build → test) |
+| Tests | **2018 passing, 161 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -502,24 +502,18 @@ critical path except where noted above (AR-3, PB-4).
   each with a render test. Three **shells** keep the plugin by design —
   `TaskBoard`, `TaskDetail`, `TaskGraph` — and `architectureBoundaries.test.ts`
   fails on any other component that imports it.
-- `[~]` **AR-8 🟡 shells take a host interface, and stay thin** — opened
-  2026-10-24 after AR-1. The shells depended on the whole `TTasksPlugin`, so the
-  rig mounted them `as never` and a missing mock member only surfaced in
-  `rig:smoke`; and the two big ones carry logic beyond wiring. Each shell gets a
-  narrow interface in `src/components/hosts.ts` that the plugin `implements` and
-  `test-rig/fixtures.ts` asserts at compile time; settings writes go through one
-  `plugin.updateSettings(patch)`.
-  1. `[x]` **TaskGraph → `GraphHost`** *(2026-10-24)* — no longer imports the
-     plugin (left the shell list); `CreateTaskOptions` named; the rig mock gained
-     the missing `graphHiddenProjects`.
-  2. `[x]` **TaskBoard → `BoardHost`** *(2026-10-24)* — five settings writes now
-     `updateSettings`; `confirm` / `openGraphFullscreen` / `editSmartList` /
-     `promoteCapturedTask` became host methods, so the board needs no `app`. The
-     rig mounts it without `as never`; typing the mock surfaced three drifts
-     (no `settingsRevision` — the board had a `?? writable(0)` covering it —
-     `getByPath` returning `null`, `archiveTask` returning `void`).
-  3. `[ ]` **TaskDetail → `DetailHost`** — and move Pomodoro / archive logic
-     into plain modules beside `taskDetailSaveController`.
+- `[x]` **AR-8 🟡 components take a host interface, not the plugin** —
+  *(2026-10-24; see HISTORY)* `GraphHost` → `BoardHost` → `DetailHost` in
+  `src/components/hosts.ts`; the plugin `implements` all three and the rig mock
+  is asserted against each at compile time. No component imports the plugin or
+  the store now (the boundary test is a flat rule). Settings writes go through
+  `updateSettings(patch)`; anything needing `app` is a host method. Typing the
+  mock fixed six drifts. `TaskDetail`'s Pomodoro logic moved to
+  `taskDetailPomodoro.ts`; the detail helpers take the schema's `TaskSettings`.
+- `[ ]` **AR-9 🟢 modals take the whole plugin** — `CreateTaskModal`,
+  `FocusUntilModal`, `ShareSyncModal` still take `TTasksPlugin`, so the rig opens
+  them `as never` (the last casts in `test-rig/main.ts`). Same treatment as AR-8
+  when one is next touched.
 - `[x]` **AR-2 🟡 `TaskGraph.svelte` is a ~2,750-line god component** — *(2026-10-22;
   see HISTORY)* now a 185-line plugin-facing shell over six plugin-free
   components in `src/components/graph/`, plus tested pure helpers (chain trace,

@@ -1,6 +1,6 @@
 import { createDeviceStore, type DeviceStore } from './utils/deviceStore';
 import { repeatFromContract } from './integration/repeatContract';
-import { Menu, Notice, Platform, Plugin, setIcon, setTooltip, TFile } from 'obsidian';
+import { MarkdownRenderer, Menu, Notice, Platform, Plugin, setIcon, setTooltip, TFile, type Component } from 'obsidian';
 import { get, writable, type Writable } from 'svelte/store';
 import {
 	type QuickActionId,
@@ -25,7 +25,7 @@ import { createBoardStateService, type BoardStateStores } from './store/BoardSta
 import { resolveTaskViewId } from './views/viewRegistry';
 import { repairPluginLeaves } from './views/leafHygiene';
 import { CreateTaskModal, type CreateTaskOptions } from './modals/CreateTaskModal';
-import type { BoardHost } from './components/hosts';
+import type { BoardHost, DetailHost } from './components/hosts';
 import { confirmModal, type ConfirmModalOptions } from './modals/confirmModal';
 import { GraphExpandModal, type GraphExpandProps } from './modals/GraphExpandModal';
 import { editSmartList } from './views/smartListActions';
@@ -71,7 +71,7 @@ import type { SettingsHost } from './types/settingsHost';
 
 export type BoardViewMode = string;
 
-export default class TTasksPlugin extends Plugin implements BoardHost {
+export default class TTasksPlugin extends Plugin implements BoardHost, DetailHost {
 	// `declare`: narrows the base Plugin's `settings?: unknown` (Obsidian 1.13 typings) without emitting a field.
 	declare settings: TTasksSettings;
 	taskStore!: TaskStore;
@@ -972,6 +972,14 @@ export default class TTasksPlugin extends Plugin implements BoardHost {
 
 	editSmartList(viewId: string): void {
 		editSmartList(this, viewId);
+	}
+
+	renderMarkdown(markdown: string, el: HTMLElement, sourcePath: string, component: Component): Promise<void> {
+		return MarkdownRenderer.render(this.app, markdown, el, sourcePath, component);
+	}
+
+	openFocusUntil(taskPath: string, taskName: string): void {
+		new FocusUntilModal(this.app, this, taskPath, taskName).open();
 	}
 
 	async saveSettings() {

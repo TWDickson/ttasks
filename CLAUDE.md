@@ -199,12 +199,12 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
 
 ### Keeping the rig honest
 
-`test-rig/` is in the type-check (`tsconfig.json` includes it), so `RigPlugin`
-and the fixtures can't drift from the plugin's own types. But **the type-check
-cannot tell you the rig still works**: every mount site casts `plugin as never`,
-because the mock can't structurally implement `TTasksPlugin`. Add a member to the
-plugin surface that a component reads, forget the mock, and `src` + `tsc` + all
-tests stay green while the rig renders a blank page.
+`test-rig/` is in the type-check (`tsconfig.json` includes it), and since AR-8
+the components mount with **no cast**: `RigPlugin` is asserted against every
+host interface, so a component reading a member the mock lacks fails `tsc`.
+**The modals are the gap** (AR-9): `CreateTaskModal`, `FocusUntilModal` and
+`ShareSyncModal` still take `TTasksPlugin` and are opened `plugin as never`, so
+for those a forgotten mock member stays green until the rig renders blank.
 
 `npm run rig:smoke` is what closes that — it boots all 11 scenes (six views, the detail pane, and four overlays) headless and fails
 on an uncaught exception or a view that never signals `data-rig-ready`. It runs
@@ -214,15 +214,15 @@ one). **When you change what components read off the plugin, update
 
 ## Architecture rules
 
-**Plugin coupling** — new components must not import `TTasksPlugin` or `TaskStore`
-directly. Pass specific callbacks or service references as props. Components that
-follow this are testable with `@testing-library/svelte`. *(`TaskDetail` is the
-last component still importing the plugin — AR-8 step 3;
-`architectureBoundaries.test.ts` fails on any other.)*
+**Plugin coupling** — no component imports `TTasksPlugin` or `TaskStore`
+(`architectureBoundaries.test.ts` enforces it). Pass specific callbacks or
+service references as props, which keeps components testable with
+`@testing-library/svelte`.
 
 **Host interfaces** (AR-8) — a component that needs plugin services takes a
-narrow interface from `src/components/hosts.ts` (`GraphHost`, `BoardHost`),
-not `TTasksPlugin`. Anything needing `app` (a modal, a confirm) is a host
+narrow interface from `src/components/hosts.ts` (`GraphHost`, `BoardHost`,
+`DetailHost`), not `TTasksPlugin`. A new member a component needs goes on its
+host interface first. Anything needing `app` (a modal, a confirm) is a host
 method, not an `app` the component reaches through. The plugin `implements` it, and
 `test-rig/fixtures.ts` asserts the rig mock satisfies it, so mock drift is a
 type error rather than a blank rig scene. Settings writes go through

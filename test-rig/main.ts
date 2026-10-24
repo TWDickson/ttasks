@@ -239,10 +239,9 @@ new TaskBoard({
 new TaskDetail({
 	target: detailPane,
 	props: {
-		plugin: plugin as never,
+		host: plugin,
 		tasks: combineBoardTasks(plugin.taskStore.tasks, plugin.scanEngine.tasks),
 		activeTaskPath: plugin.activeTaskPath,
-		store: plugin.taskStore as never,
 	},
 });
 

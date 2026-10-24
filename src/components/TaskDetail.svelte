@@ -1,10 +1,9 @@
 ﻿<script lang="ts">
-	import { MarkdownRenderer, Notice, type Component } from 'obsidian';
+	import { Notice } from 'obsidian';
 	import { onDestroy } from 'svelte';
 	import type { Readable, Writable } from 'svelte/store';
-	import type TTasksPlugin from '../main';
+	import type { DetailHost } from './hosts';
 	import type { Task, TaskStatus, TaskPriority } from '../types';
-	import type { TaskStore } from '../store/TaskStore';
 	import { REPEAT_BASES, REPEAT_BASIS_LABELS, basisName, type RepeatBasisName } from '../repeat/presets';
 	import { repeatCalendarFromHolidays, type RepeatRule } from '../repeat/types';
 	import { CUSTOM_REPEAT, previewOccurrences, repeatMenuOptions, repeatMenuValue, ruleForBasisChoice, ruleForMenuChoice } from './taskDetailRepeat';
@@ -20,10 +19,9 @@
 	import { collectDescendantPaths } from '../store/taskHierarchy';
 	import { deriveTaskDetailOptionState } from './taskDetailOptions';
 	import { createTaskDetailSaveController, normalizeDateValue } from './taskDetailSaveController';
-	import { confirmModal } from '../modals/confirmModal';
-	import { FocusUntilModal } from '../modals/FocusUntilModal';
 	import { runArchiveFlow, runDeleteFlow, runMarkCompleteFlow } from './taskDetailActions';
 	import { formatRemaining } from '../integration/pomodoro';
+	import { pomodoroPhaseLabel, sessionForTask } from './taskDetailPomodoro';
 	import TextField from './fields/TextField.svelte';
 	import SelectField from './fields/SelectField.svelte';
 	import DateField from './fields/DateField.svelte';
@@ -36,10 +34,12 @@
 	import TaskDetailActions from './TaskDetailActions.svelte';
 	import { icon } from '../utils/icon';
 
-	export let plugin: TTasksPlugin;
+	/** Everything the detail pane may ask of the plugin (AR-8). */
+	export let host: DetailHost;
 	export let tasks: Readable<Task[]>;
 	export let activeTaskPath: Writable<string | null>;
-	export let store: TaskStore;
+
+	const store = host.taskStore;
 
 	// ── Derived task ────────────────────────────────────────────────────────────
 	// Depend on $tasks so the derivation re-runs when the store parses a
@@ -50,19 +50,17 @@
 		: null;
 
 	// ── Pomodoro (native focus timer) ───────────────────────────────────────────
-	// TaskDetail already receives `plugin`, so we read the shared session store
-	// directly (same pattern as the rest of this component). The control shows a
-	// live timer only when *this* task owns the running session.
-	const pomodoroSession = plugin.pomodoroService.session;
-	$: activePomodoro = $pomodoroSession && task && $pomodoroSession.taskPath === task.path ? $pomodoroSession : null;
-	$: pomodoroPhase = activePomodoro
-		? (activePomodoro.mode === 'focus' ? 'Focus' : activePomodoro.mode === 'short-break' ? 'Short break' : 'Long break')
-		: '';
-	function startPomodoro() { if (task) plugin.pomodoroService.start(task.path, task.name); }
-	function focusUntil() { if (task) new FocusUntilModal(plugin.app, plugin, task.path, task.name).open(); }
-	function togglePomodoro() { plugin.pomodoroService.toggle(); }
-	function skipPomodoro() { plugin.pomodoroService.skip(); }
-	function stopPomodoro() { plugin.pomodoroService.stop(); }
+	// The control shows a live timer only when *this* task owns the running
+	// session — see taskDetailPomodoro.
+	const pomodoro = host.pomodoroService;
+	const pomodoroSession = pomodoro.session;
+	$: activePomodoro = sessionForTask($pomodoroSession, task?.path ?? null);
+	$: pomodoroPhase = pomodoroPhaseLabel(activePomodoro);
+	function startPomodoro() { if (task) pomodoro.start(task.path, task.name); }
+	function focusUntil() { if (task) host.openFocusUntil(task.path, task.name); }
+	function togglePomodoro() { pomodoro.toggle(); }
+	function skipPomodoro() { pomodoro.skip(); }
+	function stopPomodoro() { pomodoro.stop(); }
 
 	// ── Local editable state (mirrors task, reset when task changes) ─────────
 	let name = '';
@@ -144,7 +142,7 @@
 
 	// ── Field handlers ──────────────────────────────────────────────────────────
 	function getCompletionStatus(): TaskStatus {
-		return plugin.statusPolicy.completion;
+		return host.statusPolicy.completion;
 	}
 
 	async function markComplete() {
@@ -166,7 +164,7 @@
 		if (!task) return;
 		await runDeleteFlow({
 			task,
-			confirmDelete: (taskName) => confirmModal(plugin.app, {
+			confirmDelete: (taskName) => host.confirm({
 				title: 'Delete task',
 				body: `Are you sure you want to delete "${taskName}"? This cannot be undone.`,
 				ctaLabel: 'Delete',
@@ -373,7 +371,7 @@
 
 	$: {
 		const detailOptions = deriveTaskDetailOptionState({
-			settings: plugin.settings,
+			settings: host.settings,
 			status: status || null,
 			area: area || null,
 			selectedLabel: selectedLabels[0] ?? null,
@@ -393,7 +391,7 @@
 		const detailFieldProps = deriveTaskDetailFieldProps({
 			task,
 			allTasks: $tasks,
-			settings: plugin.settings,
+			settings: host.settings,
 			blockStatus,
 			values: {
 				name,
@@ -428,19 +426,19 @@
 		blockedReasonFieldProps = detailFieldProps.blockedReasonFieldProps;
 	}
 
-	$: detailHolidayCalendar = splitHolidayCalendar(plugin.settings.holidays);
+	$: detailHolidayCalendar = splitHolidayCalendar(host.settings.holidays);
 	$: projectedSchedule = task
 		? resolveProjectedSchedule(task, buildTaskSchedule($tasks, {
 			calendarConfig: {
 				holidays: detailHolidayCalendar.holidays,
 				recurringHolidays: detailHolidayCalendar.recurringHolidays,
-				areaWorkweek: plugin.settings.areaWorkweek,
+				areaWorkweek: host.settings.areaWorkweek,
 			},
 		}).get(task.path))
 		: null;
 
 	$: completionStatus = getCompletionStatus();
-	$: blockStatus = plugin.statusPolicy.block;
+	$: blockStatus = host.statusPolicy.block;
 	$: showBlockedReason = isBlockedStatus(status, blockStatus);
 	// A project can itself sit under a project, so the picker has to exclude more
 	// than just self: anything already beneath this one would close a parent loop.
@@ -473,7 +471,7 @@
 		if (!task) return;
 		await runArchiveFlow({
 			task,
-			archiveTask: (taskPath) => plugin.archiveService.archiveTask(taskPath),
+			archiveTask: (taskPath) => host.archiveService.archiveTask(taskPath),
 			setActiveTaskPath: (nextPath) => activeTaskPath.set(nextPath),
 		});
 	}
@@ -494,11 +492,6 @@
 		});
 	}
 
-
-	// Handed to TaskDetailNotes so it needs no plugin reference (AR-1).
-	function renderMarkdown(markdown: string, el: HTMLElement, sourcePath: string, component: Component): Promise<void> {
-		return MarkdownRenderer.render(plugin.app, markdown, el, sourcePath, component);
-	}
 </script>
 
 {#if !task}
@@ -822,7 +815,7 @@
 		<TaskDetailRelationships
 				{task}
 				tasks={$tasks}
-				onHoverPreview={(path, event) => plugin.triggerTaskHoverPreview(path, event)}
+				onHoverPreview={(path, event) => host.triggerTaskHoverPreview(path, event)}
 				onAddDependency={addDependency}
 				onRemoveDependency={removeDependency}
 				onOpenTask={openTaskFromRelationships}
@@ -831,7 +824,7 @@
 
 		<TaskDetailNotes
 			{task}
-			{renderMarkdown}
+			renderMarkdown={(markdown, el, sourcePath, component) => host.renderMarkdown(markdown, el, sourcePath, component)}
 			onSaveNotes={(path, notes) => store.updateNotes(path, notes)}
 		/>
 

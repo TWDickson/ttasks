@@ -108,20 +108,17 @@ describe('architecture boundaries', () => {
 		expect(offenders, 'read leaf.getViewState() instead — see src/views/openFileLeaves.ts').toEqual([]);
 	});
 
-	// AR-1 / AR-8: no component imports the plugin or the store. The shells
-	// (TaskBoard, TaskGraph) read the plugin through a host interface in
-	// src/components/hosts.ts; TaskDetail is the last one still to move.
-	it('only the not-yet-migrated shells import the plugin or the store', () => {
-		const legacy = new Set([
-			'TaskDetail.svelte',
-		]);
+	// AR-1 / AR-8: no component imports the plugin or the store. Components take
+	// props and callbacks; the ones that need plugin services (TaskBoard,
+	// TaskDetail, TaskGraph) take a host interface from src/components/hosts.ts,
+	// which the plugin implements and the rig mock is checked against.
+	it('no component imports the plugin or the store', () => {
 		const dir = 'src/components';
 		const coupled = readdirSync(resolve(process.cwd(), dir))
 			.filter((name) => name.endsWith('.svelte'))
 			.filter((name) => /from '\.\.\/main'|from '\.\.\/store\/TaskStore'/.test(readWorkspaceFile(join(dir, name))));
 
-		expect(coupled.filter((name) => !legacy.has(name)), 'pass callbacks as props instead (CLAUDE.md coupling rule)').toEqual([]);
-		expect([...legacy].filter((name) => !coupled.includes(name)), 'no longer coupled — remove it from the shell list').toEqual([]);
+		expect(coupled, 'take a host interface (src/components/hosts.ts) or callbacks instead').toEqual([]);
 	});
 
 	// AR-2 split TaskGraph into a plugin-facing shell and these children, which
