@@ -510,10 +510,9 @@ critical path except where noted above (AR-3, PB-4).
   `updateSettings(patch)`; anything needing `app` is a host method. Typing the
   mock fixed six drifts. `TaskDetail`'s Pomodoro logic moved to
   `taskDetailPomodoro.ts`; the detail helpers take the schema's `TaskSettings`.
-- `[ ]` **AR-9 🟢 modals take the whole plugin** — `CreateTaskModal`,
-  `FocusUntilModal`, `ShareSyncModal` still take `TTasksPlugin`, so the rig opens
-  them `as never` (the last casts in `test-rig/main.ts`). Same treatment as AR-8
-  when one is next touched.
+- `[x]` **AR-9 🟢 modals take the whole plugin** — *(2026-10-24; see HISTORY)*
+  `CreateTaskModal` / `FocusUntilModal` / `ShareSyncModal` take narrow hosts;
+  the rig opens them with no plugin cast, and no modal may import the plugin.
 - `[x]` **AR-2 🟡 `TaskGraph.svelte` is a ~2,750-line god component** — *(2026-10-22;
   see HISTORY)* now a 185-line plugin-facing shell over six plugin-free
   components in `src/components/graph/`, plus tested pure helpers (chain trace,

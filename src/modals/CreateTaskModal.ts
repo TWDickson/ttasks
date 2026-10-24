@@ -1,7 +1,7 @@
 import { DEVICE_KEYS } from '../utils/deviceStore';
 import { App, Component, MarkdownRenderer, Modal, Notice, setIcon } from 'obsidian';
 import { get } from 'svelte/store';
-import type TTasksPlugin from '../main';
+import type { CreateTaskHost } from '../components/hosts';
 import type { TaskPriority, TaskRecordType, TaskStatus } from '../types';
 import { REPEAT_BASES, REPEAT_BASIS_LABELS, REPEAT_PRESETS, REPEAT_PRESET_LABELS, isRepeatPreset, ruleFromPreset, type RepeatBasisName } from '../repeat/presets';
 import { priorityColor } from '../constants';
@@ -36,7 +36,7 @@ export interface CreateTaskOptions {
 }
 
 export class CreateTaskModal extends Modal {
-	private plugin: TTasksPlugin;
+	private host: CreateTaskHost;
 
 	// Schema-driven form state
 	private formValues: Record<string, any> = {
@@ -69,14 +69,14 @@ export class CreateTaskModal extends Modal {
 
 	constructor(
 		app: App,
-		plugin: TTasksPlugin,
+		host: CreateTaskHost,
 		defaultType: TaskRecordType = 'task',
 		options?: CreateTaskOptions,
 	) {
 		super(app);
-		this.plugin = plugin;
+		this.host = host;
 		this.formValues.type = defaultType;
-		this.formValues.status = this.plugin.statusPolicy.initial;
+		this.formValues.status = this.host.statusPolicy.initial;
 		if (options?.initialDependsOn?.length) {
 			this.formValues.depends_on = options.initialDependsOn.map(p => p.replace(/\.md$/, ''));
 		}
@@ -99,13 +99,13 @@ export class CreateTaskModal extends Modal {
 
 	private get areas(): string[] {
 		const areaDefinition = taskFields.find(f => f.name === 'area');
-		const areaOptions = areaDefinition ? getFieldOptions(areaDefinition, this.plugin.settings) : [];
+		const areaOptions = areaDefinition ? getFieldOptions(areaDefinition, this.host.settings) : [];
 		return areaOptions;
 	}
 
 	private get statuses(): TaskStatus[] {
 		const statusDefinition = taskFields.find(f => f.name === 'status');
-		const statusOptions = statusDefinition ? getFieldOptions(statusDefinition, this.plugin.settings) : ['Active'];
+		const statusOptions = statusDefinition ? getFieldOptions(statusDefinition, this.host.settings) : ['Active'];
 		return (statusOptions.length > 0 ? statusOptions : ['Active']) as TaskStatus[];
 	}
 
@@ -117,7 +117,7 @@ export class CreateTaskModal extends Modal {
 	private cachedPalette: BadgePalette | null = null;
 
 	private get palette(): BadgePalette {
-		this.cachedPalette ??= buildBadgePalette(this.plugin.settings);
+		this.cachedPalette ??= buildBadgePalette(this.host.settings);
 		return this.cachedPalette;
 	}
 
@@ -125,7 +125,7 @@ export class CreateTaskModal extends Modal {
 		const { contentEl } = this;
 		const isMobile = window.matchMedia('(max-width: 768px)').matches;
 		let quickCreateMode = this.getInitialQuickCreateMode(isMobile);
-		const allTasks = get(this.plugin.taskStore.tasks);
+		const allTasks = get(this.host.taskStore.tasks);
 		contentEl.addClass('tt-modal');
 		this.modalEl.addClass('tt-create-modal');
 		this.notesRenderComponent = new Component();
@@ -266,7 +266,7 @@ export class CreateTaskModal extends Modal {
 		const priorityField = this.field(basicsSection, 'Priority');
 		const priorityChips = priorityField.createDiv('tt-modal-chips');
 		const priorityDefinition = taskFields.find(f => f.name === 'priority')!;
-		const schemaPriorityOptions = getFieldOptions(priorityDefinition, this.plugin.settings);
+		const schemaPriorityOptions = getFieldOptions(priorityDefinition, this.host.settings);
 		const fallbackPriorityOptions = Array.isArray(priorityDefinition.options)
 			? (priorityDefinition.options as string[])
 			: [];
@@ -364,7 +364,7 @@ export class CreateTaskModal extends Modal {
 		}
 		const labelsSelect = labelsField.createEl('select', { cls: 'tt-modal-select' });
 		const labelDefinition = taskFields.find(f => f.name === 'labels')!;
-		const labelOptions = getFieldOptions(labelDefinition, this.plugin.settings);
+		const labelOptions = getFieldOptions(labelDefinition, this.host.settings);
 		labelsSelect.createEl('option', { text: '— none —', value: '' });
 		for (const t of labelOptions as string[]) {
 			labelsSelect.createEl('option', { text: t, value: t });
@@ -415,7 +415,7 @@ export class CreateTaskModal extends Modal {
 		const renderDepsChips = () => {
 			depsChipsEl.empty();
 			for (const depPath of this.formValues.depends_on) {
-				const ref = this.plugin.taskStore.resolveRef(depPath);
+				const ref = this.host.taskStore.resolveRef(depPath);
 				const chipCls = ref && ref.kind === 'task'
 					? 'tt-modal-chip tt-chip-active'
 					: 'tt-modal-chip tt-chip-active tt-chip-warning';
@@ -604,7 +604,7 @@ export class CreateTaskModal extends Modal {
 				notesPreview.createDiv({ cls: 'tt-notes-empty', text: 'No notes yet — click to add.' });
 				return;
 			}
-			await MarkdownRenderer.render(this.app, this.formValues.notes, notesPreview, this.plugin.manifest.id, this.notesRenderComponent);
+			await MarkdownRenderer.render(this.app, this.formValues.notes, notesPreview, this.host.manifest.id, this.notesRenderComponent);
 		};
 
 		const scheduleRenderNotes = () => {
@@ -691,19 +691,19 @@ export class CreateTaskModal extends Modal {
 	// Per-device, per-vault preferences (PB-2); the store never throws.
 	private getInitialQuickCreateMode(isMobile: boolean): boolean {
 		if (!isMobile) return false;
-		return this.plugin.deviceStore.get<boolean>(DEVICE_KEYS.mobileQuickCreate) ?? true;
+		return this.host.deviceStore.get<boolean>(DEVICE_KEYS.mobileQuickCreate) ?? true;
 	}
 
 	private persistQuickCreateMode(enabled: boolean): void {
-		this.plugin.deviceStore.set(DEVICE_KEYS.mobileQuickCreate, enabled);
+		this.host.deviceStore.set(DEVICE_KEYS.mobileQuickCreate, enabled);
 	}
 
 	private shouldShowQuickCreateHint(): boolean {
-		return this.plugin.deviceStore.get<boolean>(DEVICE_KEYS.mobileQuickCreateHintDismissed) !== true;
+		return this.host.deviceStore.get<boolean>(DEVICE_KEYS.mobileQuickCreateHintDismissed) !== true;
 	}
 
 	private dismissQuickCreateHint(): void {
-		this.plugin.deviceStore.set(DEVICE_KEYS.mobileQuickCreateHintDismissed, true);
+		this.host.deviceStore.set(DEVICE_KEYS.mobileQuickCreateHintDismissed, true);
 	}
 
 	// ── Helpers ──────────────────────────────────────────────────────────────────
@@ -741,7 +741,7 @@ export class CreateTaskModal extends Modal {
 	}
 
 	private applyOptionStyle(btn: HTMLButtonElement, value: string, field: any) {
-		const color = getOptionColor(value, field, this.plugin.settings)
+		const color = getOptionColor(value, field, this.host.settings)
 			?? (field.name === 'priority' ? priorityColor(value as TaskPriority) : undefined);
 		if (!color) return;
 		// Tint the surface and keep the color as text so any user-configured color
@@ -812,7 +812,7 @@ export class CreateTaskModal extends Modal {
 			primaryBtn.setText('Creating…');
 		}
 		try {
-			const task = await this.plugin.taskStore.create({
+			const task = await this.host.taskStore.create({
 				type:           this.formValues.type,
 				name,
 				area:           this.formValues.area || null,
@@ -842,11 +842,11 @@ export class CreateTaskModal extends Modal {
 			if (this.initialBlocks.length > 0) {
 				const newClean = task.path.replace(/\.md$/, '');
 				for (const blockedPath of this.initialBlocks) {
-					await this.plugin.taskStore.addDependency(blockedPath, newClean);
+					await this.host.taskStore.addDependency(blockedPath, newClean);
 				}
 			}
 			this.close();
-			await this.plugin.taskStore.openDetail(task.path);
+			await this.host.taskStore.openDetail(task.path);
 		} catch (e) {
 			console.error('[TTasks] Failed to create task:', e);
 			new Notice('TTasks: Failed to create task — check console for details.');

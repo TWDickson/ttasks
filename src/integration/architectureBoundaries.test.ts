@@ -121,6 +121,16 @@ describe('architecture boundaries', () => {
 		expect(coupled, 'take a host interface (src/components/hosts.ts) or callbacks instead').toEqual([]);
 	});
 
+	// AR-9: the same for modals, so the rig can open them without a cast.
+	it('no modal imports the plugin', () => {
+		const dir = 'src/modals';
+		const coupled = readdirSync(resolve(process.cwd(), dir))
+			.filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+			.filter((name) => /from '\.\.\/main'/.test(readWorkspaceFile(join(dir, name))));
+
+		expect(coupled, 'take a host interface (src/components/hosts.ts) instead').toEqual([]);
+	});
+
 	// AR-2 split TaskGraph into a plugin-facing shell and these children, which
 	// take props and callbacks so they stay testable (the coupling rule).
 	it('graph view components never reach the plugin or the store; their helpers stay Obsidian-free', () => {

@@ -10,6 +10,11 @@ import type { GraphExpandProps } from '../modals/GraphExpandModal';
 import type { TaskStore } from '../store/TaskStore';
 import type { ArchiveService } from '../store/ArchiveService';
 import type { PomodoroService } from '../store/PomodoroService';
+import type { DeviceStore } from '../utils/deviceStore';
+import type { ImportPlan } from '../integration/taskImportPlan';
+import type { NotesPolicy, TaskJsonMode, TaskJsonValidValues } from '../integration/taskJsonExport';
+import type { SharePayloadFormat } from '../integration/sharePreamble';
+import type { DerivedStateContext } from '../integration/taskDerivedState';
 
 /**
  * Host interfaces (AR-8): what each plugin-facing component may ask of the
@@ -111,4 +116,76 @@ export interface DetailHost {
 	renderMarkdown(markdown: string, el: HTMLElement, sourcePath: string, component: Component): Promise<void>;
 	/** Opens the "focus until…" picker for a task. */
 	openFocusUntil(taskPath: string, taskName: string): void;
+}
+
+/*
+ * Modal hosts (AR-9): the same narrowing for the three modals that used to take
+ * the whole plugin. Not components, but the rig opens them, so the same
+ * compile-time check against its mock applies.
+ */
+
+/** The settings the create modal reads (field options and colours). */
+export type CreateTaskSettings = Pick<TTasksSettings,
+	| 'statuses'
+	| 'statusColors'
+	| 'areas'
+	| 'areaColors'
+	| 'labelValues'
+	| 'labelColors'
+>;
+
+/** The create-task modal (CreateTaskModal). */
+export interface CreateTaskHost {
+	readonly settings: Readonly<CreateTaskSettings>;
+	readonly statusPolicy: StatusPolicy;
+	/** Source path for the notes preview's MarkdownRenderer. */
+	readonly manifest: { readonly id: string };
+	readonly deviceStore: Pick<DeviceStore, 'get' | 'set'>;
+	readonly taskStore: Pick<TaskStore, 'tasks' | 'create' | 'addDependency' | 'openDetail' | 'resolveRef'>;
+}
+
+/** The "focus until…" picker (FocusUntilModal). */
+export interface FocusUntilHost {
+	readonly settings: Readonly<Pick<TTasksSettings, 'pomodoro'>>;
+	readonly pomodoroService: Pick<PomodoroService, 'startUntil'>;
+}
+
+/** Which parts of an import plan to apply; each defaults to on. */
+export interface ImportSelection {
+	creates?: boolean;
+	updates?: boolean;
+	deletes?: boolean;
+	links?: boolean;
+	linkRemovals?: boolean;
+	parents?: boolean;
+	notes?: boolean;
+}
+
+/** What `applyImportPlan` actually changed. */
+export interface ImportResult {
+	created: number;
+	updated: number;
+	deleted: number;
+	linked: number;
+	unlinked: number;
+	reparented: number;
+	renoted: number;
+}
+
+/** The settings Share/Sync reads; it remembers its state in `shareSync`. */
+export type ShareSyncSettings = Pick<TTasksSettings, 'shareSync' | 'areas' | 'statuses' | 'labelValues'>;
+
+/** The Share/Sync modal (ShareSyncModal). */
+export interface ShareSyncHost {
+	readonly settings: Readonly<ShareSyncSettings>;
+	updateSettings(patch: Partial<ShareSyncSettings>): Promise<void>;
+	readonly taskStore: Pick<TaskStore, 'tasks'>;
+	taskJsonValidValues(): TaskJsonValidValues;
+	taskDerivedStateContext(): DerivedStateContext;
+	exportTasksToJsonFrom(
+		tasks: Task[],
+		mode: TaskJsonMode,
+		options?: { payloadFormat?: SharePayloadFormat; notesPolicy?: NotesPolicy },
+	): Promise<void>;
+	applyImportPlan(plan: ImportPlan, selection?: ImportSelection): Promise<ImportResult>;
 }

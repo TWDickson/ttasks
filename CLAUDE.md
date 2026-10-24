@@ -199,14 +199,14 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
 
 ### Keeping the rig honest
 
-`test-rig/` is in the type-check (`tsconfig.json` includes it), and since AR-8
-the components mount with **no cast**: `RigPlugin` is asserted against every
-host interface, so a component reading a member the mock lacks fails `tsc`.
-**The modals are the gap** (AR-9): `CreateTaskModal`, `FocusUntilModal` and
-`ShareSyncModal` still take `TTasksPlugin` and are opened `plugin as never`, so
-for those a forgotten mock member stays green until the rig renders blank.
+`test-rig/` is in the type-check (`tsconfig.json` includes it), and since AR-8 /
+AR-9 the components **and modals** open with **no plugin cast**: `RigPlugin` is
+asserted against every host interface (`CreateTaskHost`, `FocusUntilHost`,
+`ShareSyncHost` included), so a component or modal reading a member the mock
+lacks fails `tsc`. No modal may import `TTasksPlugin` (boundary-tested). The
+only cast left is `plugin.app as never` — the rig has no `App`.
 
-`npm run rig:smoke` is what closes that — it boots all 11 scenes (six views, the detail pane, and four overlays) headless and fails
+`npm run rig:smoke` backs that up — it boots all 11 scenes (six views, the detail pane, and four overlays) headless and fails
 on an uncaught exception or a view that never signals `data-rig-ready`. It runs
 in CI, and it tolerates stubbed CSS (mounting is a JS property, not a visual
 one). **When you change what components read off the plugin, update

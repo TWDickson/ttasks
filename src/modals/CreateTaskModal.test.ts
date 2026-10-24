@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildStatusPolicy } from '../settings/statusPolicy';
 import { writable } from 'svelte/store';
 import { App } from 'obsidian';
-import type TTasksPlugin from '../main';
+import type { CreateTaskHost } from '../components/hosts';
 import type { Task } from '../types';
 import { CreateTaskModal } from './CreateTaskModal';
 import { normalizeRefPath } from '../utils/taskRef';
@@ -256,7 +256,7 @@ function buildPluginMock(allTasks: Task[] = []) {
 					: { kind: 'missing', path: normalized, id: taskIdFromPath(normalized) };
 			},
 		},
-	} as unknown as TTasksPlugin;
+	} as unknown as CreateTaskHost;
 }
 
 function buildModal(allTasks: Task[] = [], options?: { initialDependsOn?: string[]; initialBlocks?: string[]; mobile?: boolean }) {

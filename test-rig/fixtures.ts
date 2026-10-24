@@ -11,13 +11,14 @@ import { PomodoroService } from '../src/store/PomodoroService';
 import { DEFAULT_POMODORO_CONFIG } from '../src/integration/pomodoro';
 import type { PomodoroSettings } from '../src/settings/types';
 import { normalizeColorMap } from '../src/settings/defaults';
-import type { BoardHost, BoardSettings, DetailHost, DetailSettings, GraphSettings } from '../src/components/hosts';
+import type { BoardHost, BoardSettings, CreateTaskHost, DetailHost, DetailSettings, FocusUntilHost, ShareSyncHost, ShareSyncSettings } from '../src/components/hosts';
 import { MarkdownRenderer } from './obsidian-shim';
 import type { TaskRecordType } from '../src/types';
 import type { CreateTaskOptions } from '../src/modals/CreateTaskModal';
 import { buildStatusPolicy, type StatusPolicy, type StatusPolicySettings } from '../src/settings/statusPolicy';
 import type { BadgeColorSettings } from '../src/utils/badgePalette';
 import { SHARE_PREAMBLE_PRESETS } from '../src/integration/sharePreamble';
+import { buildTaskRefIndex, resolveTaskRef } from '../src/utils/taskRef';
 
 const COMPLETION_STATUS = 'Done';
 
@@ -250,6 +251,7 @@ export type RigSettings = Record<string, unknown>
 	& BadgeColorSettings
 	& BoardSettings
 	& DetailSettings
+	& ShareSyncSettings
 	& { pomodoro: PomodoroSettings };
 
 export interface RigPlugin {
@@ -259,8 +261,8 @@ export interface RigPlugin {
 	/** Mirrors TTasksPlugin.statusPolicy — the views read status pointers off this. */
 	statusPolicy: StatusPolicy;
 	deviceStore: DeviceStore;
-	/** Typed against BoardHost so a signature drift is a compile error; extra members serve TaskDetail. */
-	taskStore: BoardHost['taskStore'] & DetailHost['taskStore'] & Record<string, unknown>;
+	/** Typed against every host's slice, so a signature drift is a compile error. */
+	taskStore: BoardHost['taskStore'] & DetailHost['taskStore'] & CreateTaskHost['taskStore'];
 	/** Captured (non-TTasks) tasks. Empty in the rig, but must match the real type. */
 	scanEngine: { tasks: Writable<ExternalTask[]> };
 	archiveService: BoardHost['archiveService'];
@@ -276,10 +278,12 @@ export interface RigPlugin {
 	editSmartList: BoardHost['editSmartList'];
 	renderMarkdown: DetailHost['renderMarkdown'];
 	openFocusUntil: DetailHost['openFocusUntil'];
-	updateSettings: (patch: Partial<GraphSettings>) => Promise<void>;
+	updateSettings: (patch: Partial<RigSettings>) => Promise<void>;
 	openCreateTask: (type: TaskRecordType, options?: CreateTaskOptions) => void;
-	/** Mirrors the plugin method the Share/Sync modal uses to seed its preamble. */
-	taskJsonValidValues: () => { statuses: string[]; priorities: string[]; areas: string[]; labels: string[] };
+	taskJsonValidValues: ShareSyncHost['taskJsonValidValues'];
+	taskDerivedStateContext: ShareSyncHost['taskDerivedStateContext'];
+	exportTasksToJsonFrom: ShareSyncHost['exportTasksToJsonFrom'];
+	applyImportPlan: ShareSyncHost['applyImportPlan'];
 	openPluginSettings: () => void;
 	showTaskContextMenu: (task: Task, event: MouseEvent) => void;
 	triggerTaskHoverPreview: (path: string, event: MouseEvent) => void;
@@ -321,8 +325,9 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		}));
 	};
 
-	const taskStore = {
+	const taskStore: RigPlugin['taskStore'] = {
 		tasks,
+		resolveRef: (pathLike) => resolveTaskRef(pathLike, buildTaskRefIndex(get(tasks))),
 		getByPath: (path: string) => findByPath(path) ?? undefined,
 		openDetail: async (path: string) => activeTaskPath.set(path),
 		openFile: async (path: string) => console.info('[rig] openFile', path),
@@ -349,7 +354,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		create: async (input: { name?: string } & Partial<Task>) => {
 			const created = makeTask({ name: input.name ?? 'Untitled', ...input });
 			tasks.update((all) => [...all, created]);
-			return { path: created.path, name: created.name };
+			return created;
 		},
 	};
 
@@ -479,7 +484,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		editSmartList: (viewId: string) => console.info('[rig] editSmartList', viewId),
 		renderMarkdown: (markdown, el, sourcePath, component) => MarkdownRenderer.render({}, markdown, el, sourcePath, component),
 		openFocusUntil: (taskPath: string, taskName: string) => console.info('[rig] openFocusUntil', taskPath, taskName),
-		updateSettings: async (patch: Partial<GraphSettings>) => {
+		updateSettings: async (patch: Partial<RigSettings>) => {
 			Object.assign(settings, patch);
 			console.info('[rig] updateSettings', patch);
 		},
@@ -490,6 +495,18 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			areas: [...(settings.areas as string[])],
 			labels: [...(settings.labelValues as string[])],
 		}),
+		taskDerivedStateContext: () => {
+			const policy = buildStatusPolicy(settings);
+			return {
+				allTasks: get(tasks),
+				statuses: { blockStatus: policy.block, holdStatus: policy.hold, futureStatus: policy.future },
+			};
+		},
+		exportTasksToJsonFrom: async (exported, mode) => console.info('[rig] export', mode, exported.length),
+		applyImportPlan: async (plan) => {
+			console.info('[rig] applyImportPlan', plan);
+			return { created: 0, updated: 0, deleted: 0, linked: 0, unlinked: 0, reparented: 0, renoted: 0 };
+		},
 		openPluginSettings: () => console.info('[rig] openPluginSettings'),
 		showTaskContextMenu: (task: Task, event: MouseEvent) => {
 			console.info('[rig] context menu', task.name, event.type);
@@ -506,3 +523,6 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
  */
 export const rigPluginIsBoardHost = (plugin: RigPlugin): BoardHost => plugin;
 export const rigPluginIsDetailHost = (plugin: RigPlugin): DetailHost => plugin;
+export const rigPluginIsCreateTaskHost = (plugin: RigPlugin): CreateTaskHost => plugin;
+export const rigPluginIsFocusUntilHost = (plugin: RigPlugin): FocusUntilHost => plugin;
+export const rigPluginIsShareSyncHost = (plugin: RigPlugin): ShareSyncHost => plugin;

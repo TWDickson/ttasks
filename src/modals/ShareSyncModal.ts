@@ -1,7 +1,7 @@
 import { Component, MarkdownRenderer, Modal, Notice, setIcon, type App } from 'obsidian';
 import { get } from 'svelte/store';
 import { localDateString } from '../utils/dateUtils';
-import type TTasksPlugin from '../main';
+import type { ShareSyncHost } from '../components/hosts';
 import type { NotesPolicy, TaskJsonMode } from '../integration/taskJsonExport';
 import { serializeTasksToJson } from '../integration/taskJsonExport';
 import { serializeTasksToToon } from '../integration/taskToonExport';
@@ -110,10 +110,10 @@ export class ShareSyncModal extends Modal {
 	 */
 	private readonly renderHost = new Component();
 
-	constructor(app: App, private readonly plugin: TTasksPlugin) {
+	constructor(app: App, private readonly host: ShareSyncHost) {
 		super(app);
 		// Reopen where the last share left off (settings.shareSync).
-		const remembered = plugin.settings.shareSync;
+		const remembered = host.settings.shareSync;
 		this.mode = remembered.mode;
 		this.outputFormat = remembered.outputFormat;
 		this.payloadFormat = remembered.payloadFormat;
@@ -134,7 +134,7 @@ export class ShareSyncModal extends Modal {
 
 	/** The preamble the current settings would produce, unedited. */
 	private generatedPreamble(): string {
-		return buildPreambleText(findPresetIn(this.presetLibrary(), this.preamblePreset), this.plugin.taskJsonValidValues(), {
+		return buildPreambleText(findPresetIn(this.presetLibrary(), this.preamblePreset), this.host.taskJsonValidValues(), {
 			payloadFormat: this.payloadFormat,
 			notesPolicy: this.notesPolicy,
 		});
@@ -142,7 +142,7 @@ export class ShareSyncModal extends Modal {
 
 	/** The live, user-tunable prompt library (settings-owned). */
 	private presetLibrary(): SharePreamblePreset[] {
-		return this.plugin.settings.shareSync.preamblePresets;
+		return this.host.settings.shareSync.preamblePresets;
 	}
 
 	/**
@@ -152,7 +152,7 @@ export class ShareSyncModal extends Modal {
 	 * vault's statuses, format, or notes policy) still refresh the default wording.
 	 */
 	private rememberExportState(): void {
-		this.plugin.settings.shareSync = {
+		void this.host.updateSettings({ shareSync: {
 			mode: this.mode,
 			outputFormat: this.outputFormat,
 			payloadFormat: this.payloadFormat,
@@ -161,15 +161,14 @@ export class ShareSyncModal extends Modal {
 			customPreamble: this.preambleText === this.generatedPreamble() ? '' : this.preambleText,
 			// The library is owned by the settings tab, not this modal — carry it
 			// through untouched rather than dropping it on every export tweak.
-			preamblePresets: this.plugin.settings.shareSync.preamblePresets,
+			preamblePresets: this.host.settings.shareSync.preamblePresets,
 			areas: [...this.criteria.areas],
 			projects: [...this.criteria.projects],
 			statuses: [...this.criteria.statuses],
 			labels: [...this.criteria.labels],
 			includeCompleted: this.criteria.includeCompleted,
 			completedWithinDays: this.criteria.completedWithinDays,
-		};
-		void this.plugin.saveSettings();
+		} });
 	}
 
 	onOpen(): void {
@@ -226,8 +225,8 @@ export class ShareSyncModal extends Modal {
 
 		this.renderModeToggle(parent);
 
-		const s = this.plugin.settings;
-		const tasks = get(this.plugin.taskStore.tasks);
+		const s = this.host.settings;
+		const tasks = get(this.host.taskStore.tasks);
 		this.renderChipGroup(parent, 'Areas', s.areas ?? [], this.criteria.areas);
 		this.renderChipGroup(
 			parent,
@@ -470,12 +469,12 @@ export class ShareSyncModal extends Modal {
 	}
 
 	private selectedTasks() {
-		return filterTasksForExport(get(this.plugin.taskStore.tasks), this.criteria, localDateString());
+		return filterTasksForExport(get(this.host.taskStore.tasks), this.criteria, localDateString());
 	}
 
 	private updateCount(): void {
 		if (!this.countEl) return;
-		const total = get(this.plugin.taskStore.tasks).length;
+		const total = get(this.host.taskStore.tasks).length;
 		const n = this.selectedTasks().length;
 		this.countEl.setText(`${n} of ${total} task${total === 1 ? '' : 's'} selected.`);
 	}
@@ -483,11 +482,11 @@ export class ShareSyncModal extends Modal {
 	/** Serialize the current selection in the chosen payload format. */
 	private serializeSelection(tasks: Task[]): string {
 		const now = new Date().toISOString();
-		const validValues = this.plugin.taskJsonValidValues();
+		const validValues = this.host.taskJsonValidValues();
 		const notesPolicy = this.mode === 'ai' ? this.notesPolicy : 'full';
 		// The whole store, not `tasks` — the derived fields have to see blockers and
 		// dependencies that the export filter left out.
-		const derivedContext = this.plugin.taskDerivedStateContext();
+		const derivedContext = this.host.taskDerivedStateContext();
 		return this.effectivePayloadFormat() === 'toon'
 			? serializeTasksToToon(tasks, now, validValues, notesPolicy, derivedContext)
 			: serializeTasksToJson(tasks, this.mode, now, validValues, notesPolicy, derivedContext);
@@ -517,7 +516,7 @@ export class ShareSyncModal extends Modal {
 			new Notice('TTasks: no tasks match the current filters.');
 			return;
 		}
-		await this.plugin.exportTasksToJsonFrom(tasks, this.mode, {
+		await this.host.exportTasksToJsonFrom(tasks, this.mode, {
 			payloadFormat: this.effectivePayloadFormat(),
 			notesPolicy: this.mode === 'ai' ? this.notesPolicy : 'full',
 		});
@@ -559,7 +558,7 @@ export class ShareSyncModal extends Modal {
 				for (const err of parsed.errors) box.createEl('div', { text: `⚠ ${err}` });
 				return;
 			}
-			this.importPlan = planImport(parsed.tasks, get(this.plugin.taskStore.tasks));
+			this.importPlan = planImport(parsed.tasks, get(this.host.taskStore.tasks));
 			// A fresh plan invalidates the old rejections — the keys refer to
 			// entries that may no longer exist — and the old label updaters point
 			// at elements this render is about to replace.
@@ -768,7 +767,7 @@ export class ShareSyncModal extends Modal {
 		if (!this.importPlan) return;
 		const plan = this.effectivePlan();
 		const { created, updated, deleted, linked, unlinked, reparented, renoted } =
-			await this.plugin.applyImportPlan(plan, this.applyToggles);
+			await this.host.applyImportPlan(plan, this.applyToggles);
 		const parts = [`${created} created`, `${updated} updated`];
 		if (deleted > 0) parts.push(`${deleted} deleted`);
 		if (linked > 0) parts.push(`${linked} linked`);

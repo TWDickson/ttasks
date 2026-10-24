@@ -1,5 +1,5 @@
 import { Modal, Setting, type App } from 'obsidian';
-import type TTasksPlugin from '../main';
+import type { FocusUntilHost } from '../components/hosts';
 import { parseUntilInput, planFocusUntil } from '../integration/pomodoroPlan';
 
 /**
@@ -12,7 +12,7 @@ export class FocusUntilModal extends Modal {
 
 	constructor(
 		app: App,
-		private readonly plugin: TTasksPlugin,
+		private readonly host: FocusUntilHost,
 		private readonly taskPath: string | null,
 		private readonly taskName: string | null,
 	) {
@@ -44,7 +44,7 @@ export class FocusUntilModal extends Modal {
 				startBtn.disabled = true;
 				return;
 			}
-			const plan = planFocusUntil(minutes, this.plugin.settings.pomodoro);
+			const plan = planFocusUntil(minutes, this.host.settings.pomodoro);
 			if (plan.phases.length === 0) {
 				preview.setText(`Only ${minutes} min — not enough for a focus session.`);
 				startBtn.disabled = true;
@@ -80,7 +80,7 @@ export class FocusUntilModal extends Modal {
 	private submit(): void {
 		const minutes = parseUntilInput(this.value, new Date());
 		if (minutes === null) return;
-		const started = this.plugin.pomodoroService.startUntil(this.taskPath, this.taskName, minutes);
+		const started = this.host.pomodoroService.startUntil(this.taskPath, this.taskName, minutes);
 		if (started) this.close();
 	}
 

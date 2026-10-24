@@ -25,7 +25,7 @@ import { createBoardStateService, type BoardStateStores } from './store/BoardSta
 import { resolveTaskViewId } from './views/viewRegistry';
 import { repairPluginLeaves } from './views/leafHygiene';
 import { CreateTaskModal, type CreateTaskOptions } from './modals/CreateTaskModal';
-import type { BoardHost, DetailHost } from './components/hosts';
+import type { BoardHost, CreateTaskHost, DetailHost, FocusUntilHost, ImportResult, ImportSelection, ShareSyncHost } from './components/hosts';
 import { confirmModal, type ConfirmModalOptions } from './modals/confirmModal';
 import { GraphExpandModal, type GraphExpandProps } from './modals/GraphExpandModal';
 import { editSmartList } from './views/smartListActions';
@@ -71,7 +71,7 @@ import type { SettingsHost } from './types/settingsHost';
 
 export type BoardViewMode = string;
 
-export default class TTasksPlugin extends Plugin implements BoardHost, DetailHost {
+export default class TTasksPlugin extends Plugin implements BoardHost, DetailHost, CreateTaskHost, FocusUntilHost, ShareSyncHost {
 	// `declare`: narrows the base Plugin's `settings?: unknown` (Obsidian 1.13 typings) without emitting a field.
 	declare settings: TTasksSettings;
 	taskStore!: TaskStore;
@@ -705,16 +705,8 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 	 */
 	async applyImportPlan(
 		plan: ImportPlan,
-		selection: {
-			creates?: boolean;
-			updates?: boolean;
-			deletes?: boolean;
-			links?: boolean;
-			linkRemovals?: boolean;
-			parents?: boolean;
-			notes?: boolean;
-		} = {},
-	): Promise<{ created: number; updated: number; deleted: number; linked: number; unlinked: number; reparented: number; renoted: number }> {
+		selection: ImportSelection = {},
+	): Promise<ImportResult> {
 		const doUpdates = selection.updates ?? true;
 		const doCreates = selection.creates ?? true;
 		const doDeletes = selection.deletes ?? true;

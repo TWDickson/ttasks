@@ -12,6 +12,20 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-24 — AR-9 closed: modals take host interfaces too
+
+The three modals the rig opens got the AR-8 treatment: `CreateTaskHost`,
+`FocusUntilHost` and `ShareSyncHost` in `src/components/hosts.ts`, implemented by
+the plugin and asserted against the rig mock. Removing the `plugin as never`
+casts immediately surfaced real mock drift — the rig's `taskStore` had no
+`resolveRef` (a dependency chip in the create modal would have thrown), `create`
+returned a partial task, and Share/Sync's export/import methods were absent.
+Share/Sync now persists through `updateSettings({ shareSync })` instead of
+mutating settings and calling `saveSettings()`. A boundary test bans
+`../main` imports from `src/modals/`.
+
+---
+
 ## 2026-10-24 — AR-8 closed: no component imports the plugin
 
 Steps 2 and 3 followed `GraphHost`. `BoardHost` (extends it) covers the board's

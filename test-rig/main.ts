@@ -96,7 +96,7 @@ detailBtn.addEventListener('click', () => openFirstDetail());
 
 const modalBtn = bar.createEl('button', { text: 'Create modal' });
 modalBtn.addEventListener('click', () => {
-	new CreateTaskModal(plugin.app as never, plugin as never).open();
+	new CreateTaskModal(plugin.app as never, plugin).open();
 });
 
 const dataBtn = bar.createEl('button', {
@@ -136,7 +136,7 @@ if (pomoScene) {
 			dialStyle: writable(plugin.settings.pomodoro.dialStyle),
 			pickedTask,
 			onStart: () => plugin.pomodoroService.start(null, null),
-			onFocusUntil: () => new FocusUntilModal(plugin.app as never, plugin as never, null, null).open(),
+			onFocusUntil: () => new FocusUntilModal(plugin.app as never, plugin, null, null).open(),
 			onToggle: () => plugin.pomodoroService.toggle(),
 			onSkip: () => plugin.pomodoroService.skip(),
 			onStop: () => plugin.pomodoroService.stop(),
@@ -220,8 +220,8 @@ new TaskRail({
 		onAddSmartList: () => console.info('[rig] addSmartList'),
 		onOpenPomodoro: () => console.info('[rig] openPomodoro'),
 		onSmartListContextMenu: (id: string) => console.info(`[rig] smartListMenu:${id}`),
-		onNewTask: () => new CreateTaskModal(plugin.app as never, plugin as never).open(),
-		onNewProject: () => new CreateTaskModal(plugin.app as never, plugin as never, 'project').open(),
+		onNewTask: () => new CreateTaskModal(plugin.app as never, plugin).open(),
+		onNewProject: () => new CreateTaskModal(plugin.app as never, plugin, 'project').open(),
 		onShareSync: () => console.info('[rig] shareSync'),
 		onOpenSettings: () => console.info('[rig] openSettings'),
 		version: '0.0.0-rig',
@@ -252,10 +252,10 @@ plugin.activeTaskPath.subscribe((path) => {
 
 if (params.get('detail') === '1') openFirstDetail();
 if (params.get('modal') === '1') {
-	new CreateTaskModal(plugin.app as never, plugin as never).open();
+	new CreateTaskModal(plugin.app as never, plugin).open();
 }
 if (params.get('share') === '1') {
-	new ShareSyncModal(plugin.app as never, plugin as never).open();
+	new ShareSyncModal(plugin.app as never, plugin).open();
 }
 
 /* ?share=import — opens the modal on the Import tab with a paste already
@@ -263,7 +263,7 @@ if (params.get('share') === '1') {
    bodies) can be screenshotted. The paste is built from the live task set so the
    entries resolve to real names instead of "not found". */
 if (params.get('share') === 'import') {
-	new ShareSyncModal(plugin.app as never, plugin as never).open();
+	new ShareSyncModal(plugin.app as never, plugin).open();
 	const sample = get(plugin.taskStore.tasks).filter((task) => task.type === 'task').slice(0, 4);
 	const paste = JSON.stringify({
 		tasks: [
