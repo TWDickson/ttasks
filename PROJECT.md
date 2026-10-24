@@ -512,8 +512,12 @@ critical path except where noted above (AR-3, PB-4).
   1. `[x]` **TaskGraph → `GraphHost`** *(2026-10-24)* — no longer imports the
      plugin (left the shell list); `CreateTaskOptions` named; the rig mock gained
      the missing `graphHiddenProjects`.
-  2. `[ ]` **TaskBoard → `BoardHost`** — its ~5 `plugin.settings.x = …;
-     saveSettings()` pairs become `updateSettings`; drop the board's `as never`.
+  2. `[x]` **TaskBoard → `BoardHost`** *(2026-10-24)* — five settings writes now
+     `updateSettings`; `confirm` / `openGraphFullscreen` / `editSmartList` /
+     `promoteCapturedTask` became host methods, so the board needs no `app`. The
+     rig mounts it without `as never`; typing the mock surfaced three drifts
+     (no `settingsRevision` — the board had a `?? writable(0)` covering it —
+     `getByPath` returning `null`, `archiveTask` returning `void`).
   3. `[ ]` **TaskDetail → `DetailHost`** — and move Pomodoro / archive logic
      into plain modules beside `taskDetailSaveController`.
 - `[x]` **AR-2 🟡 `TaskGraph.svelte` is a ~2,750-line god component** — *(2026-10-22;

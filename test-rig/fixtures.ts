@@ -11,7 +11,7 @@ import { PomodoroService } from '../src/store/PomodoroService';
 import { DEFAULT_POMODORO_CONFIG } from '../src/integration/pomodoro';
 import type { PomodoroSettings } from '../src/settings/types';
 import { normalizeColorMap } from '../src/settings/defaults';
-import type { GraphHost, GraphSettings } from '../src/components/hosts';
+import type { BoardHost, BoardSettings, GraphSettings } from '../src/components/hosts';
 import type { TaskRecordType } from '../src/types';
 import type { CreateTaskOptions } from '../src/modals/CreateTaskModal';
 import { buildStatusPolicy, type StatusPolicy, type StatusPolicySettings } from '../src/settings/statusPolicy';
@@ -247,7 +247,7 @@ export function buildFixtureTasks(): Task[] {
 export type RigSettings = Record<string, unknown>
 	& StatusPolicySettings
 	& BadgeColorSettings
-	& GraphSettings
+	& BoardSettings
 	& { pomodoro: PomodoroSettings };
 
 export interface RigPlugin {
@@ -257,19 +257,21 @@ export interface RigPlugin {
 	/** Mirrors TTasksPlugin.statusPolicy — the views read status pointers off this. */
 	statusPolicy: StatusPolicy;
 	deviceStore: DeviceStore;
-	taskStore: Record<string, unknown> & { tasks: Writable<Task[]> };
+	/** Typed against BoardHost so a signature drift is a compile error; extra members serve TaskDetail. */
+	taskStore: BoardHost['taskStore'] & Record<string, unknown>;
 	/** Captured (non-TTasks) tasks. Empty in the rig, but must match the real type. */
 	scanEngine: { tasks: Writable<ExternalTask[]> };
-	archiveService: {
-		archiveTask: (path: string) => Promise<void>;
-		loadArchivedTasks: () => Promise<ArchivedTaskSummary[]>;
-		restoreTask: (path: string) => Promise<void>;
-	};
+	archiveService: BoardHost['archiveService'];
 	pomodoroService: PomodoroService;
 	activeTaskPath: Writable<string | null>;
 	focusedTaskPath: Writable<string | null>;
 	activeViewMode: Writable<string | null>;
 	saveSettings: () => Promise<void>;
+	settingsRevision: Writable<number>;
+	promoteCapturedTask: BoardHost['promoteCapturedTask'];
+	confirm: BoardHost['confirm'];
+	openGraphFullscreen: BoardHost['openGraphFullscreen'];
+	editSmartList: BoardHost['editSmartList'];
 	updateSettings: (patch: Partial<GraphSettings>) => Promise<void>;
 	openCreateTask: (type: TaskRecordType, options?: CreateTaskOptions) => void;
 	/** Mirrors the plugin method the Share/Sync modal uses to seed its preamble. */
@@ -291,6 +293,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 	const activeTaskPath = writable<string | null>(null);
 	const focusedTaskPath = writable<string | null>(null);
 	const activeViewMode = writable<string | null>(null);
+	const settingsRevision = writable(0);
 	// The Archive view reads summaries, not Tasks — a few fixed ones across two months.
 	let archived: ArchivedTaskSummary[] = [
 		{ path: 'Planner/Archive/2026/09/a1b2c3-fry-the-first-patty.md', id: 'a1b2c3', name: 'Fry the first Krabby Patty', status: 'Done', completed: '2026-09-14', area: 'Krusty Krab', archiveYear: '2026', archiveMonth: '09' },
@@ -316,8 +319,8 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 
 	const taskStore = {
 		tasks,
-		getByPath: findByPath,
-		openDetail: (path: string) => activeTaskPath.set(path),
+		getByPath: (path: string) => findByPath(path) ?? undefined,
+		openDetail: async (path: string) => activeTaskPath.set(path),
 		openFile: (path: string) => console.info('[rig] openFile', path),
 		restore: async (path: string) => patchTask(path, { status: 'Active', completed: null }),
 		update: async (path: string, updates: Partial<Task>) => patchTask(path, updates),
@@ -333,7 +336,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			const task = findByPath(path);
 			if (task) patchTask(path, { depends_on: task.depends_on.filter((d) => d !== dep) });
 		},
-		setStatus: (task: Task, status: string) => {
+		setStatus: async (task: Task, status: string) => {
 			patchTask(task.path, {
 				status,
 				completed: status === completionStatus ? new Date().toISOString().slice(0, 10) : null,
@@ -440,6 +443,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		archiveService: {
 			archiveTask: async (path: string) => {
 				tasks.update((all) => all.filter((t) => stripMd(t.path) !== stripMd(path)));
+				return true;
 			},
 			loadArchivedTasks: async () => archived.slice(),
 			restoreTask: async (path: string) => {
@@ -458,6 +462,17 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		focusedTaskPath,
 		activeViewMode,
 		saveSettings: async () => {},
+		settingsRevision,
+		promoteCapturedTask: async (task: ExternalTask) => {
+			console.info('[rig] promoteCapturedTask', task.name);
+			return task;
+		},
+		confirm: async (options) => {
+			console.info('[rig] confirm', options.title);
+			return true;
+		},
+		openGraphFullscreen: () => console.info('[rig] openGraphFullscreen'),
+		editSmartList: (viewId: string) => console.info('[rig] editSmartList', viewId),
 		updateSettings: async (patch: Partial<GraphSettings>) => {
 			Object.assign(settings, patch);
 			console.info('[rig] updateSettings', patch);
@@ -483,4 +498,4 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
  * component can't read a plugin member the rig doesn't provide. Add each new
  * host here as it lands.
  */
-export const rigPluginIsGraphHost = (plugin: RigPlugin): GraphHost => plugin;
+export const rigPluginIsBoardHost = (plugin: RigPlugin): BoardHost => plugin;

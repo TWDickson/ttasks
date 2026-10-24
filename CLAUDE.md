@@ -216,15 +216,14 @@ one). **When you change what components read off the plugin, update
 
 **Plugin coupling** — new components must not import `TTasksPlugin` or `TaskStore`
 directly. Pass specific callbacks or service references as props. Components that
-follow this are testable with `@testing-library/svelte`. *(Two **shells** are
-the exception by design: `TaskBoard` and `TaskDetail`, each mounted by an
-`ItemView`. They turn plugin state into props and callbacks;
-`architectureBoundaries.test.ts` fails on any other component that imports the
-plugin or store — AR-1, closed.)*
+follow this are testable with `@testing-library/svelte`. *(`TaskDetail` is the
+last component still importing the plugin — AR-8 step 3;
+`architectureBoundaries.test.ts` fails on any other.)*
 
 **Host interfaces** (AR-8) — a component that needs plugin services takes a
-narrow interface from `src/components/hosts.ts` (e.g. `TaskGraph`'s
-`GraphHost`), not `TTasksPlugin`. The plugin `implements` it, and
+narrow interface from `src/components/hosts.ts` (`GraphHost`, `BoardHost`),
+not `TTasksPlugin`. Anything needing `app` (a modal, a confirm) is a host
+method, not an `app` the component reaches through. The plugin `implements` it, and
 `test-rig/fixtures.ts` asserts the rig mock satisfies it, so mock drift is a
 type error rather than a blank rig scene. Settings writes go through
 `host.updateSettings(patch)`, never `settings.x = …; saveSettings()`.

@@ -2,11 +2,9 @@
 	import { onDestroy } from 'svelte';
 	import { writable } from 'svelte/store';
 	import { Notice } from 'obsidian';
-	import type TTasksPlugin from '../main';
+	import type { BoardHost } from './hosts';
 	import type { Task } from '../types';
 	import type { ExternalTask } from '../integration/types';
-	import { CreateTaskModal } from '../modals/CreateTaskModal';
-	import { GraphExpandModal } from '../modals/GraphExpandModal';
 	import TaskList from './TaskList.svelte';
 	import TaskKanban from './TaskKanban.svelte';
 	import TaskAgenda from './TaskAgenda.svelte';
@@ -29,7 +27,6 @@
 	} from '../store/BoardStateService';
 import { localDateString, resolveWeekStart, type WeekStart } from '../utils/dateUtils';
 	import { runBatchArchive, runBatchComplete, runBatchDelete } from './taskBoardBatchActions';
-	import { confirmModal } from '../modals/confirmModal';
 	import { buildBoardQuery, type ListGroupOverride, type ListSortOverride } from './boardQuery';
 	import { buildToolbarFilterConditions, hasActiveToolbarFilters, supportsDateRangeFilter } from './boardFilters';
 	import { buildImpedimentBadges, computeImpediments } from '../query/taskImpediment';
@@ -42,9 +39,7 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 		resolveTaskViewDefinition,
 		resolveTaskViewId,
 	} from '../views/viewRegistry';
-	import { editSmartList } from '../views/smartListActions';
 	import { icon } from '../utils/icon';
-	import { promoteTaskToTTasks } from '../integration/promoteTaskToTTasks';
 	import {
 		PRIORITIES,
 		RENDERER_AGENDA,
@@ -65,36 +60,37 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 		created: 'Created', completed: 'Completed date', priority: 'Priority', status: 'Status', area: 'Area', type: 'Type',
 	};
 
-	export let plugin: TTasksPlugin;
+	/** Everything the board may ask of the plugin (AR-8). */
+	export let host: BoardHost;
 	export let boardState: BoardStateStores | undefined = undefined;
 
 	// Destructure stores for Svelte reactivity
 	const resolvedBoardState = boardState ?? createBoardStateService({
-		defaultViewId: resolveTaskViewId(plugin.settings, null),
-		activeTaskPath: plugin.activeTaskPath,
-		focusedTaskPath: plugin.focusedTaskPath,
+		defaultViewId: resolveTaskViewId(host.settings, null),
+		activeTaskPath: host.activeTaskPath,
+		focusedTaskPath: host.focusedTaskPath,
 	});
 	const activeTaskPath = resolvedBoardState.activeTaskPath;
 	const focusedTaskPath = resolvedBoardState.focusedTaskPath;
 	const currentViewId = resolvedBoardState.currentViewId;
 	const searchQuery = resolvedBoardState.searchQuery;
 	const selectedPaths = resolvedBoardState.selectedPaths;
-	const tasks = combineBoardTasks(plugin.taskStore.tasks, plugin.scanEngine.tasks);
+	const tasks = combineBoardTasks(host.taskStore.tasks, host.scanEngine.tasks);
 
 	// Re-derive settings-based state whenever any leaf saves settings (e.g. the
 	// rail adds a Smart List, or a Smart List query is edited in place).
-	const settingsRevision = plugin.settingsRevision ?? writable(0);
-	let registeredViews = getRegisteredTaskViews(plugin.settings);
-	let currentView = resolveTaskViewDefinition(plugin.settings, $currentViewId) ?? registeredViews[0];
-	$: { void $settingsRevision; registeredViews = getRegisteredTaskViews(plugin.settings); }
-	$: { void $settingsRevision; currentViewId.set(resolveTaskViewId(plugin.settings, $currentViewId)); }
-	$: { void $settingsRevision; currentView = resolveTaskViewDefinition(plugin.settings, $currentViewId) ?? registeredViews[0]; }
+	const settingsRevision = host.settingsRevision;
+	let registeredViews = getRegisteredTaskViews(host.settings);
+	let currentView = resolveTaskViewDefinition(host.settings, $currentViewId) ?? registeredViews[0];
+	$: { void $settingsRevision; registeredViews = getRegisteredTaskViews(host.settings); }
+	$: { void $settingsRevision; currentViewId.set(resolveTaskViewId(host.settings, $currentViewId)); }
+	$: { void $settingsRevision; currentView = resolveTaskViewDefinition(host.settings, $currentViewId) ?? registeredViews[0]; }
 
 	// Allow external callers (e.g. ReminderService) to switch the active view.
-	const unsubscribeActiveViewMode = plugin.activeViewMode.subscribe(mode => {
+	const unsubscribeActiveViewMode = host.activeViewMode.subscribe(mode => {
 		if (mode !== null) {
-			currentViewId.set(resolveTaskViewId(plugin.settings, mode));
-			plugin.activeViewMode.set(null);
+			currentViewId.set(resolveTaskViewId(host.settings, mode));
+			host.activeViewMode.set(null);
 		}
 	});
 	onDestroy(unsubscribeActiveViewMode);
@@ -112,9 +108,9 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 	async function batchComplete(): Promise<void> {
 		const nextSelection = await runBatchComplete({
 			selectedPaths: $selectedPaths,
-			completionStatus: plugin.statusPolicy.completion,
+			completionStatus: host.statusPolicy.completion,
 			today: localDateString(),
-			updateTask: (path, updates) => plugin.taskStore.update(path, updates),
+			updateTask: (path, updates) => host.taskStore.update(path, updates),
 			clearSelection,
 		});
 		selectedPaths.set(nextSelection);
@@ -123,7 +119,7 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 	async function batchArchive(): Promise<void> {
 		const nextSelection = await runBatchArchive({
 			selectedPaths: $selectedPaths,
-			archiveTask: (path) => plugin.archiveService.archiveTask(path),
+			archiveTask: (path) => host.archiveService.archiveTask(path),
 			clearSelection,
 		});
 		selectedPaths.set(nextSelection);
@@ -132,12 +128,12 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 	async function batchDelete(): Promise<void> {
 		const nextSelection = await runBatchDelete({
 			selectedPaths: $selectedPaths,
-			confirmDelete: (count) => confirmModal(plugin.app, {
+			confirmDelete: (count) => host.confirm({
 				title: 'Delete tasks',
 				body: `Delete ${count} task${count === 1 ? '' : 's'}? This cannot be undone.`,
 				ctaLabel: 'Delete',
 			}),
-			deleteTask: (path) => plugin.taskStore.delete(path),
+			deleteTask: (path) => host.taskStore.delete(path),
 			clearSelection,
 		});
 		selectedPaths.set(nextSelection);
@@ -154,19 +150,19 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 	// existing date-bucket grouping (backlog: "Agenda: date-range filter").
 	let filterDateFrom = '';
 	let filterDateTo   = '';
-	let showCompletedByViewId: Record<string, boolean> = { ...(plugin.settings.showCompletedByViewId ?? {}) };
+	let showCompletedByViewId: Record<string, boolean> = { ...(host.settings.showCompletedByViewId ?? {}) };
 	let logbookRendererModeByViewId: LogbookRendererModeMap = {
-		logbook: plugin.settings.logbookRendererMode,
+		logbook: host.settings.logbookRendererMode,
 	};
-	let listGroupOverrideByViewId: Record<string, ListGroupOverride> = { ...(plugin.settings.listGroupOverrideByViewId ?? {}) };
-	let listSortOverrideByViewId: Record<string, ListSortOverride> = { ...(plugin.settings.listSortOverrideByViewId ?? {}) };
+	let listGroupOverrideByViewId: Record<string, ListGroupOverride> = { ...(host.settings.listGroupOverrideByViewId ?? {}) };
+	let listSortOverrideByViewId: Record<string, ListSortOverride> = { ...(host.settings.listSortOverrideByViewId ?? {}) };
 
 	$: observedAreas = [...new Set(
 		$tasks.map(t => t.area).filter((a): a is string => !!a)
 	)];
 	// Settings is the source of truth; stray/legacy frontmatter areas appear
 	// below a divider as a safety net.
-	$: areaOptions = resolveManagedOptions(plugin.settings.areas ?? [], observedAreas);
+	$: areaOptions = resolveManagedOptions(host.settings.areas ?? [], observedAreas);
 	$: hasAreaOptions = areaOptions.managed.length > 0 || areaOptions.unmanaged.length > 0;
 
 	$: dateRangeSupported = supportsDateRangeFilter(currentRenderer);
@@ -182,7 +178,7 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 	// Settings first, then anything only the vault knows about — a task filed
 	// under a since-deleted label still has to be findable.
 	$: observedLabels = [...new Set($tasks.flatMap(t => t.labels ?? []))];
-	$: labelOptions = resolveManagedOptions(plugin.settings.labelValues ?? [], observedLabels);
+	$: labelOptions = resolveManagedOptions(host.settings.labelValues ?? [], observedLabels);
 	$: canToggleCompletedForCurrentView = canToggleBuiltinCompleted(currentView);
 	$: showCompleted = showCompletedByViewId[currentView.id] ?? defaultCompletedVisibility(currentView);
 	$: currentRenderer = resolveViewRenderer(currentView.id, currentView.renderer, logbookRendererModeByViewId) as RendererType;
@@ -203,16 +199,14 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 		listGroupOverrideByViewId = { ...listGroupOverrideByViewId };
 		if (next === '') delete listGroupOverrideByViewId[viewId];
 		else listGroupOverrideByViewId[viewId] = next;
-		plugin.settings.listGroupOverrideByViewId = listGroupOverrideByViewId;
-		await plugin.saveSettings();
+		await host.updateSettings({ listGroupOverrideByViewId });
 	}
 
 	async function setSortOverride(viewId: string, field: SortField | '', direction: 'asc' | 'desc'): Promise<void> {
 		listSortOverrideByViewId = { ...listSortOverrideByViewId };
 		if (field === '') delete listSortOverrideByViewId[viewId];
 		else listSortOverrideByViewId[viewId] = { field, direction };
-		plugin.settings.listSortOverrideByViewId = listSortOverrideByViewId;
-		await plugin.saveSettings();
+		await host.updateSettings({ listSortOverrideByViewId });
 	}
 
 	// Kept as plain functions (not inline template casts) — Svelte's template
@@ -237,11 +231,11 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 
 	// Resolve dependency-chain schedules once for the whole board; passed to list
 	// rows so tasks whose finish is implied by their chain show a projected badge.
-	$: holidayCalendar = splitHolidayCalendar(plugin.settings.holidays);
+	$: holidayCalendar = splitHolidayCalendar(host.settings.holidays);
 	$: calendarConfig = {
 		holidays: holidayCalendar.holidays,
 		recurringHolidays: holidayCalendar.recurringHolidays,
-		areaWorkweek: plugin.settings.areaWorkweek,
+		areaWorkweek: host.settings.areaWorkweek,
 	};
 	$: schedule = buildTaskSchedule($tasks, { calendarConfig });
 	// `createTaskQuery` needs a store, not a plain reactive value, so its
@@ -252,7 +246,7 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 	$: scheduleStore.set(schedule);
 
 	const weekStartStore = writable<WeekStart>(0);
-	$: { void $settingsRevision; weekStartStore.set(resolveWeekStart(plugin.settings.weekStartsOn)); }
+	$: { void $settingsRevision; weekStartStore.set(resolveWeekStart(host.settings.weekStartsOn)); }
 
 	const { result: groupedTasks, query } = createTaskQuery(tasks, {
 		filter: currentBoardQuery.filter,
@@ -300,28 +294,26 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 			...showCompletedByViewId,
 			[view.id]: !current,
 		};
-		plugin.settings.showCompletedByViewId = showCompletedByViewId;
-		await plugin.saveSettings();
+		await host.updateSettings({ showCompletedByViewId });
 	}
 
 	async function toggleLogbookRenderer(viewId: string) {
 		const nextModes = toggleLogbookRendererMode(viewId, logbookRendererModeByViewId);
 		logbookRendererModeByViewId = nextModes;
 		const nextMode = nextModes.logbook ?? 'list';
-		if (plugin.settings.logbookRendererMode === nextMode) return;
-		plugin.settings.logbookRendererMode = nextMode;
-		await plugin.saveSettings();
+		if (host.settings.logbookRendererMode === nextMode) return;
+		await host.updateSettings({ logbookRendererMode: nextMode });
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
 
 	// The resolved status pointers. See settings/statusPolicy.
-	$: statusPolicy = plugin.statusPolicy;
+	$: statusPolicy = host.statusPolicy;
 	$: configuredStatuses = statusPolicy.all;
 	// One palette for every renderer, rebuilt only when the colour maps change —
 	// so a row, its kanban card and its graph node can't resolve a colour
 	// differently. See utils/badgePalette.
-	$: palette = buildBadgePalette(plugin.settings);
+	$: palette = buildBadgePalette(host.settings);
 
 	// Derived Blocked/Hold cascade (#8) — computed from the full task list so a
 	// blocker outside the current filter still impedes, and recomputed rather than
@@ -342,31 +334,30 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 		focusedTaskPath.set(null);
 	}
 
-	function openNewTask()    { new CreateTaskModal(plugin.app, plugin).open(); }
+	function openNewTask()    { host.openCreateTask('task'); }
 	function openContextMenu(task: Task, event: MouseEvent) {
 		if ((task as ExternalTask).external) return;
-		plugin.showTaskContextMenu(task, event);
+		host.showTaskContextMenu(task, event);
 	}
 
 	function openGraphFullscreen(mode: 'dependency' | 'overview') {
-		new GraphExpandModal(plugin.app, {
-			host: plugin,
+		host.openGraphFullscreen({
 			groups: groupedTasks,
 			palette,
 			activeTaskPath,
 			defaultGraphMode: mode,
 			onOpen: (path) => {
 				focusedTaskPath.set(path);
-				plugin.taskStore.openDetail(path);
+				host.taskStore.openDetail(path);
 			},
 			onContextMenu: openContextMenu,
-		}).open();
+		});
 	}
 
 	async function promoteCapturedTask(external: ExternalTask): Promise<void> {
 		try {
-			const created = await promoteTaskToTTasks(external, plugin);
-			await plugin.taskStore.openDetail(created.path);
+			const created = await host.promoteCapturedTask(external);
+			await host.taskStore.openDetail(created.path);
 			new Notice(`Promoted: ${created.name}`);
 		} catch (error) {
 			new Notice(error instanceof Error ? error.message : 'Unable to promote captured task.');
@@ -376,11 +367,11 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 	// Row-level plugin calls, handed down as callbacks so TaskList / TaskAgenda /
 	// TaskRow stay plugin-free (AR-1).
 	function openCapturedTask(task: ExternalTask): void {
-		void plugin.openCapturedTask(task);
+		void host.openCapturedTask(task);
 	}
 
 	function triggerHoverPreview(path: string, event: MouseEvent): void {
-		plugin.triggerTaskHoverPreview(path, event);
+		host.triggerTaskHoverPreview(path, event);
 	}
 </script>
 
@@ -528,7 +519,7 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 				{#if currentView.source === 'custom'}
 					<button
 						class="tt-filter-edit-view"
-						on:click={() => editSmartList(plugin, currentView.id)}
+						on:click={() => host.editSmartList(currentView.id)}
 						aria-label="Edit current Smart List"
 					>
 						<span use:icon={'sliders-horizontal'}></span>
@@ -554,9 +545,9 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 						focusedTaskPath={$focusedTaskPath}
 						onOpen={(path) => {
 							focusedTaskPath.set(path);
-							plugin.taskStore.openDetail(path);
+							host.taskStore.openDetail(path);
 						}}
-						onRestore={currentView.id === 'logbook' ? ((path) => plugin.taskStore.restore(path)) : undefined}
+						onRestore={currentView.id === 'logbook' ? ((path) => host.taskStore.restore(path)) : undefined}
 						onContextMenu={openContextMenu}
 						onPromote={promoteCapturedTask}
 						onNewTask={openNewTask}
@@ -566,13 +557,10 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 					/>
 				{:else if currentRenderer === RENDERER_KANBAN}
 					<TaskKanban
-						getTaskByPath={(path) => plugin.taskStore.getByPath(path)}
-						onSetStatus={(task, status) => { void plugin.taskStore.setStatus(task, status); }}
-						collapsedColumnIds={plugin.settings.kanbanCollapsedColumns}
-						onCollapsedColumnsChange={async (ids) => {
-							plugin.settings.kanbanCollapsedColumns = ids;
-							await plugin.saveSettings();
-						}}
+						getTaskByPath={(path) => host.taskStore.getByPath(path)}
+						onSetStatus={(task, status) => { void host.taskStore.setStatus(task, status); }}
+						collapsedColumnIds={host.settings.kanbanCollapsedColumns}
+						onCollapsedColumnsChange={(ids) => host.updateSettings({ kanbanCollapsedColumns: ids })}
 						onHoverPreview={triggerHoverPreview}
 						groups={groupedTasks}
 						{schedule}
@@ -580,32 +568,32 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 						{palette}
 						blockStatus={statusPolicy.block}
 						{impedimentBadges}
-						kanbanCardFields={plugin.settings.kanbanCardFields}
+						kanbanCardFields={host.settings.kanbanCardFields}
 						{activeTaskPath}
 						onOpen={(path) => {
 							focusedTaskPath.set(path);
-							plugin.taskStore.openDetail(path);
+							host.taskStore.openDetail(path);
 						}}
 						onContextMenu={openContextMenu}
 					/>
 				{:else if currentRenderer === RENDERER_GRAPH}
 					<TaskGraph
-						host={plugin}
+						{host}
 						groups={groupedTasks}
 						defaultGraphMode={currentView.presentation.graphMode}
 						{palette}
 						{activeTaskPath}
 						onOpen={(path) => {
 							focusedTaskPath.set(path);
-							plugin.taskStore.openDetail(path);
+							host.taskStore.openDetail(path);
 						}}
 						onContextMenu={openContextMenu}
 						onToggleFullscreen={() => openGraphFullscreen(currentView.presentation.graphMode)}
 					/>
 				{:else if currentRenderer === RENDERER_ARCHIVE}
 					<TaskArchiveView
-						loadArchived={() => plugin.archiveService.loadArchivedTasks()}
-						restoreArchived={(path) => plugin.archiveService.restoreTask(path)}
+						loadArchived={() => host.archiveService.loadArchivedTasks()}
+						restoreArchived={(path) => host.archiveService.restoreTask(path)}
 					/>
 				{:else if currentRenderer === RENDERER_AGENDA}
 					<TaskAgenda
@@ -618,7 +606,7 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 						{activeTaskPath}
 						onOpen={(path) => {
 							focusedTaskPath.set(path);
-							plugin.taskStore.openDetail(path);
+							host.taskStore.openDetail(path);
 						}}
 						onContextMenu={openContextMenu}
 						selectable={true}
@@ -641,10 +629,10 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 	</div>
 
 	<!-- ── FAB ───────────────────────────────────────────────────────────────── -->
-	{#if plugin.settings.fabPosition !== 'hidden'}
+	{#if host.settings.fabPosition !== 'hidden'}
 		<button
 			class="tt-fab"
-			class:tt-fab-left={plugin.settings.fabPosition === 'left'}
+			class:tt-fab-left={host.settings.fabPosition === 'left'}
 			on:click={openNewTask}
 			aria-label="New task"
 		>

@@ -231,7 +231,7 @@ new TaskRail({
 new TaskBoard({
 	target: boardPane,
 	props: {
-		plugin: plugin as never,
+		host: plugin,
 		boardState,
 	},
 });

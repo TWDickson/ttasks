@@ -40,7 +40,7 @@ export class TaskBoardView extends ItemView {
 
 		this.component = new TaskBoard({
 			target: this.contentEl,
-			props: { plugin: this.plugin, boardState: this.boardState },
+			props: { host: this.plugin, boardState: this.boardState },
 		});
 
 		// N2: persist the current view id into Obsidian's workspace layout so a

@@ -108,14 +108,11 @@ describe('architecture boundaries', () => {
 		expect(offenders, 'read leaf.getViewState() instead — see src/views/openFileLeaves.ts').toEqual([]);
 	});
 
-	// AR-1 (closed 2026-10-24): only the plugin-facing shells may touch the
-	// plugin — TaskBoard and TaskDetail, each mounted by an ItemView. They turn
-	// plugin state into props and callbacks for everything below them; no other
-	// component joins the list. AR-8 moves each onto a host interface
-	// (src/components/hosts.ts) — TaskGraph already reads only `GraphHost`.
-	it('only the plugin-facing shells import the plugin or the store', () => {
+	// AR-1 / AR-8: no component imports the plugin or the store. The shells
+	// (TaskBoard, TaskGraph) read the plugin through a host interface in
+	// src/components/hosts.ts; TaskDetail is the last one still to move.
+	it('only the not-yet-migrated shells import the plugin or the store', () => {
 		const legacy = new Set([
-			'TaskBoard.svelte',
 			'TaskDetail.svelte',
 		]);
 		const dir = 'src/components';

@@ -25,7 +25,11 @@ import { createBoardStateService, type BoardStateStores } from './store/BoardSta
 import { resolveTaskViewId } from './views/viewRegistry';
 import { repairPluginLeaves } from './views/leafHygiene';
 import { CreateTaskModal, type CreateTaskOptions } from './modals/CreateTaskModal';
-import type { GraphHost } from './components/hosts';
+import type { BoardHost } from './components/hosts';
+import { confirmModal, type ConfirmModalOptions } from './modals/confirmModal';
+import { GraphExpandModal, type GraphExpandProps } from './modals/GraphExpandModal';
+import { editSmartList } from './views/smartListActions';
+import { promoteTaskToTTasks } from './integration/promoteTaskToTTasks';
 import { FocusUntilModal } from './modals/FocusUntilModal';
 import { ShareSyncModal } from './modals/ShareSyncModal';
 import { ReminderService } from './store/ReminderService';
@@ -67,7 +71,7 @@ import type { SettingsHost } from './types/settingsHost';
 
 export type BoardViewMode = string;
 
-export default class TTasksPlugin extends Plugin implements GraphHost {
+export default class TTasksPlugin extends Plugin implements BoardHost {
 	// `declare`: narrows the base Plugin's `settings?: unknown` (Obsidian 1.13 typings) without emitting a field.
 	declare settings: TTasksSettings;
 	taskStore!: TaskStore;
@@ -952,6 +956,22 @@ export default class TTasksPlugin extends Plugin implements GraphHost {
 
 	openCreateTask(type: TaskRecordType = 'task', options?: CreateTaskOptions): void {
 		new CreateTaskModal(this.app, this, type, options).open();
+	}
+
+	promoteCapturedTask(task: ExternalTask): Promise<Task> {
+		return promoteTaskToTTasks(task, this);
+	}
+
+	confirm(options: ConfirmModalOptions): Promise<boolean> {
+		return confirmModal(this.app, options);
+	}
+
+	openGraphFullscreen(props: Omit<GraphExpandProps, 'host'>): void {
+		new GraphExpandModal(this.app, { ...props, host: this }).open();
+	}
+
+	editSmartList(viewId: string): void {
+		editSmartList(this, viewId);
 	}
 
 	async saveSettings() {
