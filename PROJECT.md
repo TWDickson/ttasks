@@ -27,7 +27,7 @@ one-liner here. Open items keep their full rationale; closed ones don't.
 | | |
 | --- | --- |
 | Version | `0.2.3` published 2026-10-23 (link-alias refresh on rename, form-control labels). Rows below name the first version carrying each change. Not on the community list — deliberate |
-| Tests | **2018 passing, 161 files** (`npm run check` = lint → build → test) |
+| Tests | **2024 passing, 161 files** (`npm run check` = lint → build → test) |
 | CI | Green on push/PR/dispatch, Node **22 + 24** matrix; rig smoke covers 11 scenes |
 | Release | `npm version patch && git push --follow-tags` |
 | Deploy | `npm run build` copies into the vault; `npm run dev` does not |
@@ -38,10 +38,10 @@ search/filter, dependency graph, reminders, quick actions, archive/logbook, the
 `area`/`labels` data model, the shared query engine, Smart Lists, native
 Pomodoro, and Share/Sync all ship.
 
-**Nothing gates a release any more.** PB-2 (the last 🔴) landed 2026-10-13 along
-with RP-2's builder and RP-3. The next release (**0.2.1**, superseding the never-
-published 0.2.0) carries the whole `ttask_*` cutover and **requires running the
-migration script** — see the README and §B.
+**Nothing gates a release any more.** The `ttask_*` cutover shipped in 0.2.2
+(migration run). The next release, **0.2.4**, carries the rail version label,
+the Pomodoro ribbon icon, finished graph branches sinking (#16), clearer
+selected chips in the detail pane, and the AR-1/4/8/9 refactors.
 
 **No ⚖ call blocks any 🔴 item.** DT-2 and DT-5 are *decided* (2026-07-25) and
 only need implementing. The open taste calls are all UI polish (see §C).
@@ -334,6 +334,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | `[ ]` | **Due Time input** (DT-2) — create modal and detail pane | Native time picker opens; field appears only once a due date is set; clearing the date hides it | 0.2.2 |
 | `[ ]` | **Version under Settings** in the rail drawer | `v0.2.4 BETA` in faint text below Settings, not clipped | 0.2.4 |
+| `[ ]` | **Selected chips stand out** — detail pane Status and Priority, dark and light | Only the picked chip is coloured; the others are plain grey | 0.2.4 |
 | `[ ]` | **Mobile golden path** floor check | Create → edit → complete a task at phone width, no clipped controls | — |
 | `[~]` | **Graph: detail drawer** after tapping a node in fullscreen graph | Modal closes, drawer is visible and on top (fix: rAF hand-off + `active: Platform.isMobile`) | 0.1.x |
 | `[~]` | **Graph: double-tap-to-open** | One tap opens (fix: `pointerup` on touch, 8 px drag threshold) | 0.1.x |
@@ -360,6 +361,7 @@ flowchart LR
 | | Check | Pass looks like | Ships |
 | --- | --- | --- | --- |
 | `[ ]` | **Pomodoro ribbon icon** (#15) | A timer icon in the left ribbon opens the Pomodoro pane; can be hidden via the ribbon's right-click menu | 0.2.4 |
+| `[ ]` | **Finished chains sink** (#16) — Dependencies view, a project with a fully completed dependency chain | The done chain sits at the bottom of its lane, below open work; a done task that unblocks open work stays inline with it | 0.2.4 |
 | `[ ]` | **Week starts on** (DT-5) — Settings → Working calendar | Dropdown at top of the section, default "System default (Mon/Sun)" matching your device locale; Monday vs Sunday moves Sunday between This/Next Week | 0.2.2 |
 | `[ ]` | **⚠ Migration first** (MD-4) — before installing the new release: Obsidian closed everywhere, run the script's dry run on `Planner/Tasks` + `Planner/Archive`, then `--apply` | Summary shows ~170 notes migrated, 0 skipped; backups folder exists | 0.2.2 |
 | `[ ]` | **Unmigrated-vault guard** — (optional) open an *unconverted copy* of the vault with the new release | Persistent notice explaining the empty board; creating/editing a task is refused | 0.2.2 |
@@ -430,9 +432,9 @@ isn't Obsidian itself.
   a node's connector (left = depends-on, right = blocks) to link it to another
   node. Needs interaction-design research: hit targets, drop targets, touch
   equivalent.
-- `[ ]` **(16) Vertical sort: rank completed items lower** ⚖ — current order
-  reads as priority-based; Taylor's instinct is that completed items should sink
-  regardless of priority. Needs a taste call on the exact rule.
+- `[x]` **(16) Vertical sort: rank completed items lower** — *(2026-10-24, 0.2.4)*
+  finished branches (completed, nothing open downstream) sink to the bottom of
+  their lane; a completed step feeding open work stays on its chain.
 - `[ ]` **GP2 residue** ⚖ (minor) — Blocked/Cycle count pills hide at zero; if
   Taylor prefers them always visible it's a two-line revert.
 - `[x]` Timeline blank with a single lane; Gantt pinned name column; graph
@@ -450,10 +452,9 @@ isn't Obsidian itself.
 
 ### Feedback items
 
-- `[ ]` **Status / Priority badges: selected vs. regular hard to distinguish,
-  worse in dark mode** ⚖ — likely a colour-spine follow-on (badges went
-  monochrome in V2). Needs a taste call on how much contrast the selected state
-  should carry.
+- `[x]` **Status / Priority badges: selected vs. regular hard to distinguish,
+  worse in dark mode** — *(2026-10-24, 0.2.4)* detail-pane chips now match the
+  create modal: only the selected chip carries colour; the rest are neutral.
 - `[x]` **(14) Dependency-picker sorting** — *(2026-10-08)* real bug: the
   comparator did `a.parent_task === currentParentTask`, but stored tasks carry
   `.md` while the create modal's form value is extensionless, so "same project

@@ -12,6 +12,25 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-10-24 — Two ⚖ calls taken for 0.2.4: #16 and selected chips
+
+**(16) Graph vertical sort.** Same-column roots stacked by date, so a finished
+chain — always the earliest-dated work — floated to the top of its lane. The
+rule chosen: a *settled* node (completed, nothing open anywhere downstream —
+`findSettledPaths`, a fixpoint so cycles terminate) is laid out in a second pass
+of `packLaneNodeRows`, below all open work, whatever its date or priority. A
+completed step that still feeds open work is *not* settled: sinking it would
+bend every arrow on a live chain. The graph only shows completed tasks that sit
+on a chain, so in practice this is "finished chains sink". The rig gained a
+finished-chain fixture for it.
+
+**Selected chips.** The detail pane's Status/Priority chips tinted *unselected*
+coloured options too (42% border + coloured text), so the selected one differed
+only by an 18% fill — invisible in dark mode. Now only the selected chip carries
+colour, matching the create modal, which already worked that way.
+
+---
+
 ## 2026-10-24 — AR-9 closed: modals take host interfaces too
 
 The three modals the rig opens got the AR-8 treatment: `CreateTaskHost`,

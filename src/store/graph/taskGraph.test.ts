@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../../types';
-import { buildHybridTimeline, buildTaskGraph, resolveConnectedDependencyPaths, resolveTaskDates } from './taskGraph';
+import { buildHybridTimeline, buildTaskGraph, findSettledPaths, resolveConnectedDependencyPaths, resolveTaskDates } from './taskGraph';
 import { detectDependencyCyclePaths } from './taskGraphDates';
 import { countCrossingsByColumnPairs } from './graphCrossingOptimizer';
 
@@ -146,6 +146,47 @@ describe('buildTaskGraph', () => {
 
 		expect(byPath.get('Tasks/early.md')!.row).toBeLessThan(byPath.get('Tasks/mid.md')!.row);
 		expect(byPath.get('Tasks/mid.md')!.row).toBeLessThan(byPath.get('Tasks/late.md')!.row);
+	});
+
+	it('sinks a finished branch below open work, whatever its date or priority (#16)', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/proj.md', name: 'Proj', type: 'project' }),
+			makeTask({ path: 'Tasks/open.md', name: 'Open', parent_task: 'Tasks/proj', start_date: '2026-06-20' }),
+			makeTask({
+				path: 'Tasks/done.md', name: 'Done', parent_task: 'Tasks/proj', priority: 'High',
+				start_date: '2026-06-01', status: 'Done', is_complete: true, completed: '2026-06-02',
+			}),
+			makeTask({
+				path: 'Tasks/done-next.md', name: 'Done next', parent_task: 'Tasks/proj', depends_on: ['Tasks/done'],
+				status: 'Done', is_complete: true, completed: '2026-06-03',
+			}),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const byPath = new Map(layout.nodes.map((node) => [node.path, node]));
+		const open = byPath.get('Tasks/open.md')!;
+		expect(byPath.get('Tasks/done.md')!.row).toBeGreaterThan(open.row);
+		// The finished chain keeps its own spine down there.
+		expect(byPath.get('Tasks/done-next.md')!.row).toBe(byPath.get('Tasks/done.md')!.row);
+	});
+
+	it('keeps a completed step that leads into open work on its chain (#16)', () => {
+		const tasks = [
+			makeTask({ path: 'Tasks/proj.md', name: 'Proj', type: 'project' }),
+			makeTask({ path: 'Tasks/other.md', name: 'Other', parent_task: 'Tasks/proj', start_date: '2026-06-20' }),
+			makeTask({
+				path: 'Tasks/done.md', name: 'Done', parent_task: 'Tasks/proj',
+				start_date: '2026-06-01', status: 'Done', is_complete: true, completed: '2026-06-02',
+			}),
+			makeTask({ path: 'Tasks/next.md', name: 'Next', parent_task: 'Tasks/proj', depends_on: ['Tasks/done'] }),
+		];
+
+		const layout = buildTaskGraph(tasks, {});
+		const byPath = new Map(layout.nodes.map((node) => [node.path, node]));
+		const done = byPath.get('Tasks/done.md')!;
+		expect(byPath.get('Tasks/next.md')!.row).toBe(done.row);
+		// Not sunk: it still sorts by date ahead of the later open root.
+		expect(done.row).toBeLessThan(byPath.get('Tasks/other.md')!.row);
 	});
 
 	it('never places two nodes from the same column on the same row', () => {
@@ -420,6 +461,33 @@ describe('buildTaskGraph', () => {
 
 		const crossings = countCrossingsByColumnPairs(orderedLanePaths, nodesByPath, layout.edges);
 		expect(crossings).toBe(0);
+	});
+});
+
+describe('findSettledPaths', () => {
+	const done = { status: 'Done', is_complete: true } as const;
+	const settledOf = (tasks: Task[]) => [...findSettledPaths(tasks, buildTaskGraph(tasks, {}).edges)].sort();
+
+	it('settles a completed chain with nothing open downstream', () => {
+		expect(settledOf([
+			makeTask({ path: 'Tasks/a.md', name: 'A', ...done }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'], ...done }),
+		])).toEqual(['Tasks/a.md', 'Tasks/b.md']);
+	});
+
+	it('does not settle a completed task with open work anywhere downstream', () => {
+		expect(settledOf([
+			makeTask({ path: 'Tasks/a.md', name: 'A', ...done }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'], ...done }),
+			makeTask({ path: 'Tasks/c.md', name: 'C', depends_on: ['Tasks/b'] }),
+		])).toEqual([]);
+	});
+
+	it('terminates on a completed cycle', () => {
+		expect(settledOf([
+			makeTask({ path: 'Tasks/a.md', name: 'A', depends_on: ['Tasks/b'], ...done }),
+			makeTask({ path: 'Tasks/b.md', name: 'B', depends_on: ['Tasks/a'], ...done }),
+		])).toEqual(['Tasks/a.md', 'Tasks/b.md']);
 	});
 });
 

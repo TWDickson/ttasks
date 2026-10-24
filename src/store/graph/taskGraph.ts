@@ -165,6 +165,13 @@ const DEFAULT_LANE_GAP = 40;
  *  - A node with several same-lane predecessors (a merge) centers between them.
  * Cross-lane dependencies are ignored here, so they remain diagonal connectors
  * rather than pulling a node out of its swim lane.
+ *
+ * Finished branches sink (#16): `settledPaths` (see `findSettledPaths`) are
+ * placed in a second pass, after every open node in the lane, so a finished
+ * branch starts on a fresh row below the open work whatever its date or
+ * priority. A completed node that still leads into open work isn't settled and
+ * stays on its chain's spine; a settled node hanging off an open one still
+ * follows the spine rule from it.
  */
 function packLaneNodeRows(
 	laneNodes: TaskGraphNode[],
@@ -172,6 +179,7 @@ function packLaneNodeRows(
 	edges: TaskGraphEdge[],
 	allNodesByPath: Map<string, TaskGraphNode>,
 	temporalKeyByPath: Map<string, number>,
+	settledPaths: ReadonlySet<string>,
 	nodeHeight: number,
 	verticalGap: number,
 	padding: number,
@@ -214,49 +222,79 @@ function packLaneNodeRows(
 	const temporalKey = (node: TaskGraphNode): number =>
 		temporalKeyByPath.get(node.path) ?? Number.POSITIVE_INFINITY;
 
-	for (const col of sortedCols) {
-		const colNodes = byColumn.get(col)!;
+	for (const settledPass of [false, true]) {
+		for (const col of sortedCols) {
+			const colNodes = byColumn.get(col)!.filter((node) => settledPaths.has(node.path) === settledPass);
 
-		// Sort by predecessor average so the column lays out top-to-bottom in the
-		// order its predecessors appear; break ties by date so same-depth nodes
-		// (e.g. the roots in column 0) stack earliest-first, top to bottom.
-		const sorted = [...colNodes].sort((a, b) =>
-			prelimIdeal(a) - prelimIdeal(b)
-			|| temporalKey(a) - temporalKey(b)
-			|| a.path.localeCompare(b.path));
+			// Sort by predecessor average so the column lays out top-to-bottom in the
+			// order its predecessors appear; break ties by date so same-depth nodes
+			// (e.g. the roots in column 0) stack earliest-first, top to bottom.
+			const sorted = [...colNodes].sort((a, b) =>
+				prelimIdeal(a) - prelimIdeal(b)
+				|| temporalKey(a) - temporalKey(b)
+				|| a.path.localeCompare(b.path));
 
-		const colOccupied = occupiedByColumn.get(col) ?? new Set<number>();
-		for (const node of sorted) {
-			const preds = sameLanePreds(node);
+			const colOccupied = occupiedByColumn.get(col) ?? new Set<number>();
+			for (const node of sorted) {
+				const preds = sameLanePreds(node);
 
-			let ideal: number;
-			if (preds.length === 0) {
-				// Root / independent start: own fresh row.
-				ideal = nextFreshRow;
-			} else if (preds.length > 1) {
-				// Merge: center between predecessors.
-				ideal = Math.round(preds.reduce((s, p) => s + p.row, 0) / preds.length);
-			} else {
-				const parent = preds[0];
-				const seen = childCount.get(parent.path) ?? 0;
-				// First child continues the spine; later children fork to a fresh row.
-				ideal = seen === 0 ? parent.row : nextFreshRow;
+				let ideal: number;
+				if (preds.length === 0) {
+					// Root / independent start: own fresh row.
+					ideal = nextFreshRow;
+				} else if (preds.length > 1) {
+					// Merge: center between predecessors.
+					ideal = Math.round(preds.reduce((s, p) => s + p.row, 0) / preds.length);
+				} else {
+					const parent = preds[0];
+					const seen = childCount.get(parent.path) ?? 0;
+					// First child continues the spine; later children fork to a fresh row.
+					ideal = seen === 0 ? parent.row : nextFreshRow;
+				}
+				for (const p of preds) {
+					childCount.set(p.path, (childCount.get(p.path) ?? 0) + 1);
+				}
+
+				const row = findNearestFreeRow(Math.max(startRow, ideal), startRow, colOccupied);
+				node.row = row;
+				node.y = padding + row * (nodeHeight + verticalGap);
+				colOccupied.add(row);
+				placed.add(node.path);
+				nextFreshRow = Math.max(nextFreshRow, row + 1);
 			}
-			for (const p of preds) {
-				childCount.set(p.path, (childCount.get(p.path) ?? 0) + 1);
-			}
-
-			const row = findNearestFreeRow(Math.max(startRow, ideal), startRow, colOccupied);
-			node.row = row;
-			node.y = padding + row * (nodeHeight + verticalGap);
-			colOccupied.add(row);
-			placed.add(node.path);
-			nextFreshRow = Math.max(nextFreshRow, row + 1);
+			occupiedByColumn.set(col, colOccupied);
 		}
-		occupiedByColumn.set(col, colOccupied);
 	}
 
 	return Math.max(startRow, ...laneNodes.map((n) => n.row));
+}
+
+/**
+ * Completed tasks with no open work downstream — the finished branches that
+ * `packLaneNodeRows` sinks to the bottom of their lane. Starts from every
+ * completed path and peels off any whose dependent isn't settled, until stable
+ * (a fixpoint, so dependency cycles terminate).
+ */
+export function findSettledPaths(tasks: Task[], edges: TaskGraphEdge[]): Set<string> {
+	const settled = new Set(tasks.filter((task) => task.is_complete).map((task) => task.path));
+	const dependents = new Map<string, string[]>();
+	for (const edge of edges) {
+		if (edge.isParentEdge) continue;
+		const list = dependents.get(edge.from) ?? [];
+		list.push(edge.to);
+		dependents.set(edge.from, list);
+	}
+	let changed = true;
+	while (changed) {
+		changed = false;
+		for (const path of settled) {
+			if ((dependents.get(path) ?? []).some((next) => !settled.has(next))) {
+				settled.delete(path);
+				changed = true;
+			}
+		}
+	}
+	return settled;
 }
 
 function findNearestFreeRow(ideal: number, minRow: number, occupied: Set<number>): number {
@@ -630,9 +668,10 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 	});
 
 	// Temporal key per task so same-column nodes (e.g. the roots in column 0)
-	// stack vertically in date order — earlier work sits higher — preserving a
-	// "completed before others" signal without spreading the chain horizontally.
+	// stack vertically in date order — earlier work sits higher — without
+	// spreading the chain horizontally. Finished branches sink below all of it.
 	const temporalKeyByPath = new Map(visibleTasks.map((task) => [task.path, getTemporalKeyForTask(task)]));
+	const settledPaths = findSettledPaths(visibleTasks, edges);
 
 	// Optimize lane ordering to minimize cross-lane edge distance. The unassigned
 	// (null-key) lane is held out of the optimizer and pinned to the bottom —
@@ -659,7 +698,7 @@ export function buildTaskGraph(tasks: Task[], options: BuildTaskGraphOptions): T
 		const startRow = laneRowCursor;
 		const endRow = packLaneNodeRows(
 			laneNodes, startRow, edges, new Map(nodes.map((n) => [n.path, n])),
-			temporalKeyByPath, nodeHeight, verticalGap, padding,
+			temporalKeyByPath, settledPaths, nodeHeight, verticalGap, padding,
 		);
 		laneBands.set(laneKey, {
 			startRow,

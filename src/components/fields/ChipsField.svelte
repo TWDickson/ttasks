@@ -77,9 +77,7 @@
 				class:tt-chip-readonly={readonly}
 				style={isSelected && color
 					? `background-color: color-mix(in srgb, ${color} 18%, var(--background-primary)); border-color: color-mix(in srgb, ${color} 60%, var(--background-modifier-border)); color: ${color}; box-shadow: inset 0 0 0 1px color-mix(in srgb, ${color} 60%, transparent);`
-					: color
-						? `border-color: color-mix(in srgb, ${color} 42%, var(--background-modifier-border)); color: ${color};`
-						: ''}
+					: ''}
 				on:click={() => handleChipClick(opt)}
 				on:blur={handleBlur}
 				disabled={readonly}
@@ -131,7 +129,9 @@
 	}
 
 	/* Theme-accent fill for chips without a user-configured color; colored chips */
-	/* get an inline tinted style from the markup so text stays readable. */
+	/* get an inline tinted style from the markup so text stays readable. Only the */
+	/* selected chip carries colour — unselected ones stay neutral, as in the create */
+	/* modal, so "which one is picked" doesn't depend on telling two tints apart. */
 	.tt-chip.tt-chip-active {
 		background: var(--interactive-accent);
 		border-color: var(--interactive-accent);

@@ -224,6 +224,28 @@ export function buildFixtureTasks(): Task[] {
 		due_date: isoDaysFromToday(-1),
 	});
 
+	// Finished chain (#16): two completed, linked tasks in the menu project, dated
+	// earlier than everything open. The graph must sink them below the lane's open
+	// work rather than float them to the top by date.
+	const recipeDraft = makeTask({
+		name: 'Draft the deluxe patty recipe',
+		area: 'Krusty Krab',
+		priority: 'High',
+		parent_task: stripMd(project.path),
+		start_date: isoDaysFromToday(-12),
+		status: 'Done',
+		completed: isoDaysFromToday(-11),
+	});
+
+	const recipeLock = makeTask({
+		name: 'Lock the recipe in the safe',
+		area: 'Krusty Krab',
+		parent_task: stripMd(project.path),
+		depends_on: [stripMd(recipeDraft.path)],
+		status: 'Done',
+		completed: isoDaysFromToday(-10),
+	});
+
 	const doneOld = makeTask({
 		name: 'Renew boating school licence',
 		area: 'Pineapple',
@@ -236,8 +258,9 @@ export function buildFixtureTasks(): Task[] {
 	implement.blocks = [stripMd(review.path)];
 	review.blocks = [stripMd(apiEndpoints.path)];
 	blocked.blocks = [stripMd(apiEndpoints.path)];
+	recipeDraft.blocks = [stripMd(recipeLock.path)];
 
-	return [project, wireframes, implement, review, stress, stressChild, apiProject, blocked, apiEndpoints, delegated, awaitingDelegate, today, inbox, done, doneOld];
+	return [project, wireframes, implement, review, stress, stressChild, apiProject, blocked, apiEndpoints, delegated, awaitingDelegate, today, inbox, done, recipeDraft, recipeLock, doneOld];
 }
 
 /**
