@@ -119,10 +119,45 @@ describe('FilterDropdown.svelte', () => {
 		renderDropdown();
 		await openMenu();
 
-		await fireEvent.mouseDown(screen.getByRole('group'));
+		await fireEvent.pointerDown(screen.getByRole('group'));
 		expect(screen.getByRole('group')).toBeInTheDocument();
 
-		await fireEvent.mouseDown(document.body);
+		await fireEvent.pointerDown(document.body);
 		expect(screen.queryByRole('group')).not.toBeInTheDocument();
+	});
+
+	it('keeps the Escape that closes it away from the board shortcut handler', async () => {
+		// The board listens on `document`; it would clear the search on the same keypress.
+		const boardHandler = vi.fn();
+		document.addEventListener('keydown', boardHandler);
+		renderDropdown();
+		await openMenu();
+
+		await fireEvent.keyDown(document.body, { key: 'Escape' });
+
+		expect(screen.queryByRole('group')).not.toBeInTheDocument();
+		expect(boardHandler).not.toHaveBeenCalled();
+		document.removeEventListener('keydown', boardHandler);
+	});
+
+	it('lets Escape through to the board when the menu is closed', async () => {
+		const boardHandler = vi.fn();
+		document.addEventListener('keydown', boardHandler);
+		renderDropdown();
+
+		await fireEvent.keyDown(document.body, { key: 'Escape' });
+
+		expect(boardHandler).toHaveBeenCalledTimes(1);
+		document.removeEventListener('keydown', boardHandler);
+	});
+
+	it('uses the fallback path where the WebView has no native popover (jsdom, iOS 15–16)', async () => {
+		renderDropdown();
+		const trigger = screen.getAllByRole('button')[0];
+		expect(trigger).not.toHaveAttribute('popovertarget');
+
+		await openMenu();
+
+		expect(screen.getByRole('group')).not.toHaveAttribute('popover');
 	});
 });

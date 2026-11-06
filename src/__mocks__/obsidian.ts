@@ -39,4 +39,5 @@ export class FuzzySuggestModal<T> {
 export function normalizePath(path: string): string { return path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/|\/$/g, ''); }
 export class Notice { constructor(_msg: string, _ms?: number) {} }
 export function setIcon(_el: HTMLElement, _icon: string) {}
+export function getLanguage(): string { return 'en'; }
 export class App {}

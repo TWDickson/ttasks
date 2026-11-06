@@ -14,7 +14,9 @@
 	 * exactly the one you need to find.
 	 */
 	import { createEventDispatcher } from 'svelte';
+	import { t } from '../i18n';
 	import { icon } from '../utils/icon';
+	import { menuPopover, popoverId, supportsNativePopover } from '../utils/popover';
 
 	export let label: string;
 	// readonly: StatusPolicy.all and the PRIORITIES tuple are both frozen, and
@@ -31,7 +33,11 @@
 	const dispatch = createEventDispatcher<{ change: string[] }>();
 
 	let open = false;
-	let rootEl: HTMLElement;
+	let triggerEl: HTMLButtonElement;
+	/* Native popover where the WebView has it, CSS-positioned fallback where it
+	   doesn't (iOS 15–16) — see src/utils/popover.ts. */
+	const native = supportsNativePopover();
+	const menuId = popoverId('tt-filter-menu');
 
 	// A slotted control brings its own content, so an empty option list is not a
 	// reason to render nothing.
@@ -55,38 +61,26 @@
 		dispatch('change', []);
 	}
 
-	function onWindowPointerDown(event: MouseEvent): void {
-		if (!open) return;
-		if (rootEl && !rootEl.contains(event.target as Node)) open = false;
-	}
-
-	/**
-	 * Window-level and in the **capture** phase, which is what makes Escape scope
-	 * correctly: the board registers its shortcut handler on `document`, so a
-	 * bubble-phase listener here would always run second and the board would clear
-	 * the search before this menu ever closed. Capture runs first, and stopping
-	 * propagation there keeps the keypress from reaching the board at all.
-	 */
-	function onWindowKeyDown(event: KeyboardEvent): void {
-		if (event.key === 'Escape' && open) {
-			event.stopPropagation();
-			open = false;
-		}
+	/** Native mode: the trigger's `popovertarget` toggles the menu, not this. */
+	function onTriggerClick(): void {
+		if (!native) open = !open;
 	}
 </script>
 
-<svelte:window on:mousedown={onWindowPointerDown} on:keydown|capture={onWindowKeyDown} />
-
 {#if hasContent}
-	<div class="tt-filter-dropdown" bind:this={rootEl}>
+	<div class="tt-filter-dropdown">
 		<button
+			bind:this={triggerEl}
 			type="button"
 			class="tt-filter-select tt-filter-trigger"
 			class:is-active={isActive}
 			aria-haspopup="true"
 			aria-expanded={open}
-			aria-label={count > 0 ? `${label}: ${selected.join(', ')}` : `Filter by ${label.toLowerCase()}`}
-			on:click={() => { open = !open; }}
+			aria-label={count > 0
+				? t('filter.selection', { label, values: selected.join(', ') })
+				: t('filter.filterBy', { label: label.toLowerCase() })}
+			popovertarget={native ? menuId : undefined}
+			on:click={onTriggerClick}
 		>
 			<span class="tt-filter-trigger-label">{summary}</span>
 			{#if count > 1}
@@ -95,8 +89,15 @@
 			<span class="tt-filter-caret" use:icon={'chevron-down'}></span>
 		</button>
 
-		{#if open}
-			<div class="tt-filter-menu" role="group" aria-label={label}>
+		{#if native || open}
+			<div
+				id={menuId}
+				class="tt-filter-menu tt-popover"
+				popover={native ? 'auto' : undefined}
+				role="group"
+				aria-label={label}
+				use:menuPopover={{ anchor: triggerEl, native, align: 'start', onOpenChange: (next) => { open = next; } }}
+			>
 				{#if $$slots.default}
 					<slot />
 				{:else}
@@ -130,7 +131,7 @@
 				{#if count > 0}
 					<hr class="tt-divider" />
 					<button type="button" class="tt-btn tt-btn-sm tt-filter-clear" on:click={clear}>
-						Clear {label.toLowerCase()}
+						{t('filter.clear', { label: label.toLowerCase() })}
 					</button>
 				{/if}
 				{/if}
@@ -179,10 +180,6 @@
 	}
 
 	.tt-filter-menu {
-		position: absolute;
-		top: calc(100% + 4px);
-		left: 0;
-		z-index: var(--layer-menu, 50);
 		min-width: 168px;
 		max-height: 320px;
 		overflow-y: auto;
@@ -191,6 +188,15 @@
 		border-radius: var(--tt-control-radius);
 		background: var(--background-primary);
 		box-shadow: var(--shadow-s, 0 2px 8px rgba(0, 0, 0, 0.2));
+	}
+
+	/* Fallback (no native popover): positioned against the trigger by CSS. The
+		native menu lives in the top layer and is placed by menuPopover. */
+	.tt-filter-menu:not([popover]) {
+		position: absolute;
+		top: calc(100% + 4px);
+		left: 0;
+		z-index: var(--layer-menu, 50);
 	}
 
 	.tt-filter-option {

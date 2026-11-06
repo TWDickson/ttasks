@@ -148,6 +148,13 @@ Body = free-form markdown notes only. The plugin renders all structured UI on to
   (`src/schema/taskPersistence.ts`), so the `ttask_*` rename is one table edit.
   `frontmatterKeyAccess.test.ts` fails on a literal in `src/store/`.
 - Settings accessed via `this.plugin.settings.tasksFolder`
+- **UI wording goes through `t()`** (`src/i18n`): add the string to
+  `src/i18n/en.ts` and render `t('area.key', { param })`. Keys and `{params}`
+  are type-checked against `en.ts`. User data (status/area/label/priority
+  names) never goes through `t()`, because translating it would change what's
+  written to notes. `hardcodedWording.test.ts` counts the literal wording each
+  file still has, and those counts can only go down: a file can't gain any, and
+  when you convert one, lower or delete its entry.
 - **Per-device state goes through `plugin.deviceStore`** (`src/utils/deviceStore.ts`,
   Obsidian's vault-scoped `loadLocalStorage`), never raw `localStorage` — a
   boundary test enforces it. Needs Obsidian ≥ 1.8.7 (`minAppVersion`).
@@ -278,6 +285,13 @@ golden path on iOS or a narrow-viewport browser.
   `r, g, b` triplet; wrap it: `rgba(var(--interactive-accent-rgb), 0.2)`.
 - **Icons**: Lucide via `setIcon` (TS) or the `icon` action from `src/utils/icon.ts`
   (Svelte) — no unicode glyph buttons.
+- **Dropdown menus use `menuPopover`** (`src/utils/popover.ts`): a native
+  `popover="auto"` menu (top layer, browser light-dismiss) where the WebView has
+  it, and a CSS-positioned fallback where it doesn't (iOS 15–16, jsdom). Copy
+  `FilterDropdown.svelte`: `popovertarget` on the trigger, `{#if native || open}`
+  around the menu, and fallback positioning under `.menu:not([popover])`. Don't
+  hand-roll click-outside or Escape handling. Component tests only exercise the
+  fallback; `rig:smoke` drives the native path.
 - **No JS-injected `<style>` elements** — all CSS ends up in the shipped
   `styles.css`. Svelte compiles with `css: "external"`, so a component's scoped
   `<style>` is fine; creating `<style>` elements from code is not.

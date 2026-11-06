@@ -476,6 +476,19 @@ button.tt-btn[aria-pressed="true"] {
 	font-size: 0.82rem;
 }
 
+/* Anchored menus (src/utils/popover.ts). A native popover sits in the top layer,
+   where the UA stylesheet centres it in the viewport with its own border, padding
+   and colours. Undo that so the component's menu styling wins and menuPopover's
+   inline top/left place it under its trigger. The fallback path never gets the
+   `popover` attribute, so these rules don't touch it. */
+.tt-popover[popover] {
+	position: fixed;
+	inset: auto;
+	margin: 0;
+	overflow: auto;
+	color: inherit;
+}
+
 /* Reduced motion: collapse the plugin's slide/expand animations */
 @media (prefers-reduced-motion: reduce) {
 	.tt-modal-section-body,

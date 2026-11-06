@@ -32,10 +32,10 @@ const BASE = `http://localhost:${PORT}`;
    tree, so a mock member read by only one of them still gets caught. Fixtures,
    never vault data: CI has no vault, and a smoke test must not depend on one. */
 const SCENES = [
-	{ name: 'list', url: '/?view=list' },
+	{ name: 'list', url: '/?view=list', popover: '.tt-filter-trigger' },
 	{ name: 'kanban', url: '/?view=kanban' },
 	{ name: 'agenda', url: '/?view=agenda' },
-	{ name: 'graph', url: '/?view=graph' },
+	{ name: 'graph', url: '/?view=graph', popover: '.tt-graph-pill-toggle' },
 	{ name: 'timeline', url: '/?view=timeline' },
 	{ name: 'logbook', url: '/?view=logbook' },
 	{ name: 'detail', url: '/?view=list&detail=1', formRoot: '.tt-detail' },
@@ -66,6 +66,60 @@ async function formA11yProblems(page, root) {
 	}
 	const ids = await page.$$eval(`${root} [id]`, (els) => els.map((el) => el.id));
 	for (const id of new Set(ids.filter((id, i) => ids.indexOf(id) !== i))) problems.push(`duplicate id "${id}"`);
+	return problems;
+}
+
+/* The anchored menus (src/utils/popover.ts) take the native-popover path in a
+   real browser and the fallback in jsdom, so the component tests only ever see
+   the fallback. This drives the native one: the trigger opens the menu in the
+   top layer, under its trigger and inside the viewport, nothing paints over it,
+   Escape closes it *without* reaching a document-level listener (the board's
+   shortcut handler lives there and would also clear the search), and a click
+   elsewhere light-dismisses it. Returns problems. */
+async function popoverProblems(page, triggerSelector) {
+	const trigger = await page.$(triggerSelector);
+	if (!trigger) return [`no ${triggerSelector} to open`];
+	const menuId = await trigger.evaluate((el) => el.getAttribute('popovertarget'));
+	if (!menuId) return [`${triggerSelector} has no popovertarget — the native path didn't engage`];
+	const menu = `[id="${menuId}"]`;
+	const problems = [];
+
+	await page.evaluate(() => {
+		window.__ttEscapes = 0;
+		document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.__ttEscapes += 1; });
+	});
+	await trigger.click();
+	await page.waitForSelector(`${menu}:popover-open`, { timeout: 3000 }).catch(() => problems.push('trigger did not open the menu'));
+	if (problems.length) return problems;
+	await new Promise((r) => setTimeout(r, 50)); // the toggle event positions it
+
+	const geometry = await page.evaluate((triggerSel, menuSel) => {
+		const t = document.querySelector(triggerSel).getBoundingClientRect();
+		const m = document.querySelector(menuSel);
+		const r = m.getBoundingClientRect();
+		const hit = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(20, r.height / 2));
+		return {
+			below: r.top >= t.bottom - 1, above: r.bottom <= t.top + 1,
+			inside: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
+			onTop: !!hit && m.contains(hit),
+			expanded: document.querySelector(triggerSel).getAttribute('aria-expanded'),
+		};
+	}, triggerSelector, menu);
+	if (!geometry.below && !geometry.above) problems.push('menu is not under (or flipped above) its trigger');
+	if (!geometry.inside) problems.push('menu runs outside the viewport');
+	if (!geometry.onTop) problems.push('something paints over the open menu');
+	if (geometry.expanded !== 'true') problems.push(`aria-expanded is "${geometry.expanded}" while open`);
+
+	await page.keyboard.press('Escape');
+	await new Promise((r) => setTimeout(r, 50));
+	if (await page.$(`${menu}:popover-open`)) problems.push('Escape did not close the menu');
+	if (await page.evaluate(() => window.__ttEscapes) !== 0) problems.push('Escape reached document — the board would also clear its search');
+
+	await trigger.click();
+	await page.waitForSelector(`${menu}:popover-open`, { timeout: 3000 }).catch(() => problems.push('trigger did not reopen the menu'));
+	await page.mouse.click(4, 790);
+	await new Promise((r) => setTimeout(r, 50));
+	if (await page.$(`${menu}:popover-open`)) problems.push('a click elsewhere did not dismiss the menu');
 	return problems;
 }
 
@@ -129,6 +183,10 @@ async function main() {
 				await page.goto(`${BASE}${sceneUrl(scene.url)}`, { waitUntil: 'networkidle0', timeout: 30000 });
 				await page.waitForSelector('body[data-rig-ready="1"]', { timeout: 15000 });
 				if (fatal.length) throw new Error(fatal.join(' | '));
+				if (scene.popover) {
+					const problems = await popoverProblems(page, scene.popover);
+					if (problems.length) throw new Error(`popover: ${problems.join('; ')}`);
+				}
 				if (scene.formRoot) {
 					const problems = await formA11yProblems(page, scene.formRoot);
 					if (problems.length) throw new Error(`accessibility: ${problems.join('; ')}`);
@@ -151,7 +209,8 @@ async function main() {
 	if (failures.length) {
 		console.error(
 			`\n  ✗ ${failures.length} of ${SCENES.length} rig scenes failed.\n` +
-			'    An "accessibility:" failure names the control to label. Otherwise:\n' +
+			'    An "accessibility:" failure names the control to label; a "popover:" one\n' +
+			'    is the native anchored-menu path (src/utils/popover.ts). Otherwise:\n' +
 			'    The rig plugin mock (test-rig/fixtures.ts) is probably missing something\n' +
 			'    the components now read off TTasksPlugin. `npm run check` cannot catch\n' +
 			'    this — the mount sites cast through `as never`.\n',

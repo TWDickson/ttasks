@@ -41,7 +41,7 @@ Pomodoro, and Share/Sync all ship.
 **Nothing gates a release any more.** The `ttask_*` cutover shipped in 0.2.2
 (migration run). The next release, **0.2.4**, carries the rail version label,
 the Pomodoro ribbon icon, finished graph branches sinking (#16), clearer
-selected chips in the detail pane, and the AR-1/4/8/9 refactors.
+selected chips in the detail pane, and the AR-1/4/8/9 refactors, native popover menus, and the i18n plumbing.
 
 **No ⚖ call blocks any 🔴 item.** DT-2 and DT-5 are *decided* (2026-07-25) and
 only need implementing. The open taste calls are all UI polish (see §C).
@@ -336,6 +336,7 @@ flowchart LR
 | `[ ]` | **Due Time input** (DT-2) — create modal and detail pane | Native time picker opens; field appears only once a due date is set; clearing the date hides it | 0.2.2 |
 | `[ ]` | **Version under Settings** in the rail drawer | `v0.2.4 BETA` in faint text below Settings, not clipped | 0.2.4 |
 | `[ ]` | **Selected chips stand out** — detail pane Status and Priority, dark and light | Only the picked chip is coloured; the others are plain grey | 0.2.4 |
+| `[ ]` | **Filter menus** — board Status/Priority/Area/Due dropdowns and the graph's Projects pill | Opens under its button, fully on screen (Projects expands leftward); tap outside or the button again closes it; ticking a box keeps it open; the Due date pickers work inside it | 0.2.4 |
 | `[ ]` | **Mobile golden path** floor check | Create → edit → complete a task at phone width, no clipped controls | — |
 | `[~]` | **Graph: detail drawer** after tapping a node in fullscreen graph | Modal closes, drawer is visible and on top (fix: rAF hand-off + `active: Platform.isMobile`) | 0.1.x |
 | `[~]` | **Graph: double-tap-to-open** | One tap opens (fix: `pointerup` on touch, 8 px drag threshold) | 0.1.x |
@@ -363,6 +364,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | `[ ]` | **Pomodoro ribbon icon** (#15) | A timer icon in the left ribbon opens the Pomodoro pane; can be hidden via the ribbon's right-click menu | 0.2.4 |
 | `[ ]` | **Finished chains sink** (#16) — Dependencies view, a project with a fully completed dependency chain | The done chain sits at the bottom of its lane, below open work; a done task that unblocks open work stays inline with it | 0.2.4 |
+| `[ ]` | **Filter menus** — as iOS, plus: type a search, open a filter, press Escape | Menu closes and the search text stays; a second Escape then does the board's usual thing | 0.2.4 |
 | `[ ]` | **Week starts on** (DT-5) — Settings → Working calendar | Dropdown at top of the section, default "System default (Mon/Sun)" matching your device locale; Monday vs Sunday moves Sunday between This/Next Week | 0.2.2 |
 | `[x]` | **⚠ Migration first** (MD-4) *(done — vault converted 2026-10-22)* — before installing the new release: Obsidian closed everywhere, run the script's dry run on `Planner/Tasks` + `Planner/Archive`, then `--apply` | Summary shows ~170 notes migrated, 0 skipped; backups folder exists | 0.2.2 |
 | `[ ]` | **Unmigrated-vault guard** — (optional) open an *unconverted copy* of the vault with the new release | Persistent notice explaining the empty board; creating/editing a task is refused | 0.2.2 |
@@ -551,17 +553,54 @@ critical path except where noted above (AR-3, PB-4).
   control or duplicate id in the detail pane or Create modal.
 - `[x]` **A plugin root misses the design tokens** — *(2026-10-22)*
   `.tt-graph-fullscreen-modal` joined the token-root list.
-- `[x]` **Hand-rolled popovers → native Popover API** — *won't do (2026-11-06).*
-  Checked the floor: `popover` needs iOS 17, Obsidian mobile supports iOS 15 (14.5
-  at our 1.8.7 `minAppVersion`); an unsupported WebView would show the menu open
-  and throw on `showPopover`, so it would need a fallback — the same code we'd be
-  deleting. It also wouldn't remove the code it was meant to: native Escape doesn't
-  stop the keypress reaching the board's `document` handler (the capture handler
-  stays), and a top-layer popover loses `top: 100%` anchoring, so positioning moves
-  into JS until CSS anchor positioning (Safari 26) is safe to assume. Revisit when
-  the iOS floor reaches 17 *and* anchor positioning is baseline.
+- `[x]` **Hand-rolled popovers → native Popover API** — *(2026-11-06, 0.2.4)*
+  `src/utils/popover.ts` (`menuPopover` action + pure `placeMenu` geometry):
+  native `popover="auto"` + `popovertarget` where supported, today's
+  CSS-positioned menu as the fallback for iOS 15–16 (Obsidian mobile's floor;
+  `popover` needs iOS 17). `FilterDropdown` and `GraphProjectFilter` use it; the
+  graph filter's full-screen backdrop button is gone (the top layer is above
+  every stacking context). The capture-phase Escape stays in both paths, because
+  native light-dismiss doesn't stop the keypress reaching the board's `document`
+  handler. jsdom has no popover, so component tests cover the fallback and
+  `rig:smoke` probes the native path (opens, sits under its trigger and on top,
+  Escape doesn't leak, light-dismiss works).
+- `[~]` **UI strings in one place (i18n)** — *(plumbing 2026-11-06, 0.2.4)*
+  `src/i18n/en.ts` + typed `t()` (keys and `{params}` checked by `tsc`),
+  `setLocale(getLanguage())` on load, English only. The two popover components
+  are converted. **Remaining: the full sweep (Taylor, follow-up session)** —
+  `hardcodedWording.test.ts` lists every file still to convert with its count
+  (~570 strings in 54 files at the start). Note `sharePreamble.ts` (5): that's
+  the Copilot export text, not UI chrome. Decide whether it belongs in the
+  catalogue before moving it.
 - `[x]` **`ImportConfirmModal` duplicates `confirmModal.ts`** — *(2026-10-22)* deleted;
   `confirmModal` gained `list` + `ctaClass`, and `modals/importConfirm.ts` supplies the copy.
+
+---
+
+## CLI (Obsidian ≥ 1.12.2 `registerCliHandler`)
+
+Decided 2026-11-06 (Taylor):
+- **CLI commands write directly**, with no confirmation modal. This differs from
+  the URI handler on purpose: a command typed in your own terminal is deliberate,
+  and agents can't click a dialog. Writes still go through `TaskStore`, so the
+  unconverted-vault guard applies.
+- **Output defaults to JSON**; `format=text` (and `tsv` where it fits) on request.
+  Agents are the expected main consumer.
+- **`ttasks:export` offers both the Share/Sync JSON and TOON, JSON by default.**
+
+Command names are `ttasks:<action>` (the built-in `obsidian tasks` is unrelated).
+`registerCliHandler` doesn't exist below 1.12.2 or on mobile, and our
+`minAppVersion` is 1.8.7, so registration has to check it exists first. Tasks are
+addressed by hash (`id=a1b2c3`). The read core is built as an internal service
+that N3's façade will later wrap.
+
+- `[ ]` **CLI-1 read-only** — `ttasks:list` (`status=`, `area=`, `label=`,
+  `due=today|overdue|week`, `list=<Smart List name>`), `ttasks:show id=`,
+  `ttasks:export`. Pure argument parsing and formatting module, boundary-listed and tested.
+- `[ ]` **CLI-2 navigation** — `ttasks:open id=`, `ttasks:new` (parity with the URI handler).
+- `[ ]` **CLI-3 writes** — `ttasks:create`, `ttasks:complete`, `ttasks:status`, `ttasks:depend`.
+- `[ ]` **On-device check** — what a handler that throws looks like in the
+  terminal (exit code, message); not documented, not observable headless.
 
 ---
 

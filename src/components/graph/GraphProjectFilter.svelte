@@ -1,9 +1,15 @@
 <script lang="ts">
 	// GP3 project filter: the toolbar pill and its popover of project checkboxes.
 	// The pill itself is styled by the shared `.tt-graph-toolbar` rules in styles.css.
-	import { onMount } from 'svelte';
+	//
+	// The menu is a native popover where the WebView supports it (src/utils/popover.ts).
+	// That retires the old full-screen backdrop button: it existed because a click on a
+	// scaled/transformed graph node could win the hit-test over it, and the top layer
+	// sits above every stacking context, so that can't happen to a native menu.
 	import type { Task } from '../../types';
+	import { t } from '../../i18n';
 	import { icon } from '../../utils/icon';
+	import { menuPopover, popoverId, supportsNativePopover } from '../../utils/popover';
 
 	/** All projects, name-sorted. */
 	export let projects: Task[];
@@ -12,58 +18,49 @@
 	export let onShowAll: () => void;
 
 	let open = false;
-	let rootEl: HTMLDivElement | null = null;
+	let triggerEl: HTMLButtonElement;
+	const native = supportsNativePopover();
+	const menuId = popoverId('tt-graph-project-filter');
 
 	$: hiddenCount = projects.filter((project) => hiddenProjectPaths.has(project.path)).length;
 
-	// Belt-and-suspenders close: the fixed backdrop button below normally handles
-	// click-off, but a click landing on an element inside a nested stacking
-	// context (e.g. a scaled/transformed graph node) can win the hit-test over the
-	// backdrop. Checking the actual event target's ancestry is robust to that.
-	// Capture phase so this fires even if a click target inside the graph canvas
-	// stops propagation before it would otherwise bubble to document.
-	function onDocumentPointerDown(event: PointerEvent): void {
-		if (!open) return;
-		const target = event.target as Node | null;
-		if (rootEl && target && rootEl.contains(target)) return;
-		open = false;
+	/** Native mode: the trigger's `popovertarget` toggles the menu, not this. */
+	function onTriggerClick(): void {
+		if (!native) open = !open;
 	}
-
-	onMount(() => {
-		document.addEventListener('pointerdown', onDocumentPointerDown, true);
-		return () => document.removeEventListener('pointerdown', onDocumentPointerDown, true);
-	});
 </script>
 
-<div class="tt-graph-project-filter" bind:this={rootEl}>
+<div class="tt-graph-project-filter">
 	<button
+		bind:this={triggerEl}
 		type="button"
 		class="tt-graph-pill tt-graph-pill-toggle"
 		class:is-active={hiddenCount > 0}
 		aria-haspopup="true"
 		aria-expanded={open}
-		on:click={() => open = !open}
+		popovertarget={native ? menuId : undefined}
+		on:click={onTriggerClick}
 	>
 		<span class="tt-graph-pill-icon" use:icon={'filter'}></span>
-		<span class="tt-graph-pill-label">Projects</span>
-		<strong>{hiddenCount > 0 ? `${hiddenCount} hidden` : 'All'}</strong>
+		<span class="tt-graph-pill-label">{t('graph.projectFilter.pill')}</span>
+		<strong>{hiddenCount > 0 ? t('graph.projectFilter.hidden', { count: hiddenCount }) : t('graph.projectFilter.all')}</strong>
 	</button>
-	{#if open}
-		<button
-			type="button"
-			class="tt-graph-project-filter-backdrop"
-			aria-label="Close project filter"
-			on:click={() => open = false}
-		></button>
-		<div class="tt-graph-project-filter-menu" role="menu">
+	{#if native || open}
+		<div
+			id={menuId}
+			class="tt-graph-project-filter-menu tt-popover"
+			popover={native ? 'auto' : undefined}
+			role="menu"
+			use:menuPopover={{ anchor: triggerEl, native, align: 'end', gap: 6, onOpenChange: (next) => { open = next; } }}
+		>
 			<div class="tt-graph-project-filter-head">
-				<span class="tt-graph-project-filter-title">Show projects</span>
+				<span class="tt-graph-project-filter-title">{t('graph.projectFilter.title')}</span>
 				<button
 					type="button"
 					class="tt-btn tt-btn-sm"
 					disabled={hiddenCount === 0}
 					on:click={onShowAll}
-				>Show all</button>
+				>{t('graph.projectFilter.showAll')}</button>
 			</div>
 			<div class="tt-graph-project-filter-list">
 				{#each projects as project (project.path)}
@@ -87,25 +84,18 @@
 		display: inline-flex;
 	}
 
-	.tt-graph-project-filter-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 40;
-		background: transparent;
-		border: none;
-		padding: 0;
-		cursor: default;
-	}
-
-	.tt-graph-project-filter-menu {
+	/* Anchored to the pill's right edge, expanding leftward: the Projects pill
+		sits toward the right of the (wrapping) toolbar, so a left anchor overflows
+		the panel on narrow/mobile viewports. Native: `align: 'end'` above. */
+	.tt-graph-project-filter-menu:not([popover]) {
 		position: absolute;
 		top: calc(100% + 6px);
-		/* Anchor to the pill's right edge and expand leftward: the Projects pill
-		sits toward the right of the (wrapping) toolbar, so a left anchor
-		overflows the panel on narrow/mobile viewports. */
 		right: 0;
 		left: auto;
 		z-index: 41;
+	}
+
+	.tt-graph-project-filter-menu {
 		min-width: 220px;
 		max-width: min(320px, calc(100vw - 24px));
 		padding: 8px;

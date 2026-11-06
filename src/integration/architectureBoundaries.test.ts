@@ -81,6 +81,10 @@ describe('architecture boundaries', () => {
 			'src/utils/deviceStore.ts',
 			'src/utils/badgePalette.ts',
 			'src/settings/statusPolicy.ts',
+			'src/i18n/en.ts',
+			'src/i18n/index.ts',
+			'src/i18n/hardcodedWording.ts',
+			'src/utils/popover.ts',
 		]) {
 			const content = readWorkspaceFile(relativePath);
 

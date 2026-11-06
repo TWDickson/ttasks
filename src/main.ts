@@ -1,6 +1,7 @@
 import { createDeviceStore, type DeviceStore } from './utils/deviceStore';
 import { repeatFromContract } from './integration/repeatContract';
-import { MarkdownRenderer, Menu, Notice, Platform, Plugin, setIcon, setTooltip, TFile, type Component } from 'obsidian';
+import { getLanguage, MarkdownRenderer, Menu, Notice, Platform, Plugin, setIcon, setTooltip, TFile, type Component } from 'obsidian';
+import { setLocale } from './i18n';
 import { get, writable, type Writable } from 'svelte/store';
 import {
 	type QuickActionId,
@@ -126,6 +127,8 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 	}
 
 	async onload() {
+		// Before anything renders: every UI string goes through t() (src/i18n).
+		setLocale(getLanguage());
 		this.deviceStore = createDeviceStore(this.app, (message) => this.logError(message));
 		await this.loadSettings();
 
