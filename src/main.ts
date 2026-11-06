@@ -60,7 +60,11 @@ import { TaskLinkSuggestModal } from './editor/TaskLinkSuggestModal';
 import { TaskJumpSuggestModal } from './editor/TaskJumpSuggestModal';
 import { buildAliasedLink } from './integration/relationshipLink';
 import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
-import { localDateString, localIsoTimestamp } from './utils/dateUtils';
+import { localDateString, localIsoTimestamp, resolveWeekStart } from './utils/dateUtils';
+import { registerCliCommands, type CliHost } from './cli/registerCli';
+import type { CliContext } from './cli/cliCommands';
+import { buildTaskSchedule } from './store/taskSchedule';
+import { getRegisteredTaskViews } from './views/viewRegistry';
 import { today as todayStore } from './utils/todayStore';
 import { ensureFolderPath } from './utils/vaultSafe';
 import { createTaskContextMenuDeps } from './integration/taskActionPorts';
@@ -72,7 +76,7 @@ import type { SettingsHost } from './types/settingsHost';
 
 export type BoardViewMode = string;
 
-export default class TTasksPlugin extends Plugin implements BoardHost, DetailHost, CreateTaskHost, FocusUntilHost, ShareSyncHost {
+export default class TTasksPlugin extends Plugin implements BoardHost, DetailHost, CreateTaskHost, FocusUntilHost, ShareSyncHost, CliHost {
 	// `declare`: narrows the base Plugin's `settings?: unknown` (Obsidian 1.13 typings) without emitting a field.
 	declare settings: TTasksSettings;
 	taskStore!: TaskStore;
@@ -351,6 +355,8 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 		this.settingTab = new TTasksSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
 		this.registerProtocolHandler();
+		// `obsidian ttasks:*` — a no-op below Obsidian 1.12.2 and on mobile.
+		registerCliCommands(this, this);
 		this.registerNativeContextMenus();
 		this.initializeStatusBar();
 		this.initializePomodoroStatusBar();
@@ -888,6 +894,28 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 				areaWorkweek: this.settings.areaWorkweek,
 			},
 		};
+	}
+
+	/** A snapshot of the store for one `obsidian ttasks:*` invocation (CliHost). */
+	cliContext(): CliContext {
+		const derivedContext = this.taskDerivedStateContext();
+		return {
+			tasks: derivedContext.allTasks,
+			views: getRegisteredTaskViews(this.settings),
+			validValues: this.taskJsonValidValues(),
+			derivedContext,
+			schedule: buildTaskSchedule(derivedContext.allTasks, { calendarConfig: derivedContext.calendarConfig }),
+			today: localDateString(),
+			weekStart: resolveWeekStart(this.settings.weekStartsOn),
+			now: new Date().toISOString(),
+			presets: this.settings.shareSync.preamblePresets,
+		};
+	}
+
+	cliUnavailableReason(): string | null {
+		return this.taskStore.writesBlocked
+			? 'This vault still uses the pre-0.2.1 properties, so TTasks reads no tasks from it. See the README: "Migrating to ttask_* properties".'
+			: null;
 	}
 
 	/** This vault's configured enum values, embedded in 'ai'-mode export meta. */

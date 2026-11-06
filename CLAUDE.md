@@ -17,6 +17,7 @@ status document.
 - **`API_DESIGN.md`** — the proposed public API (awaiting Taylor's review).
 - **`SCHEMA_BREAK_PLAN.md`** — the approved MD-0…MD-4 sequencing for the `ttask_*` schema break.
 - **`PROTOCOL.md`** — the `obsidian://ttasks` URI handler.
+- **`CLI.md`** — the `obsidian ttasks:*` command-line commands (`src/cli/`).
 - **`test-rig/README.md`** — the visual rig.
 
 Update `PROJECT.md` when work lands; add a dated entry to `HISTORY.md` when a

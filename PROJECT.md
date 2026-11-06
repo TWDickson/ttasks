@@ -596,9 +596,13 @@ Command names are `ttasks:<action>` (the built-in `obsidian tasks` is unrelated)
 addressed by hash (`id=a1b2c3`). The read core is built as an internal service
 that N3's façade will later wrap.
 
-- `[ ]` **CLI-1 read-only** — `ttasks:list` (`status=`, `area=`, `label=`,
-  `due=today|overdue|week`, `list=<Smart List name>`), `ttasks:show id=`,
-  `ttasks:export`. Pure argument parsing and formatting module, boundary-listed and tested.
+- `[x]` **CLI-1 read-only** — *(2026-11-06, unreleased)* `ttasks:list`,
+  `ttasks:show`, `ttasks:export`, documented in `CLI.md`. `src/cli/cliCommands.ts`
+  is pure (boundary-listed, 25 tests): `list` builds an ordinary `QuerySpec` (a
+  Smart List's via `view=`, narrowed by the flags) and runs `applyQuery` with the
+  board's schedule, so dates, search and hash lookup match the board. Tasks are
+  the 'ai' export shape. `registerCli.ts` checks that `registerCliHandler` exists
+  and answers with an error while the vault is unconverted.
 - `[ ]` **CLI-2 navigation** — `ttasks:open id=`, `ttasks:new` (parity with the URI handler).
 - `[ ]` **CLI-3 writes** — `ttasks:create`, `ttasks:complete`, `ttasks:status`, `ttasks:depend`.
 - `[ ]` **On-device check** — what a handler that throws looks like in the

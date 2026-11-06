@@ -88,6 +88,12 @@ countdown, "focus until 3:30pm" planning, and an appendable CSV session log.
 into an AI assistant, with message presets and a notes policy; then paste the
 reply back and review a per-item bulk-edit summary before applying it.
 
+**Command line and URLs** — with Obsidian's CLI turned on (desktop, Obsidian
+1.12.7+), `obsidian ttasks:list`, `ttasks:show` and `ttasks:export` give scripts
+and AI agents the same task data as JSON. See [`CLI.md`](CLI.md). The
+`obsidian://ttasks` URLs in [`PROTOCOL.md`](PROTOCOL.md) open the board, a task,
+or the create modal from other apps.
+
 **Capture** — scan daily notes and other configured sources for `- [ ]`
 checkboxes and promote them into real tasks, keeping the source line in sync when
 you complete them.

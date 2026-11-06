@@ -85,6 +85,7 @@ describe('architecture boundaries', () => {
 			'src/i18n/index.ts',
 			'src/i18n/hardcodedWording.ts',
 			'src/utils/popover.ts',
+			'src/cli/cliCommands.ts',
 		]) {
 			const content = readWorkspaceFile(relativePath);
 
@@ -232,7 +233,7 @@ describe('architecture boundaries', () => {
 			'src/modals/FocusUntilModal.ts': 2, // parses "focus until HH:MM" against now
 			'src/modals/ShareSyncModal.ts': 1, // export timestamp
 			'src/components/graph/DependencyGraph.svelte': 1, // layout-diagnostics log timestamp
-			'src/main.ts': 2, // Share/Sync export timestamp + filename
+			'src/main.ts': 3, // Share/Sync export timestamp + filename; CLI export timestamp
 		};
 		const actual: Record<string, number> = {};
 		for (const path of sourceFiles()) {
