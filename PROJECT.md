@@ -665,7 +665,7 @@ that N3's façade will later wrap.
   `status`, `complete`, `depend` and `depend … remove`. Open each note and check
   the frontmatter (`ttask_labels`, `ttask_depends_on` as aliased links) and the
   body. Then run `ttasks:lint` and compare it with `planner.py lint`.
-- `[x]` **CLI-6 lint parity with `planner.py`** — *(2026-11-06, unreleased)*
+- `[x]` **CLI-6 lint parity with `planner.py`** — *(2026-11-06, 0.2.7)*
   Taylor ran 0.2.6's lint beside `planner.py lint`. 14 of its 23 issues were
   false `dangling-link`s (archived targets), the two disagreed on
   `prefixed-link`, and `overdue` / `format-drift` / `legacy-keys` were missing.
