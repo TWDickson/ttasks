@@ -640,6 +640,37 @@ that N3's façade will later wrap.
   output naming the dependency (it reports before the store re-reads the file);
   the dialog from `new` taking focus from a terminal. Headless sessions can't
   observe any of it.
+- `[ ]` **CLI-5 lint** — *(gap found 2026-11-06)* the CLI has no hygiene check,
+  so the planner skill's `planner.py lint` is still the only one. Port its
+  checks as a read-only `ttasks:lint`: dangling link (a `parent_task` /
+  `depends_on` that resolves to `kind: 'missing'`), stalled without a reason
+  (Blocked/Hold with blank `blocked_reason`), thin body, open task under a
+  finished parent, and `prefixed-link` (a body wikilink written as
+  `[[Tasks/id-slug|Name]]` instead of bare `[[id-slug|Name]]`). Most of these are
+  already computable from the store and `buildTaskRefIndex`. Until it lands, keep
+  running `planner.py lint` after CLI writes.
+- `[ ]` **CLI real-write check** — *(gap found 2026-11-06)* so far only
+  `create … dry-run` has been run against a real vault. Unit tests cover the
+  plan/host contract (`cliActions.test.ts`), not what lands in the file. Run real
+  `create` / `update` / `status` / `complete` / `depend`, then open each note and
+  check the frontmatter (`ttask_labels`, `ttask_depends_on` as aliased links) and
+  the body. Fold this into the on-device check above. Specifics:
+  - **`\n` in `notes=` / `append=`** — `src/cli` does no unescaping
+    (`textParam` only trims), and our help (`CLI.md`, `cliGuide.ts`) doesn't
+    claim it. The "`\n` becomes a newline" line comes from Obsidian's own
+    `obsidian help`. Find out whether Obsidian unescapes before the handler sees
+    the value. If it doesn't, either unescape `\n` in `notes`/`append` ourselves
+    or document that it's literal.
+  - **Echo of labels/notes** — the JSON reply (`described()`, the 'ai' shape with
+    notes policy `none`) does include `labels` but never `notes`. The
+    `format=text` line shows neither. So a dry-run can't confirm `notes=`, and the
+    text format can't confirm `label=`. Consider echoing `notes` (summary) and
+    `labels` in write replies so a dry-run fully reflects the input.
+  - **Body links** — `notes=` / `append=` write the text exactly as given, and
+    the CLI writes no body links itself. So bare `[[id-slug|Name]]` is the
+    caller's job. Either say so in `ttasks:context`, or have the CLI rewrite
+    `[[Tasks/…]]` to bare links on write. CLI-5's `prefixed-link` check is the
+    backstop.
 
 ---
 
