@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
 import { CLI_COMMANDS, type CliContext } from './cliCommands';
-import { LINT_CHECKS, lintTasks, unescapeCliText, type LintOptions } from './cliLint';
+import type { CliNote } from './cliCore';
+import { LEGACY_KEYS, LINT_CHECKS, lintTasks, unescapeCliText, type LintOptions } from './cliLint';
 
 const BODY = 'Done when the thing is shipped and announced to the team.';
+const FOLDER = 'Planner/Tasks';
 
 function task(overrides: Partial<Task> & Pick<Task, 'id' | 'name'>): Task {
 	const slug = overrides.name.toLowerCase().replace(/\s+/g, '-');
 	return {
-		slug, path: `Tasks/${overrides.id}-${slug}.md`, type: 'task', status: 'Active', priority: 'None', area: 'Work',
+		slug, path: `${FOLDER}/${overrides.id}-${slug}.md`, type: 'task', status: 'Active', priority: 'None', area: 'work',
 		labels: [], parent_task: null, depends_on: [], blocks: [], blocked_reason: '', assigned_to: '', source: '',
 		start_date: null, due_date: null, due_time: null, estimated_days: null, workweek_only: false, holiday_dates: [],
 		created: '2026-10-01', completed: null, status_changed: '2026-10-01', repeat: null, notes: BODY,
@@ -17,60 +19,137 @@ function task(overrides: Partial<Task> & Pick<Task, 'id' | 'name'>): Task {
 	};
 }
 
-function context(tasks: Task[]): CliContext {
+/** The frontmatter the store would have read `t` from. Links are given raw. */
+function fm(t: Task, extra: Record<string, unknown> = {}): CliNote {
 	return {
-		tasks, views: [],
-		validValues: { statuses: ['Active', 'Blocked', 'Hold', 'Done'], priorities: ['High', 'Medium', 'Low', 'None'], areas: ['Work'], labels: [] },
-		derivedContext: { allTasks: tasks, statuses: { blockStatus: 'Blocked', holdStatus: 'Hold', futureStatus: null } },
-		schedule: new Map(), today: '2026-11-06', weekStart: 1, now: '2026-11-06T12:00:00.000Z', presets: [],
-		statusPolicy: { initial: 'Active', completion: 'Done', start: 'Active', block: 'Blocked', hold: 'Hold', future: null },
+		path: t.path,
+		frontmatter: {
+			ttask_type: t.type, ttask_name: t.name, cssclasses: ['ttask'], ttask_status: t.status, ttask_area: t.area,
+			ttask_created: t.created, ttask_status_changed: t.status_changed,
+			...(t.due_date ? { ttask_due_date: t.due_date } : {}),
+			...extra,
+		},
 	};
 }
 
-const finished = task({ id: 'ppp000', name: 'Roof', type: 'project', status: 'Done', is_complete: true });
-const clean = task({ id: 'aaa111', name: 'Clean' });
-const TASKS = [
-	finished,
-	clean,
-	task({ id: 'bbb222', name: 'Dangling', parent_task: 'Tasks/999999-gone.md', depends_on: ['Tasks/888888-also-gone.md', clean.path] }),
-	task({ id: 'ccc333', name: 'Stuck', status: 'Blocked' }),
-	task({ id: 'ddd444', name: 'Thin', notes: 'tbd' }),
-	task({ id: 'eee555', name: 'Leftover', parent_task: finished.path }),
-	task({ id: 'fff666', name: 'Linker', notes: `${BODY} After [[Tasks/aaa111-clean|Clean]], [[aaa111-clean|Clean]] and [[777777-nowhere|Gone]].` }),
-	task({ id: 'ggg777', name: 'Done thin', status: 'Done', is_complete: true, notes: '' }),
-];
+function context(tasks: Task[], folderNotes: CliNote[] = [], archived: CliContext['archived'] = []): CliContext {
+	return {
+		tasks, views: [],
+		validValues: { statuses: ['Active', 'Future', 'Blocked', 'Hold', 'Completed'], priorities: ['High', 'Medium', 'Low', 'None'], areas: ['work', 'personal'], labels: ['action'] },
+		derivedContext: { allTasks: tasks, statuses: { blockStatus: 'Blocked', holdStatus: 'Hold', futureStatus: 'Future' } },
+		schedule: new Map(), today: '2026-11-06', weekStart: 1, now: '2026-11-06T12:00:00.000Z', presets: [],
+		statusPolicy: { initial: 'Active', completion: 'Completed', start: 'Active', block: 'Blocked', hold: 'Hold', future: 'Future' },
+		folderNotes, archived,
+	};
+}
 
-const all: LintOptions = { checks: LINT_CHECKS, includeCompleted: false, minBody: 40 };
-const found = (ctx = context(TASKS), options = all) =>
-	lintTasks(ctx, options).map((issue) => `${issue.check} ${issue.ref}`);
+const ARCHIVED = [{ path: 'Planner/Archive/2026/10/7c2f9a-old-work.md', name: 'Old work' }];
+const all: LintOptions = { checks: LINT_CHECKS, minBody: 40 };
+const found = (ctx: CliContext, options = all) => lintTasks(ctx, options).map((issue) => `${issue.check} ${issue.ref}`);
 
-describe('ttasks:lint', () => {
-	it('finds each kind of issue, on open work only by default', () => {
-		expect(found()).toEqual([
-			'dangling-link bbb222', 'dangling-link bbb222',
-			'stalled-without-reason ccc333',
-			'thin-body ddd444',
-			'open-under-finished-parent eee555',
-			'prefixed-link fff666', 'dangling-link fff666',
+describe('ttasks:lint links', () => {
+	it('resolves links to archived tasks, in frontmatter and the body', () => {
+		const t = task({
+			id: 'aaa111', name: 'Follow on', depends_on: [ARCHIVED[0].path],
+			notes: `${BODY} After [[7c2f9a-old-work|Old work]].`,
+		});
+		const ctx = context([t], [fm(t, { ttask_depends_on: ['[[7c2f9a-old-work|Old work]]'] })], ARCHIVED);
+		expect(found(ctx)).toEqual([]);
+	});
+
+	it('reports a link to a task that is neither open nor archived', () => {
+		const t = task({ id: 'aaa111', name: 'Follow on', depends_on: [`${FOLDER}/999999-gone.md`], notes: `${BODY} [[888888-also-gone|X]]` });
+		const ctx = context([t], [fm(t, { ttask_depends_on: ['[[999999-gone|Gone]]'] })], ARCHIVED);
+		const issues = lintTasks(ctx, all);
+		expect(issues.map((issue) => issue.check)).toEqual(['dangling-link', 'dangling-link']);
+		expect(issues[0].fix).toBe('ttasks:depend id=aaa111 on=999999 remove');
+	});
+
+	it('flags a folder prefix in frontmatter links, completed tasks included', () => {
+		const project = task({ id: '87c471', name: 'Dim model', type: 'project' });
+		const done = task({ id: '403b64', name: 'Update spreadsheet', status: 'Completed', is_complete: true, completed: '2026-10-14', parent_task: project.path });
+		const ctx = context([project, done], [fm(project), fm(done, { ttask_parent_task: `[[${FOLDER}/87c471-dim-model|Dim model]]`, ttask_completed: '2026-10-14' })]);
+		const issues = lintTasks(ctx, all);
+		expect(issues.map((issue) => `${issue.check} ${issue.ref}`)).toEqual(['prefixed-link 403b64']);
+		expect(issues[0].message).toContain('write it bare, as [[87c471-dim-model|Dim model]]');
+	});
+
+	it('does not flag a bare body link that only lacks an alias', () => {
+		const dep = task({ id: 'a1f302', name: 'Open account' });
+		const t = task({ id: 'b7c914', name: 'Update payment info', status: 'Future', notes: `Depends on: [[a1f302-open-account]]\n\n${BODY}` });
+		expect(found(context([dep, t], [fm(dep), fm(t)]))).toEqual([]);
+	});
+});
+
+describe('ttasks:lint format', () => {
+	it('reports drift in a current-format note', () => {
+		const t = task({ id: 'aaa111', name: 'Drifted' });
+		const note = fm(t, { cssclasses: ['planner-task'], ttask_status: 'Doing', ttask_labels: ['nope'], ttask_due_date: '14/10/2026', ttask_estimated_days: 'two', ttask_parent_task: 'Planner/Tasks/x' });
+		const conflict = task({ id: '2b70c3', name: 'Copy' });
+		const copied: CliNote = { ...fm(conflict), path: `${FOLDER}/2026-08-23T13-11 - 2b70c3-copy.md` };
+		const issues = lintTasks(context([t], [note, copied]), { checks: ['format-drift'], minBody: 40 });
+		expect(issues.map((issue) => issue.message)).toEqual([
+			'cssclasses is missing ttask',
+			'ttask_status "Doing" isn\'t a configured value',
+			'label "nope" isn\'t configured',
+			'ttask_due_date "14/10/2026" isn\'t YYYY-MM-DD',
+			'ttask_estimated_days "two" isn\'t a number',
+			'ttask_parent_task "Planner/Tasks/x" isn\'t a [[wiki-link]]',
+			'the filename "2026-08-23T13-11 - 2b70c3-copy.md" isn\'t {6hex}-{slug}.md',
 		]);
 	});
 
-	it('includes completed tasks on request, and narrows to the checks asked for', () => {
-		expect(found(context(TASKS), { ...all, includeCompleted: true })).toContain('thin-body ggg777');
-		expect(found(context(TASKS), { ...all, checks: ['thin-body'] })).toEqual(['thin-body ddd444']);
+	it('reports a note the store refuses for want of a name', () => {
+		const note: CliNote = { path: `${FOLDER}/abc123-nameless.md`, frontmatter: { ttask_type: 'task', ttask_status: 'Active' } };
+		expect(lintTasks(context([], [note]), all).map((issue) => issue.message)).toEqual(['has no ttask_name, so the board doesn\'t show it']);
 	});
 
-	it('gives a command that fixes the issue', () => {
-		const issues = lintTasks(context(TASKS), all);
-		expect(issues.find((issue) => issue.ref === 'ccc333')?.fix).toBe('ttasks:status id=ccc333 status=Blocked reason=<what it waits on>');
-		expect(issues.find((issue) => issue.message.includes('888888'))?.fix).toBe('ttasks:depend id=bbb222 on=888888 remove');
+	it('reports old property names, on an old-format note and beside new ones', () => {
+		const t = task({ id: 'aaa111', name: 'Mixed' });
+		const old: CliNote = { path: `${FOLDER}/bbb222-old.md`, frontmatter: { type: 'task', name: 'Old', status: 'Active', category: 'work' } };
+		const issues = lintTasks(context([t], [fm(t, { due_date: '2026-11-10', blocks: [] }), old]), { checks: ['legacy-keys'], minBody: 40 });
+		expect(issues.map((issue) => `${issue.ref} ${issue.message}`)).toEqual([
+			'aaa111 carries old property names beside the ttask_ ones: due_date, blocks',
+			'bbb222 uses the old property names (type, name, status, category); the board doesn\'t show it',
+		]);
+		expect(LEGACY_KEYS).toEqual(expect.arrayContaining(['depends_on', 'parent_task', 'recurrence', 'archive_history']));
+	});
+});
+
+describe('ttasks:lint work', () => {
+	const project = task({ id: 'ppp000', name: 'Roof', type: 'project', status: 'Completed', is_complete: true });
+	const TASKS = [
+		project,
+		task({ id: 'ccc333', name: 'Stuck', status: 'Blocked' }),
+		task({ id: 'ddd444', name: 'Thin', notes: 'tbd' }),
+		task({ id: 'ddd555', name: 'Thin but future', status: 'Future', notes: 'tbd' }),
+		task({ id: 'eee555', name: 'Leftover', parent_task: project.path }),
+		task({ id: 'eee666', name: 'In archived project', parent_task: ARCHIVED[0].path }),
+		task({ id: 'fff666', name: 'Late', due_date: '2026-11-01' }),
+		task({ id: 'ggg777', name: 'Done late thin', status: 'Completed', is_complete: true, notes: '', due_date: '2026-10-01' }),
+	];
+
+	it('checks open work only; thin-body only on Active tasks', () => {
+		expect(found(context(TASKS, [], ARCHIVED), { ...all, checks: ['stalled-without-reason', 'thin-body', 'overdue', 'open-under-finished-parent'] })).toEqual([
+			'stalled-without-reason ccc333',
+			'thin-body ddd444',
+			'open-under-finished-parent eee555',
+			'open-under-finished-parent eee666',
+			'overdue fff666',
+		]);
+	});
+
+	it('says how late an overdue task is, and how to fix it', () => {
+		const late = lintTasks(context(TASKS), { checks: ['overdue'], minBody: 40 })[0];
+		expect(late).toMatchObject({ message: 'was due 2026-11-01, 5 days ago', fix: 'ttasks:complete id=fff666, or ttasks:update id=fff666 due=<new date|none>' });
 	});
 
 	it('runs as a command, with a count per check and a text form', async () => {
 		const command = CLI_COMMANDS.find((candidate) => candidate.id === 'ttasks:lint')!;
-		const out = JSON.parse(await command.run({}, context(TASKS), undefined as never));
-		expect(out).toMatchObject({ checked: 6, count: 7, by_check: { 'dangling-link': 3, 'thin-body': 1 } });
-		expect(await command.run({ format: 'text' }, context([clean]), undefined as never)).toBe('No issues in 1 tasks.');
+		const out = JSON.parse(await command.run({}, context(TASKS, [], ARCHIVED), undefined as never));
+		expect(out).toMatchObject({ checked: 8, archived: 1, count: 5, by_check: { overdue: 1, 'thin-body': 1 } });
+		const clean = task({ id: 'aaa111', name: 'Clean' });
+		expect(await command.run({ format: 'text' }, context([clean], [fm(clean)]), undefined as never)).toBe('No issues in 1 notes.');
 		expect(JSON.parse(await command.run({ check: 'nope' }, context(TASKS), undefined as never)).valid).toEqual([...LINT_CHECKS]);
 	});
 });

@@ -206,8 +206,8 @@ shows exactly what would land.
   backslash is kept as typed.
 - **Task links are written bare**, as `[[id-slug|Name]]`. A folder prefix
   (`[[Tasks/a1b2c3-fix-roof]]`) and a `.md` are dropped, and a link with no alias
-  gets the task's name. Only links that resolve to a task change; links to other
-  notes and embeds (`![[…]]`) stay as written. The reply lists what changed under
+  gets the task's name. Only links that resolve to a task (open or archived)
+  change; links to other notes and embeds (`![[…]]`) stay as written. The reply lists what changed under
   `links_made_bare`.
 
 ## `ttasks:create`
@@ -271,23 +271,36 @@ behind it.
 Add `remove` to drop them instead. A dependency that would make a loop is
 refused, and then none of the list is written. The result adds `added` (or
 `removed`) and `unchanged` name lists, and `impact` shows the dates it pushes.
-With `remove`, `on=` also takes the hash of a dependency whose task no longer
-exists, so a dangling link `ttasks:lint` reports can be cleared.
+With `remove`, `on=` also takes the hash of a dependency whose task isn't in the
+tasks folder (archived, or gone), so a dangling link `ttasks:lint` reports can be
+cleared.
 
 ## `ttasks:lint`
 
-Read-only. Reports what makes a plan go stale without anything failing:
+Read-only. Reports what makes a plan go stale without anything failing. Links
+resolve against open **and archived** tasks, so a link to archived work isn't
+dangling.
+
+Format checks read every note directly in the tasks folder, completed ones and
+ones the board refuses included:
 
 | Check | Flags |
 | --- | --- |
-| `dangling-link` | A `parent_task`, `depends_on` or body link to a task that doesn't exist |
+| `dangling-link` | A frontmatter link (`ttask_parent_task`, `ttask_depends_on`, `ttask_repeat_of`) or body task link to a task that is neither open nor archived |
+| `prefixed-link` | A task link with a folder prefix (`[[Planner/Tasks/a1b2c3-…\|Name]]`), in frontmatter or the body. A bare link with no `\|Name` isn't flagged |
+| `format-drift` | A filename that isn't `{6hex}-{slug}.md`; `cssclasses` without `ttask`; a missing always-written key; a status, priority, area or label that isn't configured; a date that isn't `YYYY-MM-DD`, a time that isn't `HH:MM`, a number that isn't one; a link that isn't an aliased `[[wiki-link]]`; a note with no `ttask_name` (the board skips it) |
+| `legacy-keys` | Property names from before the `ttask_` prefix: an old-format note (hidden from the board), or old keys left beside new ones |
+
+Work checks read open tasks only:
+
+| Check | Flags |
+| --- | --- |
 | `stalled-without-reason` | Your blocked status with no `blocked_reason` |
-| `thin-body` | A note body shorter than `min-body=` characters (default 40) |
-| `open-under-finished-parent` | An open task whose project is complete |
-| `prefixed-link` | A body task link not in the bare `[[id-slug\|Name]]` form |
+| `thin-body` | An **Active** (initial-status) task whose body is shorter than `min-body=` characters (default 40) |
+| `overdue` | A due date before today |
+| `open-under-finished-parent` | An open task whose project is complete or archived |
 
 Each issue has `check`, `ref`, `name`, `path`, `message`, and a `fix` command
-where there is one. JSON adds `checked` (tasks looked at), `count` and
-`by_check`. Flags: `check=<a,b>` to run only some checks, `completed=include` to
-lint completed tasks too (default: open work only), `min-body=<chars>`,
-`format=json|text`.
+where there is one. JSON adds `checked` (notes looked at), `archived` (archived
+tasks links can resolve to), `count` and `by_check`. Flags: `check=<a,b>` to
+run only some checks, `min-body=<chars>`, `format=json|text`.

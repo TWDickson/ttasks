@@ -57,6 +57,8 @@ function context(tasks: Task[]): CliContext {
 		now: '2026-11-06T12:00:00.000Z',
 		presets: [],
 		statusPolicy: { initial: 'Active', completion: 'Done', start: 'In Progress', block: 'Blocked', hold: 'Hold', future: null },
+		folderNotes: [],
+		archived: [],
 	};
 }
 
@@ -440,5 +442,25 @@ describe('note text and the reply echo (gaps found 2026-11-06)', () => {
 		const { out, calls } = await run('ttasks:depend', { id: 'ooo001', on: '999999', remove: 'true' }, fakeStore([quotes, orphaned]));
 		expect(calls).toEqual([`remove ${orphaned.path} -> Tasks/999999-gone`]);
 		expect(json(out).removed).toEqual(['Missing task (999999)']);
+	});
+});
+
+describe('archived tasks in CLI writes', () => {
+	it('makes a body link to an archived task bare too', async () => {
+		const store = fakeStore(ALL);
+		const ctx = { ...store.ctx(), archived: [{ path: 'Archive/2026/10/7c2f9a-old-work.md', name: 'Old work' }] };
+		const command = CLI_COMMANDS.find((candidate) => candidate.id === 'ttasks:create')!;
+		const out = await command.run({ name: 'Ship', notes: 'After [[Archive/2026/10/7c2f9a-old-work]]', 'dry-run': 'true' }, ctx, store.actions);
+		expect(json(out).created.notes).toBe('After [[7c2f9a-old-work|Old work]]');
+	});
+
+	it('removes a dependency on an archived task, naming it', async () => {
+		const waiting = task({ id: 'www001', name: 'Waiting', depends_on: ['Archive/2026/10/7c2f9a-old-work.md'] });
+		const store = fakeStore([waiting]);
+		const ctx = { ...store.ctx(), archived: [{ path: 'Archive/2026/10/7c2f9a-old-work.md', name: 'Old work' }] };
+		const command = CLI_COMMANDS.find((candidate) => candidate.id === 'ttasks:depend')!;
+		const out = await command.run({ id: 'www001', on: '7c2f9a', remove: 'true' }, ctx, store.actions);
+		expect(json(out).removed).toEqual(['Old work']);
+		expect(store.calls).toEqual([`remove ${waiting.path} -> Archive/2026/10/7c2f9a-old-work`]);
 	});
 });

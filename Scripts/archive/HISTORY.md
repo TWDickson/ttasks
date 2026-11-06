@@ -12,6 +12,25 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-11-06 — CLI-6: lint sees the archive, and agrees with planner.py on scope
+
+First real comparison of 0.2.6's `ttasks:lint` with `planner.py lint`: 23
+issues, 14 of them false `dangling-link`s to tasks in `Planner/Archive/2026/10/`.
+The CLI context only held the store, which loads `Planner/Tasks`.
+
+- **The lint reads the folder, not the store.** The store refuses old-format and
+  nameless notes, which are exactly what `legacy-keys` and `format-drift` exist
+  to find. So the host now passes every folder note's raw frontmatter, plus the
+  archived task notes for resolving links. That keeps it a snapshot and keeps
+  `cliLint.ts` pure.
+- **`prefixed-link` was two bugs.** It read only the body, and it treated "has no
+  alias" as non-bare. `planner.py`'s hits were frontmatter parent links with a
+  `Planner/Tasks/` prefix on completed tasks, which the CLI skipped by default.
+  The format checks now cover completed notes too; a bad link is wrong
+  whatever the status.
+- **`thin-body` on Active only**, matching `planner.py`. A Future or Hold task is
+  allowed to be a stub.
+
 ## 2026-11-06 — CLI-5: lint, note text, and replies that show what landed
 
 Taylor ran CLI-4 against the vault, using `create … dry-run` only, and found four

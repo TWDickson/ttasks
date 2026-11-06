@@ -63,6 +63,7 @@ import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
 import { localDateString, localIsoTimestamp, resolveWeekStart } from './utils/dateUtils';
 import { registerCliCommands, type CliHost } from './cli/registerCli';
 import type { CliActions, CliContext } from './cli/cliCommands';
+import { fmKey } from './schema/taskPersistence';
 import { buildTaskSchedule } from './store/taskSchedule';
 import { getRegisteredTaskViews } from './views/viewRegistry';
 import { today as todayStore } from './utils/todayStore';
@@ -917,7 +918,31 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 				hold: this.statusPolicy.hold,
 				future: this.statusPolicy.future,
 			},
+			...this.cliFolderNotes(),
 		};
+	}
+
+	/**
+	 * The raw notes `ttasks:lint` reads: every markdown file directly in the tasks
+	 * folder (what the store loads from, refused notes included), and the task
+	 * notes anywhere under the archive folder, so a link to archived work resolves.
+	 */
+	private cliFolderNotes(): Pick<CliContext, 'folderNotes' | 'archived'> {
+		const tasksFolder = this.taskStore.folderPath;
+		const archivePrefix = `${this.archiveService.archiveFolder}/`;
+		const nameKey = fmKey('name');
+		const folderNotes: CliContext['folderNotes'] = [];
+		const archived: CliContext['archived'] = [];
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			const frontmatter = (this.app.metadataCache.getFileCache(file)?.frontmatter ?? null) as Record<string, unknown> | null;
+			if (file.parent?.path === tasksFolder) {
+				folderNotes.push({ path: file.path, frontmatter });
+			} else if (file.path.startsWith(archivePrefix)) {
+				const name = frontmatter?.[nameKey];
+				if (typeof name === 'string' && name.trim()) archived.push({ path: file.path, name });
+			}
+		}
+		return { folderNotes, archived };
 	}
 
 	/**

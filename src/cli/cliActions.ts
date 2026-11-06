@@ -608,8 +608,9 @@ function planDepend(params: CliParams, ctx: CliContext): WritePlan {
 	const raws = listParam(params, 'on');
 	if (!raws) throw new CliArgumentError('give the tasks it depends on as on=<hash>[,<hash>]');
 	const removing = flagParam(params, 'remove');
-	// Removing may name a dependency whose task no longer exists (ttasks:lint's
-	// dangling-link): it is matched against this task's own links by hash.
+	// Removing may name a dependency whose task isn't in the tasks folder (gone,
+	// as ttasks:lint's dangling-link reports, or archived): it is matched against
+	// this task's own links by hash.
 	const targets = raws.map((raw) => (removing ? danglingDependency(task, ctx, raw) : null) ?? resolveOne(ctx, raw, 'on'));
 
 	const current = new Set(dependsOnPaths(task));
@@ -656,7 +657,10 @@ function planDepend(params: CliParams, ctx: CliContext): WritePlan {
 	};
 }
 
-/** A `depends_on` entry of `task` that matches `raw` by hash and resolves to no task, as a stand-in Task. */
+/**
+ * A `depends_on` entry of `task` that matches `raw` by hash but isn't a task in
+ * the tasks folder (archived, or gone), as a stand-in Task.
+ */
 function danglingDependency(task: Task, ctx: CliContext, raw: string): Task | null {
 	const wanted = raw.trim().replace(/^#/, '').toLowerCase();
 	if (!wanted) return null;
@@ -667,7 +671,8 @@ function danglingDependency(task: Task, ctx: CliContext, raw: string): Task | nu
 	});
 	if (!path) return null;
 	const leaf = path.split('/').pop() ?? path;
-	return { ...task, id: leaf.slice(0, 6), name: missingTaskLabel(path), path: withExt(path) };
+	const archived = ctx.archived.find((note) => stripMd(note.path) === path || note.path.endsWith(`/${leaf}.md`));
+	return { ...task, id: leaf.slice(0, 6), name: archived?.name ?? missingTaskLabel(path), path: withExt(path) };
 }
 
 // ── Registry ──────────────────────────────────────────────────────────────────

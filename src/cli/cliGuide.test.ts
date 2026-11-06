@@ -36,6 +36,8 @@ function context(tasks: Task[] = TASKS): CliContext {
 		now: '2026-11-06T12:00:00.000Z',
 		presets: [],
 		statusPolicy: { initial: 'Active', completion: 'Done', start: 'In Progress', block: 'Blocked', hold: 'Hold', future: null },
+		folderNotes: [],
+		archived: [],
 	};
 }
 

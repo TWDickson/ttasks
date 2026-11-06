@@ -37,6 +37,24 @@ export interface CliContext {
 	 * vault without them; both (and `block`) impede everything downstream.
 	 */
 	statusPolicy: { initial: string; completion: string; start: string; block: string; hold: string | null; future: string | null };
+	/**
+	 * Every note directly in the tasks folder, as the metadata cache reads it:
+	 * the store's tasks plus any it refuses (old keys, no name). For `ttasks:lint`.
+	 */
+	folderNotes: CliNote[];
+	/** Task notes in the archive folder. Links to them resolve; they aren't linted. */
+	archived: ArchivedNote[];
+}
+
+/** A markdown note's path and frontmatter (null when it has none). */
+export interface CliNote {
+	path: string;
+	frontmatter: Record<string, unknown> | null;
+}
+
+export interface ArchivedNote {
+	path: string;
+	name: string;
 }
 
 /** What a new task's create modal can be prefilled with (`ttasks:new`). */

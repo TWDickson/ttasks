@@ -640,7 +640,7 @@ that N3's façade will later wrap.
   output naming the dependency (it reports before the store re-reads the file);
   the dialog from `new` taking focus from a terminal. Headless sessions can't
   observe any of it.
-- `[x]` **CLI-5 lint, note text, write echo** — *(2026-11-06, unreleased)*
+- `[x]` **CLI-5 lint, note text, write echo** — *(2026-11-06, 0.2.6)*
   closes the gaps found after CLI-4. `ttasks:lint` (`src/cli/cliLint.ts`, pure,
   boundary-listed) runs `dangling-link`, `stalled-without-reason`, `thin-body`
   (< `min-body=`, default 40 chars), `open-under-finished-parent` and
@@ -665,6 +665,39 @@ that N3's façade will later wrap.
   `status`, `complete`, `depend` and `depend … remove`. Open each note and check
   the frontmatter (`ttask_labels`, `ttask_depends_on` as aliased links) and the
   body. Then run `ttasks:lint` and compare it with `planner.py lint`.
+- `[x]` **CLI-6 lint parity with `planner.py`** — *(2026-11-06, unreleased)*
+  Taylor ran 0.2.6's lint beside `planner.py lint`. 14 of its 23 issues were
+  false `dangling-link`s (archived targets), the two disagreed on
+  `prefixed-link`, and `overdue` / `format-drift` / `legacy-keys` were missing.
+  Fixed:
+  - **Archive.** `CliContext` gains `archived` (task notes under the archive
+    folder) and `folderNotes` (every note directly in the tasks folder, with
+    raw frontmatter, refused ones included). Links resolve against open and
+    archived tasks. CLI writes make links to archived tasks bare, and
+    `depend … remove` takes an archived dependency's hash.
+  - **`prefixed-link`** now means a folder prefix only, and it reads the raw
+    frontmatter links as well as the body. In the vault, 403b64 and a798b2
+    carry `ttask_parent_task: [[Planner/Tasks/…|…]]`. The CLI had flagged
+    b7c914 and d48e21 for a bare `[[a1f302-…]]` with no alias, which isn't a
+    prefix.
+  - **Scope per check.** The format checks (`dangling-link`, `prefixed-link`,
+    `format-drift`, `legacy-keys`) read every folder note, completed included.
+    The work checks read open tasks. `thin-body` reads Active
+    (`statusPolicy.initial`) tasks only, as `planner.py` does. The
+    `completed=` flag is gone.
+  - **New checks:** `overdue` (due before today), `format-drift` (my reading
+    of the term, since `planner.py` isn't on this machine: filename shape,
+    `cssclasses`, required keys, unconfigured values, date/time/number shape,
+    unaliased or non-wiki frontmatter links, a note with no `ttask_name`),
+    `legacy-keys` (pre-`ttask_` names, from `TASK_PERSISTENCE` plus the
+    cutover's converted keys).
+  - **Not verified against the vault.** The vault isn't on this machine.
+    Compare `ttasks:lint` with `planner.py lint` again, especially
+    `format-drift`, where the two definitions may still differ.
+  - **Open question:** the plugin writes frontmatter links through
+    `generateMarkdownLink`, which follows Obsidian's *New link format*
+    setting. If that's set to absolute paths, the plugin's own writes would be
+    `prefixed-link`s. 403b64/a798b2 may come from that or from an older writer.
 
 ---
 
