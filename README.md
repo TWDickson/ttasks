@@ -199,10 +199,13 @@ Properties panel and pick **Property type**.
   thrown away. A due time goes in `ttask_due_time` (`HH:MM`).
 - Leave `ttask_archive_history` alone: it's a list of entries the plugin writes,
   and no property type displays it well.
+- To set them all at once, close Obsidian everywhere (it rewrites the file while
+  it runs) and run `node Scripts/set-property-types.mjs "<vault>"` to see the
+  changes, then add `--apply` to write them. It keeps a `types.json.bak`.
 - If you used a version before 0.2.1, `types.json` may still list the old
-  unprefixed names (`status`, `due_date`, …). Those entries are harmless. To
-  remove them, close Obsidian everywhere first, because Obsidian rewrites the
-  file while it runs.
+  unprefixed names (`status`, `due_date`, …). They're harmless, and the dry run
+  lists them. `--prune` removes them, but only use it if no other notes in the
+  vault have properties with those names.
 
 ### Migrating to `ttask_*` properties
 

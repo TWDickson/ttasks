@@ -35,7 +35,7 @@ const SCENES = [
 	{ name: 'list', url: '/?view=list', popover: '.tt-filter-trigger' },
 	{ name: 'kanban', url: '/?view=kanban' },
 	{ name: 'agenda', url: '/?view=agenda' },
-	{ name: 'graph', url: '/?view=graph', popover: '.tt-graph-pill-toggle' },
+	{ name: 'graph', url: '/?view=graph', popover: '.tt-graph-project-filter > button' },
 	{ name: 'timeline', url: '/?view=timeline' },
 	{ name: 'logbook', url: '/?view=logbook' },
 	{ name: 'detail', url: '/?view=list&detail=1', formRoot: '.tt-detail' },

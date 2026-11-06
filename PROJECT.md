@@ -171,8 +171,10 @@ flowchart LR
   `schemaGuard.ts` stays as the safety net for a device that missed it.
 - `[~]` **MD-5 🟢 property registry cleanup** — *documented 2026-11-06:* README
   § "Recommended property types" (a type per `ttask_*` key, Date not Date & time).
-  **Still open (needs the vault, Obsidian closed):** hand-edit `types.json` to drop
-  the old unprefixed entries and set the types the table recommends.
+  **Still open (Taylor, on the desktop, Obsidian closed):** run
+  `node Scripts/set-property-types.mjs "<vault>"` (dry run), then `--apply`
+  (`--prune` to drop the old unprefixed keys if nothing else uses them). The
+  script's key list is test-pinned to `TASK_PERSISTENCE`.
 
 ### Repeat mechanism (RP) — redesign
 
