@@ -12,6 +12,26 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-11-06 — CLI-5: lint, note text, and replies that show what landed
+
+Taylor ran CLI-4 against the vault, using `create … dry-run` only, and found four
+gaps. The planner skill's `planner.py lint` was still the only hygiene check. A
+dry run didn't show `label=` / `notes=` back. Nothing in `src/cli` handled
+`\n`, even though `obsidian help` (Obsidian's text, not ours) says `\n` is a
+newline. And the body path could write the folder-prefixed links the skill's
+`prefixed-link` check rejects.
+
+- **`ttasks:lint`** ports the skill's checks to the store, using the same ref
+  index the UI resolves links with. A body link counts as a task link if it
+  resolves to one, or if its filename has the `{6hex}-` shape (that's how a
+  link to a deleted task is caught without vault access).
+- **Normalize on write rather than only lint.** The CLI rewrites resolvable task
+  links to the bare form as it writes, and reports what it changed. Linting
+  alone would make every caller remember the rule; the CLI is where the text
+  enters.
+- **Unescape ourselves.** It's harmless if Obsidian already does it, and it
+  fixes the case where it doesn't. `\\` is the escape for a literal `\n`.
+
 ## 2026-11-06 — CLI-4: the CLI shows the schedule instead of assuming it's understood
 
 Taylor's concern after CLI-3: TTasks works out most dates itself (dependency

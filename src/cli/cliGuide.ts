@@ -80,6 +80,9 @@ export function buildRules(ctx: CliContext): Record<string, string> {
 			'estimates, dependencies or statuses.',
 		values:
 			'Statuses, areas, priorities and labels must be values listed here. Writes never invent one.',
+		notes:
+			'Note bodies (notes=, append=) take \\n for a line break. Link to another task as [[id-slug|Name]], ' +
+			'with no folder prefix; writes make any task link bare. Run ttasks:lint after a batch of writes.',
 		identity:
 			'Address a task by its ref, the 6-character hash (id=a1b2c3); a unique prefix works. Names are not unique.',
 	};

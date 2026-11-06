@@ -399,3 +399,46 @@ describe('impact of other writes', () => {
 		expect(calls).toEqual([]);
 	});
 });
+
+describe('note text and the reply echo (gaps found 2026-11-06)', () => {
+	it('turns \\n, \\t and \\\\ in notes= into what they stand for', async () => {
+		const { out } = await run('ttasks:create', { name: 'Ship', notes: 'One\\nTwo\\tTab \\\\n kept', 'dry-run': 'true' });
+		expect(json(out).created.notes).toBe('One\nTwo\tTab \\n kept');
+	});
+
+	it('echoes labels and notes on a dry-run create, in both formats', async () => {
+		const params = { name: 'Ship', label: 'action', notes: 'Done when it ships.', 'dry-run': 'true' };
+		const reply = json((await run('ttasks:create', params)).out);
+		expect(reply.created).toMatchObject({ labels: ['action'], notes: 'Done when it ships.' });
+		const text = (await run('ttasks:create', { ...params, format: 'text' })).out;
+		expect(text).toContain('labels: action');
+		expect(text).toContain('notes:\nDone when it ships.');
+	});
+
+	it('writes task links bare, and reports what it rewrote', async () => {
+		const { out } = await run('ttasks:create', {
+			name: 'Ship',
+			notes: 'After [[Tasks/aaa111-get-quotes|the quotes]] and [[bbb222-pick-roofer.md]]; see [[Some other note]] and ![[Tasks/aaa111-get-quotes]].',
+			'dry-run': 'true',
+		});
+		const reply = json(out);
+		expect(reply.created.notes).toBe('After [[aaa111-get-quotes|the quotes]] and [[bbb222-pick-roofer|Pick roofer]]; see [[Some other note]] and ![[Tasks/aaa111-get-quotes]].');
+		expect(reply.links_made_bare).toEqual([
+			{ from: '[[Tasks/aaa111-get-quotes|the quotes]]', to: '[[aaa111-get-quotes|the quotes]]' },
+			{ from: '[[bbb222-pick-roofer.md]]', to: '[[bbb222-pick-roofer|Pick roofer]]' },
+		]);
+	});
+
+	it('applies the same rules to append= on a real write', async () => {
+		const noted = task({ id: 'nnn002', name: 'Write up', notes: 'First.' });
+		const { calls } = await run('ttasks:update', { id: 'nnn002', append: 'Line\\nNext, see [[Tasks/aaa111-get-quotes]]' }, fakeStore([quotes, noted]));
+		expect(calls).toEqual([`notes ${noted.path} ${JSON.stringify('First.\n\nLine\nNext, see [[aaa111-get-quotes|Get quotes]]')}`]);
+	});
+
+	it('removes a dependency whose task no longer exists, by its hash', async () => {
+		const orphaned = task({ id: 'ooo001', name: 'Orphaned', depends_on: ['Tasks/999999-gone.md', quotes.path] });
+		const { out, calls } = await run('ttasks:depend', { id: 'ooo001', on: '999999', remove: 'true' }, fakeStore([quotes, orphaned]));
+		expect(calls).toEqual([`remove ${orphaned.path} -> Tasks/999999-gone`]);
+		expect(json(out).removed).toEqual(['Missing task (999999)']);
+	});
+});

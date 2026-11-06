@@ -36,6 +36,7 @@ import {
 } from './cliCore';
 import { ACTION_COMMANDS } from './cliActions';
 import { guideCommands } from './cliGuide';
+import { LINT_COMMAND } from './cliLint';
 
 export type { CliActions, CliCommand, CliContext, CliParams } from './cliCore';
 
@@ -239,5 +240,6 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
 		run: runExport,
 	},
 	...ACTION_COMMANDS,
+	LINT_COMMAND,
 	...guideCommands(() => CLI_COMMANDS),
 ];

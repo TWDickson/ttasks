@@ -23,6 +23,7 @@ command with its flags.
 | [`list`](#ttaskslist) / [`show`](#ttasksshow) / [`export`](#ttasksexport) | Read |
 | [`open`](#ttasksopen) / [`new`](#ttasksnew) | Show something in Obsidian; write nothing |
 | [`create`](#ttaskscreate) / [`update`](#ttasksupdate) / [`complete`](#ttaskscomplete) / [`status`](#ttasksstatus) / [`depend`](#ttasksdepend) | Change tasks |
+| [`lint`](#ttaskslint) | Hygiene check; run it after a batch of writes |
 
 ## How TTasks schedules work (read this before writing)
 
@@ -193,6 +194,22 @@ and `impact` appear only when they apply. Impact lists at most 25 tasks, with
 (a new task, a repeat's next instance) has the ref `new`. `format=text` prints
 the same as lines.
 
+The task always carries its `labels`. When the write sets the body (`notes=`,
+`append=`), the reply carries the whole new body under `notes` too, so a dry run
+shows exactly what would land.
+
+### Note text
+
+`notes=` and `append=` arrive as one shell argument, so:
+
+- **`\n` is a line break**, `\t` a tab, and `\\` a literal backslash. Any other
+  backslash is kept as typed.
+- **Task links are written bare**, as `[[id-slug|Name]]`. A folder prefix
+  (`[[Tasks/a1b2c3-fix-roof]]`) and a `.md` are dropped, and a link with no alias
+  gets the task's name. Only links that resolve to a task change; links to other
+  notes and embeds (`![[…]]`) stay as written. The reply lists what changed under
+  `links_made_bare`.
+
 ## `ttasks:create`
 
 Creates a task (or, with `type=project`, a project).
@@ -210,7 +227,7 @@ Creates a task (or, with `type=project`, a project).
 | `depends=<a,b>` | Tasks it waits on, by hash |
 | `start=` / `due=` | Usually leave blank (see above) |
 | `due-time=<HH:MM>` | Needs `due=` |
-| `notes=<text>` | The note body |
+| `notes=<text>` | The note body (see [Note text](#note-text)) |
 | `dry-run` | Preview |
 
 ## `ttasks:update`
@@ -227,8 +244,8 @@ Changes fields on a task. Give at least one; anything left out stays as it is.
 | `estimate=<days\|none>` | Working days of effort |
 | `start=` / `due=` `<date\|none>` | `none` unpins it and hands it back to the schedule |
 | `due-time=<HH:MM\|none>` | Clearing the due date clears its time too |
-| `notes=<text>` | Replace the whole body |
-| `append=<text>` | Add a paragraph to the body |
+| `notes=<text>` | Replace the whole body (see [Note text](#note-text)) |
+| `append=<text>` | Add a paragraph to the body, same rules |
 | `dry-run` | Preview |
 
 A status change goes through `ttasks:status`, so a completion recurs.
@@ -254,3 +271,23 @@ behind it.
 Add `remove` to drop them instead. A dependency that would make a loop is
 refused, and then none of the list is written. The result adds `added` (or
 `removed`) and `unchanged` name lists, and `impact` shows the dates it pushes.
+With `remove`, `on=` also takes the hash of a dependency whose task no longer
+exists, so a dangling link `ttasks:lint` reports can be cleared.
+
+## `ttasks:lint`
+
+Read-only. Reports what makes a plan go stale without anything failing:
+
+| Check | Flags |
+| --- | --- |
+| `dangling-link` | A `parent_task`, `depends_on` or body link to a task that doesn't exist |
+| `stalled-without-reason` | Your blocked status with no `blocked_reason` |
+| `thin-body` | A note body shorter than `min-body=` characters (default 40) |
+| `open-under-finished-parent` | An open task whose project is complete |
+| `prefixed-link` | A body task link not in the bare `[[id-slug\|Name]]` form |
+
+Each issue has `check`, `ref`, `name`, `path`, `message`, and a `fix` command
+where there is one. JSON adds `checked` (tasks looked at), `count` and
+`by_check`. Flags: `check=<a,b>` to run only some checks, `completed=include` to
+lint completed tasks too (default: open work only), `min-body=<chars>`,
+`format=json|text`.

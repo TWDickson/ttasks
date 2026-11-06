@@ -34,6 +34,8 @@ import {
 	withTasks,
 	type CliActions, type CliCommand, type CliContext, type CliCreatePrefill, type CliParams,
 } from './cliCore';
+import { cliText } from './cliLint';
+import { missingTaskLabel } from '../utils/taskLabel';
 
 // ── Argument parsing ──────────────────────────────────────────────────────────
 
@@ -223,15 +225,17 @@ interface WritePlan {
 	next?: Task | null;
 	changed: boolean;
 	warnings: string[];
-	/** Extra response fields (`added`, `removed`, `unchanged`). */
+	/** Extra response fields (`added`, `removed`, `unchanged`, `links_made_bare`). */
 	fields?: Record<string, unknown>;
+	/** The write sets the note body, so the reply shows it: the caller can see what landed. */
+	showsNotes?: boolean;
 	apply(actions: CliActions): Promise<Applied>;
 }
 
-/** A task as `show` prints it: the export shape plus its path. */
-function described(task: Task, ctx: CliContext): Record<string, unknown> {
-	const [shown] = exportShape([task], ctx, 'none');
-	return { ...shown, path: task.path };
+/** A task as `show` prints it: the export shape plus its path (and its body, when the write set it). */
+function described(task: Task, ctx: CliContext, withNotes = false): Record<string, unknown> {
+	const [shown] = exportShape([task], ctx, withNotes ? 'full' : 'none');
+	return { ...shown, ...(withNotes ? { notes: task.notes } : {}), path: task.path };
 }
 
 function describedLine(task: Task, ctx: CliContext): string {
@@ -279,7 +283,7 @@ async function runPlan(plan: WritePlan, params: CliParams, ctx: CliContext, acti
 			today: ctx.today,
 			...(dryRun ? { dry_run: true } : {}),
 			changed: plan.changed,
-			[plan.verb]: described(main, after),
+			[plan.verb]: described(main, after, plan.showsNotes),
 			...(plan.verb === 'completed' ? { next: next ? described(next, after) : null } : {}),
 			...plan.fields,
 			...(plan.warnings.length ? { warnings: plan.warnings } : {}),
@@ -289,9 +293,12 @@ async function runPlan(plan: WritePlan, params: CliParams, ctx: CliContext, acti
 	}
 
 	const lines = [`${plan.changed ? TEXT_LABEL[plan.verb] : 'Unchanged'}  ${describedLine(main, after)}`];
+	if (main.labels.length) lines.push(`labels: ${main.labels.join(', ')}`);
 	if (next) lines.push(`Next  ${describedLine(next, after)}`);
 	for (const [key, value] of Object.entries(plan.fields ?? {})) {
-		if (Array.isArray(value) && value.length) lines.push(`${key}: ${value.join(', ')}`);
+		if (Array.isArray(value) && value.length) {
+			lines.push(`${key}: ${value.map((entry) => (typeof entry === 'string' ? entry : `${entry.from} → ${entry.to}`)).join(', ')}`);
+		}
 	}
 	for (const warning of plan.warnings) lines.push(`Warning: ${warning}`);
 	if (impact.length) {
@@ -299,6 +306,7 @@ async function runPlan(plan: WritePlan, params: CliParams, ctx: CliContext, acti
 		for (const entry of shownImpact) lines.push(`  ${impactLine(entry)}`);
 		if (impact.length > IMPACT_LIMIT) lines.push(`  … and ${impact.length - IMPACT_LIMIT} more`);
 	}
+	if (plan.showsNotes) lines.push('notes:', main.notes || '(empty)');
 	if (dryRun && plan.changed) lines.push('Dry run: nothing was written.');
 	return lines.join('\n');
 }
@@ -375,9 +383,15 @@ export function buildCreateInput(params: CliParams, ctx: CliContext): TaskCreate
 		created: ctx.today,
 		completed: status === ctx.statusPolicy.completion ? ctx.today : null,
 		repeat: null,
-		notes: textParam(params, 'notes') ?? '',
+		notes: createNotes(params, ctx).text,
 		reminder_override: null,
 	};
+}
+
+/** `notes=` for a new task: escapes resolved, task links made bare. */
+function createNotes(params: CliParams, ctx: CliContext): ReturnType<typeof cliText> {
+	const raw = textParam(params, 'notes');
+	return raw === null ? { text: '', rewritten: [] } : cliText(raw, ctx);
 }
 
 /** Stand-in path for a task that doesn't exist yet (a dry run, a repeat's next instance). */
@@ -385,6 +399,7 @@ const PENDING_PATH = (label: string) => `(${label}).md`;
 
 function planCreate(params: CliParams, ctx: CliContext): WritePlan {
 	const input = buildCreateInput(params, ctx);
+	const { rewritten } = createNotes(params, ctx);
 	const placeholder: Task = asStored({
 		...input,
 		id: 'new',
@@ -400,6 +415,8 @@ function planCreate(params: CliParams, ctx: CliContext): WritePlan {
 		after: placeholder,
 		changed: true,
 		warnings: dateWarnings(ctx, null, placeholder),
+		...(rewritten.length ? { fields: { links_made_bare: rewritten } } : {}),
+		showsNotes: input.notes !== '',
 		apply: async (actions) => ({ main: asStored(await actions.create(input)) }),
 	};
 }
@@ -467,11 +484,14 @@ function planUpdate(params: CliParams, ctx: CliContext): WritePlan {
 		if (wanted !== (task.parent_task ? withExt(task.parent_task) : null)) parent = wanted;
 	}
 	let notes: string | undefined;
-	const replaceNotes = params.notes !== undefined ? (params.notes === 'true' ? '' : params.notes) : undefined;
-	const append = textParam(params, 'append');
-	if (replaceNotes !== undefined && append !== null) throw new CliArgumentError('give notes= (replace the body) or append= (add to it), not both');
-	if (replaceNotes !== undefined && replaceNotes !== task.notes) notes = replaceNotes;
-	if (append !== null) notes = task.notes.trim() ? `${task.notes.trimEnd()}\n\n${append}` : append;
+	const replaceRaw = params.notes !== undefined ? (params.notes === 'true' ? '' : params.notes) : undefined;
+	const appendRaw = textParam(params, 'append');
+	if (replaceRaw !== undefined && appendRaw !== null) throw new CliArgumentError('give notes= (replace the body) or append= (add to it), not both');
+	const replaced = replaceRaw !== undefined ? cliText(replaceRaw, ctx) : null;
+	const appended = appendRaw !== null ? cliText(appendRaw, ctx) : null;
+	if (replaced && replaced.text !== task.notes) notes = replaced.text;
+	if (appended) notes = task.notes.trim() ? `${task.notes.trimEnd()}\n\n${appended.text}` : appended.text;
+	const rewritten = [...(replaced?.rewritten ?? []), ...(appended?.rewritten ?? [])];
 
 	const after: Task = {
 		...merged,
@@ -486,6 +506,8 @@ function planUpdate(params: CliParams, ctx: CliContext): WritePlan {
 		after,
 		changed,
 		warnings: dateWarnings(ctx, task, after),
+		...(rewritten.length ? { fields: { links_made_bare: rewritten } } : {}),
+		showsNotes: replaced !== null || appended !== null,
 		apply: async (actions) => {
 			if (Object.keys(updates).length) await actions.update(task.path, updates);
 			if (parent !== undefined) await actions.setParent(task.path, parent ? stripMd(parent) : null);
@@ -586,7 +608,9 @@ function planDepend(params: CliParams, ctx: CliContext): WritePlan {
 	const raws = listParam(params, 'on');
 	if (!raws) throw new CliArgumentError('give the tasks it depends on as on=<hash>[,<hash>]');
 	const removing = flagParam(params, 'remove');
-	const targets = raws.map((raw) => resolveOne(ctx, raw, 'on'));
+	// Removing may name a dependency whose task no longer exists (ttasks:lint's
+	// dangling-link): it is matched against this task's own links by hash.
+	const targets = raws.map((raw) => (removing ? danglingDependency(task, ctx, raw) : null) ?? resolveOne(ctx, raw, 'on'));
 
 	const current = new Set(dependsOnPaths(task));
 	let working = ctx.tasks;
@@ -630,6 +654,20 @@ function planDepend(params: CliParams, ctx: CliContext): WritePlan {
 			return { main: after };
 		},
 	};
+}
+
+/** A `depends_on` entry of `task` that matches `raw` by hash and resolves to no task, as a stand-in Task. */
+function danglingDependency(task: Task, ctx: CliContext, raw: string): Task | null {
+	const wanted = raw.trim().replace(/^#/, '').toLowerCase();
+	if (!wanted) return null;
+	const known = new Set(ctx.tasks.map((candidate) => stripMd(candidate.path)));
+	const path = dependsOnPaths(task).find((dep) => {
+		const leaf = (dep.split('/').pop() ?? dep).toLowerCase();
+		return !known.has(dep) && (leaf.startsWith(wanted) || dep.toLowerCase() === stripMd(wanted));
+	});
+	if (!path) return null;
+	const leaf = path.split('/').pop() ?? path;
+	return { ...task, id: leaf.slice(0, 6), name: missingTaskLabel(path), path: withExt(path) };
 }
 
 // ── Registry ──────────────────────────────────────────────────────────────────
@@ -683,7 +721,7 @@ export const ACTION_COMMANDS: readonly CliCommand[] = [
 			'due-time': { value: '<HH:MM>', description: 'Due time (needs due=)' },
 			estimate: { value: '<days>', description: 'Working days of effort; this, not a date, is how to size work' },
 			depends: { value: '<a,b>', description: 'Tasks it waits on (hashes)' },
-			notes: { value: '<text>', description: 'The note body' },
+			notes: { value: '<text>', description: 'The note body; \\n is a line break, task links are written bare' },
 			...DRY_RUN_FLAG,
 			format: FORMAT_FLAG('json|text'),
 		},
@@ -705,8 +743,8 @@ export const ACTION_COMMANDS: readonly CliCommand[] = [
 			due: { value: `<${DATE_HINT}|none>`, description: 'A real external deadline; none unpins it' },
 			'due-time': { value: '<HH:MM|none>', description: 'Due time' },
 			estimate: { value: '<days|none>', description: 'Working days of effort' },
-			notes: { value: '<text>', description: 'Replace the note body' },
-			append: { value: '<text>', description: 'Add a paragraph to the note body' },
+			notes: { value: '<text>', description: 'Replace the note body; \\n is a line break, task links are written bare' },
+			append: { value: '<text>', description: 'Add a paragraph to the note body (same rules as notes=)' },
 			...DRY_RUN_FLAG,
 			format: FORMAT_FLAG('json|text'),
 		},
@@ -735,7 +773,7 @@ export const ACTION_COMMANDS: readonly CliCommand[] = [
 		description: 'Make a task wait on others (or stop, with remove). Refuses a dependency loop.',
 		flags: {
 			...ID_FLAGS,
-			on: { value: '<a,b>', description: 'The tasks it waits on (hashes)', required: true },
+			on: { value: '<a,b>', description: 'The tasks it waits on (hashes); with remove, a missing task\'s hash works too', required: true },
 			remove: { description: 'Remove these dependencies instead of adding them' },
 			...DRY_RUN_FLAG,
 			format: FORMAT_FLAG('json|text'),

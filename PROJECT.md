@@ -633,44 +633,38 @@ that N3's façade will later wrap.
   the same change to several tasks, validated together and reported with one
   combined impact. Sits on the plan model, so it's mostly reporting work.
 - `[ ]` **On-device check (CLI-1…4)** — against the next release: run
-  `obsidian help` (all thirteen commands listed), `ttasks:context`, then
+  `obsidian help` (all fourteen commands listed), `ttasks:context`, then
   `ttasks:create name=Test`, `ttasks:update … dry-run`, `ttasks:depend`,
   `ttasks:status`, `ttasks:complete` on it, `ttasks:next` / `ttasks:why`, and
   `ttasks:new` / `ttasks:open`. Check `impact` against what the board shows. Watch for: the created task appearing on the board; `depend`
   output naming the dependency (it reports before the store re-reads the file);
   the dialog from `new` taking focus from a terminal. Headless sessions can't
   observe any of it.
-- `[ ]` **CLI-5 lint** — *(gap found 2026-11-06)* the CLI has no hygiene check,
-  so the planner skill's `planner.py lint` is still the only one. Port its
-  checks as a read-only `ttasks:lint`: dangling link (a `parent_task` /
-  `depends_on` that resolves to `kind: 'missing'`), stalled without a reason
-  (Blocked/Hold with blank `blocked_reason`), thin body, open task under a
-  finished parent, and `prefixed-link` (a body wikilink written as
-  `[[Tasks/id-slug|Name]]` instead of bare `[[id-slug|Name]]`). Most of these are
-  already computable from the store and `buildTaskRefIndex`. Until it lands, keep
-  running `planner.py lint` after CLI writes.
-- `[ ]` **CLI real-write check** — *(gap found 2026-11-06)* so far only
-  `create … dry-run` has been run against a real vault. Unit tests cover the
-  plan/host contract (`cliActions.test.ts`), not what lands in the file. Run real
-  `create` / `update` / `status` / `complete` / `depend`, then open each note and
-  check the frontmatter (`ttask_labels`, `ttask_depends_on` as aliased links) and
-  the body. Fold this into the on-device check above. Specifics:
-  - **`\n` in `notes=` / `append=`** — `src/cli` does no unescaping
-    (`textParam` only trims), and our help (`CLI.md`, `cliGuide.ts`) doesn't
-    claim it. The "`\n` becomes a newline" line comes from Obsidian's own
-    `obsidian help`. Find out whether Obsidian unescapes before the handler sees
-    the value. If it doesn't, either unescape `\n` in `notes`/`append` ourselves
-    or document that it's literal.
-  - **Echo of labels/notes** — the JSON reply (`described()`, the 'ai' shape with
-    notes policy `none`) does include `labels` but never `notes`. The
-    `format=text` line shows neither. So a dry-run can't confirm `notes=`, and the
-    text format can't confirm `label=`. Consider echoing `notes` (summary) and
-    `labels` in write replies so a dry-run fully reflects the input.
-  - **Body links** — `notes=` / `append=` write the text exactly as given, and
-    the CLI writes no body links itself. So bare `[[id-slug|Name]]` is the
-    caller's job. Either say so in `ttasks:context`, or have the CLI rewrite
-    `[[Tasks/…]]` to bare links on write. CLI-5's `prefixed-link` check is the
-    backstop.
+- `[x]` **CLI-5 lint, note text, write echo** — *(2026-11-06, unreleased)*
+  closes the gaps found after CLI-4. `ttasks:lint` (`src/cli/cliLint.ts`, pure,
+  boundary-listed) runs `dangling-link`, `stalled-without-reason`, `thin-body`
+  (< `min-body=`, default 40 chars), `open-under-finished-parent` and
+  `prefixed-link`, on open work by default. Each issue has a `fix` command.
+  `notes=` / `append=` now turn `\n` / `\t` / `\\` into what they stand for,
+  and write task links bare (`[[id-slug|Name]]`, alias filled from the task
+  name; other links and embeds are left alone), reported as `links_made_bare`.
+  Write replies always carry `labels` (the text line included) and, when the
+  body was set, the full `notes`, so a dry run shows what would land.
+  `depend … remove` takes the hash of a dependency whose task is gone, so a
+  dangling link can be cleared. Choices: `stalled-without-reason` covers the
+  blocked status only, because `blocked_reason` is the blocked status's field
+  (the UI shows it only there) and a reason on Hold can't be recorded. "Finished
+  parent" means the completion status; Cancelled isn't a policy pointer.
+  Whether Obsidian unescapes `\n` before the handler sees it is still unknown.
+  Either way the result is the same, since an already-unescaped value has no
+  `\n` left to convert.
+- `[ ]` **CLI real-write check** — so far only `create … dry-run` has been run
+  against a real vault. Unit tests cover the plan/host contract, not the file.
+  Part of the on-device check above: run real `create` (with `label=`,
+  `notes=` containing `\n` and a `[[Tasks/…]]` link), `update append=`,
+  `status`, `complete`, `depend` and `depend … remove`. Open each note and check
+  the frontmatter (`ttask_labels`, `ttask_depends_on` as aliased links) and the
+  body. Then run `ttasks:lint` and compare it with `planner.py lint`.
 
 ---
 
