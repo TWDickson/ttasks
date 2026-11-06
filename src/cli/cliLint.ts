@@ -18,8 +18,10 @@
  *   `legacy-keys`) read every note in the tasks folder, completed ones and ones
  *   the store refuses included: a bad link or key is wrong whatever the status.
  * - *Work* checks (`stalled-without-reason`, `thin-body`, `overdue`,
- *   `open-under-finished-parent`) read open tasks only; `thin-body` only tasks in
- *   the initial (Active) status, the ones about to be picked up.
+ *   `open-under-finished-parent`) read open tasks only. `thin-body` skips parked
+ *   work (the blocked, hold and future statuses): a parked task may be a stub,
+ *   and one about to be picked up may not. `thin-status=` narrows it to named
+ *   statuses. It counts non-whitespace characters, as `planner.py` does.
  * Links resolve against open **and archived** tasks, so a link to finished,
  * archived work isn't dangling.
  *
@@ -212,8 +214,11 @@ export const LINT_CHECKS = [
 ] as const;
 export type LintCheck = typeof LINT_CHECKS[number];
 
-/** Below this many characters of body (whitespace trimmed), an Active task's note is thin. */
-export const THIN_BODY_CHARS = 40;
+/** Below this many non-whitespace characters, a live task's note body is thin. */
+export const THIN_BODY_CHARS = 50;
+
+/** A note body's length as `thin-body` measures it: non-whitespace characters. */
+export const bodyChars = (notes: string): number => notes.replace(/\s/g, '').length;
 
 export interface LintIssue {
 	check: LintCheck;
@@ -229,6 +234,8 @@ export interface LintIssue {
 export interface LintOptions {
 	checks: readonly LintCheck[];
 	minBody: number;
+	/** The statuses `thin-body` reads; null = every open status but the parked ones. */
+	thinStatuses?: readonly string[] | null;
 }
 
 const daysBetween = (from: string, to: string): number =>
@@ -239,7 +246,9 @@ export function lintTasks(ctx: CliContext, options: LintOptions): LintIssue[] {
 	const targets = linkTargets(ctx);
 	const enabled = new Set(options.checks);
 	const byPath = new Map(ctx.tasks.map((task) => [task.path, task]));
-	const { block, initial } = ctx.statusPolicy;
+	const { block, hold, future } = ctx.statusPolicy;
+	const parked = new Set([block, hold, future].filter((status): status is string => !!status));
+	const thinScope = (status: string) => (options.thinStatuses ? options.thinStatuses.includes(status) : !parked.has(status));
 	const issues: LintIssue[] = [];
 
 	// Every note in the folder; a store task the folder listing lacks (a test
@@ -306,9 +315,10 @@ export function lintTasks(ctx: CliContext, options: LintOptions): LintIssue[] {
 			at('stalled-without-reason', `${block} with no reason; say what it is waiting on`,
 				`ttasks:status id=${task.id} status=${block} reason=<what it waits on>`);
 		}
-		if (task.status === initial && task.notes.trim().length < options.minBody) {
-			at('thin-body', task.notes.trim()
-				? `the note body is ${task.notes.trim().length} characters; say what done looks like`
+		const chars = bodyChars(task.notes);
+		if (thinScope(task.status) && chars < options.minBody) {
+			at('thin-body', chars
+				? `the note body is ${chars} characters (not counting spaces); say what done looks like`
 				: 'the note body is empty; say what done looks like',
 			`ttasks:update id=${task.id} append=<text>`);
 		}
@@ -339,7 +349,9 @@ function runLint(params: CliParams, ctx: CliContext): string {
 	return guarded(format, () => {
 		const checks = canonical(listParam(params, 'check') ?? [...LINT_CHECKS], LINT_CHECKS, 'check') as LintCheck[];
 		const minBody = positiveInt(params, 'min-body') ?? THIN_BODY_CHARS;
-		const issues = lintTasks(ctx, { checks, minBody });
+		const thinRaw = listParam(params, 'thin-status');
+		const thinStatuses = thinRaw ? canonical(thinRaw, ctx.validValues.statuses, 'thin-status') : null;
+		const issues = lintTasks(ctx, { checks, minBody, thinStatuses });
 		const checked = new Set([...ctx.folderNotes.map((note) => note.path), ...ctx.tasks.map((task) => task.path)]).size;
 
 		if (format === 'text') {
@@ -359,7 +371,8 @@ export const LINT_COMMAND: CliCommand = {
 	description: 'Hygiene check over the tasks folder: links, format, old keys, blocked without a reason, thin bodies, overdue, open tasks in finished projects.',
 	flags: {
 		check: { value: `<${LINT_CHECKS.join(',')}>`, description: 'Only these checks (default all)' },
-		'min-body': { value: '<chars>', description: `An Active task's body shorter than this is thin (default ${THIN_BODY_CHARS})` },
+		'min-body': { value: '<chars>', description: `A body with fewer non-whitespace characters is thin (default ${THIN_BODY_CHARS})` },
+		'thin-status': { value: '<a,b>', description: 'Only check bodies of these statuses (default: open and not blocked, on hold or future)' },
 		format: FORMAT_FLAG('json|text'),
 	},
 	run: runLint,

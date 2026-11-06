@@ -698,6 +698,19 @@ that N3's façade will later wrap.
     `generateMarkdownLink`, which follows Obsidian's *New link format*
     setting. If that's set to absolute paths, the plugin's own writes would be
     `prefixed-link`s. 403b64/a798b2 may come from that or from an older writer.
+- `[x]` **CLI-6a `thin-body` regression** — *(2026-11-06, unreleased)* 0.2.7
+  reported no thin bodies. Active tasks 4cf3a1 and 54999a are empty and
+  ac0956 is 49 characters, and `planner.py` flags all three. The cause: "Active
+  only" was written as `statusPolicy.initial`, which is the *first* configured
+  status, and Taylor's list doesn't start with Active. Also, `planner.py` counts
+  non-whitespace characters (ac0956 is 58 with spaces, 49 without), while the
+  CLI counted spaces against a threshold of 40. Now `thin-body` counts
+  non-whitespace characters, the default `min-body` is 50, and the scope is
+  every open status except blocked/hold/future, with no dependence on list
+  order. `thin-status=<a,b>` narrows it (`thin-status=Active` for exact
+  parity). The default may flag In Progress and Cancelled stubs that
+  `planner.py` skips: Cancelled isn't a status-policy pointer, so the CLI
+  treats it as open, as the board does.
 
 ---
 

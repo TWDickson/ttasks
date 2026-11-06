@@ -296,11 +296,11 @@ Work checks read open tasks only:
 | Check | Flags |
 | --- | --- |
 | `stalled-without-reason` | Your blocked status with no `blocked_reason` |
-| `thin-body` | An **Active** (initial-status) task whose body is shorter than `min-body=` characters (default 40) |
+| `thin-body` | A body with fewer than `min-body=` non-whitespace characters (default 50), on any open task that isn't blocked, on hold or future. `thin-status=<a,b>` checks only those statuses (`thin-status=Active` matches `planner.py`) |
 | `overdue` | A due date before today |
 | `open-under-finished-parent` | An open task whose project is complete or archived |
 
 Each issue has `check`, `ref`, `name`, `path`, `message`, and a `fix` command
 where there is one. JSON adds `checked` (notes looked at), `archived` (archived
 tasks links can resolve to), `count` and `by_check`. Flags: `check=<a,b>` to
-run only some checks, `min-body=<chars>`, `format=json|text`.
+run only some checks, `min-body=<chars>`, `thin-status=<a,b>`, `format=json|text`.

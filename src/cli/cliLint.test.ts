@@ -4,7 +4,7 @@ import { CLI_COMMANDS, type CliContext } from './cliCommands';
 import type { CliNote } from './cliCore';
 import { LEGACY_KEYS, LINT_CHECKS, lintTasks, unescapeCliText, type LintOptions } from './cliLint';
 
-const BODY = 'Done when the thing is shipped and announced to the team.';
+const BODY = 'Done when the thing is shipped, announced to the team, and the old path is switched off.';
 const FOLDER = 'Planner/Tasks';
 
 function task(overrides: Partial<Task> & Pick<Task, 'id' | 'name'>): Task {
@@ -44,7 +44,7 @@ function context(tasks: Task[], folderNotes: CliNote[] = [], archived: CliContex
 }
 
 const ARCHIVED = [{ path: 'Planner/Archive/2026/10/7c2f9a-old-work.md', name: 'Old work' }];
-const all: LintOptions = { checks: LINT_CHECKS, minBody: 40 };
+const all: LintOptions = { checks: LINT_CHECKS, minBody: 50 };
 const found = (ctx: CliContext, options = all) => lintTasks(ctx, options).map((issue) => `${issue.check} ${issue.ref}`);
 
 describe('ttasks:lint links', () => {
@@ -129,7 +129,7 @@ describe('ttasks:lint work', () => {
 		task({ id: 'ggg777', name: 'Done late thin', status: 'Completed', is_complete: true, notes: '', due_date: '2026-10-01' }),
 	];
 
-	it('checks open work only; thin-body only on Active tasks', () => {
+	it('checks open work only; thin-body skips parked statuses', () => {
 		expect(found(context(TASKS, [], ARCHIVED), { ...all, checks: ['stalled-without-reason', 'thin-body', 'overdue', 'open-under-finished-parent'] })).toEqual([
 			'stalled-without-reason ccc333',
 			'thin-body ddd444',
@@ -151,6 +151,37 @@ describe('ttasks:lint work', () => {
 		const clean = task({ id: 'aaa111', name: 'Clean' });
 		expect(await command.run({ format: 'text' }, context([clean], [fm(clean)]), undefined as never)).toBe('No issues in 1 notes.');
 		expect(JSON.parse(await command.run({ check: 'nope' }, context(TASKS), undefined as never)).valid).toEqual([...LINT_CHECKS]);
+	});
+});
+
+describe('ttasks:lint thin-body (planner.py parity)', () => {
+	// The regression: 0.2.7 read thin-body as "the initial status", which is the
+	// first configured status. In a vault whose list doesn't start with Active,
+	// no Active task was ever checked.
+	const ctx = (tasks: Task[]) => ({
+		...context(tasks),
+		validValues: { ...context([]).validValues, statuses: ['Future', 'Active', 'In Progress', 'Blocked', 'Hold', 'Completed'] },
+		statusPolicy: { ...context([]).statusPolicy, initial: 'Future' },
+	});
+	const empty = task({ id: '4cf3a1', name: 'Add technical code', notes: '' });
+	const short = task({ id: 'ac0956', name: 'Follow up', notes: "\nProvide Sample of what's removed and that logic is correct\n" });
+	const parkedStub = task({ id: 'b7c914', name: 'Later', status: 'Future', notes: '' });
+	const thin = (c: CliContext, options: Partial<LintOptions> = {}) =>
+		lintTasks(c, { checks: ['thin-body'], minBody: 50, ...options }).map((issue) => `${issue.ref} ${issue.message}`);
+
+	it('checks every open status but the parked ones, whatever the first status is', () => {
+		expect(thin(ctx([empty, short, parkedStub]))).toEqual([
+			'4cf3a1 the note body is empty; say what done looks like',
+			'ac0956 the note body is 49 characters (not counting spaces); say what done looks like',
+		]);
+	});
+
+	it('narrows to named statuses with thin-status=', async () => {
+		const progressing = task({ id: 'ddd111', name: 'Doing', status: 'In Progress', notes: '' });
+		expect(thin(ctx([empty, progressing]), { thinStatuses: ['Active'] })).toEqual(['4cf3a1 the note body is empty; say what done looks like']);
+		const command = CLI_COMMANDS.find((candidate) => candidate.id === 'ttasks:lint')!;
+		const out = JSON.parse(await command.run({ check: 'thin-body', 'thin-status': 'active' }, ctx([empty, progressing]), undefined as never));
+		expect(out.issues.map((issue: { ref: string }) => issue.ref)).toEqual(['4cf3a1']);
 	});
 });
 
