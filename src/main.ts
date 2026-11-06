@@ -62,7 +62,7 @@ import { buildAliasedLink } from './integration/relationshipLink';
 import { TaskLinkEditorSuggest } from './editor/TaskLinkEditorSuggest';
 import { localDateString, localIsoTimestamp, resolveWeekStart } from './utils/dateUtils';
 import { registerCliCommands, type CliHost } from './cli/registerCli';
-import type { CliContext } from './cli/cliCommands';
+import type { CliActions, CliContext } from './cli/cliCommands';
 import { buildTaskSchedule } from './store/taskSchedule';
 import { getRegisteredTaskViews } from './views/viewRegistry';
 import { today as todayStore } from './utils/todayStore';
@@ -909,6 +909,26 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 			weekStart: resolveWeekStart(this.settings.weekStartsOn),
 			now: new Date().toISOString(),
 			presets: this.settings.shareSync.preamblePresets,
+			statusPolicy: { initial: this.statusPolicy.initial, completion: this.statusPolicy.completion },
+		};
+	}
+
+	/**
+	 * What `ttasks:open` / `new` and the CLI-3 writes do (CliHost). Every write
+	 * is the TaskStore call the UI makes, so it is guarded, stamped and recurs
+	 * the same way.
+	 */
+	cliActions(): CliActions {
+		return {
+			openBoard: () => this.openBoard(),
+			openTask: (path) => this.taskStore.openDetail(path),
+			openCreate: (type, prefill) => { new CreateTaskModal(this.app, this, type, { prefill }).open(); },
+			create: (input) => this.taskStore.create(input),
+			complete: (task) => this.taskStore.completeAndRecur(task),
+			update: (path, updates) => this.taskStore.update(path, updates),
+			addDependency: (taskPath, dependency) => this.taskStore.addDependency(taskPath, dependency),
+			removeDependency: (taskPath, dependency) => this.taskStore.removeDependency(taskPath, dependency),
+			snapshot: () => this.cliContext(),
 		};
 	}
 

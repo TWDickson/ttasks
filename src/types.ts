@@ -19,7 +19,8 @@ export interface Task {
 	// Multi-value cross-cutting labels (feature, bug, research, etc.). User-configurable.
 	labels: string[];
 
-	// Relationships (stored as vault paths, without extension)
+	// Relationships, as vault paths. In memory they carry `.md` (TaskStore resolves
+	// each link through the metadata cache); the writer API takes them without.
 	parent_task: string | null;
 	depends_on: string[];
 	blocks: string[];

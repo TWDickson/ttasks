@@ -86,6 +86,8 @@ describe('architecture boundaries', () => {
 			'src/i18n/hardcodedWording.ts',
 			'src/utils/popover.ts',
 			'src/cli/cliCommands.ts',
+			'src/cli/cliCore.ts',
+			'src/cli/cliActions.ts',
 		]) {
 			const content = readWorkspaceFile(relativePath);
 

@@ -12,6 +12,39 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-11-06 — CLI-2 and CLI-3: the CLI can open and write
+
+`ttasks:open`, `ttasks:new`, `ttasks:create`, `ttasks:complete`,
+`ttasks:status` and `ttasks:depend` (documented in `CLI.md`). Decisions worth
+keeping:
+
+- **Commands stay pure; side effects are a host.** `CliActions` is to the CLI
+  what the AR-8 host interfaces are to components: `cliActions.ts` validates
+  against the snapshot and calls `create` / `complete` / `update` /
+  `addDependency`, which the plugin maps one-to-one onto `TaskStore`. That's
+  why a CLI write needs no frontmatter code of its own, and why the tests run
+  against a fake store.
+- **Validate everything, then write.** A multi-target `depend` checks every
+  target (self, loop, unknown) before the first write, so an agent never has
+  to clean up half a batch.
+- **Idempotent by default.** Completing a completed task re-stamping
+  `completed` (and possibly tripping the recurrence guard) helps nobody; an
+  agent retrying after a timeout should get `"changed": false`.
+- **The store lags on some writes.** `update` patches the store optimistically,
+  so `complete` / `status` re-read it and treat a missing change as a failure
+  (TaskStore reports failure with a Notice, not a throw). `create` and the
+  dependency writes only reach the file; the store catches up from the
+  metadata cache a moment later. Those commands report the state they wrote,
+  with links in the in-memory `.md` form so names resolve. (`types.ts` said
+  relationships were held without `.md`; that was stale and is corrected.)
+- **Loops are refused** at the CLI, though the UI only warns about them: an
+  agent building a plan is the likeliest source of an accidental cycle, and the
+  Share/Sync rules already tell it "never make a cycle."
+- **Thrown errors become output.** What the Obsidian CLI does with a rejected
+  handler is undocumented, so `registerCli.ts` prints it as `{"error": …}`.
+
+---
+
 ## 2026-10-24 — Two ⚖ calls taken for 0.2.4: #16 and selected chips
 
 **(16) Graph vertical sort.** Same-column roots stacked by date, so a finished

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
 import type { RegisteredTaskViewDefinition } from '../views/viewRegistry';
 import { SHARE_PREAMBLE_PRESETS } from '../integration/sharePreamble';
-import { CLI_COMMANDS, buildListQuery, type CliContext, type CliParams } from './cliCommands';
+import { CLI_COMMANDS, buildListQuery, type CliActions, type CliContext, type CliParams } from './cliCommands';
 
 const TODAY = '2026-11-06'; // a Friday
 
@@ -74,13 +74,19 @@ function context(tasks: Task[] = TASKS): CliContext {
 		weekStart: 1,
 		now: '2026-11-06T12:00:00.000Z',
 		presets: SHARE_PREAMBLE_PRESETS,
+		statusPolicy: { initial: 'Active', completion: 'Done' },
 	};
 }
+
+/** The read commands cause no side effects; any call is a test failure. */
+const NO_ACTIONS = new Proxy({}, { get: (_target, key) => () => { throw new Error(`read command called actions.${String(key)}`); } }) as CliActions;
 
 function run(id: string, params: CliParams = {}, ctx = context()): string {
 	const command = CLI_COMMANDS.find((candidate) => candidate.id === id);
 	if (!command) throw new Error(`no ${id}`);
-	return command.run(params, ctx);
+	const out = command.run(params, ctx, NO_ACTIONS);
+	if (typeof out !== 'string') throw new Error(`${id} is asynchronous`);
+	return out;
 }
 
 const json = (out: string) => JSON.parse(out);
@@ -228,5 +234,10 @@ describe('ttasks:export', () => {
 describe('the command registry', () => {
 	it('names every command ttasks:<action>', () => {
 		for (const command of CLI_COMMANDS) expect(command.id).toMatch(/^ttasks:[a-z-]+$/);
+	});
+
+	it('has no duplicate ids', () => {
+		const ids = CLI_COMMANDS.map((command) => command.id);
+		expect(new Set(ids).size).toBe(ids.length);
 	});
 });

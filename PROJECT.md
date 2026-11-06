@@ -603,10 +603,26 @@ that N3's façade will later wrap.
   board's schedule, so dates, search and hash lookup match the board. Tasks are
   the 'ai' export shape. `registerCli.ts` checks that `registerCliHandler` exists
   and answers with an error while the vault is unconverted.
-- `[ ]` **CLI-2 navigation** — `ttasks:open id=`, `ttasks:new` (parity with the URI handler).
-- `[ ]` **CLI-3 writes** — `ttasks:create`, `ttasks:complete`, `ttasks:status`, `ttasks:depend`.
-- `[ ]` **On-device check** — what a handler that throws looks like in the
-  terminal (exit code, message); not documented, not observable headless.
+- `[x]` **CLI-2 navigation** — *(2026-11-06, unreleased)* `ttasks:open` (task,
+  or the board with no `id=`) and `ttasks:new` (the create dialog, prefilled;
+  an unconfigured value is an error, not silently dropped as in the URI handler).
+- `[x]` **CLI-3 writes** — *(2026-11-06, unreleased)* `ttasks:create`,
+  `ttasks:complete`, `ttasks:status` (`reason=` with the blocked status),
+  `ttasks:depend` (`remove`; refuses a loop). In `src/cli/cliActions.ts`, pure;
+  side effects go through a `CliActions` host the plugin implements on
+  `TaskStore`, so writes take the UI's path (stamping, recurrence, aliased
+  links). The shared parsing moved to `cliCore.ts`. Every flag is validated
+  before the first write; a write that's already true is `"changed": false`;
+  a status/complete write that doesn't show up in the store is reported as an
+  error (TaskStore signals failure with a Notice, not a throw).
+  `registerCli.ts` now catches anything thrown and prints it as `{"error": …}`.
+- `[ ]` **On-device check (CLI-1…3)** — against the next release: run
+  `obsidian help` (all nine commands listed), then `ttasks:create name=Test`,
+  `ttasks:depend`, `ttasks:status`, `ttasks:complete` on it, and `ttasks:new` /
+  `ttasks:open`. Watch for: the created task appearing on the board; `depend`
+  output naming the dependency (it reports before the store re-reads the file);
+  the dialog from `new` taking focus from a terminal. Headless sessions can't
+  observe any of it.
 
 ---
 

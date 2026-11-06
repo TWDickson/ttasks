@@ -8,6 +8,8 @@ commands. Obsidian has to be running, and the CLI is desktop-only.
 obsidian ttasks:list due=today
 obsidian ttasks:show id=a1b2c3 format=text
 obsidian ttasks:export preamble=review --copy
+obsidian ttasks:create name="Call the bank" area=Home due=tomorrow
+obsidian ttasks:complete id=a1b2c3
 ```
 
 Add `vault=<name>` first to pick a vault (`obsidian vault=Notes ttasks:list`).
@@ -30,8 +32,24 @@ command with its flags.
   `{"error": "status=Doing is not a configured value", "valid": ["Active", …]}`.
   With `format=text` it's `Error: …` and `Valid: …` lines.
 
-These commands only read. Commands that change tasks (create, complete, set a
-status) are next (CLI-3). They will write directly, with no confirmation dialog.
+- **Writes happen directly, with no confirmation dialog** — a command typed in
+  a terminal is deliberate, and an agent can't click one. Every flag is checked
+  before anything is written, so a mistake changes nothing. They take the same
+  path as the board: the status-changed and completed dates are stamped, and
+  completing a repeating task spawns its next instance.
+- **Writes are safe to repeat.** Completing a completed task, or setting the
+  status a task already has, does nothing and says `"changed": false`.
+- Writes accept only the vault's configured statuses, areas, priorities and
+  labels; they never invent a value. `due=` and `start=` take `YYYY-MM-DD`,
+  `today` or `tomorrow`.
+- If a write fails (a full disk, say), the answer is `{"error": …}` like any
+  other mistake.
+
+| Command | Does |
+| --- | --- |
+| `ttasks:list` / `show` / `export` | Read |
+| `ttasks:open` / `new` | Show something in Obsidian; write nothing |
+| `ttasks:create` / `complete` / `status` / `depend` | Change tasks |
 
 ## `ttasks:list`
 
@@ -81,3 +99,57 @@ The Share/Sync export, the same document the modal copies.
 
 `obsidian ttasks:export preamble=review --copy` is the terminal equivalent of
 opening Share/Sync and pressing Copy.
+
+## `ttasks:open`
+
+`obsidian ttasks:open id=a1b2c3` opens the task in the board and detail pane
+(the URI handler's `open`). With no task it opens the board.
+
+## `ttasks:new`
+
+Opens the new-task dialog in Obsidian, prefilled, and writes nothing until you
+press Create (the URI handler's `new-task`). Takes the same field flags as
+`create`, below, minus `status`, `due-time`, `estimate`, `depends` and
+`notes`. Unlike the URI handler, a value that isn't configured is an error
+rather than silently dropped.
+
+## `ttasks:create`
+
+Creates a task (or, with `type=project`, a project) and prints it as
+`{"created": {…}}`.
+
+| Flag | Meaning |
+| --- | --- |
+| `name=` | Required |
+| `type=task\|project` | Default `task` |
+| `area=` | A configured area. Without one the task lands in the inbox |
+| `status=` | Default: your first status |
+| `priority=` | `High`, `Medium`, `Low` or `None` (default) |
+| `label=<a,b>` | Tasks only; projects carry no labels |
+| `project=<hash\|name>` | The project it belongs to |
+| `start=` / `due=` | `YYYY-MM-DD`, `today` or `tomorrow` |
+| `due-time=<HH:MM>` | Needs `due=` |
+| `estimate=<days>` | Estimated days of work |
+| `depends=<a,b>` | Tasks it waits on, by hash |
+| `notes=<text>` | The note body |
+
+## `ttasks:complete`
+
+`obsidian ttasks:complete id=a1b2c3` → `{"completed": {…}, "next": {…} | null,
+"changed": true}`. `next` is the new instance a repeating task spawned.
+
+## `ttasks:status`
+
+`obsidian ttasks:status id=a1b2c3 status="In Progress"` → `{"updated": {…},
+"changed": true}`. Setting your completion status completes the task, exactly
+as `ttasks:complete` does. `reason=<text>` sets why it's blocked, and goes
+only with your blocked status:
+`obsidian ttasks:status id=a1b2c3 status=Blocked reason="Waiting on HOA"`.
+
+## `ttasks:depend`
+
+`obsidian ttasks:depend id=a1b2c3 on=d4e5f6,778899` makes a1b2c3 wait on both.
+Add `remove` to drop them instead. A dependency that would make a loop is
+refused, and then none of the list is written. Output:
+`{"updated": {…}, "added": [names], "unchanged": [names], "changed": true}`
+(`removed` in place of `added` with `remove`).

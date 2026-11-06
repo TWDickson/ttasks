@@ -5,6 +5,7 @@ import { CLI_COMMANDS } from './cliCommands';
 
 const host = (reason: string | null = null): CliHost => ({
 	cliContext: vi.fn(() => { throw new Error('context should not be built'); }),
+	cliActions: vi.fn(() => { throw new Error('actions should not be built'); }),
 	cliUnavailableReason: () => reason,
 });
 
@@ -23,12 +24,21 @@ describe('registerCliCommands', () => {
 		expect(registerCliHandler.mock.calls[0][2]).toHaveProperty('format');
 	});
 
-	it('answers with the reason, without reading the store, while it cannot be trusted', () => {
+	it('answers with the reason, without reading the store, while it cannot be trusted', async () => {
 		const registerCliHandler = vi.fn();
 		const blocked = host('vault not converted');
 		registerCliCommands({ registerCliHandler } as unknown as Plugin, blocked);
-		const handler = registerCliHandler.mock.calls[0][3] as (params: Record<string, string>) => string;
-		expect(JSON.parse(handler({}))).toEqual({ error: 'vault not converted' });
+		const handler = registerCliHandler.mock.calls[0][3] as (params: Record<string, string>) => Promise<string>;
+		expect(JSON.parse(await handler({}))).toEqual({ error: 'vault not converted' });
 		expect(blocked.cliContext).not.toHaveBeenCalled();
+		expect(blocked.cliActions).not.toHaveBeenCalled();
+	});
+
+	it('prints a thrown error as output instead of throwing it at the CLI', async () => {
+		const registerCliHandler = vi.fn();
+		const failing: CliHost = { cliContext: () => { throw new Error('disk full'); }, cliActions: vi.fn(), cliUnavailableReason: () => null };
+		registerCliCommands({ registerCliHandler } as unknown as Plugin, failing);
+		const handler = registerCliHandler.mock.calls[0][3] as (params: Record<string, string>) => Promise<string>;
+		expect(JSON.parse(await handler({}))).toEqual({ error: 'disk full' });
 	});
 });
