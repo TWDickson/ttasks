@@ -86,7 +86,7 @@ export interface CliActions {
 	removeDependency(taskPath: string, dependency: string): Promise<void>;
 	/** `parent` is a vault path without `.md`, or null to take the task out of its project. */
 	setParent(taskPath: string, parent: string | null): Promise<void>;
-	/** Replaces the note body. */
+	/** Replaces the note body verbatim — checklist lines stay text, never become subtasks. */
 	updateNotes(taskPath: string, notes: string): Promise<void>;
 	/**
 	 * Rewrite link strings in a note's frontmatter, in place: each `from` found

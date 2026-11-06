@@ -746,7 +746,7 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 		if (doNotes) {
 			for (const change of plan.notesChanges) {
 				try {
-					await this.taskStore.updateNotes(change.path, change.to);
+					await this.taskStore.updateNotes(change.path, change.to, { materializeChecklist: false });
 					renoted++;
 				} catch (error) {
 					this.logError(`import notes failed for ${change.path}: ${String(error)}`);
@@ -961,7 +961,8 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 			addDependency: (taskPath, dependency) => this.taskStore.addDependency(taskPath, dependency),
 			removeDependency: (taskPath, dependency) => this.taskStore.removeDependency(taskPath, dependency),
 			setParent: (taskPath, parent) => this.taskStore.updateParentTask(taskPath, parent),
-			updateNotes: async (taskPath, notes) => { await this.taskStore.updateNotes(taskPath, notes); },
+			// The CLI writes bodies verbatim: no checklist line becomes a subtask.
+			updateNotes: async (taskPath, notes) => { await this.taskStore.updateNotes(taskPath, notes, { materializeChecklist: false }); },
 			replaceFrontmatterLinks: async (path, changes) => {
 				const file = this.app.vault.getFileByPath(path);
 				if (!file) throw new Error(`${path} doesn't exist`);

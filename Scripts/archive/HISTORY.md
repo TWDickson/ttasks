@@ -12,6 +12,25 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-11-06 — CLI-8: apostrophes in links; CLI bodies stay verbatim
+
+Both bugs were reported while working on the vault through the CLI.
+
+**Apostrophes.** The creation-time encoder wrapped links in single quotes
+without escaping, so any linked task name with `'` produced unparseable
+frontmatter. In YAML single-quoted scalars the only escape is `''`, so we
+double the quote (`singleQuoted()` in `taskCodec.ts`). Edits made later go
+through `processFrontMatter`, which was already safe.
+
+**Checklist materialization.** Turning a typed `- [ ]` line into a child task
+is a notes-editor gesture. It was implemented inside `TaskWriter.updateNotes`,
+so every caller inherited it, including the CLI, lint's body repairs and
+Share/Sync import. Those callers replace a whole body, and their checklist
+lines are content, not requests for subtasks. The flag is opt-out (the default
+stays on) because the editor is the only caller that wants it, and an opt-in
+flag would silently change the editor. Ticking a *linked* line still syncs the
+child's status on every path.
+
 ## 2026-11-06 — CLI-7: one vocabulary for the CLI
 
 An audit of the CLI as an API found one footgun (`notes=` meant "how much body

@@ -468,3 +468,44 @@ describe('TaskWriter refuses writes while the vault is unmigrated', () => {
 		expect(await writer.completeAndRecur({ path: 'Planner/Tasks/abc123-test-task.md', repeat: { every: 1, unit: 'day' } } as never)).toBeNull();
 	});
 });
+
+describe('TaskWriter.updateNotes checklist materialization', () => {
+	function makeNotesWriter() {
+		const file = makeFile('Planner/Tasks/abc123-test-task.md');
+		let content = '---\nttask_name: "Test Task"\n---\n';
+		const plugin = {
+			settings: { statuses: ['Active', 'Done'], completionStatus: 'Done' },
+			get statusPolicy() { return buildStatusPolicy(this.settings); },
+			app: {
+				vault: {
+					getAbstractFileByPath: vi.fn((path: string) => (path === file.path ? file : null)),
+					process: vi.fn(async (_f: TFile, fn: (c: string) => string) => { content = fn(content); return content; }),
+				},
+				workspace: { getLeavesOfType: () => [] },
+			},
+			log: vi.fn(),
+			logError: vi.fn(),
+		};
+		const tasks = writable<Task[]>([makeTask({ path: file.path })]);
+		const writer = new TaskWriter(plugin as any, tasks, 'Planner/Tasks', (p) => get(tasks).find((t) => t.path === p));
+		const create = vi.spyOn(writer, 'create');
+		return { writer, file, create, read: () => content };
+	}
+
+	const body = '- [ ] Signal test severity warn, never error.\n- [ ] Second line';
+
+	it('a programmatic write keeps checklist lines as text and creates no tasks', async () => {
+		const { writer, file, create, read } = makeNotesWriter();
+		const written = await writer.updateNotes(file.path, body, { materializeChecklist: false });
+		expect(written).toBe(body);
+		expect(create).not.toHaveBeenCalled();
+		expect(read()).toContain('- [ ] Signal test severity warn, never error.');
+	});
+
+	it('the notes editor (default) still turns a plain checklist line into a child task', async () => {
+		const { writer, file, create } = makeNotesWriter();
+		create.mockResolvedValue(makeTask({ path: 'Planner/Tasks/def456-child.md', name: 'Second line' }));
+		await writer.updateNotes(file.path, '- [ ] Second line');
+		expect(create).toHaveBeenCalledTimes(1);
+	});
+});

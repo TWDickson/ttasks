@@ -12,7 +12,7 @@ import { toFrontmatterScalar, toFrontmatterString } from '../utils/frontmatterVa
 import { parseWikiLink } from '../utils/wikiLink';
 import { ensureFolderPath } from '../utils/vaultSafe';
 import { seedGraphTestData } from './graphSandboxSeeder';
-import { TaskWriter } from './TaskWriter';
+import { TaskWriter, type UpdateNotesOptions } from './TaskWriter';
 import { TaskMigrations, type MigratableField } from './TaskMigrations';
 import { TaskRelationships } from './TaskRelationships';
 import { TaskStoreSyncQueue } from './TaskStoreSyncQueue';
@@ -216,8 +216,8 @@ export class TaskStore {
 		}
 	}
 
-	async updateNotes(path: string, notes: string): Promise<string> {
-		return this.writer.updateNotes(path, notes);
+	async updateNotes(path: string, notes: string, options?: UpdateNotesOptions): Promise<string> {
+		return this.writer.updateNotes(path, notes, options);
 	}
 
 	async delete(path: string, options?: { prompt?: boolean }): Promise<void> {

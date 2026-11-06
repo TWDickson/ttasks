@@ -95,6 +95,9 @@ export function readStoredFields(fm: Record<string, unknown>, ctx: ReadContext):
 
 const esc = (value: unknown) => String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
+/** A YAML single-quoted scalar: the only escape is `'` → `''`. */
+const singleQuoted = (value: string) => `'${value.replace(/'/g, "''")}'`;
+
 function blankFor(kind: FieldKind): unknown {
 	return kind === 'strings' || kind === 'links' || kind === 'dates' ? [] : null;
 }
@@ -110,7 +113,9 @@ function encode(kind: FieldKind, value: unknown, resolveName: (pathWithoutExt: s
 		// An unresolvable target gets a bare link — never an alias derived from
 		// its filename, which would read as a title the task doesn't have.
 		const name = resolveName(clean);
-		return name ? `'[[${clean}|${name}]]'` : `'[[${clean}]]'`;
+		// Single-quoted, so an apostrophe in the name or path must be doubled —
+		// a bare one ends the scalar and the whole frontmatter stops parsing.
+		return singleQuoted(name ? `[[${clean}|${name}]]` : `[[${clean}]]`);
 	};
 	switch (kind) {
 		case 'recordType': return String(value);

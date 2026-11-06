@@ -714,6 +714,20 @@ that N3's façade will later wrap.
   `planner.py` skips: Cancelled isn't a status-policy pointer, so the CLI
   treats it as open, as the board does.
 
+- `[x]` **CLI-8 two write bugs from the field** — *(2026-11-06)*
+  - **An apostrophe in a linked name broke the note.** At creation,
+    `parent_task` / `depends_on` links are written as single-quoted YAML,
+    and `Check Kostya's 2021…` ended the scalar early, so the store stopped
+    seeing the task. The encoder (`taskCodec.ts`) now doubles `'`. Notes
+    already written this way need a hand fix (switch to double quotes).
+  - **`ttasks:update` turned checklist lines into subtasks.** `updateNotes`
+    always ran the notes editor's "plain `- [ ]` line → child task" step,
+    so a CLI body write created one child per line (23 for four tasks). Now
+    `updateNotes(…, { materializeChecklist: false })` is used by the CLI, lint
+    fix and Share/Sync import, so they write bodies verbatim. The detail pane
+    still materializes. The 23 stray children and the link lines that replaced
+    the originals have to be cleaned up by hand.
+
 - `[x]` **CLI-7 one vocabulary** — *(2026-11-06, 0.2.8; breaking)* from
   the API audit (planner.py is retired, so `ttasks:lint` is the only linter).
   - **Flags are named after the output field** they set or filter, `-` for

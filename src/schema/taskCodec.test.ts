@@ -31,6 +31,19 @@ const noName = () => null;
 const body = (fm: string) => load(fm.replace(/^---\n/, '').replace(/\n---$/, '')) as Record<string, unknown>;
 
 describe('serializeNewTaskFrontmatter', () => {
+	it('an apostrophe in a linked name or path still parses (single quotes are doubled)', () => {
+		const named = (p: string) => (p.endsWith('kostya') ? "Check Kostya's 2021 numbers" : null);
+		const fm = body(serializeNewTaskFrontmatter(makeTask({
+			parent_task: 'Tasks/aaa111-kostya.md',
+			depends_on: ['Tasks/aaa111-kostya.md', "Tasks/bbb222-o'brien.md"],
+		}), named));
+		expect(fm.ttask_parent_task).toBe("[[Tasks/aaa111-kostya|Check Kostya's 2021 numbers]]");
+		expect(fm.ttask_depends_on).toEqual([
+			"[[Tasks/aaa111-kostya|Check Kostya's 2021 numbers]]",
+			"[[Tasks/bbb222-o'brien]]",
+		]);
+	});
+
 	it('emits keys in table order with cssclasses right after name', () => {
 		const keys = Object.keys(body(serializeNewTaskFrontmatter(makeTask({ area: 'Work' }), noName)));
 		expect(keys.slice(0, 4)).toEqual(['ttask_type', 'ttask_name', 'cssclasses', 'ttask_area']);

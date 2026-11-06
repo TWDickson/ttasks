@@ -24,6 +24,11 @@ import { UPDATABLE_TASK_FIELDS, fmKey } from '../schema/taskPersistence';
 import { writeStoredField } from '../schema/taskCodec';
 import { serializeNewTaskFrontmatter } from '../schema/taskCodec';
 
+export interface UpdateNotesOptions {
+	/** Turn plain checklist lines into child tasks. Default true. */
+	materializeChecklist?: boolean;
+}
+
 export class TaskWriter {
 	private plugin: TTasksPlugin;
 	private tasks: Writable<Task[]>;
@@ -261,12 +266,21 @@ export class TaskWriter {
 		});
 	}
 
-	async updateNotes(path: string, notes: string): Promise<string> {
+	/**
+	 * Replace a note's body. `materializeChecklist` (default on) turns each plain
+	 * `- [ ]` line into a linked child task — the notes editor's gesture, made by
+	 * a person typing a line. A programmatic body replacement (CLI, lint fix,
+	 * Share/Sync import) passes `false`: its checklist lines are content, and
+	 * spawning a subtask per sentence there is the bug, not the feature.
+	 */
+	async updateNotes(path: string, notes: string, options: UpdateNotesOptions = {}): Promise<string> {
 		if (!this.writesAllowed()) return notes;
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return notes;
 
-		const rewritten = await this.checklistSync.materializeChildren(path, notes);
+		const rewritten = options.materializeChecklist === false
+			? notes
+			: await this.checklistSync.materializeChildren(path, notes);
 
 		if (this.isFileOpenInEditor(file)) {
 			await new Promise(resolve => setTimeout(resolve, 100));
