@@ -596,17 +596,17 @@ Command names are `ttasks:<action>` (the built-in `obsidian tasks` is unrelated)
 addressed by hash (`id=a1b2c3`). The read core is built as an internal service
 that N3's façade will later wrap.
 
-- `[x]` **CLI-1 read-only** — *(2026-11-06, unreleased)* `ttasks:list`,
+- `[x]` **CLI-1 read-only** — *(2026-11-06, 0.2.5)* `ttasks:list`,
   `ttasks:show`, `ttasks:export`, documented in `CLI.md`. `src/cli/cliCommands.ts`
   is pure (boundary-listed, 25 tests): `list` builds an ordinary `QuerySpec` (a
   Smart List's via `view=`, narrowed by the flags) and runs `applyQuery` with the
   board's schedule, so dates, search and hash lookup match the board. Tasks are
   the 'ai' export shape. `registerCli.ts` checks that `registerCliHandler` exists
   and answers with an error while the vault is unconverted.
-- `[x]` **CLI-2 navigation** — *(2026-11-06, unreleased)* `ttasks:open` (task,
+- `[x]` **CLI-2 navigation** — *(2026-11-06, 0.2.5)* `ttasks:open` (task,
   or the board with no `id=`) and `ttasks:new` (the create dialog, prefilled;
   an unconfigured value is an error, not silently dropped as in the URI handler).
-- `[x]` **CLI-3 writes** — *(2026-11-06, unreleased)* `ttasks:create`,
+- `[x]` **CLI-3 writes** — *(2026-11-06, 0.2.5)* `ttasks:create`,
   `ttasks:complete`, `ttasks:status` (`reason=` with the blocked status),
   `ttasks:depend` (`remove`; refuses a loop). In `src/cli/cliActions.ts`, pure;
   side effects go through a `CliActions` host the plugin implements on
@@ -616,7 +616,7 @@ that N3's façade will later wrap.
   a status/complete write that doesn't show up in the store is reported as an
   error (TaskStore signals failure with a Notice, not a throw).
   `registerCli.ts` now catches anything thrown and prints it as `{"error": …}`.
-- `[x]` **CLI-4 schedule-aware CLI** — *(2026-11-06, unreleased)* Taylor: a
+- `[x]` **CLI-4 schedule-aware CLI** — *(2026-11-06, 0.2.5)* Taylor: a
   caller won't understand that TTasks computes most dates, and "everything will
   get messed up". So the Share/Sync date rule ("most tasks have no dates on
   purpose; due only for a real deadline; size work with estimates") is now the
