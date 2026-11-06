@@ -176,6 +176,34 @@ Free-form notes go here. The plugin renders all structured UI on top.
 - **Statuses, priorities, areas, and labels are configurable** in settings. The
   defaults are Active / Future / In Progress / Hold / Blocked / Cancelled / Done.
 
+### Recommended property types
+
+Obsidian guesses a property's type the first time it sees it and remembers the
+guess for the whole vault (in `.obsidian/types.json`). TTasks reads its values
+the same way whatever type is set, so this only affects how the Properties panel
+and Bases show and edit them. To change one, click the property's icon in the
+Properties panel and pick **Property type**.
+
+| Type | Properties |
+| --- | --- |
+| **Text** | `ttask_type`, `ttask_name`, `ttask_area`, `ttask_status`, `ttask_priority`, `ttask_parent_task`, `ttask_blocked_reason`, `ttask_assigned_to`, `ttask_source`, `ttask_due_time`, `ttask_reminder_override`, `ttask_repeat_of`, `ttask_repeat_unit`, `ttask_repeat_monthday`¹, `ttask_repeat_nth_target`, `ttask_repeat_basis`, `ttask_repeat_roll` |
+| **List** | `ttask_labels`, `ttask_depends_on`, `ttask_holiday_dates`, `ttask_repeat_weekdays` |
+| **Date** | `ttask_created`, `ttask_status_changed`, `ttask_start_date`, `ttask_due_date`, `ttask_completed`, `ttask_repeat_until` |
+| **Number** | `ttask_estimated_days`, `ttask_pomodoro_count`, `ttask_focused_minutes`, `ttask_repeat_every`, `ttask_repeat_month`, `ttask_repeat_nth`, `ttask_repeat_count` |
+| **Checkbox** | `ttask_workweek_only` |
+
+¹ Text, not Number: it can hold `last`.
+
+- **Use Date, not Date & time**, for the date properties. TTasks keeps only the
+  calendar day either way, but a Date & time picker invites a time that is then
+  thrown away. A due time goes in `ttask_due_time` (`HH:MM`).
+- Leave `ttask_archive_history` alone: it's a list of entries the plugin writes,
+  and no property type displays it well.
+- If you used a version before 0.2.1, `types.json` may still list the old
+  unprefixed names (`status`, `due_date`, …). Those entries are harmless. To
+  remove them, close Obsidian everywhere first, because Obsidian rewrites the
+  file while it runs.
+
 ### Migrating to `ttask_*` properties
 
 Versions before 0.2.1 wrote unprefixed properties (`type`, `name`,
