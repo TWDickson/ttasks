@@ -629,17 +629,18 @@ that N3's façade will later wrap.
   stay `YYYY-MM-DD`/`today`/`tomorrow`/`none`: no natural-language grammar, the
   error names today and its weekday. `cliGuide.ts` is new (pure);
   `nextStartFor` moved to `completeTask.ts` for dry-run.
-- `[ ]` **CLI batch writes** — `id=a,b,c` on `update` / `status` / `complete`:
-  the same change to several tasks, validated together and reported with one
-  combined impact. Sits on the plan model, so it's mostly reporting work.
-- `[ ]` **On-device check (CLI-1…4)** — against the next release: run
-  `obsidian help` (all fourteen commands listed), `ttasks:context`, then
-  `ttasks:create name=Test`, `ttasks:update … dry-run`, `ttasks:depend`,
-  `ttasks:status`, `ttasks:complete` on it, `ttasks:next` / `ttasks:why`, and
-  `ttasks:new` / `ttasks:open`. Check `impact` against what the board shows. Watch for: the created task appearing on the board; `depend`
-  output naming the dependency (it reports before the store re-reads the file);
-  the dialog from `new` taking focus from a terminal. Headless sessions can't
-  observe any of it.
+- `[x]` **CLI batch writes** — *(2026-11-06, unreleased; part of CLI-7)*
+- `[ ]` **On-device check (CLI)** — against the next release: run
+  `obsidian help` (twelve commands listed), `ttasks:context`, then
+  `ttasks:create name=Test`, `ttasks:update … dry-run`, `ttasks:update
+  add-depends-on=…`, `ttasks:update status=…`, `ttasks:complete` on it,
+  `ttasks:next` / `ttasks:why`, and `ttasks:new` / `ttasks:open`. Check `impact`
+  against what the board shows. Watch for: the created task appearing on the
+  board; the dependency named in the reply (it reports before the store
+  re-reads the file); the dialog from `new` taking focus from a terminal;
+  **the strict flag check rejecting something Obsidian itself passes** (every
+  command rejects a flag it doesn't declare; if Obsidian adds one, every call
+  would fail). Headless sessions can't observe any of it.
 - `[x]` **CLI-5 lint, note text, write echo** — *(2026-11-06, 0.2.6)*
   closes the gaps found after CLI-4. `ttasks:lint` (`src/cli/cliLint.ts`, pure,
   boundary-listed) runs `dangling-link`, `stalled-without-reason`, `thin-body`
@@ -660,11 +661,12 @@ that N3's façade will later wrap.
   `\n` left to convert.
 - `[ ]` **CLI real-write check** — so far only `create … dry-run` has been run
   against a real vault. Unit tests cover the plan/host contract, not the file.
-  Part of the on-device check above: run real `create` (with `label=`,
-  `notes=` containing `\n` and a `[[Tasks/…]]` link), `update append=`,
-  `status`, `complete`, `depend` and `depend … remove`. Open each note and check
-  the frontmatter (`ttask_labels`, `ttask_depends_on` as aliased links) and the
-  body. Then run `ttasks:lint` and compare it with `planner.py lint`.
+  Part of the on-device check above: run real `create` (with `labels=`,
+  `source=`, `recurrence=`, `notes=` containing `\n` and a `[[Tasks/…]]`
+  link), `update append-notes=`, `update status=`, `complete id=a,b`,
+  `update add-depends-on=` / `remove-depends-on=`, and `lint fix`. Open each
+  note and check the frontmatter (`ttask_labels`, `ttask_source`,
+  `ttask_repeat_*`, `ttask_depends_on` as aliased links) and the body.
 - `[x]` **CLI-6 lint parity with `planner.py`** — *(2026-11-06, 0.2.7)*
   Taylor ran 0.2.6's lint beside `planner.py lint`. 14 of its 23 issues were
   false `dangling-link`s (archived targets), the two disagreed on
@@ -711,6 +713,44 @@ that N3's façade will later wrap.
   parity). The default may flag In Progress and Cancelled stubs that
   `planner.py` skips: Cancelled isn't a status-policy pointer, so the CLI
   treats it as open, as the board does.
+
+- `[x]` **CLI-7 one vocabulary** — *(2026-11-06, unreleased; breaking)* from
+  the API audit (planner.py is retired, so `ttasks:lint` is the only linter).
+  - **Flags are named after the output field** they set or filter, `-` for
+    `_`: `due-date`, `start-date`, `estimated-days`, `labels`, `parent`,
+    `depends-on`, `blocked-reason`, `assigned-to`, `recurrence`,
+    `recurrence-type`, `notes`. List fields take `add-` / `remove-`;
+    `append-notes=`. Reads use `show-notes=` for how much body to show, which
+    ends the `notes=` collision (`update notes=full` used to write "full").
+    `completed=exclude|include|only` everywhere, default exclude (`export`
+    used to include). `create` and `update` share one flag table and one parser
+    (`readFields`).
+  - **Fewer commands.** `ttasks:status` and `ttasks:depend` are gone: status
+    and dependencies are `update` fields. `update status=<completion>` takes
+    the completion path (recurs), after the other fields are written.
+  - **New fields:** `source`, `assigned-to`, `workweek-only`, `recurrence` /
+    `recurrence-type` (the Share/Sync presets, through `repeatFromContract`;
+    custom rules stay in the repeat builder), and `blocked-reason` without a
+    status change. CLI output adds `source` / `workweek_only` when set;
+    `ttasks:export` is unchanged (it's the Copilot contract).
+  - **Batch:** `update` / `complete` take `id=a,b,c`, planned in order
+    against each other, validated before any write, with one combined impact.
+  - **Reply shape:** `{verb, changed, tasks: [...], spawned?, warnings:
+    [{ref, message}], impact}` for every write. Errors carry a `code`
+    (`bad-argument`, `unknown-value`, `not-found`, `ambiguous`, `not-a-date`,
+    `dependency-loop`, `nothing-to-change`, `unavailable`, `write-failed`).
+  - **Strict flags:** every command rejects a flag it doesn't declare
+    (`strictFlags` in `cliCore.ts`), so an old name errors rather than being
+    ignored.
+  - **Task references** resolve by hash, path, or unique exact name on every
+    flag (`resolveOne`); an ambiguous name lists the candidates.
+  - **Warnings are problems only.** The deadline and start-date reminders
+    are gone (the rules live in `ttasks:context`). The downstream warning
+    fires only when there is open work downstream.
+  - **`ttasks:lint fix`** (+ `dry-run`) repairs link form (prefixed links in
+    frontmatter or body, unaliased frontmatter links) through a new
+    `CliActions.replaceFrontmatterLinks` (processFrontMatter) and
+    `updateNotes`. Everything else is reported with a `fix` command.
 
 ---
 

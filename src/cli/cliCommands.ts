@@ -29,9 +29,9 @@ import { EMPTY_EXPORT_CRITERIA, filterTasksForExport, type ExportFilterCriteria 
 import { buildPreambleText, composeShareOutput } from '../integration/sharePreamble';
 import { endOfWeekLocal, isIsoDateString } from '../utils/dateUtils';
 import {
-	CliArgumentError, canonical, choice, exportShape, guarded, knownAreas, knownLabels, knownStatuses,
+	CliArgumentError, canonical, strictFlags, choice, exportShape, guarded, knownAreas, knownLabels, knownStatuses,
 	listParam, outputFormat, positiveInt, pretty, resolveOne, taskFromParams, textLine, toTsv,
-	FORMAT_FLAG, NOTES_FLAG,
+	COMPLETED_FLAG, FORMAT_FLAG, SHOW_NOTES_FLAG,
 	type CliCommand, type CliContext, type CliParams,
 } from './cliCore';
 import { ACTION_COMMANDS } from './cliActions';
@@ -41,6 +41,8 @@ import { LINT_COMMAND } from './cliLint';
 export type { CliActions, CliCommand, CliContext, CliParams } from './cliCore';
 
 // ── ttasks:list ───────────────────────────────────────────────────────────────
+
+const COMPLETED_VALUES = ['exclude', 'include', 'only'] as const;
 
 const DUE_KEYWORDS = ['today', 'overdue', 'week', 'none'] as const;
 
@@ -60,7 +62,7 @@ function dueCondition(raw: string, ctx: CliContext): FilterCondition | FilterGro
 		case 'none': return { field: 'due_date', operator: 'is_null' };
 		default:
 			if (isIsoDateString(raw)) return { field: 'due_date', operator: 'is', value: raw };
-			throw new CliArgumentError(`due=${raw} is not recognised`, [...DUE_KEYWORDS, 'YYYY-MM-DD']);
+			throw new CliArgumentError(`due-date=${raw} is not recognised`, [...DUE_KEYWORDS, 'YYYY-MM-DD'], 'not-a-date');
 	}
 }
 
@@ -82,7 +84,7 @@ export function buildListQuery(params: CliParams, ctx: CliContext): QuerySpec {
 	const view = params.view ? resolveView(ctx, params.view) : null;
 	const conditions: Array<FilterCondition | FilterGroup> = view ? [view.query.filter] : [];
 
-	const completed = choice(params, 'completed', ['exclude', 'include', 'only'] as const, view ? 'include' : 'exclude');
+	const completed = choice(params, 'completed', COMPLETED_VALUES, view ? 'include' : 'exclude');
 	if (completed !== 'include') conditions.push({ field: 'is_complete', operator: 'is', value: completed === 'only' });
 
 	const statuses = listParam(params, 'status');
@@ -91,11 +93,11 @@ export function buildListQuery(params: CliParams, ctx: CliContext): QuerySpec {
 	if (areas) conditions.push(anyOf('area', canonical(areas, knownAreas(ctx), 'area')));
 	const priorities = listParam(params, 'priority');
 	if (priorities) conditions.push(anyOf('priority', canonical(priorities, ctx.validValues.priorities, 'priority')));
-	const labels = listParam(params, 'label');
-	if (labels) conditions.push({ field: 'labels', operator: 'contains_any', value: canonical(labels, knownLabels(ctx), 'label') });
+	const labels = listParam(params, 'labels');
+	if (labels) conditions.push({ field: 'labels', operator: 'contains_any', value: canonical(labels, knownLabels(ctx), 'labels') });
 	const type = params.type ? choice(params, 'type', ['task', 'project'] as const, 'task') : null;
 	if (type) conditions.push({ field: 'type', operator: 'is', value: type });
-	if (params.due) conditions.push(dueCondition(params.due, ctx));
+	if (params['due-date']) conditions.push(dueCondition(params['due-date'], ctx));
 
 	const limit = positiveInt(params, 'limit');
 	return {
@@ -115,8 +117,8 @@ function runList(params: CliParams, ctx: CliContext): string {
 	const format = outputFormat(params, ['json', 'text', 'tsv'] as const);
 	return guarded(format, () => {
 		const query = buildListQuery(params, ctx);
-		const notes = choice(params, 'notes', ['none', 'summary', 'full'] as const, 'none');
-		const project = params.project ? resolveOne(ctx, params.project, 'project', 'project') : null;
+		const notes = choice(params, 'show-notes', ['none', 'summary', 'full'] as const, 'none');
+		const project = params.parent ? resolveOne(ctx, params.parent, 'parent', 'project') : null;
 		const pool = project
 			? filterTasksForExport(ctx.tasks, { ...EMPTY_EXPORT_CRITERIA, projects: [project.path] })
 			: ctx.tasks;
@@ -136,7 +138,7 @@ function runShow(params: CliParams, ctx: CliContext): string {
 	const format = outputFormat(params, ['json', 'text'] as const);
 	return guarded(format, () => {
 		const task = taskFromParams(params, ctx);
-		const notes = choice(params, 'notes', ['none', 'summary', 'full'] as const, 'full');
+		const notes = choice(params, 'show-notes', ['none', 'summary', 'full'] as const, 'full');
 		const [shown] = exportShape([task], ctx, notes);
 		if (format === 'json') return pretty({ ...shown, path: task.path });
 
@@ -160,19 +162,22 @@ function runExport(params: CliParams, ctx: CliContext): string {
 		if (payloadFormat === 'toon' && mode === 'full') {
 			throw new CliArgumentError('format=toon is for mode=ai only; a full export has to round-trip as JSON');
 		}
-		const notes = mode === 'ai' ? choice(params, 'notes', ['full', 'summary', 'none'] as const, 'full') : 'full';
+		const notes = mode === 'ai' ? choice(params, 'show-notes', ['full', 'summary', 'none'] as const, 'full') : 'full';
 
-		const projects = listParam(params, 'project')?.map((raw) => resolveOne(ctx, raw, 'project', 'project').path) ?? [];
-		const completed = choice(params, 'completed', ['include', 'exclude'] as const, 'include');
+		const projects = listParam(params, 'parent')?.map((raw) => resolveOne(ctx, raw, 'parent', 'project').path) ?? [];
+		const completedWithin = positiveInt(params, 'completed-within');
+		// completed-within= is about completed work, so it implies include.
+		const completed = choice(params, 'completed', COMPLETED_VALUES, completedWithin !== null ? 'include' : 'exclude');
 		const criteria: ExportFilterCriteria = {
 			areas: canonical(listParam(params, 'area') ?? [], knownAreas(ctx), 'area'),
 			statuses: canonical(listParam(params, 'status') ?? [], knownStatuses(ctx), 'status'),
-			labels: canonical(listParam(params, 'label') ?? [], knownLabels(ctx), 'label'),
+			labels: canonical(listParam(params, 'labels') ?? [], knownLabels(ctx), 'labels'),
 			projects,
-			includeCompleted: completed === 'include',
-			completedWithinDays: positiveInt(params, 'completed-within'),
+			includeCompleted: completed !== 'exclude',
+			completedWithinDays: completedWithin,
 		};
-		const tasks = filterTasksForExport(ctx.tasks, criteria, ctx.today);
+		const filtered = filterTasksForExport(ctx.tasks, criteria, ctx.today);
+		const tasks = completed === 'only' ? filtered.filter((task) => task.is_complete) : filtered;
 		const doc = buildTaskJsonDocument(tasks, mode, ctx.now, ctx.validValues, notes, ctx.derivedContext);
 		const payload = payloadFormat === 'toon' ? serializeDocumentToToon(doc) : pretty(doc);
 
@@ -190,7 +195,7 @@ function runExport(params: CliParams, ctx: CliContext): string {
 // ── Registry ──────────────────────────────────────────────────────────────────
 
 
-export const CLI_COMMANDS: readonly CliCommand[] = [
+const COMMANDS: readonly CliCommand[] = [
 	{
 		id: 'ttasks:list',
 		description: 'List tasks, filtered like the board. Open tasks only unless completed= says otherwise.',
@@ -198,15 +203,15 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
 			view: { value: '<name|id>', description: 'Start from a Smart List (e.g. Today, Blocked)' },
 			status: { value: '<a,b>', description: 'Any of these statuses' },
 			area: { value: '<a,b>', description: 'Any of these areas' },
-			label: { value: '<a,b>', description: 'Has any of these labels' },
+			labels: { value: '<a,b>', description: 'Has any of these labels' },
 			priority: { value: '<a,b>', description: 'Any of these priorities' },
-			project: { value: '<hash|name>', description: 'Tasks in this project (and the project)' },
+			parent: { value: '<hash|name>', description: 'Tasks in this project (and the project)' },
 			type: { value: '<task|project>', description: 'Only tasks or only projects' },
-			due: { value: '<today|overdue|week|none|YYYY-MM-DD>', description: 'Due date, including dependency-inferred dates' },
+			'due-date': { value: '<today|overdue|week|none|YYYY-MM-DD>', description: 'Due date, including dependency-inferred dates' },
 			search: { value: '<text>', description: 'Name/notes text, or a hash (#a1b2 for hash only)' },
-			completed: { value: '<exclude|include|only>', description: 'Completed tasks (default exclude; include with view=)' },
+			completed: { ...COMPLETED_FLAG, description: 'Completed tasks (default exclude; include with view=)' },
 			limit: { value: '<n>', description: 'At most n tasks' },
-			notes: NOTES_FLAG('none'),
+			'show-notes': SHOW_NOTES_FLAG('none'),
 			format: FORMAT_FLAG('json|text|tsv'),
 		},
 		run: runList,
@@ -215,9 +220,9 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
 		id: 'ttasks:show',
 		description: 'Show one task, with its notes.',
 		flags: {
-			id: { value: '<hash>', description: 'The task hash, or a unique prefix of it' },
+			id: { value: '<hash|name>', description: 'The task: its hash (or a unique prefix), or its exact name' },
 			path: { value: '<vault path>', description: 'Alternatively, the task note\'s vault path' },
-			notes: NOTES_FLAG('full'),
+			'show-notes': SHOW_NOTES_FLAG('full'),
 			format: FORMAT_FLAG('json|text'),
 		},
 		run: runShow,
@@ -231,11 +236,11 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
 			preamble: { value: '<prompt id>', description: 'Wrap with a Share/Sync prompt (bare flag = review)' },
 			status: { value: '<a,b>', description: 'Only these statuses' },
 			area: { value: '<a,b>', description: 'Only these areas' },
-			label: { value: '<a,b>', description: 'Only tasks with any of these labels' },
-			project: { value: '<a,b>', description: 'Only these projects (hash or name)' },
-			completed: { value: '<include|exclude>', description: 'Completed tasks (default include)' },
+			labels: { value: '<a,b>', description: 'Only tasks with any of these labels' },
+			parent: { value: '<a,b>', description: 'Only these projects (hash or name)' },
+			completed: { ...COMPLETED_FLAG, description: 'Completed tasks (default exclude; completed-within= implies include)' },
 			'completed-within': { value: '<days>', description: 'Only completed work from the last n days' },
-			notes: NOTES_FLAG('full'),
+			'show-notes': SHOW_NOTES_FLAG('full'),
 		},
 		run: runExport,
 	},
@@ -243,3 +248,5 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
 	LINT_COMMAND,
 	...guideCommands(() => CLI_COMMANDS),
 ];
+
+export const CLI_COMMANDS: readonly CliCommand[] = COMMANDS.map(strictFlags);

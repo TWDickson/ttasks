@@ -29,7 +29,7 @@ describe('registerCliCommands', () => {
 		const blocked = host('vault not converted');
 		registerCliCommands({ registerCliHandler } as unknown as Plugin, blocked);
 		const handler = registerCliHandler.mock.calls[0][3] as (params: Record<string, string>) => Promise<string>;
-		expect(JSON.parse(await handler({}))).toEqual({ error: 'vault not converted' });
+		expect(JSON.parse(await handler({}))).toEqual({ error: 'vault not converted', code: 'unavailable' });
 		expect(blocked.cliContext).not.toHaveBeenCalled();
 		expect(blocked.cliActions).not.toHaveBeenCalled();
 	});
@@ -39,6 +39,6 @@ describe('registerCliCommands', () => {
 		const failing: CliHost = { cliContext: () => { throw new Error('disk full'); }, cliActions: vi.fn(), cliUnavailableReason: () => null };
 		registerCliCommands({ registerCliHandler } as unknown as Plugin, failing);
 		const handler = registerCliHandler.mock.calls[0][3] as (params: Record<string, string>) => Promise<string>;
-		expect(JSON.parse(await handler({}))).toEqual({ error: 'disk full' });
+		expect(JSON.parse(await handler({}))).toEqual({ error: 'disk full', code: 'write-failed' });
 	});
 });

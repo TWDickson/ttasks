@@ -62,7 +62,7 @@ describe('ttasks:lint links', () => {
 		const ctx = context([t], [fm(t, { ttask_depends_on: ['[[999999-gone|Gone]]'] })], ARCHIVED);
 		const issues = lintTasks(ctx, all);
 		expect(issues.map((issue) => issue.check)).toEqual(['dangling-link', 'dangling-link']);
-		expect(issues[0].fix).toBe('ttasks:depend id=aaa111 on=999999 remove');
+		expect(issues[0].fix).toBe('ttasks:update id=aaa111 remove-depends-on=999999');
 	});
 
 	it('flags a folder prefix in frontmatter links, completed tasks included', () => {
@@ -141,7 +141,7 @@ describe('ttasks:lint work', () => {
 
 	it('says how late an overdue task is, and how to fix it', () => {
 		const late = lintTasks(context(TASKS), { checks: ['overdue'], minBody: 40 })[0];
-		expect(late).toMatchObject({ message: 'was due 2026-11-01, 5 days ago', fix: 'ttasks:complete id=fff666, or ttasks:update id=fff666 due=<new date|none>' });
+		expect(late).toMatchObject({ message: 'was due 2026-11-01, 5 days ago', fix: 'ttasks:complete id=fff666, or ttasks:update id=fff666 due-date=<new date|none>' });
 	});
 
 	it('runs as a command, with a count per check and a text form', async () => {
@@ -188,5 +188,56 @@ describe('ttasks:lint thin-body (planner.py parity)', () => {
 describe('unescapeCliText', () => {
 	it('resolves \\n, \\t and \\\\, and keeps any other backslash', () => {
 		expect(unescapeCliText('a\\nb\\tc\\\\d\\x')).toBe('a\nb\tc\\d\\x');
+	});
+});
+
+describe('ttasks:lint fix', () => {
+	const project = task({ id: '87c471', name: 'Dim model', type: 'project' });
+	const dep = task({ id: 'eb588f', name: 'Test court filtering' });
+	const messy = task({
+		id: '403b64', name: 'Update spreadsheet', parent_task: project.path, depends_on: [dep.path],
+		notes: `${BODY} See [[${FOLDER}/eb588f-test-court-filtering|the tests]] and [[999999-gone|Gone]].`,
+	});
+	const notes = [fm(project), fm(dep), fm(messy, {
+		ttask_parent_task: `[[${FOLDER}/87c471-dim-model|Dim model]]`,
+		ttask_depends_on: ['[[eb588f-test-court-filtering]]'],
+	})];
+	const fake = () => {
+		const calls: string[] = [];
+		const actions = {
+			replaceFrontmatterLinks: async (path: string, changes: unknown) => { calls.push(`links ${path} ${JSON.stringify(changes)}`); },
+			updateNotes: async (path: string, body: string) => { calls.push(`notes ${path} ${JSON.stringify(body)}`); },
+		};
+		return { calls, actions: actions as never };
+	};
+	const lint = CLI_COMMANDS.find((candidate) => candidate.id === 'ttasks:lint')!;
+
+	it('repairs link form in frontmatter and the body, and reports what it can\'t', async () => {
+		const { calls, actions } = fake();
+		const out = JSON.parse(await lint.run({ fix: 'true' }, context([project, dep, messy], notes), actions));
+		expect(out.fixed.map((issue: { check: string; to: string }) => `${issue.check} ${issue.to}`)).toEqual([
+			'format-drift [[eb588f-test-court-filtering|Test court filtering]]',
+			'prefixed-link [[87c471-dim-model|Dim model]]',
+			'prefixed-link [[eb588f-test-court-filtering|the tests]]',
+		]);
+		expect(out.issues.map((issue: { check: string }) => issue.check)).toEqual(['dangling-link']);
+		expect(calls).toEqual([
+			`links ${messy.path} ${JSON.stringify([
+				{ key: 'ttask_depends_on', from: '[[eb588f-test-court-filtering]]', to: '[[eb588f-test-court-filtering|Test court filtering]]' },
+				{ key: 'ttask_parent_task', from: `[[${FOLDER}/87c471-dim-model|Dim model]]`, to: '[[87c471-dim-model|Dim model]]' },
+			])}`,
+			`notes ${messy.path} ${JSON.stringify(`${BODY} See [[eb588f-test-court-filtering|the tests]] and [[999999-gone|Gone]].`)}`,
+		]);
+	});
+
+	it('previews with dry-run, and points a mechanical issue at fix', async () => {
+		const { calls, actions } = fake();
+		const out = JSON.parse(await lint.run({ fix: 'true', 'dry-run': 'true' }, context([project, dep, messy], notes), actions));
+		expect(out).toMatchObject({ dry_run: true });
+		expect(out.fixed).toHaveLength(3);
+		expect(calls).toEqual([]);
+		const plain = JSON.parse(await lint.run({}, context([project, dep, messy], notes), actions));
+		expect(plain.issues.filter((issue: { fix?: string }) => issue.fix === 'ttasks:lint fix')).toHaveLength(3);
+		expect(plain.issues[0]).not.toHaveProperty('repair');
 	});
 });

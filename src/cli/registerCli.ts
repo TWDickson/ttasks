@@ -9,6 +9,7 @@
  */
 import type { CliData, CliFlags, Plugin } from 'obsidian';
 import { CLI_COMMANDS, type CliActions, type CliContext } from './cliCommands';
+import { errorJson, type CliErrorCode } from './cliCore';
 
 type CliRegistrar = (command: string, description: string, flags: CliFlags | null, handler: (params: CliData) => string | Promise<string>) => void;
 
@@ -21,7 +22,7 @@ export interface CliHost {
 	cliUnavailableReason(): string | null;
 }
 
-const errorOutput = (message: string): string => JSON.stringify({ error: message }, null, 2);
+const errorOutput = (message: string, code: CliErrorCode): string => errorJson(message, code);
 
 /** Whether this Obsidian build has a CLI to register with. */
 export function canRegisterCli(plugin: Plugin): boolean {
@@ -34,14 +35,14 @@ export function registerCliCommands(plugin: Plugin, host: CliHost): boolean {
 	for (const command of CLI_COMMANDS) {
 		register(command.id, command.description, command.flags, async (params) => {
 			const unavailable = host.cliUnavailableReason();
-			if (unavailable) return errorOutput(unavailable);
+			if (unavailable) return errorOutput(unavailable, 'unavailable');
 			try {
 				return await command.run(params, host.cliContext(), host.cliActions());
 			} catch (error) {
 				// What the CLI does with a thrown error isn't documented, and a write
 				// failing (a full disk, a write that didn't land) is exactly when the
 				// caller needs a readable answer. So it is printed like any other error.
-				return errorOutput(error instanceof Error ? error.message : String(error));
+				return errorOutput(error instanceof Error ? error.message : String(error), 'write-failed');
 			}
 		});
 	}

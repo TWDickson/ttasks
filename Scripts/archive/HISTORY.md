@@ -12,6 +12,33 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-11-06 — CLI-7: one vocabulary for the CLI
+
+An audit of the CLI as an API found one footgun (`notes=` meant "how much body
+to show" on reads and "the body" on writes, so `update notes=full` wrote the
+word "full"), uneven naming (`due=` / `estimate=` / `project=` / `depends=` /
+`on=` / `reason=` against output fields `due_date`, `estimated_days`,
+`parent`, `depends_on`, `blocked_reason`), and warnings that restated the
+deadline rule on every `due=`. Taylor asked for uniform wording across calls.
+
+- **The rule: a flag is named after the output field.** It's the only naming
+  scheme a caller can derive without reading docs, because the output teaches
+  it. Short names (`due=`) read better to a person; agents are the main
+  consumer, and they learn from the JSON.
+- **Two commands removed rather than aliased.** Once status and dependencies
+  are `update` fields, `ttasks:status` and `ttasks:depend` were a second way to
+  do the same thing. Aliases would keep two vocabularies alive. The CLI was a
+  day old, so it broke once, in one release.
+- **Strict flags.** Renaming without it would have made old calls fail
+  silently: `create due=…` would drop the date. The risk is an extra parameter
+  Obsidian passes, which would fail every call; that is on the on-device list.
+- **Warnings are problems only.** A warning that always fires teaches callers
+  to skip warnings, and then they miss the ones that matter: a past date, or a
+  deadline the chain can't meet.
+- **`lint fix` only for what's mechanical.** Link form has one right answer.
+  A dangling dependency or a thin body needs a decision, so lint reports it
+  with a command, and doesn't guess.
+
 ## 2026-11-06 — CLI-6: lint sees the archive, and agrees with planner.py on scope
 
 First real comparison of 0.2.6's `ttasks:lint` with `planner.py lint`: 23

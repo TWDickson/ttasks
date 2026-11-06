@@ -27,7 +27,7 @@ const ROLE_MEANINGS = {
 	new: 'the status a new task starts in',
 	started: 'being worked on',
 	done: 'complete; ttasks:complete sets it, and a repeating task recurs',
-	blocked: 'stuck on something outside the plan; impedes everything downstream; takes reason=',
+	blocked: 'stuck on something outside the plan; impedes everything downstream; takes blocked-reason=',
 	'on-hold': 'parked on purpose; impedes everything downstream',
 	future: 'not near-term yet; impedes everything downstream',
 } as const;
@@ -58,19 +58,20 @@ export function buildRules(ctx: CliContext): Record<string, string> {
 			'once something in the chain is dated, and a task with none simply has no plan yet. A blank ' +
 			'due_date or start_date is not missing data. Do not fill it in.',
 		deadlines:
-			'Set due= only for a real external deadline. It pins the task to that date instead of the computed ' +
-			'schedule, and everything downstream follows it. To make work take longer, set estimate=. To make ' +
-			'it wait for other work, use ttasks:depend. Use start= only when work truly cannot begin before a date.',
+			'Set due-date= only for a real external deadline. It pins the task to that date instead of the computed ' +
+			'schedule, and everything downstream follows it. To make work take longer, set estimated-days=. To make ' +
+			'it wait for other work, set depends-on= (or add-depends-on=). Use start-date= only when work truly ' +
+			'cannot begin before a date.',
 		impediments:
-			`Set ${block} only on the task that is actually stuck, with reason=. Every task waiting behind it ` +
+			`Set ${block} only on the task that is actually stuck, with blocked-reason=. Every task waiting behind it ` +
 			'shows impeded and impeded_by on its own. Do not restatus those tasks; they clear when the blocker ' +
 			`does.${parking ? ` ${parking} propagate downstream the same way.` : ''}`,
 		derived:
 			'impeded, impeded_by, in_cycle, scheduled_start, scheduled_end and blocks are computed. Read them; ' +
 			'nothing sets them. ttasks:why explains them for one task.',
 		completion:
-			`Finish work with ttasks:complete (or status=${completion}). A repeating task then creates its next ` +
-			'instance itself. Never create the next one by hand.',
+			`Finish work with ttasks:complete (or ttasks:update status=${completion}). A repeating task then creates ` +
+			'its next instance itself. Never create the next one by hand.',
 		dates:
 			`Dates are local calendar dates, YYYY-MM-DD. Today is ${ctx.today} (${weekdayName(ctx.today)}). ` +
 			'Work out other dates yourself. The only words accepted are today, tomorrow, and none to clear a date.',
@@ -80,11 +81,17 @@ export function buildRules(ctx: CliContext): Record<string, string> {
 			'estimates, dependencies or statuses.',
 		values:
 			'Statuses, areas, priorities and labels must be values listed here. Writes never invent one.',
+		flags:
+			'A flag is named after the output field it sets or filters, with - for _: due-date= sets due_date, ' +
+			'estimated-days= sets estimated_days. List fields take add- and remove- forms (add-labels=, ' +
+			'remove-depends-on=). none clears a field. id= takes several tasks (id=a1b2c3,d4e5f6) on update and complete.',
 		notes:
-			'Note bodies (notes=, append=) take \\n for a line break. Link to another task as [[id-slug|Name]], ' +
-			'with no folder prefix; writes make any task link bare. Run ttasks:lint after a batch of writes.',
+			'Note bodies (notes=, append-notes=) take \\n for a line break. Link to another task as [[id-slug|Name]], ' +
+			'with no folder prefix; writes make any task link bare. Run ttasks:lint after a batch of writes ' +
+			'(ttasks:lint fix repairs link form).',
 		identity:
-			'Address a task by its ref, the 6-character hash (id=a1b2c3); a unique prefix works. Names are not unique.',
+			'Address a task by its ref, the 6-character hash (id=a1b2c3); a unique prefix works, and so does an ' +
+			'exact name when only one task has it. Names are not unique; prefer the ref.',
 	};
 }
 
@@ -169,8 +176,8 @@ function runNext(params: CliParams, ctx: CliContext): string {
 			const wanted = new Set(canonical(areas, knownAreas(ctx), 'area'));
 			pool = pool.filter((task) => task.area !== null && wanted.has(task.area));
 		}
-		if (params.project) {
-			const project = resolveOne(ctx, params.project, 'project', 'project');
+		if (params.parent) {
+			const project = resolveOne(ctx, params.parent, 'parent', 'project');
 			pool = filterTasksForExport(pool, { ...EMPTY_EXPORT_CRITERIA, projects: [project.path] });
 		}
 		const limit = positiveInt(params, 'limit') ?? 10;
@@ -292,7 +299,7 @@ export function guideCommands(all: () => readonly CliCommand[]): CliCommand[] {
 			description: 'What can be worked on today: open, unimpeded, already startable. Started work first.',
 			flags: {
 				area: { value: '<a,b>', description: 'Only these areas' },
-				project: { value: '<hash|name>', description: 'Only this project' },
+				parent: { value: '<hash|name>', description: 'Only this project' },
 				limit: { value: '<n>', description: 'At most n (default 10)' },
 				format: FORMAT_FLAG('json|text'),
 			},
@@ -302,7 +309,7 @@ export function guideCommands(all: () => readonly CliCommand[]): CliCommand[] {
 			id: 'ttasks:why',
 			description: 'Why a task can or can\'t be worked on: its status, what it waits on, when the schedule starts it.',
 			flags: {
-				id: { value: '<hash>', description: 'The task hash, or a unique prefix of it' },
+				id: { value: '<hash|name>', description: 'The task: its hash (or a unique prefix), or its exact name' },
 				path: { value: '<vault path>', description: 'Alternatively, the task note\'s vault path' },
 				format: FORMAT_FLAG('json|text'),
 			},

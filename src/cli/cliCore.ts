@@ -88,6 +88,12 @@ export interface CliActions {
 	setParent(taskPath: string, parent: string | null): Promise<void>;
 	/** Replaces the note body. */
 	updateNotes(taskPath: string, notes: string): Promise<void>;
+	/**
+	 * Rewrite link strings in a note's frontmatter, in place: each `from` found
+	 * under `key` (as the value, or an entry of a list) becomes `to`. For
+	 * `ttasks:lint fix`; the note may be one the store refuses.
+	 */
+	replaceFrontmatterLinks(path: string, changes: Array<{ key: string; from: string; to: string }>): Promise<void>;
 	/** A fresh snapshot, for reporting the state after a write. */
 	snapshot(): CliContext;
 }
@@ -104,18 +110,37 @@ export interface CliCommand {
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
+/**
+ * What kind of error a reply carries, so a caller can branch without matching
+ * message text. `unavailable` (an unconverted vault) and `write-failed` (a
+ * write that threw or didn't land) are set by the runner, not by commands.
+ */
+export type CliErrorCode =
+	| 'bad-argument'       // a flag that is malformed, misplaced or missing
+	| 'unknown-value'      // a status/area/label/... that isn't configured; `valid` lists them
+	| 'not-found'          // no task matches the reference
+	| 'ambiguous'          // several tasks match; `valid` lists them
+	| 'not-a-date'         // a date or time that can't be read
+	| 'dependency-loop'    // a dependency that would make a cycle
+	| 'nothing-to-change'  // an update with no field flags
+	| 'unavailable'
+	| 'write-failed';
+
 export class CliArgumentError extends Error {
-	constructor(message: string, readonly valid?: readonly string[]) {
+	constructor(message: string, readonly valid?: readonly string[], readonly code: CliErrorCode = 'bad-argument') {
 		super(message);
 	}
 }
 
 export type OutputFormat = 'json' | 'text' | 'tsv';
 
+/** The JSON error reply: `{"error": message, "code": …, "valid"?: […]}`. */
+export function errorJson(message: string, code: CliErrorCode, valid?: readonly string[]): string {
+	return pretty({ error: message, code, ...(valid ? { valid } : {}) });
+}
+
 export function renderError(error: CliArgumentError, format: OutputFormat): string {
-	if (format === 'json') {
-		return pretty(error.valid ? { error: error.message, valid: error.valid } : { error: error.message });
-	}
+	if (format === 'json') return errorJson(error.message, error.code, error.valid);
 	return error.valid ? `Error: ${error.message}\nValid: ${error.valid.join(', ')}` : `Error: ${error.message}`;
 }
 
@@ -141,13 +166,31 @@ export async function guardedAsync(format: OutputFormat, body: () => Promise<str
 
 export const pretty = (value: unknown): string => JSON.stringify(value, null, 2);
 
+/**
+ * Every command rejects flags it doesn't take, so a misspelt or renamed flag
+ * (`due=` for `due-date=`) is an error rather than silently ignored. Applied
+ * to the whole registry in `cliCommands.ts`.
+ */
+export function strictFlags(command: CliCommand): CliCommand {
+	return {
+		...command,
+		run: (params, ctx, actions) => {
+			const unknown = Object.keys(params).filter((key) => !(key in command.flags));
+			if (!unknown.length) return command.run(params, ctx, actions);
+			const format = outputFormat(params, ['json', 'text'] as const);
+			const message = `${unknown.map((key) => `${key}=`).join(', ')} ${unknown.length === 1 ? 'is not a flag' : 'are not flags'} of ${command.id}`;
+			return renderError(new CliArgumentError(message, Object.keys(command.flags)), format);
+		},
+	};
+}
+
 // ── Argument parsing ──────────────────────────────────────────────────────────
 
 export function choice<T extends string>(params: CliParams, key: string, allowed: readonly T[], fallback: T): T {
 	const raw = params[key];
 	if (raw === undefined) return fallback;
 	const match = allowed.find((option) => option === raw.toLowerCase());
-	if (!match) throw new CliArgumentError(`${key}=${raw} is not recognised`, allowed);
+	if (!match) throw new CliArgumentError(`${key}=${raw} is not recognised`, allowed, 'unknown-value');
 	return match;
 }
 
@@ -173,7 +216,7 @@ export function listParam(params: CliParams, key: string): string[] | null {
 export function canonical(values: string[], valid: readonly string[], key: string): string[] {
 	return values.map((value) => {
 		const match = valid.find((option) => option.toLowerCase() === value.toLowerCase());
-		if (!match) throw new CliArgumentError(`${key}=${value} is not a configured value`, valid);
+		if (!match) throw new CliArgumentError(`${key}=${value} is not a configured value`, valid, 'unknown-value');
 		return match;
 	});
 }
@@ -208,12 +251,15 @@ export function positiveInt(params: CliParams, key: string): number | null {
 export const stripMd = (path: string): string => path.replace(/\.md$/, '');
 
 /**
- * One task from `id=` (hash or unique hash prefix, `#` optional) or `path=`.
- * `kind` narrows to projects for `project=`.
+ * One task from a reference: its hash or a unique hash prefix (`#` optional),
+ * its vault path, or its exact name when only one task has it. Every flag that
+ * names a task (`id=`, `parent=`, `depends-on=`, …) resolves this way. `kind`
+ * narrows to projects for `parent=`.
  */
 export function resolveOne(ctx: CliContext, raw: string, key: string, kind?: 'project'): Task {
 	const pool = kind ? ctx.tasks.filter((task) => task.type === kind) : ctx.tasks;
 	const wanted = raw.trim().replace(/^#/, '').toLowerCase();
+	const listed = (tasks: Task[]) => tasks.map((task) => `${task.id} ${task.name}`);
 
 	const byPath = pool.find((task) => stripMd(task.path).toLowerCase() === stripMd(wanted));
 	if (byPath) return byPath;
@@ -221,28 +267,53 @@ export function resolveOne(ctx: CliContext, raw: string, key: string, kind?: 'pr
 	const byId = pool.filter((task) => task.id.toLowerCase().startsWith(wanted));
 	if (byId.length === 1) return byId[0];
 	if (byId.length > 1) {
-		throw new CliArgumentError(`${key}=${raw} matches ${byId.length} tasks; give more of the hash`,
-			byId.map((task) => `${task.id} ${task.name}`));
+		throw new CliArgumentError(`${key}=${raw} matches ${byId.length} tasks; give more of the hash`, listed(byId), 'ambiguous');
 	}
-	if (kind === 'project') {
-		const byName = pool.filter((task) => task.name.toLowerCase() === raw.trim().toLowerCase());
-		if (byName.length === 1) return byName[0];
-		throw new CliArgumentError(`${key}=${raw} is not a project hash, path or name`,
-			pool.map((task) => `${task.id} ${task.name}`));
+	const byName = pool.filter((task) => task.name.toLowerCase() === raw.trim().toLowerCase());
+	if (byName.length === 1) return byName[0];
+	if (byName.length > 1) {
+		throw new CliArgumentError(`${key}=${raw} names ${byName.length} tasks; give the hash`, listed(byName), 'ambiguous');
 	}
-	throw new CliArgumentError(`no task has the hash or path "${raw}"`);
+	throw new CliArgumentError(`${key}=${raw} is not a ${kind ?? 'task'} hash, path or name`, kind ? listed(pool) : undefined, 'not-found');
+}
+
+/** Several task references (`id=a,b`), each resolved like `resolveOne`, in order and without repeats. */
+export function resolveMany(ctx: CliContext, raws: string[], key: string, kind?: 'project'): Task[] {
+	const seen = new Set<string>();
+	return raws.map((raw) => resolveOne(ctx, raw, key, kind)).filter((task) => !seen.has(task.path) && !!seen.add(task.path));
 }
 
 export function taskFromParams(params: CliParams, ctx: CliContext): Task {
 	const raw = params.id ?? params.path;
-	if (!raw || raw === 'true') throw new CliArgumentError('give the task as id=<hash> or path=<vault path>');
+	if (!raw || raw === 'true') throw new CliArgumentError('give the task as id=<hash|name> or path=<vault path>');
 	return resolveOne(ctx, raw, params.id ? 'id' : 'path');
+}
+
+/** `id=a,b,c` (or a single `path=`): the tasks a batch write changes. */
+export function tasksFromParams(params: CliParams, ctx: CliContext): Task[] {
+	if (params.path !== undefined && params.id === undefined) return [taskFromParams(params, ctx)];
+	const raws = listParam(params, 'id');
+	if (!raws) throw new CliArgumentError('give the task as id=<hash|name>[,<hash|name>…] or path=<vault path>');
+	return resolveMany(ctx, raws, 'id');
 }
 
 // ── Output ────────────────────────────────────────────────────────────────────
 
+/**
+ * Tasks as the CLI prints them: the Share/Sync 'ai' shape, plus the fields the
+ * CLI can set that the Share/Sync contract leaves out (`source`,
+ * `workweek_only`), placed before `notes`. `ttasks:export` stays the contract
+ * exactly; it doesn't go through here.
+ */
 export function exportShape(tasks: Task[], ctx: CliContext, notes: NotesPolicy): ExportedTask[] {
-	return buildTaskJsonDocument(tasks, 'ai', ctx.now, ctx.validValues, notes, ctx.derivedContext).tasks;
+	const shaped = buildTaskJsonDocument(tasks, 'ai', ctx.now, ctx.validValues, notes, ctx.derivedContext).tasks;
+	return shaped.map((entry, index) => {
+		const task = tasks[index];
+		const extra = { ...(task.source ? { source: task.source } : {}), ...(task.workweek_only ? { workweek_only: true } : {}) };
+		if (!Object.keys(extra).length) return entry;
+		const { notes: body, ...rest } = entry as ExportedTask & { notes?: string };
+		return { ...rest, ...extra, ...(body !== undefined ? { notes: body } : {}) } as ExportedTask;
+	});
 }
 
 /** `a1b2c3  In Progress  High  Fix the roof  · Home · due 2026-11-07 · ⛔ Blocked` */
@@ -275,7 +346,10 @@ export function toTsv(tasks: ExportedTask[]): string {
 // ── Flag descriptions ─────────────────────────────────────────────────────────
 
 export const FORMAT_FLAG = (formats: string) => ({ value: `<${formats}>`, description: `Output format (default ${formats.split('|')[0]})` });
-export const NOTES_FLAG = (fallback: string) => ({ value: '<none|summary|full>', description: `How much of each note body to include (default ${fallback})` });
+export const SHOW_NOTES_FLAG = (fallback: string) => ({ value: '<none|summary|full>', description: `How much of each note body to include (default ${fallback})` });
+
+/** `completed=` on the read commands: one vocabulary, one default. */
+export const COMPLETED_FLAG = { value: '<exclude|include|only>', description: 'Completed tasks (default exclude)' };
 
 // ── Previews and impact ───────────────────────────────────────────────────────
 

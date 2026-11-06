@@ -962,6 +962,17 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 			removeDependency: (taskPath, dependency) => this.taskStore.removeDependency(taskPath, dependency),
 			setParent: (taskPath, parent) => this.taskStore.updateParentTask(taskPath, parent),
 			updateNotes: async (taskPath, notes) => { await this.taskStore.updateNotes(taskPath, notes); },
+			replaceFrontmatterLinks: async (path, changes) => {
+				const file = this.app.vault.getFileByPath(path);
+				if (!file) throw new Error(`${path} doesn't exist`);
+				await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+					for (const { key, from, to } of changes) {
+						const value = fm[key];
+						if (value === from) fm[key] = to;
+						else if (Array.isArray(value)) fm[key] = value.map((entry) => (entry === from ? to : entry));
+					}
+				});
+			},
 			snapshot: () => this.cliContext(),
 		};
 	}

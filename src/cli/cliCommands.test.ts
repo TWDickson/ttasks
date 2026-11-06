@@ -121,17 +121,17 @@ describe('ttasks:list', () => {
 	});
 
 	it('filters by due keyword', () => {
-		expect(refs(run('ttasks:list', { due: 'today' }))).toEqual(['aaa111']);
-		expect(refs(run('ttasks:list', { due: 'overdue' }))).toEqual(['bbb333']);
+		expect(refs(run('ttasks:list', { 'due-date': 'today' }))).toEqual(['aaa111']);
+		expect(refs(run('ttasks:list', { 'due-date': 'overdue' }))).toEqual(['bbb333']);
 		// Friday, Monday-start week: today through Sunday the 8th.
-		expect(refs(run('ttasks:list', { due: 'week' }))).toEqual(['aaa111', 'aab222']);
-		expect(json(run('ttasks:list', { due: 'soon' })).valid).toContain('overdue');
+		expect(refs(run('ttasks:list', { 'due-date': 'week' }))).toEqual(['aaa111', 'aab222']);
+		expect(json(run('ttasks:list', { 'due-date': 'soon' })).valid).toContain('overdue');
 	});
 
 	it('filters to a project by name or hash, project included', () => {
-		const byName = refs(run('ttasks:list', { project: 'roof' })).sort();
+		const byName = refs(run('ttasks:list', { parent: 'roof' })).sort();
 		expect(byName).toEqual(['aaa111', 'aab222', 'ppp000']);
-		expect(refs(run('ttasks:list', { project: 'ppp' })).sort()).toEqual(byName);
+		expect(refs(run('ttasks:list', { parent: 'ppp' })).sort()).toEqual(byName);
 	});
 
 	it('starts from a Smart List by name', () => {
@@ -154,13 +154,13 @@ describe('ttasks:list', () => {
 	});
 
 	it('prints one line per task with format=text', () => {
-		const out = run('ttasks:list', { format: 'text', due: 'today' });
+		const out = run('ttasks:list', { format: 'text', 'due-date': 'today' });
 		expect(out).toBe('aaa111  Active  High  Get quotes  · Home · due 2026-11-06 · in Roof');
 		expect(run('ttasks:list', { format: 'text', status: 'Hold' })).toBe('No tasks match.');
 	});
 
 	it('prints a header row and one row per task with format=tsv', () => {
-		const lines = run('ttasks:list', { format: 'tsv', due: 'today' }).split('\n');
+		const lines = run('ttasks:list', { format: 'tsv', 'due-date': 'today' }).split('\n');
 		expect(lines[0].split('\t')[0]).toBe('ref');
 		expect(lines[1].split('\t').slice(0, 2)).toEqual(['aaa111', 'Get quotes']);
 	});
@@ -192,7 +192,7 @@ describe('ttasks:show', () => {
 	});
 
 	it('explains what it needs when given nothing', () => {
-		expect(json(run('ttasks:show')).error).toMatch(/id=<hash>/);
+		expect(json(run('ttasks:show')).error).toMatch(/id=<hash\|name>/);
 	});
 
 	it('prints a readable block with format=text', () => {
@@ -203,15 +203,17 @@ describe('ttasks:show', () => {
 });
 
 describe('ttasks:export', () => {
-	it('defaults to the ai-mode JSON document, completed work included', () => {
+	it('defaults to the ai-mode JSON document, open work only, like list', () => {
 		const doc = json(run('ttasks:export'));
 		expect(doc.mode).toBe('ai');
 		expect(doc.meta).toBeDefined();
-		expect(doc.taskCount).toBe(6);
+		expect(doc.taskCount).toBe(5);
+		expect(json(run('ttasks:export', { completed: 'include' })).taskCount).toBe(6);
+		expect(json(run('ttasks:export', { completed: 'only' })).tasks.map((t: { ref: string }) => t.ref)).toEqual(['ccc444']);
 	});
 
 	it('narrows with the Share/Sync filters', () => {
-		const doc = json(run('ttasks:export', { area: 'home', completed: 'exclude' }));
+		const doc = json(run('ttasks:export', { area: 'home' }));
 		expect(doc.tasks.map((t: { ref: string }) => t.ref).sort()).toEqual(['aaa111', 'aab222', 'ppp000']);
 	});
 
@@ -234,6 +236,24 @@ describe('ttasks:export', () => {
 });
 
 describe('the command registry', () => {
+	it('rejects flags a read command doesn\'t take, naming the valid ones', () => {
+		expect(json(run('ttasks:list', { due: 'today' }))).toMatchObject({ error: 'due= is not a flag of ttasks:list', code: 'bad-argument' });
+		expect(json(run('ttasks:show', { id: 'aaa111', notes: 'full' })).valid).toContain('show-notes');
+	});
+
+	it('uses one name for one thing across commands', () => {
+		const flagsOf = (id: string) => Object.keys(CLI_COMMANDS.find((command) => command.id === id)!.flags);
+		for (const id of ['ttasks:list', 'ttasks:export']) {
+			expect(flagsOf(id)).toEqual(expect.arrayContaining(['labels', 'parent', 'completed', 'show-notes']));
+		}
+		expect(flagsOf('ttasks:next')).toContain('parent');
+		for (const command of CLI_COMMANDS) {
+			for (const old of ['label', 'project', 'due', 'start', 'estimate', 'reason', 'depends', 'on', 'append']) {
+				expect(Object.keys(command.flags), `${command.id} ${old}`).not.toContain(old);
+			}
+		}
+	});
+
 	it('names every command ttasks:<action>', () => {
 		for (const command of CLI_COMMANDS) expect(command.id).toMatch(/^ttasks:[a-z-]+$/);
 	});

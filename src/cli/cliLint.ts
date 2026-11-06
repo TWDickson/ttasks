@@ -1,7 +1,7 @@
 /**
  * Note-body text for the CLI, and `ttasks:lint`, the hygiene check.
  *
- * **Body text.** `notes=` / `append=` arrive as one shell argument, so a caller
+ * **Body text.** `notes=` / `append-notes=` arrive as one shell argument, so a caller
  * writes a line break as `\n`. `cliText` turns `\n`, `\t` and `\\` into what
  * they stand for, so a literal `\n` never lands in a note. (If Obsidian has
  * already unescaped the value, there is nothing left to convert.) Task links in
@@ -32,8 +32,8 @@ import { PERSISTENCE_ENTRIES, EXTRA_FM_KEYS, fmKey, type FieldKind } from '../sc
 import { classifyNote } from '../store/schemaGuard';
 import { isIsoDateString } from '../utils/dateUtils';
 import {
-	FORMAT_FLAG, canonical, guarded, listParam, outputFormat, positiveInt, pretty, stripMd,
-	type CliCommand, type CliContext, type CliNote, type CliParams,
+	FORMAT_FLAG, canonical, guardedAsync, listParam, outputFormat, positiveInt, pretty, stripMd,
+	type CliActions, type CliCommand, type CliContext, type CliNote, type CliParams,
 } from './cliCore';
 
 // ── Escapes ───────────────────────────────────────────────────────────────────
@@ -168,40 +168,54 @@ const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : va
 const linkStrings = (fm: Record<string, unknown>): Array<{ key: string; value: string }> =>
 	LINK_KEYS.flatMap((key) => asList(fm[key]).flatMap((value) => (typeof value === 'string' ? [{ key, value }] : [])));
 
-/** What is off about a current-format note's frontmatter, in words. */
-function formatDrift(note: CliNote, fm: Record<string, unknown>, ctx: CliContext): string[] {
-	const problems: string[] = [];
+/** One format problem, in words, with the repair when it is mechanical. */
+interface Drift {
+	message: string;
+	repair?: Repair;
+}
+
+/** What is off about a current-format note's frontmatter. */
+function formatDrift(note: CliNote, fm: Record<string, unknown>, ctx: CliContext, targets: LinkTargets): Drift[] {
+	const problems: Drift[] = [];
+	const say = (message: string) => problems.push({ message });
 	const file = stripMd(leaf(note.path));
-	if (!TASK_FILE.test(file)) problems.push(`the filename "${leaf(note.path)}" isn't {6hex}-{slug}.md`);
+	if (!TASK_FILE.test(file)) say(`the filename "${leaf(note.path)}" isn't {6hex}-{slug}.md`);
 	const css = asList(fm[EXTRA_FM_KEYS.cssclasses]);
-	if (!css.includes('ttask')) problems.push('cssclasses is missing ttask');
-	for (const key of REQUIRED_KEYS) if (fm[key] === undefined || fm[key] === null || fm[key] === '') problems.push(`${key} is missing`);
+	if (!css.includes('ttask')) say('cssclasses is missing ttask');
+	for (const key of REQUIRED_KEYS) if (fm[key] === undefined || fm[key] === null || fm[key] === '') say(`${key} is missing`);
 
 	const type = fm[fmKey('type')];
-	if (type !== undefined && type !== 'task' && type !== 'project') problems.push(`${fmKey('type')} is "${String(type)}"; use task or project`);
+	if (type !== undefined && type !== 'task' && type !== 'project') say(`${fmKey('type')} is "${String(type)}"; use task or project`);
 	const closed: Array<[keyof Task, readonly string[]]> = [
 		['status', ctx.validValues.statuses], ['priority', ctx.validValues.priorities], ['area', ctx.validValues.areas],
 	];
 	for (const [field, valid] of closed) {
 		const value = fm[fmKey(field)];
 		if (value !== undefined && value !== null && !valid.includes(String(value))) {
-			problems.push(`${fmKey(field)} "${String(value)}" isn't a configured value`);
+			say(`${fmKey(field)} "${String(value)}" isn't a configured value`);
 		}
 	}
 	for (const label of asList(fm[fmKey('labels')])) {
-		if (!ctx.validValues.labels.includes(String(label))) problems.push(`label "${String(label)}" isn't configured`);
+		if (!ctx.validValues.labels.includes(String(label))) say(`label "${String(label)}" isn't configured`);
 	}
 	for (const [, p] of STORED) {
 		const value = fm[p.fmKey];
 		if (value === undefined || value === null) continue;
-		if (p.kind === 'date' && !(typeof value === 'string' && isIsoDateString(value))) problems.push(`${p.fmKey} "${String(value)}" isn't YYYY-MM-DD`);
-		if (p.kind === 'dates' && asList(value).some((entry) => !(typeof entry === 'string' && isIsoDateString(entry)))) problems.push(`${p.fmKey} has a value that isn't YYYY-MM-DD`);
-		if (p.kind === 'time' && !(typeof value === 'string' && /^\d{2}:\d{2}$/.test(value))) problems.push(`${p.fmKey} "${String(value)}" isn't HH:MM`);
-		if (p.kind === 'number' && typeof value !== 'number') problems.push(`${p.fmKey} "${String(value)}" isn't a number`);
+		if (p.kind === 'date' && !(typeof value === 'string' && isIsoDateString(value))) say(`${p.fmKey} "${String(value)}" isn't YYYY-MM-DD`);
+		if (p.kind === 'dates' && asList(value).some((entry) => !(typeof entry === 'string' && isIsoDateString(entry)))) say(`${p.fmKey} has a value that isn't YYYY-MM-DD`);
+		if (p.kind === 'time' && !(typeof value === 'string' && /^\d{2}:\d{2}$/.test(value))) say(`${p.fmKey} "${String(value)}" isn't HH:MM`);
+		if (p.kind === 'number' && typeof value !== 'number') say(`${p.fmKey} "${String(value)}" isn't a number`);
 	}
 	for (const { key, value } of linkStrings(fm)) {
-		if (!/^\[\[[^\]]+\]\]$/.test(value.trim())) problems.push(`${key} "${value}" isn't a [[wiki-link]]`);
-		else if (!value.includes('|')) problems.push(`${key} ${value} has no |Name alias`);
+		if (!/^\[\[[^\]]+\]\]$/.test(value.trim())) say(`${key} "${value}" isn't a [[wiki-link]]`);
+		else if (!value.includes('|')) {
+			const target = /^\s*\[\[([^\]|#]+)/.exec(value)?.[1].trim() ?? '';
+			const bare = taskLinks(value, targets)[0]?.bare;
+			problems.push({
+				message: `${key} ${value} has no |Name alias`,
+				...(bare && targets.resolve(target) ? { repair: { kind: 'frontmatter', key, from: value, to: bare } as Repair } : {}),
+			});
+		}
 	}
 	return problems;
 }
@@ -220,6 +234,11 @@ export const THIN_BODY_CHARS = 50;
 /** A note body's length as `thin-body` measures it: non-whitespace characters. */
 export const bodyChars = (notes: string): number => notes.replace(/\s/g, '').length;
 
+/** A mechanical fix `ttasks:lint fix` can make: one link string, in the frontmatter or the body. */
+export type Repair =
+	| { kind: 'frontmatter'; key: string; from: string; to: string }
+	| { kind: 'body'; from: string; to: string };
+
 export interface LintIssue {
 	check: LintCheck;
 	/** The task hash; for a note the store refuses, its filename's id. */
@@ -229,6 +248,8 @@ export interface LintIssue {
 	message: string;
 	/** A command that fixes it, where one exists. */
 	fix?: string;
+	/** The fix `ttasks:lint fix` makes itself. Not printed. */
+	repair?: Repair;
 }
 
 export interface LintOptions {
@@ -262,8 +283,10 @@ export function lintTasks(ctx: CliContext, options: LintOptions): LintIssue[] {
 		const fallbackName = (fm && (fm[fmKey('name')] ?? fm.name)) ?? stripMd(leaf(note.path));
 		const ref = task?.id ?? stripMd(leaf(note.path)).split('-')[0];
 		const name = task?.name ?? String(fallbackName);
-		const at = (check: LintCheck, message: string, fix?: string) => {
-			if (enabled.has(check)) issues.push({ check, ref, name, path: note.path, message, ...(fix ? { fix } : {}) });
+		const at = (check: LintCheck, message: string, fix?: string, repair?: Repair) => {
+			if (!enabled.has(check)) return;
+			const fixHint = repair ? 'ttasks:lint fix' : fix;
+			issues.push({ check, ref, name, path: note.path, message, ...(fixHint ? { fix: fixHint } : {}), ...(repair ? { repair } : {}) });
 		};
 
 		// ── Format checks: every note ─────────────────────────────────────────
@@ -277,7 +300,7 @@ export function lintTasks(ctx: CliContext, options: LintOptions): LintIssue[] {
 		if (legacy.length) at('legacy-keys', `carries old property names beside the ttask_ ones: ${legacy.join(', ')}`, 'delete those properties');
 
 		if (fm && schema === 'current') {
-			for (const problem of formatDrift(note, fm, ctx)) at('format-drift', problem);
+			for (const problem of formatDrift(note, fm, ctx, targets)) at('format-drift', problem.message, undefined, problem.repair);
 		} else if (!task) {
 			at('format-drift', fm ? `has no ${fmKey('name')}, so the board doesn't show it` : 'has no frontmatter; it isn\'t a task note');
 		}
@@ -292,7 +315,8 @@ export function lintTasks(ctx: CliContext, options: LintOptions): LintIssue[] {
 				at('dangling-link', `${key} links to ${target}, which doesn't exist (open or archived)`, danglingFix(key, task, target));
 			} else if (target.includes('/')) {
 				const bare = taskLinks(value, targets)[0]?.bare;
-				at('prefixed-link', `${key} is ${value}; write it bare, as ${bare}`);
+				at('prefixed-link', `${key} is ${value}; write it bare, as ${bare}`, undefined,
+					bare ? { kind: 'frontmatter', key, from: value, to: bare } : undefined);
 			}
 		}
 		if (!fm && task) {
@@ -304,7 +328,10 @@ export function lintTasks(ctx: CliContext, options: LintOptions): LintIssue[] {
 		if (task) {
 			for (const link of taskLinks(task.notes, targets)) {
 				if (!link.resolved) at('dangling-link', `the body links to ${link.raw}, which doesn't exist (open or archived)`);
-				else if (link.target.includes('/')) at('prefixed-link', `the body links to ${link.raw}; write it bare, as ${link.bare}`, `ttasks:update id=${task.id} notes=… (CLI writes make task links bare)`);
+				else if (link.target.includes('/')) {
+					at('prefixed-link', `the body links to ${link.raw}; write it bare, as ${link.bare}`, undefined,
+						link.bare ? { kind: 'body', from: link.raw, to: link.bare } : undefined);
+				}
 			}
 		}
 
@@ -313,25 +340,25 @@ export function lintTasks(ctx: CliContext, options: LintOptions): LintIssue[] {
 
 		if (task.status === block && !task.blocked_reason.trim()) {
 			at('stalled-without-reason', `${block} with no reason; say what it is waiting on`,
-				`ttasks:status id=${task.id} status=${block} reason=<what it waits on>`);
+				`ttasks:update id=${task.id} blocked-reason=<what it waits on>`);
 		}
 		const chars = bodyChars(task.notes);
 		if (thinScope(task.status) && chars < options.minBody) {
 			at('thin-body', chars
 				? `the note body is ${chars} characters (not counting spaces); say what done looks like`
 				: 'the note body is empty; say what done looks like',
-			`ttasks:update id=${task.id} append=<text>`);
+			`ttasks:update id=${task.id} append-notes=<text>`);
 		}
 		if (task.due_date && task.due_date < ctx.today) {
 			const late = daysBetween(task.due_date, ctx.today);
 			at('overdue', `was due ${task.due_date}, ${late} day${late === 1 ? '' : 's'} ago`,
-				`ttasks:complete id=${task.id}, or ttasks:update id=${task.id} due=<new date|none>`);
+				`ttasks:complete id=${task.id}, or ttasks:update id=${task.id} due-date=<new date|none>`);
 		}
 		const parent = task.parent_task ? targets.resolve(task.parent_task) : null;
 		const parentDone = parent ? (parent.task ? parent.task.is_complete : true) : false;
 		if (parent && parentDone) {
 			at('open-under-finished-parent', `still open, but its project "${parent.name}" is ${parent.task ? parent.task.status : 'archived'}`,
-				`ttasks:complete id=${task.id}, or ttasks:update id=${task.id} project=none`);
+				`ttasks:complete id=${task.id}, or ttasks:update id=${task.id} parent=none`);
 		}
 	}
 	return issues;
@@ -339,40 +366,80 @@ export function lintTasks(ctx: CliContext, options: LintOptions): LintIssue[] {
 
 function danglingFix(key: string, task: Task | null, target: string): string | undefined {
 	if (!task) return undefined;
-	if (key === fmKey('parent_task')) return `ttasks:update id=${task.id} project=none`;
-	if (key === fmKey('depends_on')) return `ttasks:depend id=${task.id} on=${stripMd(leaf(target)).split('-')[0]} remove`;
+	if (key === fmKey('parent_task')) return `ttasks:update id=${task.id} parent=none`;
+	if (key === fmKey('depends_on')) return `ttasks:update id=${task.id} remove-depends-on=${stripMd(leaf(target)).split('-')[0]}`;
 	return undefined;
 }
 
-function runLint(params: CliParams, ctx: CliContext): string {
+const printable = ({ repair: _repair, ...issue }: LintIssue): Omit<LintIssue, 'repair'> => issue;
+const issueLine = (issue: LintIssue) => `${issue.check}  ${issue.ref}  ${issue.name} — ${issue.message}`;
+
+/** Make every mechanical repair: body links through the body writer, frontmatter links in place. */
+async function applyRepairs(ctx: CliContext, actions: CliActions, repairs: LintIssue[]): Promise<void> {
+	const byPath = new Map<string, LintIssue[]>();
+	for (const issue of repairs) byPath.set(issue.path, [...(byPath.get(issue.path) ?? []), issue]);
+	for (const [path, issues] of byPath) {
+		const frontmatter = issues.flatMap((issue) => (issue.repair?.kind === 'frontmatter' ? [issue.repair] : []));
+		if (frontmatter.length) await actions.replaceFrontmatterLinks(path, frontmatter.map(({ key, from, to }) => ({ key, from, to })));
+		const body = issues.flatMap((issue) => (issue.repair?.kind === 'body' ? [issue.repair] : []));
+		const task = ctx.tasks.find((candidate) => candidate.path === path);
+		if (body.length && task) {
+			const notes = body.reduce((text, { from, to }) => text.split(from).join(to), task.notes);
+			if (notes !== task.notes) await actions.updateNotes(path, notes);
+		}
+	}
+}
+
+async function runLint(params: CliParams, ctx: CliContext, actions: CliActions): Promise<string> {
 	const format = outputFormat(params, ['json', 'text'] as const);
-	return guarded(format, () => {
+	return guardedAsync(format, async () => {
 		const checks = canonical(listParam(params, 'check') ?? [...LINT_CHECKS], LINT_CHECKS, 'check') as LintCheck[];
 		const minBody = positiveInt(params, 'min-body') ?? THIN_BODY_CHARS;
 		const thinRaw = listParam(params, 'thin-status');
 		const thinStatuses = thinRaw ? canonical(thinRaw, ctx.validValues.statuses, 'thin-status') : null;
-		const issues = lintTasks(ctx, { checks, minBody, thinStatuses });
+		const fixing = params.fix !== undefined && params.fix.toLowerCase() !== 'false';
+		const dryRun = params['dry-run'] !== undefined && params['dry-run'].toLowerCase() !== 'false';
+		const found = lintTasks(ctx, { checks, minBody, thinStatuses });
 		const checked = new Set([...ctx.folderNotes.map((note) => note.path), ...ctx.tasks.map((task) => task.path)]).size;
 
+		const fixed = fixing ? found.filter((issue) => issue.repair) : [];
+		if (fixed.length && !dryRun) await applyRepairs(ctx, actions, fixed);
+		const issues = found.filter((issue) => !fixed.includes(issue));
+
 		if (format === 'text') {
-			if (!issues.length) return `No issues in ${checked} notes.`;
-			return [
-				`${issues.length} issue${issues.length === 1 ? '' : 's'} in ${checked} notes:`,
-				...issues.map((issue) => `${issue.check}  ${issue.ref}  ${issue.name} — ${issue.message}`),
-			].join('\n');
+			const lines: string[] = [];
+			if (fixing) {
+				lines.push(fixed.length ? `${dryRun ? 'Would fix' : 'Fixed'} ${fixed.length}:` : 'Nothing to fix mechanically.');
+				for (const issue of fixed) lines.push(`  ${issue.check}  ${issue.ref}  ${issue.repair!.from} → ${issue.repair!.to}`);
+			}
+			lines.push(issues.length ? `${issues.length} issue${issues.length === 1 ? '' : 's'} in ${checked} notes:` : `No ${fixing ? 'other ' : ''}issues in ${checked} notes.`);
+			lines.push(...issues.map(issueLine));
+			if (fixing && dryRun && fixed.length) lines.push('Dry run: nothing was written.');
+			return lines.join('\n');
 		}
 		const byCheck = Object.fromEntries(checks.map((check) => [check, issues.filter((issue) => issue.check === check).length]));
-		return pretty({ today: ctx.today, checked, archived: ctx.archived.length, count: issues.length, by_check: byCheck, issues });
+		return pretty({
+			today: ctx.today,
+			...(fixing && dryRun ? { dry_run: true } : {}),
+			checked,
+			archived: ctx.archived.length,
+			...(fixing ? { fixed: fixed.map((issue) => ({ ...printable(issue), from: issue.repair!.from, to: issue.repair!.to })) } : {}),
+			count: issues.length,
+			by_check: byCheck,
+			issues: issues.map(printable),
+		});
 	});
 }
 
 export const LINT_COMMAND: CliCommand = {
 	id: 'ttasks:lint',
-	description: 'Hygiene check over the tasks folder: links, format, old keys, blocked without a reason, thin bodies, overdue, open tasks in finished projects.',
+	description: 'Hygiene check over the tasks folder: links, format, old keys, blocked without a reason, thin bodies, overdue, open tasks in finished projects. fix repairs link form.',
 	flags: {
 		check: { value: `<${LINT_CHECKS.join(',')}>`, description: 'Only these checks (default all)' },
 		'min-body': { value: '<chars>', description: `A body with fewer non-whitespace characters is thin (default ${THIN_BODY_CHARS})` },
 		'thin-status': { value: '<a,b>', description: 'Only check bodies of these statuses (default: open and not blocked, on hold or future)' },
+		fix: { description: 'Repair what is mechanical (link form) and report the rest' },
+		'dry-run': { description: 'With fix: report the repairs without writing them' },
 		format: FORMAT_FLAG('json|text'),
 	},
 	run: runLint,
