@@ -909,7 +909,14 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 			weekStart: resolveWeekStart(this.settings.weekStartsOn),
 			now: new Date().toISOString(),
 			presets: this.settings.shareSync.preamblePresets,
-			statusPolicy: { initial: this.statusPolicy.initial, completion: this.statusPolicy.completion },
+			statusPolicy: {
+				initial: this.statusPolicy.initial,
+				completion: this.statusPolicy.completion,
+				start: this.statusPolicy.start,
+				block: this.statusPolicy.block,
+				hold: this.statusPolicy.hold,
+				future: this.statusPolicy.future,
+			},
 		};
 	}
 
@@ -928,6 +935,8 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 			update: (path, updates) => this.taskStore.update(path, updates),
 			addDependency: (taskPath, dependency) => this.taskStore.addDependency(taskPath, dependency),
 			removeDependency: (taskPath, dependency) => this.taskStore.removeDependency(taskPath, dependency),
+			setParent: (taskPath, parent) => this.taskStore.updateParentTask(taskPath, parent),
+			updateNotes: async (taskPath, notes) => { await this.taskStore.updateNotes(taskPath, notes); },
 			snapshot: () => this.cliContext(),
 		};
 	}

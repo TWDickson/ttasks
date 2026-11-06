@@ -74,7 +74,7 @@ function context(tasks: Task[] = TASKS): CliContext {
 		weekStart: 1,
 		now: '2026-11-06T12:00:00.000Z',
 		presets: SHARE_PREAMBLE_PRESETS,
-		statusPolicy: { initial: 'Active', completion: 'Done' },
+		statusPolicy: { initial: 'Active', completion: 'Done', start: 'In Progress', block: 'Blocked', hold: 'Hold', future: 'Future' },
 	};
 }
 

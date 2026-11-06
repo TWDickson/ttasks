@@ -616,10 +616,27 @@ that N3's façade will later wrap.
   a status/complete write that doesn't show up in the store is reported as an
   error (TaskStore signals failure with a Notice, not a throw).
   `registerCli.ts` now catches anything thrown and prints it as `{"error": …}`.
-- `[ ]` **On-device check (CLI-1…3)** — against the next release: run
-  `obsidian help` (all nine commands listed), then `ttasks:create name=Test`,
-  `ttasks:depend`, `ttasks:status`, `ttasks:complete` on it, and `ttasks:new` /
-  `ttasks:open`. Watch for: the created task appearing on the board; `depend`
+- `[x]` **CLI-4 schedule-aware CLI** — *(2026-11-06, unreleased)* Taylor: a
+  caller won't understand that TTasks computes most dates, and "everything will
+  get messed up". So the Share/Sync date rule ("most tasks have no dates on
+  purpose; due only for a real deadline; size work with estimates") is now the
+  CLI's too, and enforced by showing rather than telling: every write is a plan
+  that can be previewed (`dry-run`) and reports `impact` (other tasks whose
+  computed dates or impediment move) plus `warnings` (deadline rule, past date,
+  a deadline the chain can't meet). New: `ttasks:context` (start here: today,
+  status roles, the rules in words), `ttasks:update` (fields, `none` clears,
+  label add/remove, project, notes/append), `ttasks:next`, `ttasks:why`. Dates
+  stay `YYYY-MM-DD`/`today`/`tomorrow`/`none`: no natural-language grammar, the
+  error names today and its weekday. `cliGuide.ts` is new (pure);
+  `nextStartFor` moved to `completeTask.ts` for dry-run.
+- `[ ]` **CLI batch writes** — `id=a,b,c` on `update` / `status` / `complete`:
+  the same change to several tasks, validated together and reported with one
+  combined impact. Sits on the plan model, so it's mostly reporting work.
+- `[ ]` **On-device check (CLI-1…4)** — against the next release: run
+  `obsidian help` (all thirteen commands listed), `ttasks:context`, then
+  `ttasks:create name=Test`, `ttasks:update … dry-run`, `ttasks:depend`,
+  `ttasks:status`, `ttasks:complete` on it, `ttasks:next` / `ttasks:why`, and
+  `ttasks:new` / `ttasks:open`. Check `impact` against what the board shows. Watch for: the created task appearing on the board; `depend`
   output naming the dependency (it reports before the store re-reads the file);
   the dialog from `new` taking focus from a terminal. Headless sessions can't
   observe any of it.

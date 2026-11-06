@@ -9,7 +9,7 @@ import type { RegisteredTaskViewDefinition } from '../views/viewRegistry';
 import { buildTaskJsonDocument, type ExportedTask, type NotesPolicy, type TaskJsonValidValues } from '../integration/taskJsonExport';
 import type { DerivedStateContext } from '../integration/taskDerivedState';
 import type { SharePreamblePreset } from '../integration/sharePreamble';
-import type { WeekStart } from '../utils/dateUtils';
+import { weekdayOfLocal, type WeekStart } from '../utils/dateUtils';
 
 /** What the CLI hands a handler: `key=value` pairs, and `'true'` for a bare flag. */
 export type CliParams = Readonly<Record<string, string>>;
@@ -32,8 +32,11 @@ export interface CliContext {
 	now: string;
 	/** The Share/Sync prompt library, for `export preamble=`. */
 	presets: SharePreamblePreset[];
-	/** `plugin.statusPolicy`'s resolved pointers, for writes. */
-	statusPolicy: { initial: string; completion: string };
+	/**
+	 * `plugin.statusPolicy`'s resolved pointers. `hold` / `future` are null in a
+	 * vault without them; both (and `block`) impede everything downstream.
+	 */
+	statusPolicy: { initial: string; completion: string; start: string; block: string; hold: string | null; future: string | null };
 }
 
 /** What a new task's create modal can be prefilled with (`ttasks:new`). */
@@ -63,6 +66,10 @@ export interface CliActions {
 	/** `dependency` is a vault path without `.md`. */
 	addDependency(taskPath: string, dependency: string): Promise<void>;
 	removeDependency(taskPath: string, dependency: string): Promise<void>;
+	/** `parent` is a vault path without `.md`, or null to take the task out of its project. */
+	setParent(taskPath: string, parent: string | null): Promise<void>;
+	/** Replaces the note body. */
+	updateNotes(taskPath: string, notes: string): Promise<void>;
 	/** A fresh snapshot, for reporting the state after a write. */
 	snapshot(): CliContext;
 }
@@ -251,3 +258,69 @@ export function toTsv(tasks: ExportedTask[]): string {
 
 export const FORMAT_FLAG = (formats: string) => ({ value: `<${formats}>`, description: `Output format (default ${formats.split('|')[0]})` });
 export const NOTES_FLAG = (fallback: string) => ({ value: '<none|summary|full>', description: `How much of each note body to include (default ${fallback})` });
+
+// ── Previews and impact ───────────────────────────────────────────────────────
+
+/** `ctx` with these tasks in place of (or added to) the store's copies. */
+export function withTasks(ctx: CliContext, overlay: Task[]): CliContext {
+	const byPath = new Map(overlay.map((task) => [task.path, task]));
+	const tasks = ctx.tasks.map((task) => byPath.get(task.path) ?? task);
+	for (const task of overlay) if (!ctx.tasks.some((existing) => existing.path === task.path)) tasks.push(task);
+	return { ...ctx, tasks, derivedContext: { ...ctx.derivedContext, allTasks: tasks } };
+}
+
+/** Every task in the export shape, by path — the derived fields computed over the whole graph. */
+export function exportAll(ctx: CliContext): Map<string, ExportedTask> {
+	const shaped = exportShape(ctx.tasks, ctx, 'none');
+	return new Map(ctx.tasks.map((task, index) => [task.path, shaped[index]]));
+}
+
+/** One task whose computed state a change moves. Only the fields that moved are present. */
+export interface ImpactEntry {
+	ref: string;
+	name: string;
+	scheduled_start?: { from: string | null; to: string | null };
+	scheduled_end?: { from: string | null; to: string | null };
+	impeded?: { from: string | null; to: string | null };
+}
+
+const IMPACT_FIELDS = ['scheduled_start', 'scheduled_end', 'impeded'] as const;
+export const IMPACT_LIMIT = 25;
+
+/**
+ * What a change does to the rest of the graph: open tasks (other than the ones
+ * changed) whose computed schedule or impediment differs between `before` and
+ * `after`. This is the part a caller can't work out alone — the dates are
+ * derived from the dependency chain, estimates and the working calendar.
+ */
+export function impactOf(before: CliContext, after: CliContext, changed: ReadonlySet<string>): ImpactEntry[] {
+	const was = exportAll(before);
+	const now = exportAll(after);
+	const entries: ImpactEntry[] = [];
+	for (const task of after.tasks) {
+		if (changed.has(task.path) || task.is_complete) continue;
+		const a = was.get(task.path);
+		const b = now.get(task.path);
+		if (!a || !b) continue;
+		const entry: ImpactEntry = { ref: task.id, name: task.name };
+		for (const field of IMPACT_FIELDS) {
+			const from = a[field] ?? null;
+			const to = b[field] ?? null;
+			if (from !== to) entry[field] = { from, to };
+		}
+		if (Object.keys(entry).length > 2) entries.push(entry);
+	}
+	return entries;
+}
+
+/** `scheduled_end 2026-11-12 → 2026-11-19 · impeded none → Blocked` */
+export function impactLine(entry: ImpactEntry): string {
+	const parts = IMPACT_FIELDS.flatMap((field) => {
+		const move = entry[field];
+		return move ? [`${field} ${move.from ?? 'none'} → ${move.to ?? 'none'}`] : [];
+	});
+	return `${entry.ref}  ${entry.name}  · ${parts.join(' · ')}`;
+}
+
+export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+export const weekdayName = (date: string): string => WEEKDAYS[weekdayOfLocal(date)];

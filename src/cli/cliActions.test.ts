@@ -56,7 +56,7 @@ function context(tasks: Task[]): CliContext {
 		weekStart: 1,
 		now: '2026-11-06T12:00:00.000Z',
 		presets: [],
-		statusPolicy: { initial: 'Active', completion: 'Done' },
+		statusPolicy: { initial: 'Active', completion: 'Done', start: 'In Progress', block: 'Blocked', hold: 'Hold', future: null },
 	};
 }
 
@@ -90,6 +90,8 @@ function fakeStore(initial: Task[], options: { dropUpdates?: boolean } = {}) {
 		},
 		addDependency: async (path, dependency) => { calls.push(`add ${path} -> ${dependency}`); },
 		removeDependency: async (path, dependency) => { calls.push(`remove ${path} -> ${dependency}`); },
+		setParent: async (path, parent) => { calls.push(`parent ${path} -> ${parent}`); },
+		updateNotes: async (path, notes) => { calls.push(`notes ${path} ${JSON.stringify(notes)}`); },
 		snapshot: () => context(tasks),
 	};
 	return { actions, calls, ctx: () => context(tasks) };
@@ -205,7 +207,7 @@ describe('ttasks:complete', () => {
 		const { out } = await run('ttasks:complete', { id: 'ddd', format: 'text' });
 		expect(out.split('\n')).toHaveLength(2);
 		expect(out).toMatch(/^Completed {2}ddd444/);
-		expect(out).toMatch(/\nNext {7}fff666 .*due 2026-11-13/);
+		expect(out).toMatch(/\nNext {2}fff666 .*due 2026-11-13/);
 	});
 
 	it('is a no-op on a completed task', async () => {
@@ -296,5 +298,104 @@ describe('wouldCreateCycle', () => {
 		const c = task({ id: 'c00001', name: 'C', depends_on: ['Tasks/b00001-b'] });
 		expect(wouldCreateCycle([a, b, c], a, c)).toBe(true);
 		expect(wouldCreateCycle([a, b, c], c, a)).toBe(false);
+	});
+});
+
+// ── The schedule: dry-run, impact and date guidance ──────────────────────────
+
+/** A dated chain: A (starts Monday, 2 days) → B (3 days) → C (1 day). */
+const chainA = task({ id: 'a00001', name: 'Survey', start_date: '2026-11-09', estimated_days: 2 });
+const chainB = task({ id: 'b00001', name: 'Design', estimated_days: 3, depends_on: [chainA.path] });
+const chainC = task({ id: 'c00001', name: 'Build', estimated_days: 1, depends_on: [chainB.path] });
+const CHAIN = [chainA, chainB, chainC];
+
+describe('ttasks:update', () => {
+	it('changes fields and reports what moves downstream', async () => {
+		const { out, calls } = await run('ttasks:update', { id: 'a00001', estimate: '5' }, fakeStore(CHAIN));
+		const result = json(out);
+		expect(result).toMatchObject({ today: TODAY, changed: true, updated: { ref: 'a00001', estimated_days: 5 } });
+		expect(result.impact.map((entry: { ref: string }) => entry.ref)).toEqual(['b00001', 'c00001']);
+		expect(result.impact[0].scheduled_end).toEqual({ from: '2026-11-13', to: '2026-11-16' });
+		expect(calls).toEqual([`update ${chainA.path} {"estimated_days":5}`]);
+	});
+
+	it('previews with dry-run and writes nothing', async () => {
+		const store = fakeStore(CHAIN);
+		const { out, calls } = await run('ttasks:update', { id: 'a00001', estimate: '5', 'dry-run': 'true' }, store);
+		expect(json(out)).toMatchObject({ dry_run: true, changed: true, updated: { estimated_days: 5 } });
+		expect(json(out).impact).toHaveLength(2);
+		expect(calls).toEqual([]);
+	});
+
+	it('warns that a due date pins the schedule, and when the chain cannot meet it', async () => {
+		const { out } = await run('ttasks:update', { id: 'b00001', due: '2026-11-10', 'dry-run': 'true' }, fakeStore(CHAIN));
+		const warnings: string[] = json(out).warnings;
+		expect(warnings[0]).toMatch(/real external deadline/);
+		expect(warnings.some((warning) => /finish this task on 2026-11-13, after due 2026-11-10/.test(warning))).toBe(true);
+	});
+
+	it('flags a date in the past', async () => {
+		const { out } = await run('ttasks:update', { id: 'c00001', due: '2026-11-01', 'dry-run': 'true' }, fakeStore(CHAIN));
+		expect(json(out).warnings).toContain('due 2026-11-01 is in the past (today is 2026-11-06).');
+	});
+
+	it('clears with none, and a cleared due date takes its time with it', async () => {
+		const timed = task({ id: 'ttt001', name: 'Call', due_date: '2026-11-20', due_time: '09:00', area: 'Home' });
+		const { calls } = await run('ttasks:update', { id: 'ttt001', due: 'none', area: 'none' }, fakeStore([timed]));
+		expect(calls).toEqual([`update ${timed.path} {"area":null,"due_date":null,"due_time":null}`]);
+	});
+
+	it('adds and removes labels, moves projects and appends to notes through their own writers', async () => {
+		const noted = task({ id: 'nnn001', name: 'Write up', labels: ['bug'], notes: 'First.' });
+		const { calls } = await run('ttasks:update',
+			{ id: 'nnn001', 'add-label': 'action', 'remove-label': 'bug', project: 'roof', append: 'Second.' },
+			fakeStore([roof, noted]));
+		expect(calls).toEqual([
+			`update ${noted.path} {"labels":["action"]}`,
+			`parent ${noted.path} -> Tasks/ppp000-roof`,
+			`notes ${noted.path} "First.\\n\\nSecond."`,
+		]);
+	});
+
+	it('is a no-op when nothing differs, and an error when nothing is given', async () => {
+		expect(json((await run('ttasks:update', { id: 'aaa111', area: 'home' })).out).changed).toBe(false);
+		expect(json((await run('ttasks:update', { id: 'aaa111' })).out).valid).toContain('estimate');
+		expect(json((await run('ttasks:update', { id: 'aaa111', status: 'Hold' })).out).error).toMatch(/ttasks:status/);
+	});
+
+	it('explains a date it cannot read, naming today', async () => {
+		const { out } = await run('ttasks:update', { id: 'aaa111', due: 'friday' });
+		expect(json(out).error).toBe('due=friday is not a date. Today is 2026-11-06 (Friday); work the date out and give it as YYYY-MM-DD');
+	});
+});
+
+describe('impact of other writes', () => {
+	it('blocking a task shows everything downstream as impeded, and warns against restatusing them', async () => {
+		const { out } = await run('ttasks:status', { id: 'a00001', status: 'blocked', 'dry-run': 'true' }, fakeStore(CHAIN));
+		const result = json(out);
+		expect(result.impact.map((entry: { impeded: unknown }) => entry.impeded)).toEqual([
+			{ from: null, to: 'Blocked' }, { from: null, to: 'Blocked' },
+		]);
+		expect(result.warnings[0]).toMatch(/Don't set it on those tasks too/);
+		expect(result.warnings[1]).toMatch(/No reason=/);
+	});
+
+	it('a new dependency shows the dates it pushes', async () => {
+		const loose = task({ id: 'd00001', name: 'Order parts', estimated_days: 1 });
+		const { out } = await run('ttasks:depend', { id: 'd00001', on: 'c00001', 'dry-run': 'true' }, fakeStore([...CHAIN, loose]));
+		expect(json(out).updated).toMatchObject({ scheduled_start: '2026-11-15', depends_on: ['Build'] });
+	});
+
+	it('a dry-run completion previews the repeat\'s next instance', async () => {
+		const { out, calls } = await run('ttasks:complete', { id: 'ddd444', 'dry-run': 'true' });
+		expect(json(out)).toMatchObject({ dry_run: true, completed: { status: 'Done' }, next: { ref: 'new', due_date: '2026-11-13' } });
+		expect(calls).toEqual([]);
+	});
+
+	it('a dry-run create shows the task with ref new, and its warnings', async () => {
+		const { out, calls } = await run('ttasks:create', { name: 'Ship', due: 'tomorrow', 'dry-run': 'true' });
+		expect(json(out)).toMatchObject({ dry_run: true, created: { ref: 'new', due_date: '2026-11-07' } });
+		expect(json(out).warnings[0]).toMatch(/real external deadline/);
+		expect(calls).toEqual([]);
 	});
 });

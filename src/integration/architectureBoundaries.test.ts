@@ -88,6 +88,7 @@ describe('architecture boundaries', () => {
 			'src/cli/cliCommands.ts',
 			'src/cli/cliCore.ts',
 			'src/cli/cliActions.ts',
+			'src/cli/cliGuide.ts',
 		]) {
 			const content = readWorkspaceFile(relativePath);
 

@@ -35,6 +35,7 @@ import {
 	type CliCommand, type CliContext, type CliParams,
 } from './cliCore';
 import { ACTION_COMMANDS } from './cliActions';
+import { guideCommands } from './cliGuide';
 
 export type { CliActions, CliCommand, CliContext, CliParams } from './cliCore';
 
@@ -124,7 +125,7 @@ function runList(params: CliParams, ctx: CliContext): string {
 
 		if (format === 'tsv') return toTsv(tasks);
 		if (format === 'text') return tasks.length ? tasks.map(textLine).join('\n') : 'No tasks match.';
-		return pretty({ count: tasks.length, tasks });
+		return pretty({ today: ctx.today, count: tasks.length, tasks });
 	});
 }
 
@@ -238,4 +239,5 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
 		run: runExport,
 	},
 	...ACTION_COMMANDS,
+	...guideCommands(() => CLI_COMMANDS),
 ];

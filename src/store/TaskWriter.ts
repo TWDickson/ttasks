@@ -7,9 +7,9 @@ import { ChecklistSyncService } from './ChecklistSyncService';
 import { repinToDueDate } from '../repeat/presets';
 import { repeatCalendarFromHolidays } from '../repeat/types';
 import { splitHolidayCalendar } from '../settings/holidays';
-import { addDaysLocal, daysBetweenLocal, localDateString } from '../utils/dateUtils';
+import { localDateString } from '../utils/dateUtils';
 import { computeStatusChanged, computeCompletedOnStatusChange } from './statusChanged';
-import { decideCompletion } from './completeTask';
+import { decideCompletion, nextStartFor } from './completeTask';
 import { buildDuplicateInput } from './taskDuplicate';
 import { resetChecklistCompletionInNotes } from './recurrenceNotes';
 import { deleteFileSafely, buildDeleteDeps } from '../integration/safeDelete';
@@ -492,16 +492,8 @@ export class TaskWriter {
 // Pure helpers — exported for testing
 // ---------------------------------------------------------------------------
 
-/**
- * The next instance's start date: the same lead time before its due date as this
- * instance had. A start with no due date moves by the same amount the due date
- * would have (today → next). Null when there's no start date.
- */
-export function nextStartFor(task: Pick<Task, 'start_date' | 'due_date'>, nextDue: string, today: string): string | null {
-	if (!task.start_date) return null;
-	if (task.due_date) return addDaysLocal(nextDue, -daysBetweenLocal(task.start_date, task.due_date));
-	return addDaysLocal(task.start_date, daysBetweenLocal(today, nextDue));
-}
+/** Moved to `completeTask.ts` (pure) so the CLI's dry-run can use it; re-exported for existing callers. */
+export { nextStartFor };
 
 export function buildTaskFrontmatter(task: Task, resolveName: (pathWithoutExt: string) => string | null): string {
 	return serializeNewTaskFrontmatter(task, resolveName);

@@ -12,6 +12,38 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-11-06 — CLI-4: the CLI shows the schedule instead of assuming it's understood
+
+Taylor's concern after CLI-3: TTasks works out most dates itself (dependency
+chain, estimates, per-area working calendar), and Blocked/Hold/Future spread
+downstream. A person or agent using the CLI won't know that, will read a blank
+due date as missing data, stamp dates everywhere, and restatus every waiting
+task. The rule already existed for Share/Sync (`meta.dates`: most entries have
+no dates on purpose; due only for a real external deadline; size work with
+`estimated_days`), but the CLI neither said it nor showed its consequences.
+
+- **Show, don't just tell.** Rules in words (`ttasks:context`) help a reader
+  who reads them. The stronger fix is mechanical: every write is a `WritePlan`
+  that the runner previews or applies, and both report `impact`, a diff of the
+  derived fields (`scheduled_*`, `impeded`) across the whole graph before and
+  after. It reuses the export's derived state, so the numbers are the board's.
+- **Warnings where the rule bites.** Setting a due date always restates the
+  deadline rule; a past date and a deadline the chain can't meet (computed by
+  scheduling the task without its due date) are called out. Restatusing to a
+  spreading status warns against doing the same downstream.
+- **No natural-language dates.** Considered "friday" / "+3d"; declined.
+  "Friday" depends on locale and week start, and a quietly wrong date is
+  exactly the failure this slice is about. The error names today and its
+  weekday, which is all a caller needs to compute an ISO date.
+- **Batch writes deferred, not via Share/Sync.** Taylor: Share/Sync is a manual
+  bridge for a Copilot that can't run anything, so `ttasks:apply` of its
+  change-set isn't worth building. Multi-id writes sit naturally on the plan
+  model and are logged in `PROJECT.md`.
+- `ttasks:next` and `ttasks:why` answer the two questions that otherwise need
+  the propagation rules applied by hand.
+
+---
+
 ## 2026-11-06 — CLI-2 and CLI-3: the CLI can open and write
 
 `ttasks:open`, `ttasks:new`, `ttasks:create`, `ttasks:complete`,

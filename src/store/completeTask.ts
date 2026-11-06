@@ -11,6 +11,7 @@ import type { Task } from '../types';
 import type { RepeatCalendar, RepeatRule } from '../repeat/types';
 import { nextOccurrence } from '../repeat/next';
 import { normalizeRefPath } from '../utils/taskRef';
+import { addDaysLocal, daysBetweenLocal } from '../utils/dateUtils';
 
 export interface CompleteTaskDeps {
 	completionStatus: string;
@@ -79,4 +80,15 @@ export function decideCompletion(task: Task, deps: CompleteTaskDeps): CompleteTa
 
 	const nextRule: RepeatRule = rule.count !== undefined ? { ...rule, count: rule.count - 1 } : rule;
 	return { kind: 'complete-and-recur', updates, nextDue, nextRule };
+}
+
+/**
+ * The next instance's start date: the same lead time before its due date as this
+ * instance had. A start with no due date moves by the same amount the due date
+ * would have (today → next). Null when there's no start date.
+ */
+export function nextStartFor(task: Pick<Task, 'start_date' | 'due_date'>, nextDue: string, today: string): string | null {
+	if (!task.start_date) return null;
+	if (task.due_date) return addDaysLocal(nextDue, -daysBetweenLocal(task.start_date, task.due_date));
+	return addDaysLocal(task.start_date, daysBetweenLocal(today, nextDue));
 }
