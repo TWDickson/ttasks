@@ -629,7 +629,7 @@ that N3's façade will later wrap.
   stay `YYYY-MM-DD`/`today`/`tomorrow`/`none`: no natural-language grammar, the
   error names today and its weekday. `cliGuide.ts` is new (pure);
   `nextStartFor` moved to `completeTask.ts` for dry-run.
-- `[x]` **CLI batch writes** — *(2026-11-06, unreleased; part of CLI-7)*
+- `[x]` **CLI batch writes** — *(2026-11-06, 0.2.8; part of CLI-7)*
 - `[ ]` **On-device check (CLI)** — against the next release: run
   `obsidian help` (twelve commands listed), `ttasks:context`, then
   `ttasks:create name=Test`, `ttasks:update … dry-run`, `ttasks:update
@@ -700,7 +700,7 @@ that N3's façade will later wrap.
     `generateMarkdownLink`, which follows Obsidian's *New link format*
     setting. If that's set to absolute paths, the plugin's own writes would be
     `prefixed-link`s. 403b64/a798b2 may come from that or from an older writer.
-- `[x]` **CLI-6a `thin-body` regression** — *(2026-11-06, unreleased)* 0.2.7
+- `[x]` **CLI-6a `thin-body` regression** — *(2026-11-06, 0.2.8)* 0.2.7
   reported no thin bodies. Active tasks 4cf3a1 and 54999a are empty and
   ac0956 is 49 characters, and `planner.py` flags all three. The cause: "Active
   only" was written as `statusPolicy.initial`, which is the *first* configured
@@ -714,7 +714,7 @@ that N3's façade will later wrap.
   `planner.py` skips: Cancelled isn't a status-policy pointer, so the CLI
   treats it as open, as the board does.
 
-- `[x]` **CLI-7 one vocabulary** — *(2026-11-06, unreleased; breaking)* from
+- `[x]` **CLI-7 one vocabulary** — *(2026-11-06, 0.2.8; breaking)* from
   the API audit (planner.py is retired, so `ttasks:lint` is the only linter).
   - **Flags are named after the output field** they set or filter, `-` for
     `_`: `due-date`, `start-date`, `estimated-days`, `labels`, `parent`,
