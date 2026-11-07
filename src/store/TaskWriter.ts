@@ -24,11 +24,6 @@ import { UPDATABLE_TASK_FIELDS, fmKey } from '../schema/taskPersistence';
 import { writeStoredField } from '../schema/taskCodec';
 import { serializeNewTaskFrontmatter } from '../schema/taskCodec';
 
-export interface UpdateNotesOptions {
-	/** Turn plain checklist lines into child tasks. Default true. */
-	materializeChecklist?: boolean;
-}
-
 export class TaskWriter {
 	private plugin: TTasksPlugin;
 	private tasks: Writable<Task[]>;
@@ -56,7 +51,6 @@ export class TaskWriter {
 			tasks: () => get(this.tasks),
 			getTaskByPath,
 			statusPolicy: () => plugin.statusPolicy,
-			create: (input) => this.create(input),
 			update: (path, updates) => this.update(path, updates),
 			completeAndRecur: (task) => this.completeAndRecur(task),
 		});
@@ -267,20 +261,14 @@ export class TaskWriter {
 	}
 
 	/**
-	 * Replace a note's body. `materializeChecklist` (default on) turns each plain
-	 * `- [ ]` line into a linked child task — the notes editor's gesture, made by
-	 * a person typing a line. A programmatic body replacement (CLI, lint fix,
-	 * Share/Sync import) passes `false`: its checklist lines are content, and
-	 * spawning a subtask per sentence there is the bug, not the feature.
+	 * Replace a note's body, verbatim. Checklist lines are content: no caller
+	 * turns them into tasks (CLI-8). A line that already links a task still
+	 * syncs that task's status to its box.
 	 */
-	async updateNotes(path: string, notes: string, options: UpdateNotesOptions = {}): Promise<string> {
+	async updateNotes(path: string, notes: string): Promise<string> {
 		if (!this.writesAllowed()) return notes;
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!(file instanceof TFile)) return notes;
-
-		const rewritten = options.materializeChecklist === false
-			? notes
-			: await this.checklistSync.materializeChildren(path, notes);
 
 		if (this.isFileOpenInEditor(file)) {
 			await new Promise(resolve => setTimeout(resolve, 100));
@@ -289,11 +277,11 @@ export class TaskWriter {
 		await this.app.vault.process(file, (content) => {
 			const fmEnd = content.indexOf('\n---', 3);
 			const frontmatter = fmEnd >= 0 ? content.substring(0, fmEnd + 4) : content;
-			return frontmatter + (rewritten ? '\n\n' + rewritten : '') + '\n';
+			return frontmatter + (notes ? '\n\n' + notes : '') + '\n';
 		});
 
-		await this.checklistSync.syncChildrenFromParent(path, rewritten);
-		return rewritten;
+		await this.checklistSync.syncChildrenFromParent(path, notes);
+		return notes;
 	}
 
 	async delete(path: string, options?: { prompt?: boolean }): Promise<void> {

@@ -469,8 +469,8 @@ describe('TaskWriter refuses writes while the vault is unmigrated', () => {
 	});
 });
 
-describe('TaskWriter.updateNotes checklist materialization', () => {
-	function makeNotesWriter() {
+describe('TaskWriter.updateNotes writes the body verbatim', () => {
+	it('keeps plain checklist lines as text and creates no tasks (CLI-8)', async () => {
 		const file = makeFile('Planner/Tasks/abc123-test-task.md');
 		let content = '---\nttask_name: "Test Task"\n---\n';
 		const plugin = {
@@ -489,23 +489,10 @@ describe('TaskWriter.updateNotes checklist materialization', () => {
 		const tasks = writable<Task[]>([makeTask({ path: file.path })]);
 		const writer = new TaskWriter(plugin as any, tasks, 'Planner/Tasks', (p) => get(tasks).find((t) => t.path === p));
 		const create = vi.spyOn(writer, 'create');
-		return { writer, file, create, read: () => content };
-	}
 
-	const body = '- [ ] Signal test severity warn, never error.\n- [ ] Second line';
-
-	it('a programmatic write keeps checklist lines as text and creates no tasks', async () => {
-		const { writer, file, create, read } = makeNotesWriter();
-		const written = await writer.updateNotes(file.path, body, { materializeChecklist: false });
-		expect(written).toBe(body);
+		const body = '- [ ] Signal test severity warn, never error.\n- [ ] Second line';
+		expect(await writer.updateNotes(file.path, body)).toBe(body);
 		expect(create).not.toHaveBeenCalled();
-		expect(read()).toContain('- [ ] Signal test severity warn, never error.');
-	});
-
-	it('the notes editor (default) still turns a plain checklist line into a child task', async () => {
-		const { writer, file, create } = makeNotesWriter();
-		create.mockResolvedValue(makeTask({ path: 'Planner/Tasks/def456-child.md', name: 'Second line' }));
-		await writer.updateNotes(file.path, '- [ ] Second line');
-		expect(create).toHaveBeenCalledTimes(1);
+		expect(content).toBe(`---\nttask_name: "Test Task"\n---\n\n${body}\n`);
 	});
 });

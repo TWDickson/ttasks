@@ -1,15 +1,12 @@
 import { TFile, normalizePath, type App } from 'obsidian';
-import type { Task, TaskCreateInput } from '../types';
-import { materializeChecklistChildren } from './checklistMaterializer';
+import type { Task } from '../types';
 import {
-	buildChecklistChildInput,
 	checklistLinksInBody,
 	planChildSync,
 	rewriteParentChecklist,
 } from './checklistSync';
 import { localDateString } from '../utils/dateUtils';
 import { ensureMdExt } from '../utils/pathUtils';
-import { extractChecklistLink } from '../utils/wikiLink';
 import { isPathOpenInMarkdownEditor } from '../views/openFileLeaves';
 
 /** What the sync needs from the writer that owns it — no plugin reference. */
@@ -18,7 +15,6 @@ export interface ChecklistSyncDeps {
 	tasks: () => Task[];
 	getTaskByPath: (path: string) => Task | undefined;
 	statusPolicy: () => { completion: string; initial: string };
-	create: (input: TaskCreateInput) => Promise<Task>;
 	update: (path: string, updates: Partial<Task>) => Promise<void>;
 	completeAndRecur: (task: Task) => Promise<Task | null>;
 }
@@ -30,23 +26,6 @@ export interface ChecklistSyncDeps {
  */
 export class ChecklistSyncService {
 	constructor(private deps: ChecklistSyncDeps) {}
-
-	/** Turn plain checklist lines in `body` into linked child tasks; returns the rewritten body. */
-	async materializeChildren(parentPath: string, body: string): Promise<string> {
-		if (!body) return body;
-		const parent = this.deps.getTaskByPath(parentPath);
-		if (!parent) return body;
-
-		return materializeChecklistChildren({
-			body,
-			parentPath,
-			extractChecklistLink,
-			createChecklistChild: async (content, effectiveParentPath) => {
-				const child = await this.deps.create(buildChecklistChildInput(parent, content, effectiveParentPath, localDateString()));
-				return { path: child.path, name: child.name };
-			},
-		});
-	}
 
 	/** Parent checklist → children: complete or reopen each child to match its box. */
 	async syncChildrenFromParent(parentPath: string, body: string): Promise<void> {

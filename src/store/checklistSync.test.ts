@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../types';
 import {
-	buildChecklistChildInput,
 	checklistLinksInBody,
 	planChildSync,
 	rewriteParentChecklist,
@@ -122,29 +121,5 @@ describe('rewriteParentChecklist', () => {
 		expect(rewriteParentChecklist('- [X] [[Tasks/child]]', 'Tasks/child.md', false)).toBe('- [ ] [[Tasks/child]]');
 		expect(rewriteParentChecklist('- [x] [[Tasks/child]]', 'Tasks/child.md', true)).toBeNull();
 		expect(rewriteParentChecklist('- [ ] [[Tasks/other]]', 'Tasks/child.md', true)).toBeNull();
-	});
-});
-
-describe('buildChecklistChildInput', () => {
-	it('inherits area/status/priority/labels/owner/source/start from the parent, not dates or deps', () => {
-		const parent = makeTask({ depends_on: ['Tasks/x.md'], due_date: '2026-11-01' });
-		const input = buildChecklistChildInput(parent, 'New child', 'Tasks/p.md', TODAY);
-
-		expect(input).toMatchObject({
-			type: 'task',
-			name: 'New child',
-			area: 'Work',
-			status: 'Active',
-			priority: 'High',
-			labels: ['bug'],
-			assigned_to: 'me',
-			source: 'src',
-			start_date: '2026-10-01',
-			parent_task: 'Tasks/p',
-			depends_on: [],
-			due_date: null,
-			created: TODAY,
-		});
-		expect(input.labels).not.toBe(parent.labels);
 	});
 });

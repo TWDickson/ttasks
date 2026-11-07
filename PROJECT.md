@@ -722,11 +722,10 @@ that N3's façade will later wrap.
     already written this way need a hand fix (switch to double quotes).
   - **`ttasks:update` turned checklist lines into subtasks.** `updateNotes`
     always ran the notes editor's "plain `- [ ]` line → child task" step,
-    so a CLI body write created one child per line (23 for four tasks). Now
-    `updateNotes(…, { materializeChecklist: false })` is used by the CLI, lint
-    fix and Share/Sync import, so they write bodies verbatim. The detail pane
-    still materializes. The 23 stray children and the link lines that replaced
-    the originals have to be cleaned up by hand.
+    so a CLI body write created one child per line (23 for four tasks, since
+    cleaned up). The feature is **removed everywhere**, detail pane included
+    (`checklistMaterializer.ts` deleted): every body write is verbatim. A line
+    that already links a task still syncs status both ways.
 
 - `[x]` **CLI-7 one vocabulary** — *(2026-11-06, 0.2.8; breaking)* from
   the API audit (planner.py is retired, so `ttasks:lint` is the only linter).

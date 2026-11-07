@@ -6,7 +6,7 @@
 	export let task: Task;
 	/** Obsidian's markdown renderer, bound to the app (MarkdownRenderer.render). */
 	export let renderMarkdown: (markdown: string, el: HTMLElement, sourcePath: string, component: Component) => Promise<void>;
-	/** Persists the notes; resolves to the body as written (checklists may be materialised). */
+	/** Persists the notes; resolves to the body as written. */
 	export let onSaveNotes: (path: string, notes: string) => Promise<string>;
 
 	let notesMode: 'preview' | 'edit' = 'preview';

@@ -1,4 +1,4 @@
-import type { Task, TaskCreateInput } from '../types';
+import type { Task } from '../types';
 import { ensureMdExt, stripMdExt } from '../utils/pathUtils';
 import { extractChecklistLink } from '../utils/wikiLink';
 
@@ -86,29 +86,4 @@ export function rewriteParentChecklist(body: string, childPath: string, checked:
 	}
 
 	return changed ? lines.join('\n') : null;
-}
-
-/** A new child task materialised from a plain checklist line in `parent`'s notes. */
-export function buildChecklistChildInput(parent: Task, title: string, parentPath: string, today: string): TaskCreateInput {
-	return {
-		type: 'task',
-		name: title,
-		area: parent.area,
-		status: parent.status,
-		priority: parent.priority,
-		labels: [...parent.labels],
-		due_time: null,
-		parent_task: stripMdExt(parentPath),
-		depends_on: [],
-		blocked_reason: '',
-		assigned_to: parent.assigned_to,
-		source: parent.source,
-		start_date: parent.start_date,
-		due_date: null,
-		estimated_days: null,
-		created: today,
-		completed: null,
-		notes: '',
-		repeat: null,
-	};
 }
