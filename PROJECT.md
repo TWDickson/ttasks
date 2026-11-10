@@ -714,7 +714,8 @@ that N3's façade will later wrap.
   `planner.py` skips: Cancelled isn't a status-policy pointer, so the CLI
   treats it as open, as the board does.
 
-- `[x]` **CLI-8 two write bugs from the field** — *(2026-11-06)*
+- `[x]` **CLI-8 two write bugs from the field** — *(2026-11-06, 0.2.9 — released
+  2026-11-10; the bug was re-reported on 0.2.8 because the fix sat unreleased)*
   - **An apostrophe in a linked name broke the note.** At creation,
     `parent_task` / `depends_on` links are written as single-quoted YAML,
     and `Check Kostya's 2021…` ended the scalar early, so the store stopped
