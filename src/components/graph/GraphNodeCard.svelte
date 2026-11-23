@@ -15,11 +15,16 @@
 	export let active = false;
 	export let ready = false;
 	export let traced = false;
+	/** While this card is being dragged: how far it has moved, in layout pixels. */
+	export let dragOffset: { x: number; y: number } | null = null;
+	/** While another card or connector is dragged over this one: what a drop does. */
+	export let dropState: 'insert' | 'link' | 'invalid' | null = null;
 
 	// Fixed height: the layout engine spaces rows assuming node.height, so the
 	// card must never grow past it — content clamps/ellipsizes instead.
 	$: style = `left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px;` +
-		`--tt-node-accent:${palette.statusAccent(node.task.status)};--tt-priority-accent:${priorityColor(node.task.priority)};`;
+		`--tt-node-accent:${palette.statusAccent(node.task.status)};--tt-priority-accent:${priorityColor(node.task.priority)};` +
+		(dragOffset ? `transform:translate(${dragOffset.x}px,${dragOffset.y}px);` : '');
 </script>
 
 <button
@@ -30,8 +35,14 @@
 	class:is-blocked={node.isBlockedChain}
 	class:is-ready={ready}
 	class:is-traced={traced}
+	class:is-dragging={!!dragOffset}
+	class:is-drop-insert={dropState === 'insert'}
+	class:is-drop-link={dropState === 'link'}
+	class:is-drop-invalid={dropState === 'invalid'}
+	data-path={node.path}
 	{style}
 	on:click
+	on:pointerdown
 	on:pointerup
 	on:keydown
 	on:mouseenter
@@ -156,6 +167,49 @@
 			inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 55%, transparent),
 			0 0 0 3px color-mix(in srgb, var(--interactive-accent) 45%, transparent),
 			0 0 20px color-mix(in srgb, var(--interactive-accent) 26%, transparent);
+	}
+
+	/* Drag-and-drop (graph edits). The dragged card follows the pointer and is
+	transparent to hit-testing, so the drop target underneath can be found. */
+	.tt-graph-node.is-dragging {
+		z-index: 6;
+		opacity: 0.88;
+		pointer-events: none;
+		cursor: grabbing;
+		transition: none;
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 45%, transparent), 0 16px 36px rgba(var(--mono-rgb-100), 0.24);
+	}
+
+	.tt-graph-node.is-drop-link {
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent) 60%, transparent), 0 10px 24px rgba(var(--mono-rgb-100), 0.12);
+	}
+
+	.tt-graph-node.is-drop-invalid {
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-red) 55%, transparent);
+	}
+
+	/* Insert-before: a bar on the card's left edge, where the moved card will go. */
+	.tt-graph-node.is-drop-insert {
+		overflow: visible;
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 40%, transparent);
+	}
+
+	.tt-graph-node.is-drop-insert::after {
+		content: '';
+		position: absolute;
+		top: -6px;
+		bottom: -6px;
+		left: -14px;
+		width: 4px;
+		border-radius: 999px;
+		background: var(--interactive-accent);
+	}
+
+	/* Only while something is dragged over them, so no stacked-dimming rule beats them. */
+	:global(.tt-graph-stage.chain-pinned) .tt-graph-node.is-drop-insert,
+	:global(.tt-graph-stage.chain-pinned) .tt-graph-node.is-drop-link,
+	:global(.tt-graph-stage.chain-pinned) .tt-graph-node.is-dragging {
+		opacity: 1;
 	}
 
 	.tt-graph-node-top {

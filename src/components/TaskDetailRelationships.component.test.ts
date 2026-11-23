@@ -81,4 +81,33 @@ describe('TaskDetailRelationships.svelte', () => {
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Remove blocker' })[0]);
 		expect(props.onRemoveDependency).toHaveBeenCalledWith('Planner/Tasks/bbb222.md');
 	});
+
+	it('offers grouped dependency choices without downstream tasks, and adds the picked one', async () => {
+		const project = buildTask({ id: 'ppp000', name: 'Project P', type: 'project' });
+		const self = buildTask({ id: 'aaa111', name: 'Middle task', parent_task: 'Planner/Tasks/ppp000' });
+		const sibling = buildTask({ id: 'ddd444', name: 'Sibling', parent_task: 'Planner/Tasks/ppp000' });
+		const loose = buildTask({ id: 'eee555', name: 'Loose', is_inbox: true });
+		const after = buildTask({ id: 'ccc333', name: 'Downstream next', depends_on: ['Planner/Tasks/aaa111.md'] });
+		const onAddDependency = vi.fn(async () => {});
+		render(TaskDetailRelationships, {
+			props: {
+				task: self,
+				tasks: [project, self, sibling, loose, after],
+				onAddDependency,
+				onRemoveDependency: vi.fn(async () => {}),
+				onOpenTask: vi.fn(),
+			},
+		});
+
+		const select = screen.getByLabelText('Add a dependency') as HTMLSelectElement;
+		const groups = [...select.querySelectorAll('optgroup')].map((g) => [g.label, [...g.querySelectorAll('option')].map((o) => o.textContent)]);
+		expect(groups).toEqual([
+			['This project', ['Sibling']],
+			['No project', ['Loose']],
+		]);
+
+		await fireEvent.change(select, { target: { value: 'Planner/Tasks/ddd444' } });
+		expect(onAddDependency).toHaveBeenCalledWith('Planner/Tasks/ddd444');
+		expect(select.value).toBe('');
+	});
 });

@@ -14,6 +14,7 @@ export interface TaskActionPorts {
 	setActiveTaskPath: (path: string | null) => void;
 	notice: (message: string) => void;
 	createDependentTask?: (path: string) => void;
+	createBlockerTask?: (path: string) => void;
 }
 
 export interface ArchiveActionPorts {
@@ -51,6 +52,11 @@ export function createTaskContextMenuDeps(ports: TaskActionPorts): TaskContextMe
 		createDependent: ports.createDependentTask
 			? async (path) => {
 				ports.createDependentTask!(path);
+			}
+			: undefined,
+		createBlocker: ports.createBlockerTask
+			? async (path) => {
+				ports.createBlockerTask!(path);
 			}
 			: undefined,
 		archiveTask: async (path) => {

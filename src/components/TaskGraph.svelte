@@ -10,7 +10,9 @@
 	import { flattenTaskGroups } from './viewAdapters';
 	import { splitHolidayCalendar } from '../settings/holidays';
 	import { icon } from '../utils/icon';
+	import { t } from '../i18n';
 	import type { BadgePalette } from '../utils/badgePalette';
+	import type { GraphEditPlan } from '../store/graph/graphEdits';
 	import DependencyGraph from './graph/DependencyGraph.svelte';
 	import TimelineOverview from './graph/TimelineOverview.svelte';
 
@@ -31,6 +33,30 @@
 	export let defaultGraphMode: GraphMode = 'dependency';
 
 	$: tasks = flattenTaskGroups($groups);
+	// Graph edits plan against the whole store, so a filter can't hide the task
+	// that would close a dependency loop.
+	const allTasks = host.taskStore.tasks;
+
+	const stripMd = (path: string): string => path.replace(/\.md$/, '');
+
+	// Runs a planned graph edit, one store write at a time, then says what changed.
+	// A refused plan only reports (the message carries the reason).
+	async function applyGraphEdit(plan: GraphEditPlan, message: string): Promise<void> {
+		if (!plan.ok) {
+			host.notify(message);
+			return;
+		}
+		try {
+			for (const op of plan.ops) {
+				if (op.kind === 'addDependency') await host.taskStore.addDependency(op.taskPath, stripMd(op.dependencyPath));
+				else if (op.kind === 'removeDependency') await host.taskStore.removeDependency(op.taskPath, stripMd(op.dependencyPath));
+				else await host.taskStore.updateParentTask(op.taskPath, op.parentPath ? stripMd(op.parentPath) : null);
+			}
+			host.notify(message);
+		} catch (err) {
+			host.notify(t('graph.notice.failed', { error: err instanceof Error ? err.message : String(err) }));
+		}
+	}
 
 	// Universal working-calendar config (holidays + per-area workweek toggle),
 	// threaded into every date resolution so the graph, timeline, and node cards
@@ -97,6 +123,7 @@
 	{#if defaultGraphMode === 'dependency'}
 		<DependencyGraph
 			{tasks}
+			planningTasks={$allTasks}
 			{palette}
 			{activeTaskPath}
 			{calendarConfig}
@@ -109,6 +136,7 @@
 			onCreateDependent={createDependentTask}
 			onCreateBlocker={createBlockerTask}
 			onCreateInProject={createTaskInProject}
+			onEdit={(plan, message) => void applyGraphEdit(plan, message)}
 		/>
 	{:else}
 		<TimelineOverview

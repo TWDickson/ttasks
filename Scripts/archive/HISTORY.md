@@ -12,6 +12,32 @@ Full detail for anything summarized here is recoverable from git.
 
 ---
 
+## 2026-11-23 — Graph drag editing, "task before" in the menu, grouped dependency picker
+
+- **Graph #12 shipped as four gestures**, with Taylor deciding the open
+  question: "reordering" means *lane move + chain insert*, not a persisted row
+  order (that would have needed a new `ttask_` field and an opt-out from
+  auto-layout). Taylor also asked for break-link at **both** ends of an edge,
+  "rather than trying to find the middle", so each dependency edge gets a
+  control at each attachment point. Those sit on the card sides, so the `+`
+  handles moved to the bottom corners.
+- **Insert-before splices.** Dropping X on Y first closes X's old gap (its
+  dependents take its blockers), then X takes Y's blockers and Y waits on X
+  alone. Without the splice, dragging a later step ahead of an earlier one
+  (`a→b→c→d`, d onto b) closes a loop every time.
+- **Planning is pure and whole-store.** `store/graph/graphEdits.ts` returns ops
+  or a refusal (`cycle`/`exists`/`noop`/…), and the graph plans against
+  `GraphHost.taskStore.tasks`, not the filtered board, so a filter can't hide
+  the task that closes a loop. `GraphHost` gained `taskStore` writes and
+  `notify`.
+- **Touch** never drags a card body (a press there is the tap that opens it);
+  a tapped card shows a move grip next to its `+` handles and break controls.
+- **Context menu:** "New task before this" joins "New task after this"
+  (renamed from "Create dependent task"), matching the graph's left/right `+`.
+- **Dependency picker (14b):** the detail pane had silently gone A–Z again,
+  because `WikiLinkField` re-sorted using a context the pane never passed. It
+  now has its own grouped select and drops downstream (loop) candidates.
+
 ## 2026-11-06 — CLI-8: apostrophes in links; CLI bodies stay verbatim
 
 Both bugs were reported while working on the vault through the CLI.

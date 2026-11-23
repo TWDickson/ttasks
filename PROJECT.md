@@ -339,6 +339,9 @@ flowchart LR
 | `[ ]` | **Version under Settings** in the rail drawer | `v0.2.4 BETA` in faint text below Settings, not clipped | 0.2.4 |
 | `[ ]` | **Selected chips stand out** — detail pane Status and Priority, dark and light | Only the picked chip is coloured; the others are plain grey | 0.2.4 |
 | `[ ]` | **Filter menus** — board Status/Priority/Area/Due dropdowns and the graph's Projects pill | Opens under its button, fully on screen (Projects expands leftward); tap outside or the button again closes it; ticking a box keeps it open; the Due date pickers work inside it | 0.2.4 |
+| `[ ]` | **Graph drag editing** (#12) — desktop: drag a card's `+` onto another card; drag a card onto a card, and onto another lane; hover where an edge meets a card and click the break icon. Phone: tap a card, then drag its `+` / grip, and tap a break icon | Live label says what the drop does; the link/move lands and the notice matches; a loop is refused with a notice; a plain click on `+` still opens the create modal and a plain tap still opens the card | next |
+| `[ ]` | **Detail "Add a dependency" picker** — a task in a project | Grouped: This project, other projects by name, No project, Done; tasks downstream of this one aren't offered | next |
+| `[ ]` | **Right-click "New task before this"** | Opens create; the saved task blocks the clicked one ("after this" still makes a dependent) | next |
 | `[ ]` | **Mobile golden path** floor check | Create → edit → complete a task at phone width, no clipped controls | — |
 | `[~]` | **Graph: detail drawer** after tapping a node in fullscreen graph | Modal closes, drawer is visible and on top (fix: rAF hand-off + `active: Platform.isMobile`) | 0.1.x |
 | `[~]` | **Graph: double-tap-to-open** | One tap opens (fix: `pointerup` on touch, 8 px drag threshold) | 0.1.x |
@@ -433,10 +436,17 @@ isn't Obsidian itself.
   felt it was *"not that nice… come back and tune later,"* so both were **backed
   out**. Remaining: a header-focus affordance that feels good, plus the
   full-title grow reveal.
-- `[ ]` **(12) Drag connectors to create dependency chains** 🔎 — click-and-drag
-  a node's connector (left = depends-on, right = blocks) to link it to another
-  node. Needs interaction-design research: hit targets, drop targets, touch
-  equivalent.
+- `[x]` **(12) Drag to edit the graph** — *(2026-11-23, unreleased)* drag a
+  `+` handle onto a card to link (left = this waits on it, right = it waits on
+  this; a click still creates a new task); drag a card onto another to insert it
+  before that card (spliced out of its old chain, takes over the target's
+  blockers); drag it onto a lane's empty space to move project; a break-link
+  control where each edge meets each of its cards removes the link from either
+  end. Planned in pure `store/graph/graphEdits.ts`, loop-checked against the
+  whole store. Touch: tap a card for its `+`, a move grip and break controls.
+  The `+` handles moved to the card's bottom corners to free the sides.
+  Taylor's call on "reordering": lane move + chain insert, not a stored row
+  order.
 - `[x]` **(16) Vertical sort: rank completed items lower** — *(2026-10-24, 0.2.4)*
   finished branches (completed, nothing open downstream) sink to the bottom of
   their lane; a completed step feeding open work stays on its chain.
@@ -460,6 +470,13 @@ isn't Obsidian itself.
 - `[x]` **Status / Priority badges: selected vs. regular hard to distinguish,
   worse in dark mode** — *(2026-10-24, 0.2.4)* detail-pane chips now match the
   create modal: only the selected chip carries colour; the rest are neutral.
+- `[x]` **(14b) Detail-pane dependency picker, take two** — *(2026-11-23,
+  unreleased)* it had regressed to plain A–Z: `TaskDetailRelationships` sorted
+  same-project first, then `WikiLinkField` re-sorted by
+  `context.values.parent_task`, which the detail pane never passed. Now its own
+  grouped `<select>` (`groupDependencyCandidates`): this project → other
+  projects → no project → Done (recent first), and downstream tasks (which
+  would be a loop) aren't offered. The create modal's multi picker is unchanged.
 - `[x]` **(14) Dependency-picker sorting** — *(2026-10-08)* real bug: the
   comparator did `a.parent_task === currentParentTask`, but stored tasks carry
   `.md` while the create modal's form value is extensionless, so "same project

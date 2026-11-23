@@ -303,6 +303,7 @@ export interface RigPlugin {
 	openFocusUntil: DetailHost['openFocusUntil'];
 	updateSettings: (patch: Partial<RigSettings>) => Promise<void>;
 	openCreateTask: (type: TaskRecordType, options?: CreateTaskOptions) => void;
+	notify: BoardHost['notify'];
 	taskJsonValidValues: ShareSyncHost['taskJsonValidValues'];
 	taskDerivedStateContext: ShareSyncHost['taskDerivedStateContext'];
 	exportTasksToJsonFrom: ShareSyncHost['exportTasksToJsonFrom'];
@@ -366,7 +367,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 		},
 		removeDependency: async (path: string, dep: string) => {
 			const task = findByPath(path);
-			if (task) patchTask(path, { depends_on: task.depends_on.filter((d) => d !== dep) });
+			if (task) patchTask(path, { depends_on: task.depends_on.filter((d) => stripMd(d) !== stripMd(dep)) });
 		},
 		setStatus: async (task: Task, status: string) => {
 			patchTask(task.path, {
@@ -512,6 +513,7 @@ export function buildRigPlugin(options: RigPluginOptions = {}): RigPlugin {
 			console.info('[rig] updateSettings', patch);
 		},
 		openCreateTask: (type: TaskRecordType, options?: CreateTaskOptions) => console.info('[rig] openCreateTask', type, options),
+		notify: (message: string) => console.info('[rig] notice', message),
 		taskJsonValidValues: () => ({
 			statuses: [...(settings.statuses as string[])],
 			priorities: ['High', 'Medium', 'Low', 'None'],

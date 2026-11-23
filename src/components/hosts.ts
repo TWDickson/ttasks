@@ -41,6 +41,14 @@ export interface GraphHost {
 	updateSettings(patch: Partial<GraphSettings>): Promise<void>;
 	triggerTaskHoverPreview(path: string, event: MouseEvent): void;
 	openCreateTask(type: TaskRecordType, options?: CreateTaskOptions): void;
+	/**
+	 * Graph edits (drag to link, drop to move, break a link). `tasks` is the
+	 * whole store: edits are planned and cycle-checked against every task, not
+	 * just the ones the board's filters let through.
+	 */
+	readonly taskStore: Pick<TaskStore, 'tasks' | 'addDependency' | 'removeDependency' | 'updateParentTask'>;
+	/** A transient message (Obsidian `Notice`). */
+	notify(message: string): void;
 }
 
 /** The settings the board reads; written back through `updateSettings`. */
@@ -77,7 +85,9 @@ export interface BoardHost extends GraphHost {
 	readonly focusedTaskPath: Writable<string | null>;
 	/** A view id another surface asked the board to switch to; the board clears it. */
 	readonly activeViewMode: Writable<string | null>;
-	readonly taskStore: Pick<TaskStore, 'tasks' | 'getByPath' | 'update' | 'setStatus' | 'delete' | 'restore' | 'openDetail'>;
+	readonly taskStore: Pick<TaskStore,
+		| 'tasks' | 'getByPath' | 'update' | 'setStatus' | 'delete' | 'restore' | 'openDetail'
+		| 'addDependency' | 'removeDependency' | 'updateParentTask'>;
 	readonly scanEngine: { readonly tasks: Readable<ExternalTask[]> };
 	readonly archiveService: Pick<ArchiveService, 'archiveTask' | 'loadArchivedTasks' | 'restoreTask'>;
 	showTaskContextMenu(task: Task, event: MouseEvent): void;

@@ -117,7 +117,7 @@ describe('addTaskContextMenuItems', () => {
 		expect(titles).not.toContain('Convert to Project');
 	});
 
-	it('shows "Create dependent task" when createDependent callback is provided', () => {
+	it('shows "New task after this" when createDependent callback is provided', () => {
 		const menu = new FakeMenu();
 		const task = makeTask({ type: 'task' });
 		const createDependent = vi.fn(async () => {});
@@ -133,13 +133,13 @@ describe('addTaskContextMenuItems', () => {
 
 		addTaskContextMenuItems(menu as never, task, deps);
 		const titles = menu.items.map(i => i.title);
-		expect(titles).toContain('Create dependent task');
+		expect(titles).toContain('New task after this');
 
-		menu.items.find(i => i.title === 'Create dependent task')?.onClick?.();
+		menu.items.find(i => i.title === 'New task after this')?.onClick?.();
 		expect(createDependent).toHaveBeenCalledWith(task.path);
 	});
 
-	it('omits "Create dependent task" when createDependent is not provided', () => {
+	it('omits "New task after this" when createDependent is not provided', () => {
 		const menu = new FakeMenu();
 		const task = makeTask({ type: 'task' });
 		const deps = {
@@ -152,10 +152,10 @@ describe('addTaskContextMenuItems', () => {
 		};
 
 		addTaskContextMenuItems(menu as never, task, deps);
-		expect(menu.items.map(i => i.title)).not.toContain('Create dependent task');
+		expect(menu.items.map(i => i.title)).not.toContain('New task after this');
 	});
 
-	it('omits "Create dependent task" for projects even when callback is provided', () => {
+	it('omits "New task after this" for projects even when callback is provided', () => {
 		const menu = new FakeMenu();
 		const task = makeTask({ type: 'project' });
 		const deps = {
@@ -169,6 +169,30 @@ describe('addTaskContextMenuItems', () => {
 		};
 
 		addTaskContextMenuItems(menu as never, task, deps);
-		expect(menu.items.map(i => i.title)).not.toContain('Create dependent task');
+		expect(menu.items.map(i => i.title)).not.toContain('New task after this');
+	});
+
+	it('offers "New task before this" ahead of "after" when createBlocker is provided', () => {
+		const menu = new FakeMenu();
+		const task = makeTask({ type: 'task' });
+		const createBlocker = vi.fn(async () => {});
+		const deps = {
+			openTask: vi.fn(),
+			runQuickAction: vi.fn(async () => true),
+			convertToProject: vi.fn(async () => {}),
+			duplicateTask: vi.fn(async () => {}),
+			restoreTask: vi.fn(async () => {}),
+			deleteTask: vi.fn(async () => {}),
+			createDependent: vi.fn(async () => {}),
+			createBlocker,
+		};
+
+		addTaskContextMenuItems(menu as never, task, deps);
+		const titles = menu.items.map(i => i.title);
+		expect(titles.indexOf('New task before this')).toBeGreaterThan(-1);
+		expect(titles.indexOf('New task before this')).toBeLessThan(titles.indexOf('New task after this'));
+
+		menu.items.find(i => i.title === 'New task before this')?.onClick?.();
+		expect(createBlocker).toHaveBeenCalledWith(task.path);
 	});
 });

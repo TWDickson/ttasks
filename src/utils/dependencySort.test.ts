@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sortDependencyFirst } from './dependencySort';
+import { groupDependencyCandidates, sortDependencyFirst } from './dependencySort';
 import type { Task } from '../types';
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -83,5 +83,54 @@ describe('sortDependencyFirst', () => {
 		expect(sortDependencyFirst(sameProject, other, parent)).toBeLessThan(0);
 		expect(sortDependencyFirst(other, sameProject, parent)).toBeGreaterThan(0);
 		expect(sortDependencyFirst(sameProject, other, `${parent}.md`)).toBeLessThan(0);
+	});
+});
+
+describe('groupDependencyCandidates', () => {
+	const t = (name: string, overrides: Partial<Task> = {}): Task =>
+		makeTask({ id: name, slug: name, name, path: `Tasks/${name}.md`, ...overrides });
+	const projA = t('Alpha', { type: 'project' });
+	const projB = t('Beta', { type: 'project' });
+
+	it('groups own project, other projects by name, no project, then done', () => {
+		const self = t('self', { parent_task: 'Tasks/Beta' });
+		const tasks = [
+			projA, projB, self,
+			t('zebra', { parent_task: 'Tasks/Beta' }),
+			t('apple', { parent_task: 'Tasks/Beta' }),
+			t('in-alpha', { parent_task: 'Tasks/Alpha' }),
+			t('loose'),
+			t('old', { is_complete: true, completed: '2026-01-01' }),
+			t('recent', { is_complete: true, completed: '2026-03-01' }),
+		];
+		const groups = groupDependencyCandidates(self, tasks);
+		expect(groups.map((g) => [g.kind, g.project?.name ?? null, g.tasks.map((x) => x.name)])).toEqual([
+			['same-project', 'Beta', ['apple', 'zebra']],
+			['project', 'Alpha', ['in-alpha']],
+			['no-project', null, ['loose']],
+			['done', null, ['recent', 'old']],
+		]);
+	});
+
+	it('counts a subtask under its parent task\'s project', () => {
+		const parent = t('parent', { parent_task: 'Tasks/Alpha' });
+		const sub = t('sub', { parent_task: 'Tasks/parent' });
+		const self = t('self', { parent_task: 'Tasks/Alpha' });
+		const groups = groupDependencyCandidates(self, [projA, parent, sub, self]);
+		expect(groups[0].kind).toBe('same-project');
+		expect(groups[0].tasks.map((x) => x.name)).toEqual(['parent', 'sub']);
+	});
+
+	it('leaves out itself, existing blockers, projects and everything downstream', () => {
+		const self = t('self', { depends_on: ['Tasks/already'] });
+		const tasks = [
+			projA, self,
+			t('already'),
+			t('child', { depends_on: ['[[Tasks/self|self]]'] }),
+			t('grandchild', { depends_on: ['Tasks/child'] }),
+			t('free'),
+		];
+		const names = groupDependencyCandidates(self, tasks).flatMap((g) => g.tasks.map((x) => x.name));
+		expect(names).toEqual(['free']);
 	});
 });

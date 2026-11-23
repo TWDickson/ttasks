@@ -1119,6 +1119,10 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 		console.error(`[TTasks] ${msg}`);
 	}
 
+	notify(message: string): void {
+		new Notice(message);
+	}
+
 	showTaskContextMenu(task: Task, event: MouseEvent): void {
 		event.preventDefault();
 		const menu = new Menu();
@@ -1137,24 +1141,26 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 			archiveTask: (path) => this.archiveService.archiveTask(path),
 			setActiveTaskPath: (path) => this.activeTaskPath.set(path),
 			notice: (message) => { new Notice(message); },
-			createDependentTask: (path) => {
-				const depPath = path.replace(/\.md$/, '');
-				// Inherit project/area/labels/priority so the new task lands in the
-				// same context as the task it depends on.
-				const source = this.taskStore.getByPath(path);
-				new CreateTaskModal(this.app, this, 'task', {
-					initialDependsOn: [depPath],
-					prefill: source
-						? {
-							parent_task: source.parent_task,
-							area: source.area,
-							labels: source.labels,
-							priority: source.priority,
-						}
-						: undefined,
-				}).open();
-			},
+			createDependentTask: (path) => this.openLinkedCreateTask(path, 'after'),
+			createBlockerTask: (path) => this.openLinkedCreateTask(path, 'before'),
 		});
+	}
+
+	/**
+	 * The context menu's "New task before/after this": a new task linked into the
+	 * source's chain, inheriting its project/area/labels/priority so it lands in
+	 * the same context. "After" waits on the source; "before" is one the source
+	 * waits on. Same flows as the graph's `+` handles.
+	 */
+	private openLinkedCreateTask(path: string, side: 'before' | 'after'): void {
+		const source = this.taskStore.getByPath(path);
+		const link = path.replace(/\.md$/, '');
+		new CreateTaskModal(this.app, this, 'task', {
+			...(side === 'after' ? { initialDependsOn: [link] } : { initialBlocks: [path] }),
+			prefill: source
+				? { parent_task: source.parent_task, area: source.area, labels: source.labels, priority: source.priority }
+				: undefined,
+		}).open();
 	}
 
 	private startAutoArchive(): void {

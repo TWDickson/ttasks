@@ -148,7 +148,7 @@ describe('architecture boundaries', () => {
 			.filter((name) => /\.(svelte|ts)$/.test(name) && !name.endsWith('.test.ts'))
 			.map((name) => join(graphDir, name));
 		expect(components.length).toBeGreaterThan(0);
-		for (const path of [...components, 'src/store/graph/graphTrace.ts']) {
+		for (const path of [...components, 'src/store/graph/graphTrace.ts', 'src/store/graph/graphEdits.ts']) {
 			const content = readWorkspaceFile(path);
 			expect(content, path).not.toMatch(/from '\.\.\/\.\.\/main'|from '\.\.\/\.\.\/store\/TaskStore'/);
 			expect(content, path).not.toContain("from 'obsidian'");

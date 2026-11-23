@@ -1,6 +1,7 @@
 import type { Menu } from 'obsidian';
 import type { QuickActionId } from '../settings';
 import type { Task } from '../types';
+import { t } from '../i18n';
 
 export interface TaskContextMenuDeps {
 	openTask: (path: string) => void;
@@ -9,8 +10,10 @@ export interface TaskContextMenuDeps {
 	duplicateTask: (path: string) => Promise<void>;
 	restoreTask: (path: string) => Promise<void>;
 	deleteTask: (path: string) => Promise<void>;
-	/** Optional: shown only when caller wants to offer "create a task that depends on this" */
+	/** Optional: offers "a new task after this one" (it will wait on this). */
 	createDependent?: (path: string) => Promise<void>;
+	/** Optional: offers "a new task before this one" (this will wait on it). */
+	createBlocker?: (path: string) => Promise<void>;
 	/** Optional: archive the task (move to archive folder). Shown for completed tasks. */
 	archiveTask?: (path: string) => Promise<void>;
 }
@@ -52,8 +55,14 @@ export function addTaskContextMenuItems(
 		addMenuItem(menu, 'Convert to Project', 'folder', () => {
 			void deps.convertToProject(task.path);
 		});
+		// Before/after match the graph's left and right `+` handles.
+		if (deps.createBlocker) {
+			addMenuItem(menu, t('contextMenu.createBefore'), 'arrow-left-to-line', () => {
+				void deps.createBlocker!(task.path);
+			});
+		}
 		if (deps.createDependent) {
-			addMenuItem(menu, 'Create dependent task', 'git-branch-plus', () => {
+			addMenuItem(menu, t('contextMenu.createAfter'), 'arrow-right-from-line', () => {
 				void deps.createDependent!(task.path);
 			});
 		}

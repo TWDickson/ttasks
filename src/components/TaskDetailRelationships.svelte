@@ -1,20 +1,17 @@
 <script lang="ts">
 	import type { Task } from '../types';
-	import type { FieldDefinition } from '../schema/types';
-	import { getFieldByName } from '../schema/taskFields';
 	import { detectDependencyCyclePaths } from '../store/graph/taskGraphDates';
-	import { sortDependencyFirst } from '../utils/dependencySort';
+	import { groupDependencyCandidates, type DependencyCandidateGroup } from '../utils/dependencySort';
+	import { t } from '../i18n';
 	import { MAX_REL_TREE_DEPTH, MAX_REL_TREE_NODES } from '../constants';
 	import {
 		buildTaskRefIndex,
-		normalizeRefPath,
 		resolveTaskRef,
 		resolveTaskRefs,
 		taskRefName,
 		type TaskRef,
 		type TaskRefIndex,
 	} from '../utils/taskRef';
-	import WikiLinkField from './fields/WikiLinkField.svelte';
 	import { icon } from '../utils/icon';
 
 	export let task: Task;
@@ -146,21 +143,25 @@
 	$: upstreamTreeLevels = groupTreeLevels(upstreamTree, true);
 	$: downstreamTreeLevels = groupTreeLevels(downstreamTree, false);
 
-	$: availableDependencies = tasks
-		.filter((t) => t.type === 'task' && t.path !== task.path && !task.depends_on.some((d) => normalizeRefPath(d) === t.path))
-		.sort((a, b) => sortDependencyFirst(a, b, task.parent_task));
+	// Grouped (this project → other projects → no project → done) rather than one
+	// A–Z list, and without the tasks downstream of this one: those already
+	// wait on it, so choosing one would only be refused as a loop.
+	$: candidateGroups = groupDependencyCandidates(task, tasks);
 
-	const addBlockerFieldDefinition: FieldDefinition = {
-		...(getFieldByName('depends_on') as FieldDefinition),
-		label: '',
-		ariaLabel: 'Add a dependency',
-		chipsType: 'single',
-		selectAllowEmpty: true,
-	};
+	function candidateGroupLabel(group: DependencyCandidateGroup): string {
+		switch (group.kind) {
+			case 'same-project': return t('relationships.picker.sameProject');
+			case 'no-project': return t('relationships.picker.noProject');
+			case 'done': return t('relationships.picker.done');
+			case 'project': return group.project?.name ?? t('relationships.picker.unknownProject');
+		}
+	}
 
-	function onAddDependencySelection(nextValue: string | string[]): void {
-		if (typeof nextValue !== 'string' || !nextValue) return;
-		void onAddDependency(nextValue);
+	function onAddDependencySelection(event: Event): void {
+		const select = event.currentTarget as HTMLSelectElement;
+		const value = select.value;
+		select.value = '';
+		if (value) void onAddDependency(value);
 	}
 </script>
 
@@ -265,13 +266,22 @@
 						{/each}
 					</div>
 				{/if}
-				{#if availableDependencies.length > 0}
-					<WikiLinkField
-						definition={addBlockerFieldDefinition}
-						value={null}
-						options={availableDependencies}
-						onChange={onAddDependencySelection}
-					/>
+				{#if candidateGroups.length > 0}
+					<select
+						class="dropdown tt-rel-add"
+						aria-label={t('relationships.picker.ariaLabel')}
+						value=""
+						on:change={onAddDependencySelection}
+					>
+						<option value="">{t('relationships.picker.placeholder')}</option>
+						{#each candidateGroups as group (group.key)}
+							<optgroup label={candidateGroupLabel(group)}>
+								{#each group.tasks as candidate (candidate.path)}
+									<option value={candidate.path.replace(/\.md$/, '')}>{candidate.name}</option>
+								{/each}
+							</optgroup>
+						{/each}
+					</select>
 				{/if}
 			</div>
 
@@ -523,6 +533,13 @@
 		letter-spacing: 0.06em;
 		color: var(--text-faint);
 		cursor: help;
+	}
+
+	/* `.dropdown` is Obsidian's select styling; this only sizes it to the lane. */
+	.tt-rel-add {
+		width: 100%;
+		max-width: 100%;
+		min-height: var(--tt-control-height, var(--input-height, 38px));
 	}
 
 	.tt-rel-empty {

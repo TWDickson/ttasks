@@ -25,5 +25,56 @@ export const en = {
 			title: 'Show projects',
 			showAll: 'Show all',
 		},
+		/** The hover controls on a card: the `+` handles, the move grip, break-link. */
+		handle: {
+			addBefore: 'New task before “{name}”',
+			addAfter: 'New task after “{name}”',
+			/** Tooltip on both `+` handles. */
+			hint: 'Click for a new task, or drag onto a card to link it',
+			move: 'Drag to move “{name}”',
+			unlink: 'Remove link: “{dependent}” waits on “{blocker}”',
+		},
+		/** The live label next to the pointer while dragging. */
+		drop: {
+			/** Dragged from a card's left `+`: the target becomes its blocker. */
+			linkBefore: '“{target}” must finish first',
+			/** Dragged from a card's right `+`: the target waits on it. */
+			linkAfter: '“{target}” waits on this',
+			insertBefore: 'Insert before “{target}”',
+			moveToLane: 'Move to {lane}',
+			refused: {
+				cycle: 'Would create a dependency loop',
+				exists: 'Already linked',
+				self: 'Same task',
+				noop: 'Already here',
+				'not-task': 'Not a task',
+			},
+		},
+		notice: {
+			linked: 'TTasks: “{dependent}” now waits on “{blocker}”',
+			unlinked: 'TTasks: “{dependent}” no longer waits on “{blocker}”',
+			inserted: 'TTasks: moved “{name}” before “{target}”',
+			moved: 'TTasks: moved “{name}” to {lane}',
+			refused: 'TTasks: not changed. {reason}',
+			failed: 'TTasks: graph edit failed. {error}',
+		},
+	},
+	contextMenu: {
+		/** A new task this one waits on, so it comes before it in the chain. */
+		createBefore: 'New task before this',
+		/** A new task that waits on this one. */
+		createAfter: 'New task after this',
+	},
+	relationships: {
+		/** Groups in the detail pane's "Add a dependency" picker. */
+		picker: {
+			placeholder: '+ Add a dependency…',
+			ariaLabel: 'Add a dependency',
+			/** A project group whose project record isn't loaded (never a path-derived name). */
+			unknownProject: 'Other project',
+			sameProject: 'This project',
+			noProject: 'No project',
+			done: 'Done',
+		},
 	},
 } as const;

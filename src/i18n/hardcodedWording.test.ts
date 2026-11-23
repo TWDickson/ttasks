@@ -60,7 +60,7 @@ describe('UI wording lives in src/i18n', () => {
 		'src/components/fields/SelectField.svelte': 1,
 		'src/components/fields/TimeField.svelte': 1,
 		'src/components/fields/WikiLinkField.svelte': 4,
-		'src/components/graph/DependencyGraph.svelte': 13,
+		'src/components/graph/DependencyGraph.svelte': 11,
 		'src/components/graph/DependencyLaneHeaders.svelte': 1,
 		'src/components/graph/GraphNodeCard.svelte': 3,
 		'src/components/graph/TimelineOverview.svelte': 12,

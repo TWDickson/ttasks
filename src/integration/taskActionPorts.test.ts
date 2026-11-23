@@ -46,6 +46,7 @@ function makePorts(overrides: Partial<TaskActionPorts> = {}): TaskActionPorts {
 		setActiveTaskPath: vi.fn((_path: string | null) => {}),
 		notice: vi.fn((_message: string) => {}),
 		createDependentTask: vi.fn((_path: string) => {}),
+		createBlockerTask: vi.fn((_path: string) => {}),
 		...overrides,
 	};
 }
@@ -160,5 +161,15 @@ describe('createTaskContextMenuDeps', () => {
 		delete (withoutDep as Partial<TaskActionPorts>).createDependentTask;
 		const depsWithout = createTaskContextMenuDeps(withoutDep);
 		expect(depsWithout.createDependent).toBeUndefined();
+	});
+
+	it('exposes createBlocker only when port is provided', async () => {
+		const withPort = makePorts();
+		await createTaskContextMenuDeps(withPort).createBlocker?.('Tasks/a.md');
+		expect(withPort.createBlockerTask).toHaveBeenCalledWith('Tasks/a.md');
+
+		const withoutPort = makePorts();
+		delete (withoutPort as Partial<TaskActionPorts>).createBlockerTask;
+		expect(createTaskContextMenuDeps(withoutPort).createBlocker).toBeUndefined();
 	});
 });
