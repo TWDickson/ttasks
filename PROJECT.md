@@ -342,6 +342,8 @@ flowchart LR
 | `[ ]` | **Graph drag editing** (#12) — desktop: drag a card's `+` onto another card; drag a card onto a card, and onto another lane; hover where an edge meets a card and click the break icon. Phone: tap a card, then drag its `+` / grip, and tap a break icon | Live label says what the drop does; the link/move lands and the notice matches; a loop is refused with a notice; a plain click on `+` still opens the create modal and a plain tap still opens the card | next |
 | `[ ]` | **Detail "Add a dependency" picker** — a task in a project | Grouped: This project, other projects by name, No project, Done; tasks downstream of this one aren't offered | next |
 | `[ ]` | **Right-click "New task before this"** | Opens create; the saved task blocks the clicked one ("after this" still makes a dependent) | next |
+| `[ ]` | **Graph shows inherited Hold/Blocked/Future** — an Active task waiting on a Hold or Blocked one, Dependencies view | Card's top row reads e.g. `ACTIVE  Hold upstream`, tinted the status colour; hover names the task holding it up; clearing the blocker removes it | next |
+| `[ ]` | **Right-click "Copy task ID"** — list, kanban, graph card | Copies the 6-hex id (e.g. `fb7ee6`); a notice confirms; pastes into the CLI / a URI | next |
 | `[ ]` | **Mobile golden path** floor check | Create → edit → complete a task at phone width, no clipped controls | — |
 | `[~]` | **Graph: detail drawer** after tapping a node in fullscreen graph | Modal closes, drawer is visible and on top (fix: rAF hand-off + `active: Platform.isMobile`) | 0.1.x |
 | `[~]` | **Graph: double-tap-to-open** | One tap opens (fix: `pointerup` on touch, 8 px drag threshold) | 0.1.x |
@@ -422,7 +424,8 @@ isn't Obsidian itself.
 - `[x]` **(8) Cascade to dependents** — engine 2026-07-25
   (`src/query/taskImpediment.ts`, Blocked > Hold > Future, derived never written);
   UI surfacing shipped as `.tt-badge-impediment` on rows and kanban cards
-  (by 2026-07-31). **Residual** `[ ]`: the detail pane doesn't show the badge —
+  (by 2026-07-31), and on dependency-graph cards (2026-11-23 — the graph had
+  never rendered it, so a downstream Active card looked unimpeded). **Residual** `[ ]`: the detail pane doesn't show the badge —
   decide whether it should (the Relationships section already marks blocked
   upstream nodes).
 

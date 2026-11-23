@@ -13,6 +13,8 @@
 	import { t } from '../i18n';
 	import type { BadgePalette } from '../utils/badgePalette';
 	import type { GraphEditPlan } from '../store/graph/graphEdits';
+	import { buildImpedimentBadges, computeImpediments } from '../query/taskImpediment';
+	import { buildTaskRefIndex } from '../utils/taskRef';
 	import DependencyGraph from './graph/DependencyGraph.svelte';
 	import TimelineOverview from './graph/TimelineOverview.svelte';
 
@@ -36,6 +38,20 @@
 	// Graph edits plan against the whole store, so a filter can't hide the task
 	// that would close a dependency loop.
 	const allTasks = host.taskStore.tasks;
+
+	// Derived Blocked/Hold/Future cascade (#8), from the whole store so a blocker
+	// hidden by a filter still impedes. Same derivation the list and kanban use.
+	$: impedimentStatuses = {
+		blockStatus: host.statusPolicy.block,
+		holdStatus: host.statusPolicy.hold,
+		futureStatus: host.statusPolicy.future,
+	};
+	$: impedimentBadges = buildImpedimentBadges(
+		computeImpediments($allTasks, impedimentStatuses),
+		impedimentStatuses,
+		buildTaskRefIndex($allTasks),
+		palette,
+	);
 
 	const stripMd = (path: string): string => path.replace(/\.md$/, '');
 
@@ -125,6 +141,7 @@
 			{tasks}
 			planningTasks={$allTasks}
 			{palette}
+			{impedimentBadges}
 			{activeTaskPath}
 			{calendarConfig}
 			diagnosticsEnabled={host.settings.graphDiagnosticsEnabled}

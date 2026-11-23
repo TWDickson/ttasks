@@ -14,6 +14,8 @@ export interface TaskContextMenuDeps {
 	createDependent?: (path: string) => Promise<void>;
 	/** Optional: offers "a new task before this one" (this will wait on it). */
 	createBlocker?: (path: string) => Promise<void>;
+	/** Optional: copy the task's id (the `{6hex}` filename prefix) to the clipboard. */
+	copyTaskId?: (id: string) => Promise<void>;
 	/** Optional: archive the task (move to archive folder). Shown for completed tasks. */
 	archiveTask?: (path: string) => Promise<void>;
 }
@@ -37,6 +39,11 @@ export function addTaskContextMenuItems(
 	deps: TaskContextMenuDeps,
 ): void {
 	addMenuItem(menu, 'Open', 'file-text', () => deps.openTask(task.path));
+	if (deps.copyTaskId) {
+		addMenuItem(menu, t('contextMenu.copyId'), 'clipboard-copy', () => {
+			void deps.copyTaskId!(task.id);
+		});
+	}
 
 	if (task.type === 'task') {
 		menu.addSeparator();

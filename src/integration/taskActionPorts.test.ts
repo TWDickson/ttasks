@@ -172,4 +172,22 @@ describe('createTaskContextMenuDeps', () => {
 		delete (withoutPort as Partial<TaskActionPorts>).createBlockerTask;
 		expect(createTaskContextMenuDeps(withoutPort).createBlocker).toBeUndefined();
 	});
+
+	it('copies the id to the clipboard and says so', async () => {
+		const copyToClipboard = vi.fn(async (_text: string) => {});
+		const ports = makePorts({ copyToClipboard });
+		await createTaskContextMenuDeps(ports).copyTaskId!('fb7ee6');
+		expect(copyToClipboard).toHaveBeenCalledWith('fb7ee6');
+		expect(ports.notice).toHaveBeenCalledWith('TTasks: copied task ID fb7ee6');
+	});
+
+	it('reports a refused clipboard write instead of throwing', async () => {
+		const ports = makePorts({ copyToClipboard: vi.fn(async () => { throw new Error('denied'); }) });
+		await createTaskContextMenuDeps(ports).copyTaskId!('fb7ee6');
+		expect(ports.notice).toHaveBeenCalledWith('TTasks: could not copy to the clipboard');
+	});
+
+	it('offers no copy action without a clipboard port', () => {
+		expect(createTaskContextMenuDeps(makePorts()).copyTaskId).toBeUndefined();
+	});
 });

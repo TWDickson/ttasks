@@ -1,6 +1,7 @@
 import type { QuickActionId } from '../settings';
 import type { Task } from '../types';
 import type { TaskContextMenuDeps } from './contextMenu';
+import { t } from '../i18n';
 
 export interface TaskActionPorts {
 	/** Opens the task's note in a new editor tab — the context menu's "Open". */
@@ -15,6 +16,8 @@ export interface TaskActionPorts {
 	notice: (message: string) => void;
 	createDependentTask?: (path: string) => void;
 	createBlockerTask?: (path: string) => void;
+	/** Writes text to the system clipboard; rejects when the platform refuses. */
+	copyToClipboard?: (text: string) => Promise<void>;
 }
 
 export interface ArchiveActionPorts {
@@ -49,6 +52,16 @@ export function createTaskContextMenuDeps(ports: TaskActionPorts): TaskContextMe
 			await ports.restoreTask(path);
 			ports.notice('TTasks: task reopened');
 		},
+		copyTaskId: ports.copyToClipboard
+			? async (id) => {
+				try {
+					await ports.copyToClipboard!(id);
+					ports.notice(t('contextMenu.copiedId', { id }));
+				} catch {
+					ports.notice(t('contextMenu.copyFailed'));
+				}
+			}
+			: undefined,
 		createDependent: ports.createDependentTask
 			? async (path) => {
 				ports.createDependentTask!(path);

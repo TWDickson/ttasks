@@ -195,4 +195,41 @@ describe('addTaskContextMenuItems', () => {
 		menu.items.find(i => i.title === 'New task before this')?.onClick?.();
 		expect(createBlocker).toHaveBeenCalledWith(task.path);
 	});
+
+	it('offers "Copy task ID" right after Open, passing the task id', () => {
+		const menu = new FakeMenu();
+		const task = makeTask({ id: 'fb7ee6' });
+		const copyTaskId = vi.fn(async () => {});
+		const deps = {
+			openTask: vi.fn(),
+			runQuickAction: vi.fn(async () => true),
+			convertToProject: vi.fn(async () => {}),
+			duplicateTask: vi.fn(async () => {}),
+			restoreTask: vi.fn(async () => {}),
+			deleteTask: vi.fn(async () => {}),
+			copyTaskId,
+		};
+
+		addTaskContextMenuItems(menu as never, task, deps);
+		const titles = menu.items.map(i => i.title);
+		expect(titles.indexOf('Copy task ID')).toBe(titles.indexOf('Open') + 1);
+
+		menu.items.find(i => i.title === 'Copy task ID')?.onClick?.();
+		expect(copyTaskId).toHaveBeenCalledWith('fb7ee6');
+	});
+
+	it('omits "Copy task ID" without a clipboard callback', () => {
+		const menu = new FakeMenu();
+		const deps = {
+			openTask: vi.fn(),
+			runQuickAction: vi.fn(async () => true),
+			convertToProject: vi.fn(async () => {}),
+			duplicateTask: vi.fn(async () => {}),
+			restoreTask: vi.fn(async () => {}),
+			deleteTask: vi.fn(async () => {}),
+		};
+
+		addTaskContextMenuItems(menu as never, makeTask(), deps);
+		expect(menu.items.map(i => i.title)).not.toContain('Copy task ID');
+	});
 });

@@ -3,12 +3,15 @@
 	// pixels; DOM events are forwarded so the graph owns open/pin/hover.
 	import type { TaskGraphNode } from '../../store/graph/taskGraph';
 	import type { BadgePalette } from '../../utils/badgePalette';
+	import type { ImpedimentBadge } from '../../query/taskImpediment';
 	import { priorityColor } from '../../constants';
 	import { nodeSubtitle } from '../../store/graph/graphPresentation';
 	import { formatHumanDate } from '../../utils/dateUtils';
 
 	export let node: TaskGraphNode;
 	export let palette: BadgePalette;
+	/** Set when something upstream is Blocked/Hold/Future and this task's own status doesn't say so. */
+	export let impediment: ImpedimentBadge | undefined = undefined;
 	export let today: string;
 	/** Projected finish from the dependency chain, shown when the task has no date. */
 	export let projectedEnd: string | null;
@@ -52,6 +55,13 @@
 	<div class="tt-graph-node-top">
 		<span class="tt-graph-priority-dot"></span>
 		<span class="tt-graph-status">{node.task.status}</span>
+		{#if impediment}
+			<span
+				class="tt-badge tt-badge-impediment tt-graph-impediment"
+				style={impediment.style}
+				title={impediment.tooltip}
+			>{impediment.label}</span>
+		{/if}
 	</div>
 	<div class="tt-graph-name tt-title tt-title-strong">{node.task.name}</div>
 	<div class="tt-graph-meta">
@@ -232,10 +242,22 @@
 	}
 
 	.tt-graph-status {
+		flex-shrink: 0;
 		min-width: 0;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	/* Shares the top row with the status; ellipsizes first, since the status is
+	the card's own fact and the tooltip carries the full impediment. */
+	.tt-graph-impediment {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		text-transform: none;
+		letter-spacing: normal;
 	}
 
 	/* Content budget inside the fixed 122px card (102px after padding):

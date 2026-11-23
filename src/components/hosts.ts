@@ -49,6 +49,8 @@ export interface GraphHost {
 	readonly taskStore: Pick<TaskStore, 'tasks' | 'addDependency' | 'removeDependency' | 'updateParentTask'>;
 	/** A transient message (Obsidian `Notice`). */
 	notify(message: string): void;
+	/** Status pointers — the graph cards badge an inherited Blocked/Hold/Future. */
+	readonly statusPolicy: StatusPolicy;
 }
 
 /** The settings the board reads; written back through `updateSettings`. */

@@ -64,6 +64,10 @@ export const en = {
 		createBefore: 'New task before this',
 		/** A new task that waits on this one. */
 		createAfter: 'New task after this',
+		/** Copies the 6-hex id from the filename — what the CLI and `obsidian://ttasks` take. */
+		copyId: 'Copy task ID',
+		copiedId: 'TTasks: copied task ID {id}',
+		copyFailed: 'TTasks: could not copy to the clipboard',
 	},
 	relationships: {
 		/** Groups in the detail pane's "Add a dependency" picker. */

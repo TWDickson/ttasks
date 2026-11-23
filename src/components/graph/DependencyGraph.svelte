@@ -7,6 +7,7 @@
 	import type { Task } from '../../types';
 	import type { CalendarConfig } from '../../store/graph/taskGraphDates';
 	import type { BadgePalette } from '../../utils/badgePalette';
+	import type { ImpedimentBadge } from '../../query/taskImpediment';
 	import { buildTaskGraph, resolveConnectedDependencyPaths, resolveOwningProjectPath, type TaskGraphNode } from '../../store/graph/taskGraph';
 	import { computeEdgeAttachments, layoutEdgePath } from '../../store/graph/graphEdgeRouting';
 	import { computeGraphQualityMetrics, graphLayoutKey } from '../../store/graph/graphQualityMetrics';
@@ -27,6 +28,8 @@
 
 	export let tasks: Task[];
 	export let palette: BadgePalette;
+	/** Inherited Blocked/Hold/Future, by task path (upstream impediments only). */
+	export let impedimentBadges: Map<string, ImpedimentBadge> = new Map();
 	export let activeTaskPath: Readable<string | null>;
 	export let calendarConfig: CalendarConfig;
 	export let diagnosticsEnabled: boolean;
@@ -759,6 +762,7 @@
 						<GraphNodeCard
 							{node}
 							{palette}
+							impediment={impedimentBadges.get(node.path)}
 							today={$today}
 							projectedEnd={projectedEndLabel(node.path, $today)}
 							active={$activeTaskPath === node.path}

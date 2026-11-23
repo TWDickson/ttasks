@@ -1143,6 +1143,7 @@ export default class TTasksPlugin extends Plugin implements BoardHost, DetailHos
 			notice: (message) => { new Notice(message); },
 			createDependentTask: (path) => this.openLinkedCreateTask(path, 'after'),
 			createBlockerTask: (path) => this.openLinkedCreateTask(path, 'before'),
+			copyToClipboard: (text) => navigator.clipboard.writeText(text),
 		});
 	}
 
