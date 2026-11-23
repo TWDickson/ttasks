@@ -21,6 +21,8 @@
 	/** Resolved area/label/status colours. See utils/badgePalette. */
 	export let palette: BadgePalette;
 	export let blockStatus = 'Blocked';
+	/** The hold status, or `null` when the vault has none. Its reason shows too. */
+	export let holdStatus: string | null = null;
 	/** Derived upstream Blocked/Hold cascade (#8), keyed by task path. */
 	export let impedimentBadges: Map<string, ImpedimentBadge> | undefined = undefined;
 	export let kanbanCardFields: KanbanCardField[] = ['area', 'dueDate', 'labels', 'depCount'];
@@ -242,7 +244,7 @@
 									<span class="tt-card-name tt-title">{task.name}</span>
 								</div>
 
-								{#if task.status === blockStatus && task.blocked_reason}
+								{#if task.blocked_reason && (task.status === blockStatus || (holdStatus && task.status === holdStatus))}
 									<p class="tt-card-blocked-reason">{task.blocked_reason}</p>
 								{/if}
 

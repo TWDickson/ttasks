@@ -62,6 +62,7 @@ describe('deriveTaskDetailFieldProps', () => {
 			allTasks: [],
 			settings: makeSettings(),
 			blockStatus: 'Blocked',
+			holdStatus: 'Hold',
 			values: {
 				name: '',
 				status: 'Active',
@@ -94,6 +95,7 @@ describe('deriveTaskDetailFieldProps', () => {
 			allTasks: [project, task, peerTask],
 			settings: makeSettings(),
 			blockStatus: 'Blocked',
+			holdStatus: 'Hold',
 			values: {
 				name: task.name,
 				status: task.status,

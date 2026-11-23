@@ -59,6 +59,10 @@ export const en = {
 			failed: 'TTasks: graph edit failed. {error}',
 		},
 	},
+	detail: {
+		/** `blocked_reason`, shown for the blocked and hold statuses. */
+		reasonLabel: 'Reason',
+	},
 	contextMenu: {
 		/** A new task this one waits on, so it comes before it in the chain. */
 		createBefore: 'New task before this',

@@ -255,7 +255,7 @@ Every write answers in one shape:
 | `labels=<a,b>` | `labels` | Tasks only. *Clearable*. `update` also takes `add-labels=` / `remove-labels=` |
 | `parent=<task>` | `parent` | The project it belongs to. *Clearable* |
 | `depends-on=<a,b>` | `depends_on` | Tasks it waits on. A loop is refused. *Clearable*. `update` also takes `add-depends-on=` / `remove-depends-on=`; removing takes the hash of an archived or missing task too, so a dangling link can be cleared |
-| `blocked-reason=` | `blocked_reason` | What it waits on; goes with your blocked status. *Clearable* |
+| `blocked-reason=` | `blocked_reason` | What it waits on; goes with your blocked or hold status. *Clearable* |
 | `assigned-to=` | `assigned_to` | *Clearable* |
 | `source=` | `source` | Where it came from (a chat, an email). *Clearable* |
 | `start-date=` / `due-date=` | `start_date` / `due_date` | Usually leave blank (see above). *Clearable*: `none` hands it back to the schedule |
@@ -312,7 +312,7 @@ Work checks read open tasks only:
 
 | Check | Flags |
 | --- | --- |
-| `stalled-without-reason` | Your blocked status with no `blocked_reason` |
+| `stalled-without-reason` | Your blocked or hold status with no `blocked_reason` |
 | `thin-body` | A body with fewer than `min-body=` non-whitespace characters (default 50), on any open task that isn't blocked, on hold or future. `thin-status=<a,b>` checks only those statuses |
 | `overdue` | A due date before today |
 | `open-under-finished-parent` | An open task whose project is complete or archived |

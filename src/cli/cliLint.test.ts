@@ -122,6 +122,8 @@ describe('ttasks:lint work', () => {
 		project,
 		task({ id: 'ccc333', name: 'Stuck', status: 'Blocked' }),
 		task({ id: 'ddd444', name: 'Thin', notes: 'tbd' }),
+		task({ id: 'hhh888', name: 'Parked, says why', status: 'Hold', blocked_reason: 'Awaiting Paul', notes: 'x'.repeat(50) }),
+		task({ id: 'hhh999', name: 'Parked, silent', status: 'Hold', notes: 'x'.repeat(50) }),
 		task({ id: 'ddd555', name: 'Thin but future', status: 'Future', notes: 'tbd' }),
 		task({ id: 'eee555', name: 'Leftover', parent_task: project.path }),
 		task({ id: 'eee666', name: 'In archived project', parent_task: ARCHIVED[0].path }),
@@ -133,6 +135,7 @@ describe('ttasks:lint work', () => {
 		expect(found(context(TASKS, [], ARCHIVED), { ...all, checks: ['stalled-without-reason', 'thin-body', 'overdue', 'open-under-finished-parent'] })).toEqual([
 			'stalled-without-reason ccc333',
 			'thin-body ddd444',
+			'stalled-without-reason hhh999',
 			'open-under-finished-parent eee555',
 			'open-under-finished-parent eee666',
 			'overdue fff666',
@@ -147,7 +150,7 @@ describe('ttasks:lint work', () => {
 	it('runs as a command, with a count per check and a text form', async () => {
 		const command = CLI_COMMANDS.find((candidate) => candidate.id === 'ttasks:lint')!;
 		const out = JSON.parse(await command.run({}, context(TASKS, [], ARCHIVED), undefined as never));
-		expect(out).toMatchObject({ checked: 8, archived: 1, count: 5, by_check: { overdue: 1, 'thin-body': 1 } });
+		expect(out).toMatchObject({ checked: 10, archived: 1, count: 6, by_check: { overdue: 1, 'thin-body': 1 } });
 		const clean = task({ id: 'aaa111', name: 'Clean' });
 		expect(await command.run({ format: 'text' }, context([clean], [fm(clean)]), undefined as never)).toBe('No issues in 1 notes.');
 		expect(JSON.parse(await command.run({ check: 'nope' }, context(TASKS), undefined as never)).valid).toEqual([...LINT_CHECKS]);

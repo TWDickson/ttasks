@@ -291,9 +291,15 @@ describe('ttasks:update status', () => {
 			.toEqual([`update ${stuck.path} {"blocked_reason":"HOA"}`]);
 	});
 
+	it('takes a reason with the hold status too', async () => {
+		const { out, calls } = await run('ttasks:update', { id: 'aaa111', status: 'Hold', 'blocked-reason': 'Awaiting Paul' });
+		expect(json(out).error).toBeUndefined();
+		expect(calls).toEqual([expect.stringContaining('"blocked_reason":"Awaiting Paul"')]);
+	});
+
 	it('refuses a reason with any other status, but keeps an old reason when unblocking', async () => {
-		const { out, calls } = await run('ttasks:update', { id: 'aaa111', status: 'Hold', 'blocked-reason': 'x' });
-		expect(json(out).error).toMatch(/status=Blocked/);
+		const { out, calls } = await run('ttasks:update', { id: 'aaa111', status: 'Active', 'blocked-reason': 'x' });
+		expect(json(out).error).toMatch(/status=Blocked or status=Hold/);
 		expect(calls).toEqual([]);
 		const stuck = task({ id: 'sss001', name: 'Stuck', status: 'Blocked', blocked_reason: 'HOA' });
 		expect((await run('ttasks:update', { id: 'sss001', status: 'Active' }, fakeStore([stuck]))).calls)
@@ -464,7 +470,7 @@ describe('impact of other writes', () => {
 	});
 
 	it('blocking a task with nothing downstream doesn\'t warn about downstream', async () => {
-		const { out } = await run('ttasks:update', { id: 'c00001', status: 'Hold', 'dry-run': 'true' }, fakeStore(CHAIN));
+		const { out } = await run('ttasks:update', { id: 'c00001', status: 'Hold', 'blocked-reason': 'Awaiting Paul', 'dry-run': 'true' }, fakeStore(CHAIN));
 		expect(json(out).warnings).toBeUndefined();
 	});
 

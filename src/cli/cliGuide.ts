@@ -28,7 +28,7 @@ const ROLE_MEANINGS = {
 	started: 'being worked on',
 	done: 'complete; ttasks:complete sets it, and a repeating task recurs',
 	blocked: 'stuck on something outside the plan; impedes everything downstream; takes blocked-reason=',
-	'on-hold': 'parked on purpose; impedes everything downstream',
+	'on-hold': 'parked on purpose; impedes everything downstream; takes blocked-reason=',
 	future: 'not near-term yet; impedes everything downstream',
 } as const;
 
@@ -63,7 +63,7 @@ export function buildRules(ctx: CliContext): Record<string, string> {
 			'it wait for other work, set depends-on= (or add-depends-on=). Use start-date= only when work truly ' +
 			'cannot begin before a date.',
 		impediments:
-			`Set ${block} only on the task that is actually stuck, with blocked-reason=. Every task waiting behind it ` +
+			`Set ${block} only on the task that is actually stuck, with blocked-reason=${hold ? ` (${hold} takes one too)` : ''}. Every task waiting behind it ` +
 			'shows impeded and impeded_by on its own. Do not restatus those tasks; they clear when the blocker ' +
 			`does.${parking ? ` ${parking} propagate downstream the same way.` : ''}`,
 		derived:
@@ -232,8 +232,9 @@ export function explainTask(ctx: CliContext, task: Task) {
 	const reasons: string[] = [];
 
 	if (task.is_complete) reasons.push(`It is complete (${task.status}${task.completed ? `, ${task.completed}` : ''}).`);
-	if (task.status === block) reasons.push(`Its status is ${block}${task.blocked_reason ? `: ${task.blocked_reason}` : ', with no reason given'}.`);
-	else if (task.status === hold || task.status === future) reasons.push(`Its status is ${task.status}.`);
+	if (task.status === block || (hold && task.status === hold)) {
+		reasons.push(`Its status is ${task.status}${task.blocked_reason ? `: ${task.blocked_reason}` : ', with no reason given'}.`);
+	} else if (task.status === future) reasons.push(`Its status is ${task.status}.`);
 	if (view.impeded) reasons.push(`It is impeded (${view.impeded}) by ${(view.impeded_by ?? []).join(', ') || 'an upstream task'}. Clear that, not this task.`);
 	if (view.in_cycle) reasons.push('It is in a dependency loop, so it has no schedule. Remove one of the dependencies.');
 	const waitingOn = task.is_complete ? [] : waitTree(task, byPath, shaped, new Set([task.path]), 0);

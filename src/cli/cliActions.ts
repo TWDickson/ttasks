@@ -355,8 +355,9 @@ function validateMerged(ctx: CliContext, merged: Task, settingReason: boolean): 
 	}
 	if (merged.type === 'project' && merged.labels.length) throw new CliArgumentError('projects carry no labels');
 	// Only a reason this write sets: one left over from an earlier block is kept, not an error.
-	if (settingReason && merged.blocked_reason && merged.status !== ctx.statusPolicy.block) {
-		throw new CliArgumentError(`blocked-reason= goes with status=${ctx.statusPolicy.block}`);
+	const { block, hold } = ctx.statusPolicy;
+	if (settingReason && merged.blocked_reason && merged.status !== block && merged.status !== hold) {
+		throw new CliArgumentError(`blocked-reason= goes with status=${block}${hold ? ` or status=${hold}` : ''}`);
 	}
 }
 
@@ -390,7 +391,9 @@ function warningsFor(ctx: CliContext, before: Task | null, after: Task): string[
 					'They clear when this one does; don\'t restatus them.');
 			}
 		}
-		if (after.status === block && !after.blocked_reason) warnings.push('No blocked-reason= given; say what it is waiting on.');
+		if ((after.status === block || (hold && after.status === hold)) && !after.blocked_reason) {
+			warnings.push('No blocked-reason= given; say what it is waiting on.');
+		}
 	}
 	return warnings;
 }

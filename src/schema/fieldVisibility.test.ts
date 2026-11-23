@@ -1,7 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { isBlockedStatus } from './fieldVisibility';
+import { isBlockedStatus, takesReason } from './fieldVisibility';
 
 describe('fieldVisibility', () => {
+	describe('takesReason', () => {
+		it('is true for the blocked and the hold status', () => {
+			expect(takesReason('Blocked', 'Blocked', 'Hold')).toBe(true);
+			expect(takesReason('Hold', 'Blocked', 'Hold')).toBe(true);
+			expect(takesReason('hold', 'Blocked', 'Hold')).toBe(true);
+		});
+
+		it('is false for other statuses, and for Hold in a vault with no hold status', () => {
+			expect(takesReason('Active', 'Blocked', 'Hold')).toBe(false);
+			expect(takesReason('Future', 'Blocked', 'Hold')).toBe(false);
+			expect(takesReason('Hold', 'Blocked', null)).toBe(false);
+			expect(takesReason('', 'Blocked', '')).toBe(false);
+		});
+	});
+
 	describe('isBlockedStatus', () => {
 		it('returns true for default blocked status', () => {
 			expect(isBlockedStatus('Blocked')).toBe(true);

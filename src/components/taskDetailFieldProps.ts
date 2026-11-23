@@ -26,6 +26,8 @@ export interface TaskDetailFieldPropsInput {
 	settings: TaskSettings;
 	values: TaskDetailEditableValues;
 	blockStatus: string;
+	/** `null` in a vault with no Hold — then only Blocked takes a reason. */
+	holdStatus: string | null;
 }
 
 export interface TaskDetailFieldPropsState {
@@ -69,7 +71,7 @@ function deriveInlineFieldProps(
 	const field = getFieldByName(fieldName);
 	if (!field) return null;
 
-	const { task, allTasks, settings, values, blockStatus } = input;
+	const { task, allTasks, settings, values, blockStatus, holdStatus } = input;
 	const props = adaptFieldForDetail(
 		field,
 		{
@@ -88,6 +90,7 @@ function deriveInlineFieldProps(
 			blocked_reason: values.blocked_reason,
 			repeat: values.repeat,
 			blockStatus,
+			holdStatus,
 		},
 		allTasks,
 		settings,

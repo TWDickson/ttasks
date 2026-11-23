@@ -175,8 +175,22 @@ describe('TaskDetail.svelte', () => {
 			tasks: [buildTask({ status: 'Blocked', blocked_reason: 'Waiting on API access' })],
 		});
 
-		expect(screen.getByText('Blocked Reason')).toBeInTheDocument();
+		expect(screen.getByText('Reason')).toBeInTheDocument();
 		expect(screen.getByDisplayValue('Waiting on API access')).toBeInTheDocument();
+	});
+
+	it('shows the reason field for the hold status too', () => {
+		renderDetail({
+			tasks: [buildTask({ status: 'Hold', blocked_reason: 'Awaiting Paul' })],
+			settings: { statuses: ['Active', 'Hold', 'Blocked', 'Done'], quickActions: { blockStatus: 'Blocked', holdStatus: 'Hold' } },
+		});
+		expect(screen.getByText('Reason')).toBeInTheDocument();
+		expect(screen.getByDisplayValue('Awaiting Paul')).toBeInTheDocument();
+	});
+
+	it('hides the reason field for an active task', () => {
+		renderDetail({ tasks: [buildTask({ status: 'Active', blocked_reason: 'stale' })] });
+		expect(screen.queryByText('Reason')).toBeNull();
 	});
 
 	it('shows archive action for completed tasks', () => {
@@ -198,6 +212,6 @@ describe('TaskDetail.svelte', () => {
 		activeTaskPath.set(taskB.path);
 
 		expect(await screen.findByDisplayValue('Beta Task')).toBeInTheDocument();
-		expect(screen.getByText('Blocked Reason')).toBeInTheDocument();
+		expect(screen.getByText('Reason')).toBeInTheDocument();
 	});
 });

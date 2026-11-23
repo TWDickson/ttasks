@@ -404,6 +404,16 @@ describe('describeImpediment', () => {
 		expect(described.label).toBe('Hold upstream');
 	});
 
+	it("adds a cause's own reason, when it gave one", () => {
+		const described = describeImpediment(
+			{ kind: 'held', source: 'upstream', causes: ['Tasks/c.md'] },
+			STATUSES,
+			buildTaskRefIndex([makeTask({ path: 'Tasks/c.md', name: 'Wait for DGO', status: 'Hold', blocked_reason: 'Awaiting reply' })]),
+		);
+
+		expect(described.tooltip).toBe('Hold upstream — waiting on: Wait for DGO (Awaiting reply)');
+	});
+
 	it('lists every cause', () => {
 		const described = describeImpediment(
 			{ kind: 'blocked', source: 'upstream', causes: ['Tasks/a.md', 'Tasks/b.md'] },

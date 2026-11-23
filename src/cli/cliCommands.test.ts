@@ -197,7 +197,7 @@ describe('ttasks:show', () => {
 
 	it('prints a readable block with format=text', () => {
 		const out = run('ttasks:show', { id: 'aab222', format: 'text' });
-		expect(out).toContain('blocked because: Waiting on quotes');
+		expect(out).toContain('reason: Waiting on quotes');
 		expect(out).toContain('path: Tasks/aab222-pick-roofer.md');
 	});
 });

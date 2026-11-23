@@ -12,7 +12,8 @@
 	import { today } from '../utils/todayStore';
 	import { buildTaskSchedule, resolveProjectedSchedule } from '../store/taskSchedule';
 	import { splitHolidayCalendar } from '../settings/holidays';
-	import { isBlockedStatus } from '../schema/fieldVisibility';
+	import { takesReason } from '../schema/fieldVisibility';
+	import { t } from '../i18n';
 	import type { FieldComponentProps } from '../schema/fieldAdapters';
 	import { deriveTaskDetailFieldProps } from './taskDetailFieldProps';
 	import { buildTaskRefIndex, resolveTaskRef } from '../utils/taskRef';
@@ -393,6 +394,7 @@
 			allTasks: $tasks,
 			settings: host.settings,
 			blockStatus,
+			holdStatus,
 			values: {
 				name,
 				status,
@@ -439,7 +441,8 @@
 
 	$: completionStatus = getCompletionStatus();
 	$: blockStatus = host.statusPolicy.block;
-	$: showBlockedReason = isBlockedStatus(status, blockStatus);
+	$: holdStatus = host.statusPolicy.hold;
+	$: showBlockedReason = takesReason(status, blockStatus, holdStatus);
 	// A project can itself sit under a project, so the picker has to exclude more
 	// than just self: anything already beneath this one would close a parent loop.
 	// For a plain task the descendant set is empty, so this costs it nothing.
@@ -701,7 +704,7 @@
 			{/if}
 
 			{#if showBlockedReason}
-				<label class="tt-label" for="blocked_reason">Blocked Reason</label>
+				<label class="tt-label" for="blocked_reason">{t('detail.reasonLabel')}</label>
 				{#if blockedReasonFieldProps}
 					<TextField
 						definition={blockedReasonFieldProps.definition}

@@ -1,6 +1,6 @@
 import type { FieldDefinition } from './types';
 import type { Task } from '../types';
-import { isBlockedStatus } from './fieldVisibility';
+import { takesReason } from './fieldVisibility';
 import { isIsoDateString, parseIsoDate } from '../utils/dateUtils';
 import { PRIORITIES } from '../constants';
 import { REPEAT_PRESETS } from '../repeat/presets';
@@ -239,11 +239,11 @@ const TASK_FIELD_UI = {
 	},
 
 	blocked_reason: {
-		label: 'Blocked Reason',
+		label: 'Reason',
 		type: 'text',
 		section: 'advanced',
-		placeholder: 'Why is this task blocked?',
-		visible: (values) => isBlockedStatus(values.status, values.blockStatus),
+		placeholder: 'What is it waiting on?',
+		visible: (values) => takesReason(values.status, values.blockStatus, values.holdStatus),
 	},
 
 	source: {

@@ -46,7 +46,7 @@ describe('UI wording lives in src/i18n', () => {
 		'src/components/TaskAgenda.svelte': 1,
 		'src/components/TaskArchiveView.svelte': 8,
 		'src/components/TaskBoard.svelte': 26,
-		'src/components/TaskDetail.svelte': 39,
+		'src/components/TaskDetail.svelte': 38,
 		'src/components/TaskDetailActions.svelte': 7,
 		'src/components/TaskDetailNotes.svelte': 5,
 		'src/components/TaskDetailRelationships.svelte': 15,

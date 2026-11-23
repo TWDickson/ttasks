@@ -343,6 +343,7 @@ flowchart LR
 | `[ ]` | **Detail "Add a dependency" picker** — a task in a project | Grouped: This project, other projects by name, No project, Done; tasks downstream of this one aren't offered | next |
 | `[ ]` | **Right-click "New task before this"** | Opens create; the saved task blocks the clicked one ("after this" still makes a dependent) | next |
 | `[ ]` | **Graph shows inherited Hold/Blocked/Future** — an Active task waiting on a Hold or Blocked one, Dependencies view | Card's top row reads e.g. `ACTIVE  Hold upstream`, tinted the status colour; hover names the task holding it up; clearing the blocker removes it | next |
+| `[ ]` | **Reason on Hold** — set a task to Hold in the detail pane; a Hold task with a reason on the kanban; hover "Hold upstream" on a graph card | The Reason field appears for Hold (not Active); kanban card shows the reason under the title; the graph tooltip reads "waiting on: Name (reason)" | next |
 | `[ ]` | **Right-click "Copy task ID"** — list, kanban, graph card | Copies the 6-hex id (e.g. `fb7ee6`); a notice confirms; pastes into the CLI / a URI | next |
 | `[ ]` | **Mobile golden path** floor check | Create → edit → complete a task at phone width, no clipped controls | — |
 | `[~]` | **Graph: detail drawer** after tapping a node in fullscreen graph | Modal closes, drawer is visible and on top (fix: rAF hand-off + `active: Platform.isMobile`) | 0.1.x |
@@ -421,6 +422,13 @@ isn't Obsidian itself.
   **Remaining:** reflect this in UI wording/tooltips and in the `blocked_reason`
   field copy, which still reads "Why is this task blocked?" and only fits the
   Blocked case (`src/schema/taskFields.ts`).
+  **2026-11-23:** the reason now applies to Hold as well (`takesReason`,
+  `src/schema/fieldVisibility.ts`): detail pane, kanban card, the graph's
+  "upstream" tooltip (names each cause's reason), and the CLI (`blocked-reason=`
+  accepted on Hold, `stalled-without-reason` lint, `why`). The field reads
+  "Reason — What is it waiting on?". The stored key stays `ttask_blocked_reason`
+  (Taylor's call) so notes and Share/Sync are unchanged — 20+ vault notes already
+  carried it, some on Hold tasks where the UI hid it.
 - `[x]` **(8) Cascade to dependents** — engine 2026-07-25
   (`src/query/taskImpediment.ts`, Blocked > Hold > Future, derived never written);
   UI surfacing shipped as `.tt-badge-impediment` on rows and kanban cards
@@ -673,8 +681,7 @@ that N3's façade will later wrap.
   body was set, the full `notes`, so a dry run shows what would land.
   `depend … remove` takes the hash of a dependency whose task is gone, so a
   dangling link can be cleared. Choices: `stalled-without-reason` covers the
-  blocked status only, because `blocked_reason` is the blocked status's field
-  (the UI shows it only there) and a reason on Hold can't be recorded. "Finished
+  blocked status (and, since 2026-11-23, Hold — see Status semantics). "Finished
   parent" means the completion status; Cancelled isn't a policy pointer.
   Whether Obsidian unescapes `\n` before the handler sees it is still unknown.
   Either way the result is the same, since an already-unescaped value has no

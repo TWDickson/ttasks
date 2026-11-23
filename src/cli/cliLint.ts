@@ -338,8 +338,8 @@ export function lintTasks(ctx: CliContext, options: LintOptions): LintIssue[] {
 		// ── Work checks: open tasks ───────────────────────────────────────────
 		if (!task || task.is_complete) continue;
 
-		if (task.status === block && !task.blocked_reason.trim()) {
-			at('stalled-without-reason', `${block} with no reason; say what it is waiting on`,
+		if ((task.status === block || (hold && task.status === hold)) && !task.blocked_reason.trim()) {
+			at('stalled-without-reason', `${task.status} with no reason; say what it is waiting on`,
 				`ttasks:update id=${task.id} blocked-reason=<what it waits on>`);
 		}
 		const chars = bodyChars(task.notes);

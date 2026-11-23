@@ -241,7 +241,11 @@ export function describeImpediment(
 	const label = `${statusName} upstream`;
 	const names = state.causes.flatMap((path) => {
 		const ref = resolveTaskRef(path, index);
-		return ref ? [taskRefName(ref)] : [];
+		if (!ref) return [];
+		// The cause's own reason, when it gave one: the badge answers "held up by
+		// what?", and the reason answers "and why?" without opening the task.
+		const reason = ref.kind === 'task' ? ref.task.blocked_reason.trim() : '';
+		return [reason ? `${taskRefName(ref)} (${reason})` : taskRefName(ref)];
 	});
 	const tooltip = names.length > 0
 		? `${label} — waiting on: ${names.join(', ')}`

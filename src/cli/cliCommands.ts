@@ -146,7 +146,7 @@ function runShow(params: CliParams, ctx: CliContext): string {
 		if (shown.labels.length) lines.push(`labels: ${shown.labels.join(', ')}`);
 		if (shown.depends_on.length) lines.push(`depends on: ${shown.depends_on.join(', ')}`);
 		if (shown.impeded_by?.length) lines.push(`impeded by: ${shown.impeded_by.join(', ')}`);
-		if (shown.blocked_reason) lines.push(`blocked because: ${shown.blocked_reason}`);
+		if (shown.blocked_reason) lines.push(`reason: ${shown.blocked_reason}`);
 		if (shown.notes) lines.push('', shown.notes);
 		return lines.join('\n');
 	});

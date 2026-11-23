@@ -567,6 +567,7 @@ import { localDateString, resolveWeekStart, type WeekStart } from '../utils/date
 						statuses={configuredStatuses}
 						{palette}
 						blockStatus={statusPolicy.block}
+						holdStatus={statusPolicy.hold}
 						{impedimentBadges}
 						kanbanCardFields={host.settings.kanbanCardFields}
 						{activeTaskPath}
